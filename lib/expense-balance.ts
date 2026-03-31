@@ -6,7 +6,7 @@ export type TripExpenseBalanceInput = {
   paid_by_names?: unknown;
   owed_by_names?: unknown;
   amount: number | string | null;
-  currency: string;
+  currency: string | null;
 };
 
 export type BalanceRow = {
@@ -31,6 +31,11 @@ function normalizeAmount(value: number | string | null) {
     return Number.isFinite(parsed) ? parsed : 0;
   }
   return 0;
+}
+
+function normalizeCurrency(value: string | null | undefined) {
+  const code = (value || "EUR").toUpperCase().trim();
+  return /^[A-Z]{3}$/.test(code) ? code : "EUR";
 }
 
 function normalizeNames(value: unknown) {
@@ -102,6 +107,7 @@ export function buildSettlementSuggestions(
   const settlements: SettlementSuggestion[] = [];
   let debtorIndex = 0;
   let creditorIndex = 0;
+  const safeCurrency = normalizeCurrency(currency);
 
   while (debtorIndex < debtors.length && creditorIndex < creditors.length) {
     const debtor = debtors[debtorIndex];
@@ -114,7 +120,7 @@ export function buildSettlementSuggestions(
         debtor_name: debtor.name,
         creditor_name: creditor.name,
         amount,
-        currency,
+        currency: safeCurrency,
         status: "pending",
         source_balance_key: `${debtor.name}->${creditor.name}`,
       });
