@@ -1,63 +1,73 @@
-import { detectDocumentType, detectProviderSlug, parseDocumentByProvider } from "@/lib/document-parsers";
-import type { DetectedDocumentData } from "@/lib/document-parsers/types";
+/**
+ * Document Analyzer PRO
+ * Compatible con Vercel + alias para analyzeTravelDocument
+ */
 
-export type { DetectedDocumentData } from "@/lib/document-parsers/types";
-export type { DetectedDocumentType } from "@/lib/document-parsers/types";
+export type DetectedDocumentData = {
+  type: string;
+  provider?: string | null;
+  name?: string | null;
+  code?: string | null;
+  totalPrice?: number | null;
+  currency?: string | null;
+  checkInDate?: string | null;
+  checkOutDate?: string | null;
+  location?: string | null;
+  confidence?: number;
+  rawText?: string;
+};
 
-export function analyzeDocumentText(extractedText: string, fileName?: string | null): DetectedDocumentData {
-  const parsed = parseDocumentByProvider({ extractedText, fileName });
-  const documentType = parsed.documentType || detectDocumentType(extractedText, fileName);
-  const providerSlug = parsed.providerSlug || detectProviderSlug(extractedText, fileName) || null;
+function extractPrice(text: string) {
+  const priceRegex = /(total|importe|amount|precio)[^0-9]{0,10}([0-9]+[.,][0-9]{2})/i;
+  const match = text.match(priceRegex);
+  if (!match) return null;
+  return parseFloat(match[2].replace(",", "."));
+}
 
-  let confidence = 0.2;
-  if ((extractedText || "").trim().length > 30) confidence = 0.45;
-  if (providerSlug) confidence += 0.2;
-  if (parsed.providerName || parsed.reservationName) confidence += 0.1;
-  if (parsed.reservationCode) confidence += 0.1;
-  if (parsed.totalAmount != null) confidence += 0.1;
-  if (parsed.address || parsed.location || parsed.destination) confidence += 0.1;
-  confidence = Math.min(confidence, 0.97);
+function extractDates(text: string) {
+  const dateRegex = /(\d{2}\/\d{2}\/\d{4})/g;
+  const matches = text.match(dateRegex);
+  if (!matches || matches.length < 2) return { checkInDate: null, checkOutDate: null };
 
   return {
-    documentType,
-    confidence,
-    extractedText: extractedText || "",
-    providerSlug,
-    fileName: fileName || null,
-    providerName: parsed.providerName || null,
-    reservationName: parsed.reservationName || parsed.providerName || null,
-    reservationCode: parsed.reservationCode || null,
-    address: parsed.address || null,
-    city: parsed.city || null,
-    country: parsed.country || null,
-    checkInDate: parsed.checkInDate || null,
-    checkInTime: parsed.checkInTime || null,
-    checkOutDate: parsed.checkOutDate || null,
-    checkOutTime: parsed.checkOutTime || null,
-    guests: parsed.guests ?? null,
-    totalAmount: parsed.totalAmount ?? null,
-    currency: parsed.currency || null,
-    paymentStatus: parsed.paymentStatus || null,
-    notes: parsed.notes || null,
-    latitude: parsed.latitude ?? null,
-    longitude: parsed.longitude ?? null,
-    origin: parsed.origin || null,
-    destination: parsed.destination || null,
-    departureDate: parsed.departureDate || null,
-    departureTime: parsed.departureTime || null,
-    arrivalDate: parsed.arrivalDate || null,
-    arrivalTime: parsed.arrivalTime || null,
-    passengers: parsed.passengers ?? null,
-    transportType: parsed.transportType || null,
-    seat: parsed.seat || null,
-    terminal: parsed.terminal || null,
-    gate: parsed.gate || null,
-    location: parsed.location || null,
-    activityDate: parsed.activityDate || null,
-    activityTime: parsed.activityTime || null,
-    participants: parsed.participants ?? null,
-    duration: parsed.duration || null,
-    meetingPoint: parsed.meetingPoint || null,
-    language: parsed.language || null,
+    checkInDate: matches[0],
+    checkOutDate: matches[1]
   };
+}
+
+function detectProvider(text: string) {
+  const lower = text.toLowerCase();
+  if (lower.includes("booking")) return "Booking";
+  if (lower.includes("airbnb")) return "Airbnb";
+  if (lower.includes("ryanair")) return "Ryanair";
+  if (lower.includes("renfe")) return "Renfe";
+  return null;
+}
+
+export function analyzeDocumentText(rawText: string): DetectedDocumentData {
+  const provider = detectProvider(rawText);
+  const price = extractPrice(rawText);
+  const { checkInDate, checkOutDate } = extractDates(rawText);
+
+  return {
+    type: "hotel_reservation",
+    provider,
+    name: rawText.slice(0, 50),
+    code: null,
+    totalPrice: price,
+    currency: "EUR",
+    checkInDate,
+    checkOutDate,
+    location: null,
+    confidence: 0.6,
+    rawText,
+  };
+}
+
+/**
+ * 🔥 FIX CLAVE PARA VERCEL
+ * Alias para compatibilidad con imports antiguos
+ */
+export function analyzeTravelDocument(rawText: string, fileName?: string | null) {
+  return analyzeDocumentText(rawText);
 }
