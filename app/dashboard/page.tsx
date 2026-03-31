@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import SignOutButton from "@/components/auth/SignOutButton";
-import CreateTripForm from "@/components/dashboard/CreateTripForm";
+import CreateTripSection from "@/components/dashboard/CreateTripSection";
 
 type Trip = {
   id: string;
@@ -256,7 +256,7 @@ export default async function DashboardPage() {
             <p className="mt-1 text-sm text-slate-600">Añádelo aquí y aparecerá automáticamente en su categoría.</p>
           </div>
         </div>
-        <CreateTripForm />
+        <CreateTripSection />
       </section>
 
       {trips.length === 0 ? (
