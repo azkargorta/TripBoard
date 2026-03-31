@@ -110,6 +110,11 @@ function extractComponent(
   return components?.find((component) => component.types.includes(type))?.long_name || null;
 }
 
+
+function normalizePaymentStatus(value: unknown): "paid" | "pending" {
+  return value === "paid" ? "paid" : "pending";
+}
+
 export default function LodgingReservationForm({
   saving = false,
   detectedData,
@@ -152,7 +157,7 @@ export default function LodgingReservationForm({
       guests: typeof detectedData.guests === "number" ? String(detectedData.guests) : current.guests,
       totalAmount: typeof detectedData.totalAmount === "number" ? String(detectedData.totalAmount) : current.totalAmount,
       currency: detectedData.currency || current.currency,
-      paymentStatus: detectedData.paymentStatus || current.paymentStatus,
+      paymentStatus: normalizePaymentStatus(detectedData.paymentStatus || current.paymentStatus),
       notes: current.notes || "",
       latitude: typeof detectedData.latitude === "number" ? detectedData.latitude : current.latitude,
       longitude: typeof detectedData.longitude === "number" ? detectedData.longitude : current.longitude,

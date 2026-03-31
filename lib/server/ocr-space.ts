@@ -26,7 +26,7 @@ export async function extractTextWithOcrSpace(input: {
   if (!hasApiKey()) return "";
 
   const formData = new FormData();
-  const blob = new Blob([input.buffer], {
+  const blob = new Blob([new Uint8Array(input.buffer)], {
     type: input.mimeType || "application/octet-stream",
   });
 

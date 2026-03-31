@@ -51,6 +51,11 @@ const EMPTY_FORM: TransportReservationFormData = {
   notes: "",
 };
 
+
+function normalizePaymentStatus(value: unknown): "paid" | "pending" {
+  return value === "paid" ? "paid" : "pending";
+}
+
 export default function TransportReservationForm({ saving = false, detectedData, onSubmit }: Props) {
   const [form, setForm] = useState<TransportReservationFormData>(EMPTY_FORM);
   const [error, setError] = useState<string | null>(null);
@@ -88,7 +93,7 @@ export default function TransportReservationForm({ saving = false, detectedData,
       gate: typeof meta.gate === "string" ? meta.gate : current.gate,
       totalAmount: typeof detectedData.totalAmount === "number" ? String(detectedData.totalAmount) : current.totalAmount,
       currency: detectedData.currency || current.currency,
-      paymentStatus: detectedData.paymentStatus || current.paymentStatus,
+      paymentStatus: normalizePaymentStatus(detectedData.paymentStatus || current.paymentStatus),
       notes: detectedData.extractionWarning || current.notes,
     }));
   }, [detectedData]);

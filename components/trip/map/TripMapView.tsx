@@ -1,21 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  DirectionsRenderer,
-  GoogleMap,
-  InfoWindowF,
-  MarkerF,
-  useJsApiLoader,
-} from "@react-google-maps/api";
-import TripMapActivityLegend from "@/components/trip/map/TripMapActivityLegend";
-import {
-  TRIP_MAP_LEGEND,
-  buildGoogleMarkerSymbol,
-  getLegendItem,
-  type TripMapPlaceKind,
-} from "@/components/trip/map/tripMapMarkerConfig";
-import { useTripMapActivities, type TripMapPoint } from "@/hooks/useTripMapActivities";
+import { GoogleMap, MarkerF, useJsApiLoader } from "@react-google-maps/api";
+
+export type TripMapPoint = {
+  id: string;
+  latitude: number;
+  longitude: number;
+  title?: string | null;
+};
 
 export type TripMapRoute = {
   id: string;
@@ -33,7 +25,6 @@ export type TripMapRoute = {
   destination_longitude?: number | null;
 };
 
-// 🔥 EXTENDIDO para compatibilidad con distintas páginas
 type Props = {
   tripId: string;
   points?: TripMapPoint[] | null;
@@ -41,32 +32,15 @@ type Props = {
   selectedDate?: string;
   onChangeSelectedDate?: (value: string) => void;
   availableDates?: string[] | null;
-
-  // ⬇️ NUEVO: props opcionales para evitar errores de build
-  trip?: any;
+  trip?: unknown;
   tripDates?: string[];
-  planSources?: any;
-  routeSources?: any;
+  planSources?: unknown;
+  routeSources?: unknown;
 };
-
-type RouteDirectionsMap = Record<string, google.maps.DirectionsResult | null>;
 
 const DEFAULT_CENTER = { lat: 48.8566, lng: 2.3522 };
 
-function routeColor(index: number, saved?: string | null) {
-  if (saved) return saved;
-  const palette = ["#2563eb", "#e11d48", "#059669", "#7c3aed", "#d97706", "#0891b2", "#dc2626", "#0f766e"];
-  return palette[index % palette.length];
-}
-
-export default function TripMapView({
-  tripId,
-  points = [],
-  routes = [],
-  selectedDate = "all",
-  availableDates = [],
-}: Props) {
-  // 🔥 tu lógica original sigue intacta
+export default function TripMapView({ points = [] }: Props) {
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
   });

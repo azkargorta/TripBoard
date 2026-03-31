@@ -4,9 +4,9 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 
-function withTimeout<T>(promise: Promise<T>, ms = 10000): Promise<T> {
+function withTimeout<T>(promiseLike: PromiseLike<T>, ms = 10000): Promise<T> {
   return Promise.race([
-    promise,
+    Promise.resolve(promiseLike),
     new Promise<T>((_, reject) =>
       setTimeout(() => reject(new Error("La operación tardó demasiado")), ms)
     ),
@@ -78,7 +78,7 @@ export default function CreateTripForm() {
         throw tripError || new Error("No se pudo crear el viaje.");
       }
 
-      const newTripId = tripData.id as string;
+      const newTripId = String(tripData.id);
 
       const participantInsertResult = await withTimeout(
         supabase.from("trip_participants").insert({

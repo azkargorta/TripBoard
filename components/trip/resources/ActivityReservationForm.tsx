@@ -43,6 +43,11 @@ const EMPTY_FORM: ActivityReservationFormData = {
   notes: "",
 };
 
+
+function normalizePaymentStatus(value: unknown): "paid" | "pending" {
+  return value === "paid" ? "paid" : "pending";
+}
+
 export default function ActivityReservationForm({ saving = false, detectedData, onSubmit }: Props) {
   const [form, setForm] = useState<ActivityReservationFormData>(EMPTY_FORM);
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +71,7 @@ export default function ActivityReservationForm({ saving = false, detectedData, 
       language: typeof meta.language === "string" ? meta.language : current.language,
       totalAmount: typeof detectedData.totalAmount === "number" ? String(detectedData.totalAmount) : current.totalAmount,
       currency: detectedData.currency || current.currency,
-      paymentStatus: detectedData.paymentStatus || current.paymentStatus,
+      paymentStatus: normalizePaymentStatus(detectedData.paymentStatus || current.paymentStatus),
       notes: detectedData.extractionWarning || current.notes,
     }));
   }, [detectedData]);

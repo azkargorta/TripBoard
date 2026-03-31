@@ -153,17 +153,17 @@ export function computePersonalBalance({
 
   let paid = 0;
   let owed = 0;
-  let matchedBy: "name" | "id" | "none" = "none";
+  let matchedBy: "names" | "ids" | "mixed" | "none" = "none";
 
   for (const row of nameBasedRows) {
     if (identities.has(normalize(row.person))) {
       paid += Number(row.paid || 0);
       owed += Number(row.owed || 0);
-      matchedBy = "name";
+      matchedBy = "names";
     }
   }
 
-  if (matchedBy === "none") {
+  {
     for (const expense of safeExpenses) {
       const amount = Number(expense.amount ?? 0) || 0;
       if (amount <= 0) continue;
@@ -184,14 +184,14 @@ export function computePersonalBalance({
 
       if (payerIds.some((value) => identities.has(value))) {
         paid += amount;
-        matchedBy = "id";
+        matchedBy = matchedBy === "names" ? "mixed" : "ids";
       }
 
       if (splitBetween.length) {
         const matchingShares = splitBetween.filter((value) => identities.has(value)).length;
         if (matchingShares > 0) {
           owed += (amount / splitBetween.length) * matchingShares;
-          matchedBy = "id";
+          matchedBy = matchedBy === "names" ? "mixed" : "ids";
         }
       }
     }

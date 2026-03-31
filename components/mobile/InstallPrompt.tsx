@@ -25,6 +25,8 @@ export default function InstallPrompt() {
   if (!visible || !deferredPrompt) return null;
 
   async function handleInstall() {
+    if (!deferredPrompt) return;
+
     await deferredPrompt.prompt();
     await deferredPrompt.userChoice;
     setVisible(false);

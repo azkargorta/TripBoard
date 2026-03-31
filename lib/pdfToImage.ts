@@ -23,10 +23,7 @@ async function loadPdfJs(): Promise<PdfJsModule> {
     throw new Error("PDF.js solo puede cargarse en cliente");
   }
 
-  const mod = await import(
-    /* webpackIgnore: true */
-    "/pdf.mjs"
-  );
+  const mod = await new Function('return import("/pdf.mjs")')();
 
   const pdfjs = (mod?.default ?? mod) as Partial<PdfJsModule>;
 

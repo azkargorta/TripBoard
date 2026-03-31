@@ -34,7 +34,7 @@ type EditableActivity = {
   address?: string | null;
   latitude?: number | null;
   longitude?: number | null;
-  activity_kind?: ActivityKind | null;
+  activity_kind?: string | null;
 };
 
 type Props = {
@@ -67,7 +67,7 @@ function fromInitial(initialData?: EditableActivity | null): PlanFormValues {
     address: initialData.address || "",
     latitude: typeof initialData.latitude === "number" ? initialData.latitude : null,
     longitude: typeof initialData.longitude === "number" ? initialData.longitude : null,
-    activityKind: initialData.activity_kind || "visit",
+    activityKind: (initialData.activity_kind === "visit" || initialData.activity_kind === "museum" || initialData.activity_kind === "restaurant" || initialData.activity_kind === "lodging" || initialData.activity_kind === "transport" || initialData.activity_kind === "activity") ? initialData.activity_kind : "visit",
   };
 }
 

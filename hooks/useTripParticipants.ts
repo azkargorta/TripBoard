@@ -8,6 +8,7 @@ import type {
   TripParticipantRecord,
   TripRole,
 } from "@/lib/participants";
+export type { TripRole } from "@/lib/participants";
 import { normalizePermissions } from "@/lib/participants";
 
 export type TripParticipant = TripParticipantRecord;

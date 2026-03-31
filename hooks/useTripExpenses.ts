@@ -90,20 +90,21 @@ function normalizeDateInput(value: string) {
   return clean;
 }
 
-async function fetchRate(base: string, target: string) {
-  if (base === target) return 1;
-  const url = `/api/currency/latest?base=${encodeURIComponent(base)}&symbols=${encodeURIComponent(target)}`;
+async function fetchRate(base: string | null | undefined, target: string) {
+  const safeBase = (base || target || "EUR").toUpperCase();
+  if (safeBase === target) return 1;
+  const url = `/api/currency/latest?base=${encodeURIComponent(safeBase)}&symbols=${encodeURIComponent(target)}`;
   const response = await fetch(url);
   const payload = await response.json().catch(() => null);
   if (!response.ok) throw new Error(payload?.error || "No se pudo convertir la moneda.");
   const rate = payload?.rates?.[target];
-  if (typeof rate !== "number") throw new Error(`No hay tipo de cambio para ${base} → ${target}.`);
+  if (typeof rate !== "number") throw new Error(`No hay tipo de cambio para ${safeBase} → ${target}.`);
   return rate;
 }
 
-async function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+async function withTimeout<T>(promiseLike: PromiseLike<T>, ms: number, message: string): Promise<T> {
   return await Promise.race([
-    promise,
+    Promise.resolve(promiseLike),
     new Promise<T>((_, reject) => setTimeout(() => reject(new Error(message)), ms)),
   ]);
 }
@@ -325,12 +326,12 @@ export function useTripExpenses(tripId: string) {
         analysis_data: input.analysisData || {},
       };
 
-      const { error } = await withTimeout(
+      const expenseInsertResult = await withTimeout(
         supabase.from("trip_expenses").insert(payload),
         15000,
         "El guardado del gasto tardó demasiado. Revisa la tabla trip_expenses o triggers."
       );
-      if (error) throw new Error(error.message);
+      if (expenseInsertResult.error) throw new Error(expenseInsertResult.error.message);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo guardar el gasto.");
@@ -370,12 +371,12 @@ export function useTripExpenses(tripId: string) {
         analysis_data: input.analysisData || currentExpense?.analysis_data || {},
       };
 
-      const { error } = await withTimeout(
+      const expenseUpdateResult = await withTimeout(
         supabase.from("trip_expenses").update(payload).eq("id", expenseId),
         15000,
         "El guardado del gasto tardó demasiado. Revisa la tabla trip_expenses o triggers."
       );
-      if (error) throw new Error(error.message);
+      if (expenseUpdateResult.error) throw new Error(expenseUpdateResult.error.message);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo actualizar el gasto.");

@@ -12,6 +12,8 @@ export type TripExpenseBalanceInput = {
 export type BalanceRow = {
   person: string;
   balance: number;
+  paid: number;
+  owed: number;
 };
 
 export type SettlementSuggestion = {
@@ -51,7 +53,7 @@ function round2(value: number) {
 }
 
 export function buildBalances(expenses: TripExpenseBalanceInput[]) {
-  const map = new Map<string, number>();
+  const map = new Map<string, { balance: number; paid: number; owed: number }>();
 
   for (const e of expenses) {
     const amount = normalizeAmount(e.amount);
@@ -67,22 +69,30 @@ export function buildBalances(expenses: TripExpenseBalanceInput[]) {
     if (debtors.length) {
       const split = amount / debtors.length;
       for (const debtor of debtors) {
-        map.set(debtor, (map.get(debtor) || 0) - split);
+        const current = map.get(debtor) || { balance: 0, paid: 0, owed: 0 };
+        current.balance -= split;
+        current.owed += split;
+        map.set(debtor, current);
       }
     }
 
     if (payers.length) {
       const split = amount / payers.length;
       for (const payer of payers) {
-        map.set(payer, (map.get(payer) || 0) + split);
+        const current = map.get(payer) || { balance: 0, paid: 0, owed: 0 };
+        current.balance += split;
+        current.paid += split;
+        map.set(payer, current);
       }
     }
   }
 
   return Array.from(map.entries())
-    .map(([person, balance]) => ({
+    .map(([person, row]) => ({
       person,
-      balance: round2(balance),
+      balance: round2(row.balance),
+      paid: round2(row.paid),
+      owed: round2(row.owed),
     }))
     .sort((a, b) => a.person.localeCompare(b.person));
 }

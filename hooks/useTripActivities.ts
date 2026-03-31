@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 
 export type TripActivity = {
   id: string;
-  trip_id: string;
+  trip_id?: string;
   linked_reservation_id?: string | null;
   title: string;
   description?: string | null;

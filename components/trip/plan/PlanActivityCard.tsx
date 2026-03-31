@@ -1,6 +1,7 @@
 "use client";
 
 type PlanActivity = {
+  trip_id?: string;
   id: string;
   title: string;
   description?: string | null;
