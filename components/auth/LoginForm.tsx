@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { signInWithEmail } from "@/lib/auth";
 import GoogleButton from "./GoogleButton";
+import Image from "next/image";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -34,6 +35,25 @@ export default function LoginForm() {
 
   return (
     <div className="space-y-6">
+
+      {/* LOGO */}
+      <div className="flex items-center gap-4 justify-center">
+        <Image
+          src="/logo.png"
+          alt="TripBoard logo"
+          width={60}
+          height={60}
+          className="rounded-xl shadow-md bg-white p-2"
+        />
+
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">TripBoard</h1>
+          <p className="text-sm text-slate-500">
+            Accede a tu panel de viajes
+          </p>
+        </div>
+      </div>
+
       {/* GOOGLE LOGIN */}
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-2">
         <GoogleButton />
