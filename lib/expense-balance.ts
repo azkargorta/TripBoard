@@ -2,9 +2,9 @@ export type TripExpenseBalanceInput = {
   id: string;
   title?: string | null;
   payer_name?: string | null;
-  participant_names?: string[] | null;
-  paid_by_names?: string[] | null;
-  owed_by_names?: string[] | null;
+  participant_names?: unknown;
+  paid_by_names?: unknown;
+  owed_by_names?: unknown;
   amount: number;
   currency: string;
 };
