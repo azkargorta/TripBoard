@@ -3,3 +3,5 @@ node_modules/
 .env.local
 .env
 .vercel/
+tsconfig.tsbuildinfo
+middleware.ts.bak
