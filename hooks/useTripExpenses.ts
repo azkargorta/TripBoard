@@ -90,6 +90,63 @@ function normalizeDateInput(value: string) {
   return clean;
 }
 
+async function withTimeout<T>(promiseLike: PromiseLike<T>, ms: number, message: string): Promise<T> {
+  return await Promise.race([
+    Promise.resolve(promiseLike),
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(message)), ms)),
+  ]);
+}
+
+function extractNamesFromRows(rows: Record<string, unknown>[]) {
+  const names = new Set<string>();
+
+  for (const row of rows) {
+    const possible = [
+      row.display_name,
+      row.name,
+      row.full_name,
+      row.username,
+      row.email,
+    ];
+
+    for (const value of possible) {
+      if (typeof value === "string" && value.trim()) {
+        names.add(value.trim());
+        break;
+      }
+    }
+  }
+
+  return Array.from(names);
+}
+
+async function loadRegisteredTravelersFromKnownTables(tripId: string) {
+  const attempts = [
+    { table: "trip_participants", query: () => supabase.from("trip_participants").select("*").eq("trip_id", tripId) },
+    { table: "trip_travelers", query: () => supabase.from("trip_travelers").select("*").eq("trip_id", tripId) },
+    { table: "trip_members", query: () => supabase.from("trip_members").select("*").eq("trip_id", tripId) },
+    { table: "trip_users", query: () => supabase.from("trip_users").select("*").eq("trip_id", tripId) },
+  ];
+
+  for (const attempt of attempts) {
+    try {
+      const response = await withTimeout(
+        attempt.query(),
+        10000,
+        `La lectura de ${attempt.table} tardó demasiado.`
+      );
+      if (!response.error) {
+        const names = extractNamesFromRows((response.data ?? []) as Record<string, unknown>[]);
+        if (names.length) return names;
+      }
+    } catch {
+      // seguimos con la siguiente tabla conocida
+    }
+  }
+
+  return [];
+}
+
 async function fetchRate(base: string | null | undefined, target: string) {
   const safeBase = (base || target || "EUR").toUpperCase();
   if (safeBase === target) return 1;
@@ -102,11 +159,21 @@ async function fetchRate(base: string | null | undefined, target: string) {
   return rate;
 }
 
-async function withTimeout<T>(promiseLike: PromiseLike<T>, ms: number, message: string): Promise<T> {
-  return await Promise.race([
-    Promise.resolve(promiseLike),
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(message)), ms)),
-  ]);
+function normalizeExpenseForBalance(
+  expense: TripExpenseRecord,
+  currency: string,
+  convertedAmount?: number
+): TripExpenseBalanceInput {
+  return {
+    id: expense.id,
+    title: expense.title,
+    amount: typeof convertedAmount === "number" ? convertedAmount : Number(expense.amount || 0),
+    currency,
+    payer_name: expense.payer_name || "",
+    participant_names: normalizeNames(expense.participant_names),
+    paid_by_names: normalizeNames(expense.paid_by_names),
+    owed_by_names: normalizeNames(expense.owed_by_names),
+  };
 }
 
 async function uploadExpenseAttachment(tripId: string, file: File) {
@@ -126,84 +193,15 @@ async function uploadExpenseAttachment(tripId: string, file: File) {
   if (error) {
     const text = error.message || "No se pudo subir el archivo adjunto.";
     if (text.toLowerCase().includes("bucket")) {
-      throw new Error("No existe el bucket trip-expenses o no tiene permisos. Ejecuta el SQL del parche de storage.");
+      throw new Error("No existe el bucket trip-expenses o no tiene permisos.");
     }
     if (text.toLowerCase().includes("row-level security")) {
-      throw new Error("Supabase bloquea la subida del archivo por RLS. Ejecuta el SQL del parche de storage.");
+      throw new Error("Supabase bloquea la subida del archivo por RLS.");
     }
     throw new Error(text);
   }
 
   return { path, name: file.name, type: file.type || "application/octet-stream" };
-}
-
-function normalizeExpenseForBalance(expense: any, currency: string, amount: number): TripExpenseBalanceInput {
-  const fallbackParticipants = normalizeNames(expense.participant_names);
-  const paidBy = normalizeNames(expense.paid_by_names).length
-    ? normalizeNames(expense.paid_by_names)
-    : expense.payer_name
-    ? [expense.payer_name]
-    : [];
-  const owedBy = normalizeNames(expense.owed_by_names).length
-    ? normalizeNames(expense.owed_by_names)
-    : fallbackParticipants;
-
-  return {
-    id: expense.id,
-    title: expense.title,
-    payer_name: expense.payer_name || paidBy[0] || null,
-    participant_names: fallbackParticipants,
-    paid_by_names: paidBy,
-    owed_by_names: owedBy,
-    amount,
-    currency,
-  };
-}
-
-function extractNamesFromRows(rows: any[]) {
-  const candidates = ["name", "full_name", "participant_name", "traveler_name", "display_name"];
-  const results = new Set<string>();
-
-  for (const row of rows || []) {
-    for (const key of candidates) {
-      const value = typeof row?.[key] === "string" ? row[key].trim() : "";
-      if (value) results.add(value);
-    }
-
-    if (row?.profile && typeof row.profile === "object") {
-      for (const key of candidates) {
-        const value = typeof row.profile?.[key] === "string" ? row.profile[key].trim() : "";
-        if (value) results.add(value);
-      }
-    }
-  }
-
-  return Array.from(results).sort((a, b) => a.localeCompare(b));
-}
-
-async function loadRegisteredTravelersFromKnownTables(tripId: string) {
-  const attempts = [
-    { table: "trip_participants", query: () => supabase.from("trip_participants").select("*").eq("trip_id", tripId) },
-    { table: "trip_travelers", query: () => supabase.from("trip_travelers").select("*").eq("trip_id", tripId) },
-    { table: "trip_members", query: () => supabase.from("trip_members").select("*").eq("trip_id", tripId) },
-    { table: "trip_users", query: () => supabase.from("trip_users").select("*").eq("trip_id", tripId) },
-  ];
-
-  for (const attempt of attempts) {
-    try {
-      const response = await attempt.query();
-      if (!response.error) {
-        const names = extractNamesFromRows(response.data || []);
-        if (names.length) {
-          return names;
-        }
-      }
-    } catch {
-      // tabla no existente o inaccesible: seguimos con la siguiente
-    }
-  }
-
-  return [];
 }
 
 export function useTripExpenses(tripId: string) {
@@ -218,14 +216,36 @@ export function useTripExpenses(tripId: string) {
   const [suggestedSettlements, setSuggestedSettlements] = useState<any[]>([]);
 
   const load = useCallback(async () => {
+    if (!tripId) {
+      setExpenses([]);
+      setSettlements([]);
+      setRegisteredTravelers([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
 
-      const [expensesResponse, settlementsResponse] = await Promise.all([
-        supabase.from("trip_expenses").select("*").eq("trip_id", tripId).order("expense_date", { ascending: false }).order("created_at", { ascending: false }),
-        supabase.from("trip_expense_settlements").select("*").eq("trip_id", tripId).order("created_at", { ascending: false }),
-      ]);
+      const [expensesResponse, settlementsResponse] = await withTimeout(
+        Promise.all([
+          supabase
+            .from("trip_expenses")
+            .select("*")
+            .eq("trip_id", tripId)
+            .order("expense_date", { ascending: false })
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("trip_expense_settlements")
+            .select("*")
+            .eq("trip_id", tripId)
+            .order("created_at", { ascending: false }),
+        ]),
+        12000,
+        "La carga de gastos tardó demasiado."
+      );
 
       if (expensesResponse.error) throw new Error(expensesResponse.error.message);
       if (settlementsResponse.error) throw new Error(settlementsResponse.error.message);
@@ -236,13 +256,21 @@ export function useTripExpenses(tripId: string) {
       const travelers = await loadRegisteredTravelersFromKnownTables(tripId);
       setRegisteredTravelers(travelers);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudieron cargar los gastos.");
+      console.error("Error cargando gastos:", err);
+      setExpenses([]);
+      setSettlements([]);
+      setRegisteredTravelers([]);
+      setError(
+        err instanceof Error ? err.message : "No se pudieron cargar los gastos."
+      );
     } finally {
       setLoading(false);
     }
   }, [tripId]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const participants = useMemo(() => {
     const names = new Set<string>();
@@ -288,17 +316,24 @@ export function useTripExpenses(tripId: string) {
           })
         );
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : "No se pudo recalcular el balance.");
+        if (!cancelled) {
+          console.error("Error recalculando balance:", err);
+          setError(err instanceof Error ? err.message : "No se pudo recalcular el balance.");
+          setBalances([]);
+          setSuggestedSettlements([]);
+        }
       }
     }
 
-    if (expenses.length) run();
+    if (expenses.length) void run();
     else {
       setBalances([]);
       setSuggestedSettlements([]);
     }
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [balanceCurrency, expenses, settlements]);
 
   const createExpense = useCallback(async (input: ExpenseFormInput) => {
@@ -329,7 +364,7 @@ export function useTripExpenses(tripId: string) {
       const expenseInsertResult = await withTimeout(
         supabase.from("trip_expenses").insert(payload),
         15000,
-        "El guardado del gasto tardó demasiado. Revisa la tabla trip_expenses o triggers."
+        "El guardado del gasto tardó demasiado."
       );
       if (expenseInsertResult.error) throw new Error(expenseInsertResult.error.message);
       await load();
@@ -374,7 +409,7 @@ export function useTripExpenses(tripId: string) {
       const expenseUpdateResult = await withTimeout(
         supabase.from("trip_expenses").update(payload).eq("id", expenseId),
         15000,
-        "El guardado del gasto tardó demasiado. Revisa la tabla trip_expenses o triggers."
+        "La actualización del gasto tardó demasiado."
       );
       if (expenseUpdateResult.error) throw new Error(expenseUpdateResult.error.message);
       await load();
@@ -390,9 +425,16 @@ export function useTripExpenses(tripId: string) {
     setSaving(true);
     setError(null);
     try {
-      const { error } = await supabase.from("trip_expenses").delete().eq("id", expenseId);
+      const { error } = await withTimeout(
+        supabase.from("trip_expenses").delete().eq("id", expenseId),
+        12000,
+        "La eliminación del gasto tardó demasiado."
+      );
       if (error) throw new Error(error.message);
       await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo eliminar el gasto.");
+      throw err;
     } finally {
       setSaving(false);
     }
@@ -404,10 +446,13 @@ export function useTripExpenses(tripId: string) {
     try {
       const newStatus = settlement.status === "paid" ? "pending" : "paid";
       if (settlement.id && !String(settlement.id).includes("->")) {
-        const { error } = await supabase.from("trip_expense_settlements").update({
-          status: newStatus,
-          paid_at: newStatus === "paid" ? new Date().toISOString() : null,
-        }).eq("id", settlement.id);
+        const { error } = await supabase
+          .from("trip_expense_settlements")
+          .update({
+            status: newStatus,
+            paid_at: newStatus === "paid" ? new Date().toISOString() : null,
+          })
+          .eq("id", settlement.id);
         if (error) throw new Error(error.message);
       } else {
         const { error } = await supabase.from("trip_expense_settlements").insert({
@@ -423,6 +468,9 @@ export function useTripExpenses(tripId: string) {
         if (error) throw new Error(error.message);
       }
       await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo actualizar el estado del pago.");
+      throw err;
     } finally {
       setSaving(false);
     }

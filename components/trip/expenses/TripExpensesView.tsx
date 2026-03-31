@@ -20,6 +20,7 @@ export default function TripExpensesView({ tripId }: { tripId: string }) {
     loading,
     saving,
     error,
+    reload,
     createExpense,
     updateExpense,
     deleteExpense,
@@ -31,11 +32,30 @@ export default function TripExpensesView({ tripId }: { tripId: string }) {
   const [editingExpense, setEditingExpense] = useState<any | null>(null);
   const [detectedData, setDetectedData] = useState<ExpenseDetectedData | null>(null);
 
-  if (loading) return <div className="p-4">Cargando gastos...</div>;
+  if (loading) {
+    return (
+      <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6">
+        <div className="text-lg font-semibold text-slate-900">Cargando gastos...</div>
+        <div className="text-sm text-slate-500">Estamos recuperando los datos del viaje.</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {error ? <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
+      {error ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="font-semibold">No se pudieron cargar bien los gastos.</div>
+          <div className="mt-1">{error}</div>
+          <button
+            type="button"
+            onClick={() => void reload()}
+            className="mt-3 rounded-lg border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
+          >
+            Reintentar
+          </button>
+        </div>
+      ) : null}
 
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
