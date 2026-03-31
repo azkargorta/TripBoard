@@ -4,6 +4,9 @@ import { extractTextFromImageBuffer } from "@/lib/server/document-ocr";
 import { extractTextWithOcrSpace, isOcrSpaceConfigured } from "@/lib/server/ocr-space";
 import { analyzeDocumentText } from "@/lib/document-analyzer";
 
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
 async function extractTextFromPdfBuffer(
   buffer: Buffer,
   options?: { fileName?: string | null; mimeType?: string | null }
