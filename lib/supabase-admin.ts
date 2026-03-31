@@ -19,5 +19,3 @@ export function createSupabaseAdmin() {
     },
   });
 }
-
-export const supabaseAdmin = createSupabaseAdmin();
