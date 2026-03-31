@@ -23,7 +23,7 @@ export default function AuthShell({
               <div className="flex items-center gap-4">
                 <div className="overflow-hidden rounded-3xl bg-white p-2 shadow-lg">
                   <Image
-                    src="/tripboard-logo.jpeg"
+                    src="/logo.png"
                     alt="TripBoard logo"
                     width={88}
                     height={88}
@@ -90,13 +90,13 @@ export default function AuthShell({
           <section className="flex items-center justify-center p-5 sm:p-8 md:p-10">
             <div className="w-full max-w-xl">
               <div className="mb-8 text-center md:hidden">
-                <div className="mx-auto mb-4 overflow-hidden rounded-3xl bg-white p-2 shadow-lg">
+                <div className="mx-auto mb-4 w-fit overflow-hidden rounded-3xl bg-white p-2 shadow-lg">
                   <Image
-                    src="/tripboard-logo.jpeg"
+                    src="/logo.png"
                     alt="TripBoard logo"
                     width={96}
                     height={96}
-                    className="mx-auto h-24 w-24 object-contain"
+                    className="h-24 w-24 object-contain"
                     priority
                   />
                 </div>
@@ -109,7 +109,7 @@ export default function AuthShell({
               <div className="mb-6 hidden items-center justify-center gap-4 md:flex">
                 <div className="overflow-hidden rounded-3xl bg-white p-2 shadow-lg">
                   <Image
-                    src="/tripboard-logo.jpeg"
+                    src="/logo.png"
                     alt="TripBoard logo"
                     width={84}
                     height={84}
