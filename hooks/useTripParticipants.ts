@@ -65,28 +65,36 @@ export function useTripParticipants(
   const fetchParticipants = useCallback(async () => {
     if (!tripId) {
       setParticipants([]);
+      setError(null);
       setLoading(false);
       return;
     }
 
-    setLoading(true);
-    setError(null);
+    try {
+      setLoading(true);
+      setError(null);
 
-    const { data, error } = await supabase
-      .from("trip_participants")
-      .select("*")
-      .eq("trip_id", tripId)
-      .order("created_at", { ascending: true });
+      const { data, error } = await supabase
+        .from("trip_participants")
+        .select("*")
+        .eq("trip_id", tripId)
+        .neq("status", "removed")
+        .order("created_at", { ascending: true });
 
-    if (error) {
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      setParticipants((data ?? []) as TripParticipant[]);
+    } catch (err) {
+      console.error("Error cargando participantes:", err);
       setParticipants([]);
-      setError(error.message);
+      setError(
+        err instanceof Error ? err.message : "No se pudieron cargar los participantes"
+      );
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setParticipants((data ?? []) as TripParticipant[]);
-    setLoading(false);
   }, [tripId]);
 
   useEffect(() => {

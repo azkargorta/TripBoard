@@ -25,6 +25,7 @@ export default function TripParticipantsView({
     addParticipant,
     updateParticipant,
     removeParticipant,
+    refetch,
   } = useTripParticipants(tripId);
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -150,6 +151,23 @@ export default function TripParticipantsView({
     return <div className="p-4">Cargando participantes...</div>;
   }
 
+  if (error) {
+    return (
+      <div className="space-y-4 p-4">
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+        <button
+          type="button"
+          onClick={() => void refetch()}
+          className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-gray-50"
+        >
+          Reintentar
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 p-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -191,9 +209,9 @@ export default function TripParticipantsView({
         )}
       </div>
 
-      {(error || actionError) && (
+      {actionError && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {actionError || error}
+          {actionError}
         </div>
       )}
 
@@ -258,63 +276,45 @@ export default function TripParticipantsView({
                       <h3 className="text-lg font-semibold">
                         {participant.display_name}
                       </h3>
-
-                      {participant.user_id ? (
-                        <span className="rounded-full bg-green-50 px-2 py-1 text-xs text-green-700">
-                          Usuario vinculado
-                        </span>
-                      ) : (
-                        <span className="rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-700">
-                          Manual
-                        </span>
-                      )}
-
-                      {participant.joined_via ? (
-                        <span className="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700">
-                          {participant.joined_via}
-                        </span>
-                      ) : null}
-
-                      <span className="rounded-full bg-purple-100 px-2 py-1 text-xs text-purple-700">
+                      <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
                         {participant.role}
+                      </span>
+                      <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+                        {participant.status}
                       </span>
                     </div>
 
-                    <div className="text-sm text-gray-600">
-                      {participant.username && (
-                        <div>Username: {participant.username}</div>
-                      )}
-                      {participant.phone && <div>Teléfono: {participant.phone}</div>}
-                      {participant.user_id && <div>User ID: {participant.user_id}</div>}
+                    <div className="space-y-1 text-sm text-gray-600">
+                      {participant.username ? <p>@{participant.username}</p> : null}
+                      {participant.email ? <p>{participant.email}</p> : null}
+                      {participant.phone ? <p>{participant.phone}</p> : null}
+                      {participant.joined_via ? (
+                        <p>Vía: {participant.joined_via}</p>
+                      ) : null}
                     </div>
                   </div>
 
                   {canManageParticipants && (
                     <div className="flex flex-wrap gap-2">
-                      {canInviteThisParticipant && (
-                        <button
-                          onClick={() => openParticipantInvite(participant)}
-                          className="rounded-lg border px-3 py-2 text-sm"
-                        >
-                          Vincular por WhatsApp
-                        </button>
-                      )}
-
                       <button
-                        onClick={() => {
-                          setIsCreating(false);
-                          setIsInviting(false);
-                          setInviteParticipant(null);
-                          setEditingParticipant(participant);
-                        }}
-                        className="rounded-lg border px-3 py-2 text-sm"
+                        onClick={() => setEditingParticipant(participant)}
+                        className="rounded-lg border px-3 py-2 text-sm hover:bg-gray-50"
                       >
                         Editar
                       </button>
 
+                      {canInviteThisParticipant && (
+                        <button
+                          onClick={() => openParticipantInvite(participant)}
+                          className="rounded-lg border px-3 py-2 text-sm hover:bg-gray-50"
+                        >
+                          Invitar
+                        </button>
+                      )}
+
                       <button
-                        onClick={() => handleRemove(participant.id)}
-                        className="rounded-lg border border-red-200 px-3 py-2 text-sm text-red-700"
+                        onClick={() => void handleRemove(participant.id)}
+                        className="rounded-lg border border-red-200 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
                       >
                         Eliminar
                       </button>
