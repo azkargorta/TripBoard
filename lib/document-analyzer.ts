@@ -1,8 +1,3 @@
-/**
- * Document Analyzer PRO
- * Compatible con Vercel + alias para analyzeTravelDocument
- */
-
 export type DetectedDocumentData = {
   type: string;
   provider?: string | null;
@@ -18,21 +13,28 @@ export type DetectedDocumentData = {
 };
 
 function extractPrice(text: string) {
-  const priceRegex = /(total|importe|amount|precio)[^0-9]{0,10}([0-9]+[.,][0-9]{2})/i;
+  const priceRegex = /(grand total|total price|importe total|precio total|amount due|total|importe|amount|precio)[^0-9]{0,20}([0-9]+[.,][0-9]{2})/i;
   const match = text.match(priceRegex);
   if (!match) return null;
   return parseFloat(match[2].replace(",", "."));
 }
 
 function extractDates(text: string) {
-  const dateRegex = /(\d{2}\/\d{2}\/\d{4})/g;
-  const matches = text.match(dateRegex);
-  if (!matches || matches.length < 2) return { checkInDate: null, checkOutDate: null };
+  const isoMatches = [...text.matchAll(/\b(20\d{2})[-\/](\d{2})[-\/](\d{2})\b/g)].map(
+    (m) => `${m[1]}-${m[2]}-${m[3]}`
+  );
+  if (isoMatches.length >= 2) {
+    return { checkInDate: isoMatches[0], checkOutDate: isoMatches[1] };
+  }
 
-  return {
-    checkInDate: matches[0],
-    checkOutDate: matches[1]
-  };
+  const dmyMatches = [...text.matchAll(/\b(\d{2})[\/](\d{2})[\/](20\d{2})\b/g)].map(
+    (m) => `${m[3]}-${m[2]}-${m[1]}`
+  );
+  if (dmyMatches.length >= 2) {
+    return { checkInDate: dmyMatches[0], checkOutDate: dmyMatches[1] };
+  }
+
+  return { checkInDate: null, checkOutDate: null };
 }
 
 function detectProvider(text: string) {
@@ -44,7 +46,7 @@ function detectProvider(text: string) {
   return null;
 }
 
-export function analyzeDocumentText(rawText: string): DetectedDocumentData {
+export function analyzeDocumentText(rawText: string, _fileName?: string | null): DetectedDocumentData {
   const provider = detectProvider(rawText);
   const price = extractPrice(rawText);
   const { checkInDate, checkOutDate } = extractDates(rawText);
@@ -52,10 +54,10 @@ export function analyzeDocumentText(rawText: string): DetectedDocumentData {
   return {
     type: "hotel_reservation",
     provider,
-    name: rawText.slice(0, 50),
+    name: rawText.slice(0, 80) || null,
     code: null,
     totalPrice: price,
-    currency: "EUR",
+    currency: rawText.includes("$") ? "USD" : rawText.includes("£") ? "GBP" : "EUR",
     checkInDate,
     checkOutDate,
     location: null,
@@ -64,10 +66,6 @@ export function analyzeDocumentText(rawText: string): DetectedDocumentData {
   };
 }
 
-/**
- * 🔥 FIX CLAVE PARA VERCEL
- * Alias para compatibilidad con imports antiguos
- */
 export function analyzeTravelDocument(rawText: string, fileName?: string | null) {
-  return analyzeDocumentText(rawText);
+  return analyzeDocumentText(rawText, fileName);
 }
