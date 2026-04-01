@@ -7,6 +7,18 @@ import { useTripRoutes } from "@/hooks/useTripRoutes";
 
 const GOOGLE_LIBRARIES: ("places")[] = ["places"];
 const DEFAULT_CENTER = { lat: 48.8566, lng: 2.3522 };
+const ROUTE_COLORS = [
+  "#4f46e5",
+  "#0f766e",
+  "#dc2626",
+  "#ea580c",
+  "#0891b2",
+  "#7c3aed",
+  "#16a34a",
+  "#db2777",
+  "#ca8a04",
+  "#2563eb",
+];
 
 type UnknownRow = Record<string, unknown>;
 type RouteMode = "DRIVING" | "WALKING" | "BICYCLING" | "TRANSIT";
@@ -155,7 +167,7 @@ function buildInitialRoutes(rows: unknown[] | undefined, prefix: string): TripMa
         title: asString(item.title) ?? asString(item.route_name) ?? asString(item.name) ?? "Ruta",
         route_name: asString(item.route_name) ?? asString(item.title) ?? asString(item.name) ?? "Ruta",
         travel_mode: asString(item.travel_mode) ?? asString(item.mode) ?? "DRIVING",
-        color: asString(item.color) ?? "#4f46e5",
+        color: asString(item.color) ?? null,
         origin_name: asString(item.origin_name) ?? asString(item.origin_address) ?? "Origen",
         origin_address: asString(item.origin_address) ?? asString(item.origin_name) ?? "Origen",
         origin_latitude: originLat,
@@ -174,6 +186,17 @@ function buildInitialRoutes(rows: unknown[] | undefined, prefix: string): TripMa
       };
     })
     .filter(Boolean) as TripMapRoute[];
+}
+
+function getNextRouteColor(existingRoutes: TripMapRoute[], editingRouteId: string | null): string {
+  const usedColors = existingRoutes
+    .filter((route) => route.id !== editingRouteId)
+    .map((route) => route.color)
+    .filter(Boolean) as string[];
+
+  const firstUnused = ROUTE_COLORS.find((color) => !usedColors.includes(color));
+  if (firstUnused) return firstUnused;
+  return ROUTE_COLORS[usedColors.length % ROUTE_COLORS.length];
 }
 
 export default function TripMapView({ tripId, tripDates = [], planSources, routeSources }: Props) {
@@ -412,16 +435,33 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     setState({ mode: "plan", planId: placeId, address: selected.address, latitude: selected.latitude, longitude: selected.longitude });
   };
 
-  const handleAutocompleteSelect = (
+  const handleAutocompleteSelect = async (
     setState: React.Dispatch<React.SetStateAction<FormPlaceState>>,
     payload: AutocompletePayload
   ) => {
+    let latitude = payload.latitude;
+    let longitude = payload.longitude;
+
+    if ((latitude == null || longitude == null) && typeof window !== "undefined" && window.google?.maps && payload.address) {
+      try {
+        const geocoder = new window.google.maps.Geocoder();
+        const result = await geocoder.geocode({ address: payload.address });
+        const location = result.results?.[0]?.geometry?.location;
+        if (location) {
+          latitude = location.lat();
+          longitude = location.lng();
+        }
+      } catch (error) {
+        console.error("No se pudieron obtener coordenadas del autocompletar", error);
+      }
+    }
+
     setState({
       mode: "search",
       planId: "",
       address: payload.address,
-      latitude: payload.latitude,
-      longitude: payload.longitude,
+      latitude,
+      longitude,
     });
   };
 
@@ -497,6 +537,8 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   const handleSave = async () => {
     if (!preview) return setRouteError("Primero calcula la ruta.");
 
+    const routeColor = getNextRouteColor(routesState, editingRouteId);
+
     try {
       setRouteError(null);
       const saved = await saveRoute(
@@ -522,11 +564,16 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
           arrivalTime: preview.arrivalTime,
           routePoints: preview.overviewPath,
           pathPoints: preview.overviewPath,
+          color: routeColor,
         },
         editingRouteId || undefined
       );
 
-      const nextRoute = (Array.isArray(saved) ? saved[0] : saved) as TripMapRoute;
+      const nextRoute = {
+        ...((Array.isArray(saved) ? saved[0] : saved) as TripMapRoute),
+        color: ((Array.isArray(saved) ? saved[0] : saved) as TripMapRoute)?.color || routeColor,
+      };
+
       if (nextRoute?.id) {
         setRoutesState((current) => {
           const filtered = current.filter((route) => route.id !== nextRoute.id);
@@ -803,7 +850,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                             address: value,
                           }))
                         }
-                        onPlaceSelect={(payload) => handleAutocompleteSelect(item.setState, payload as AutocompletePayload)}
+                        onPlaceSelect={(payload) => void handleAutocompleteSelect(item.setState, payload as AutocompletePayload)}
                       />
                       <p className="text-xs text-slate-500">
                         Selecciona una opción del autocompletar para guardar coordenadas.
@@ -881,7 +928,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                               address: value,
                             }))
                           }
-                          onPlaceSelect={(payload) => handleAutocompleteSelect(setStop, payload as AutocompletePayload)}
+                          onPlaceSelect={(payload) => void handleAutocompleteSelect(setStop, payload as AutocompletePayload)}
                         />
                         <p className="text-xs text-slate-500">
                           Selecciona una opción del autocompletar para guardar coordenadas.
@@ -932,6 +979,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                   <p><strong>Distancia:</strong> {preview.distanceText || "—"}</p>
                   <p><strong>Duración:</strong> {preview.durationText || "—"}</p>
                   <p><strong>Llegada estimada:</strong> {preview.arrivalTime || "—"}</p>
+                  <p><strong>Color de la ruta:</strong> <span style={{ color: getNextRouteColor(routesState, editingRouteId) }}>{getNextRouteColor(routesState, editingRouteId)}</span></p>
                 </div>
               ) : null}
 
@@ -969,7 +1017,10 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                       ) : null}
                     </div>
 
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                    <span
+                      className="rounded-full px-3 py-1 text-xs font-semibold text-white"
+                      style={{ backgroundColor: route.color || "#4f46e5" }}
+                    >
                       {normalizeTravelMode(route.travel_mode)}
                     </span>
                   </div>
@@ -1068,7 +1119,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                   options={{
                     suppressMarkers: false,
                     polylineOptions: {
-                      strokeColor: "#0f766e",
+                      strokeColor: getNextRouteColor(routesState, editingRouteId),
                       strokeOpacity: 0.9,
                       strokeWeight: 6,
                     },
