@@ -564,14 +564,14 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
           arrivalTime: preview.arrivalTime,
           routePoints: preview.overviewPath,
           pathPoints: preview.overviewPath,
-          color: routeColor,
         },
         editingRouteId || undefined
       );
 
-      const nextRoute = {
-        ...((Array.isArray(saved) ? saved[0] : saved) as TripMapRoute),
-        color: ((Array.isArray(saved) ? saved[0] : saved) as TripMapRoute)?.color || routeColor,
+      const baseSaved = (Array.isArray(saved) ? saved[0] : saved) as TripMapRoute;
+      const nextRoute: TripMapRoute = {
+        ...baseSaved,
+        color: baseSaved?.color || routeColor,
       };
 
       if (nextRoute?.id) {
