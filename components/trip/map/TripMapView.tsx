@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  DirectionsRenderer,
   GoogleMap,
   MarkerF,
   PolylineF,
@@ -13,6 +14,10 @@ export type TripMapPoint = {
   latitude: number;
   longitude: number;
   title?: string | null;
+  activity_date?: string | null;
+  location_name?: string | null;
+  notes?: string | null;
+  kind?: string | null;
 };
 
 export type TripMapRoute = {
@@ -52,6 +57,16 @@ type Props = {
   } | null;
 };
 
+type RouteRenderItem = {
+  id: string;
+  color: string;
+  travelMode: google.maps.TravelMode;
+  routeDay: string | null;
+  path: { lat: number; lng: number }[];
+};
+
+type DirectionsMap = Record<string, google.maps.DirectionsResult | null>;
+
 const DEFAULT_CENTER = { lat: 48.8566, lng: 2.3522 };
 
 function asNumber(value: unknown): number | null {
@@ -65,6 +80,14 @@ function asNumber(value: unknown): number | null {
 
 function asString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function normalizeTravelMode(value: string | null | undefined): google.maps.TravelMode {
+  const clean = (value || "").toUpperCase();
+  if (clean === "WALKING") return google.maps.TravelMode.WALKING;
+  if (clean === "BICYCLING") return google.maps.TravelMode.BICYCLING;
+  if (clean === "TRANSIT") return google.maps.TravelMode.TRANSIT;
+  return google.maps.TravelMode.DRIVING;
 }
 
 function buildPlanPoints(rows: unknown[] | undefined, prefix: string) {
@@ -92,12 +115,24 @@ function buildPlanPoints(rows: unknown[] | undefined, prefix: string) {
           asString(item.place_name) ??
           asString(item.location_name) ??
           "Parada",
+        activity_date:
+          asString(item.activity_date) ??
+          asString(item.day_date) ??
+          asString(item.date) ??
+          null,
+        location_name:
+          asString(item.location_name) ??
+          asString(item.place_name) ??
+          asString(item.address) ??
+          null,
+        notes: asString(item.notes) ?? null,
+        kind: asString(item.activity_type) ?? asString(item.activity_kind) ?? null,
       };
     })
     .filter(Boolean) as TripMapPoint[];
 }
 
-function buildRouteLines(rows: unknown[] | undefined, prefix: string) {
+function buildRouteItems(rows: unknown[] | undefined, prefix: string) {
   return (rows ?? [])
     .map((row, index) => {
       const item = row as UnknownRow;
@@ -131,35 +166,44 @@ function buildRouteLines(rows: unknown[] | undefined, prefix: string) {
       return {
         id: `${prefix}-${String(item.id ?? index)}`,
         color: asString(item.color) ?? "#4f46e5",
+        travelMode: normalizeTravelMode(asString(item.travel_mode)),
+        routeDay:
+          asString(item.route_day) ??
+          asString(item.route_date) ??
+          asString(item.day_date) ??
+          null,
         path: [
           { lat: originLat, lng: originLng },
           { lat: destinationLat, lng: destinationLng },
         ],
       };
     })
-    .filter(Boolean) as Array<{
-      id: string;
-      color: string;
-      path: { lat: number; lng: number }[];
-    }>;
+    .filter(Boolean) as RouteRenderItem[];
 }
 
 export default function TripMapView({
   points = [],
   routes = [],
-  tripDates = [],
   selectedDate,
   onChangeSelectedDate,
+  availableDates,
+  tripDates = [],
   planSources,
   routeSources,
 }: Props) {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
+  const mapRef = useRef<google.maps.Map | null>(null);
+  const [internalSelectedDate, setInternalSelectedDate] = useState("all");
+  const [directionsMap, setDirectionsMap] = useState<DirectionsMap>({});
+  const [directionsLoading, setDirectionsLoading] = useState(false);
+
+  const effectiveSelectedDate = selectedDate ?? internalSelectedDate;
 
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: apiKey,
   });
 
-  const computedPoints = useMemo(() => {
+  const allPoints = useMemo(() => {
     const directPoints = (points ?? []).filter(
       (p) =>
         typeof p?.latitude === "number" &&
@@ -174,14 +218,11 @@ export default function TripMapView({
     ];
 
     const byId = new Map<string, TripMapPoint>();
-    [...directPoints, ...planPoints].forEach((point) => {
-      byId.set(point.id, point);
-    });
-
+    [...directPoints, ...planPoints].forEach((point) => byId.set(point.id, point));
     return Array.from(byId.values());
   }, [planSources, points]);
 
-  const computedRoutes = useMemo(() => {
+  const allRoutes = useMemo(() => {
     const directRoutes = (routes ?? [])
       .map((route) => {
         const originLat = asNumber(route.origin_latitude);
@@ -201,36 +242,140 @@ export default function TripMapView({
         return {
           id: route.id,
           color: route.color || "#4f46e5",
+          travelMode: normalizeTravelMode(route.travel_mode),
+          routeDay: route.route_day ?? null,
           path: [
             { lat: originLat, lng: originLng },
             { lat: destinationLat, lng: destinationLng },
           ],
         };
       })
-      .filter(Boolean) as Array<{
-      id: string;
-      color: string;
-      path: { lat: number; lng: number }[];
-    }>;
+      .filter(Boolean) as RouteRenderItem[];
 
     return [
       ...directRoutes,
-      ...buildRouteLines(routeSources?.tripRoutes, "trip-route"),
-      ...buildRouteLines(routeSources?.legacyRoutes, "legacy-route"),
+      ...buildRouteItems(routeSources?.tripRoutes, "trip-route"),
+      ...buildRouteItems(routeSources?.legacyRoutes, "legacy-route"),
     ];
   }, [routeSources, routes]);
 
+  const dates = useMemo(() => {
+    const raw = availableDates?.length ? availableDates : tripDates;
+    const unique = Array.from(new Set((raw ?? []).filter(Boolean)));
+    return unique.length ? ["all", ...unique] : [];
+  }, [availableDates, tripDates]);
+
+  const visiblePoints = useMemo(() => {
+    if (effectiveSelectedDate === "all") return allPoints;
+    return allPoints.filter((point) => point.activity_date === effectiveSelectedDate);
+  }, [allPoints, effectiveSelectedDate]);
+
+  const visibleRoutes = useMemo(() => {
+    if (effectiveSelectedDate === "all") return allRoutes;
+    return allRoutes.filter((route) => route.routeDay === effectiveSelectedDate);
+  }, [allRoutes, effectiveSelectedDate]);
+
   const center = useMemo(() => {
-    const firstPoint = computedPoints[0];
-    if (firstPoint) {
-      return { lat: firstPoint.latitude, lng: firstPoint.longitude };
+    const firstPoint = visiblePoints[0];
+    if (firstPoint) return { lat: firstPoint.latitude, lng: firstPoint.longitude };
+    const firstRoute = visibleRoutes[0]?.path?.[0];
+    if (firstRoute) return firstRoute;
+    return DEFAULT_CENTER;
+  }, [visiblePoints, visibleRoutes]);
+
+  const fitMapToData = useCallback((map: google.maps.Map) => {
+    if (!visiblePoints.length && !visibleRoutes.length) {
+      map.setCenter(DEFAULT_CENTER);
+      map.setZoom(5);
+      return;
     }
 
-    const firstRoute = computedRoutes[0]?.path?.[0];
-    if (firstRoute) return firstRoute;
+    const bounds = new google.maps.LatLngBounds();
 
-    return DEFAULT_CENTER;
-  }, [computedPoints, computedRoutes]);
+    visiblePoints.forEach((point) => {
+      bounds.extend({ lat: point.latitude, lng: point.longitude });
+    });
+
+    visibleRoutes.forEach((route) => {
+      const directions = directionsMap[route.id];
+      if (directions?.routes?.[0]?.overview_path?.length) {
+        directions.routes[0].overview_path.forEach((latLng) => bounds.extend(latLng));
+      } else {
+        route.path.forEach((point) => bounds.extend(point));
+      }
+    });
+
+    if (!bounds.isEmpty()) map.fitBounds(bounds, 80);
+  }, [directionsMap, visiblePoints, visibleRoutes]);
+
+  useEffect(() => {
+    if (!isLoaded || typeof google === "undefined") return;
+
+    if (!visibleRoutes.length) {
+      setDirectionsMap({});
+      return;
+    }
+
+    let cancelled = false;
+    const service = new google.maps.DirectionsService();
+
+    async function loadDirections() {
+      setDirectionsLoading(true);
+
+      const entries = await Promise.all(
+        visibleRoutes.map(async (route) => {
+          try {
+            const result = await service.route({
+              origin: route.path[0],
+              destination: route.path[1],
+              travelMode: route.travelMode,
+              provideRouteAlternatives: false,
+            });
+            return [route.id, result] as const;
+          } catch (error) {
+            console.error("Error calculando ruta:", route.id, error);
+            return [route.id, null] as const;
+          }
+        })
+      );
+
+      if (cancelled) return;
+
+      const nextMap: DirectionsMap = {};
+      entries.forEach(([id, result]) => {
+        nextMap[id] = result;
+      });
+
+      setDirectionsMap(nextMap);
+      setDirectionsLoading(false);
+    }
+
+    void loadDirections();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoaded, visibleRoutes]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const timer = window.setTimeout(() => {
+      google.maps.event.trigger(map, "resize");
+      fitMapToData(map);
+    }, 200);
+
+    return () => window.clearTimeout(timer);
+  }, [fitMapToData, directionsMap, visiblePoints, visibleRoutes]);
+
+  const handleMapLoad = useCallback((map: google.maps.Map) => {
+    mapRef.current = map;
+    window.setTimeout(() => {
+      google.maps.event.trigger(map, "resize");
+      fitMapToData(map);
+    }, 250);
+  }, [fitMapToData]);
 
   if (!apiKey) {
     return (
@@ -258,40 +403,52 @@ export default function TripMapView({
 
   return (
     <div className="space-y-4">
-      {tripDates.length > 0 && onChangeSelectedDate ? (
+      {dates.length > 0 ? (
         <div className="flex flex-wrap gap-2">
-          {tripDates.map((date) => {
-            const active = selectedDate === date;
+          {dates.map((date) => {
+            const active = effectiveSelectedDate === date;
+            const label = date === "all" ? "Todos los días" : date;
             return (
               <button
                 key={date}
                 type="button"
-                onClick={() => onChangeSelectedDate(date)}
+                onClick={() => {
+                  if (onChangeSelectedDate) onChangeSelectedDate(date);
+                  else setInternalSelectedDate(date);
+                }}
                 className={`rounded-full px-3 py-1 text-sm font-medium transition ${
                   active
                     ? "bg-slate-900 text-white"
-                    : "bg-white text-slate-700 border border-slate-200"
+                    : "border border-slate-200 bg-white text-slate-700"
                 }`}
               >
-                {date}
+                {label}
               </button>
             );
           })}
         </div>
       ) : null}
 
-      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm" style={{ height: "560px" }}>
+      {directionsLoading ? (
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+          Calculando trayectos por carretera...
+        </div>
+      ) : null}
+
+      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
         <GoogleMap
-          mapContainerStyle={{ width: "100%", height: "100%" }}
+          mapContainerStyle={{ width: "100%", height: "560px" }}
           center={center}
-          zoom={computedPoints.length || computedRoutes.length ? 7 : 5}
+          zoom={6}
+          onLoad={handleMapLoad}
           options={{
             streetViewControl: false,
             mapTypeControl: false,
             fullscreenControl: true,
+            gestureHandling: "greedy",
           }}
         >
-          {computedPoints.map((point) => (
+          {visiblePoints.map((point) => (
             <MarkerF
               key={point.id}
               position={{ lat: point.latitude, lng: point.longitude }}
@@ -299,21 +456,42 @@ export default function TripMapView({
             />
           ))}
 
-          {computedRoutes.map((route) => (
-            <PolylineF
-              key={route.id}
-              path={route.path}
-              options={{
-                strokeColor: route.color,
-                strokeOpacity: 0.9,
-                strokeWeight: 4,
-              }}
-            />
-          ))}
+          {visibleRoutes.map((route) => {
+            const directions = directionsMap[route.id];
+
+            if (directions) {
+              return (
+                <DirectionsRenderer
+                  key={route.id}
+                  directions={directions}
+                  options={{
+                    suppressMarkers: true,
+                    polylineOptions: {
+                      strokeColor: route.color,
+                      strokeOpacity: 0.9,
+                      strokeWeight: 5,
+                    },
+                  }}
+                />
+              );
+            }
+
+            return (
+              <PolylineF
+                key={route.id}
+                path={route.path}
+                options={{
+                  strokeColor: route.color,
+                  strokeOpacity: 0.7,
+                  strokeWeight: 4,
+                }}
+              />
+            );
+          })}
         </GoogleMap>
       </div>
 
-      {!computedPoints.length && !computedRoutes.length ? (
+      {!visiblePoints.length && !visibleRoutes.length ? (
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
           No hay puntos ni rutas válidas para mostrar todavía. Añade lugares en Plan o rutas guardadas.
         </div>
