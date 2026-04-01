@@ -12,17 +12,6 @@ import { useTripRoutes } from "@/hooks/useTripRoutes";
 
 type UnknownRow = Record<string, unknown>;
 
-export type TripMapPoint = {
-  id: string;
-  latitude: number;
-  longitude: number;
-  title?: string | null;
-  activity_date?: string | null;
-  location_name?: string | null;
-  notes?: string | null;
-  kind?: string | null;
-};
-
 export type TripMapRoute = {
   id: string;
   route_day?: string | null;
@@ -52,7 +41,6 @@ export type TripMapRoute = {
 
 type Props = {
   tripId: string;
-  trip?: unknown;
   tripDates?: string[];
   planSources?: {
     tripActivities?: unknown[];
@@ -323,7 +311,7 @@ export default function TripMapView({
     if (hookRouteError) setRouteError(hookRouteError);
   }, [hookRouteError]);
 
-  const availableDates = useMemo(() => {
+  const dateOptions = useMemo(() => {
     const sourceDates = tripDates.length
       ? tripDates
       : routesState
@@ -339,11 +327,7 @@ export default function TripMapView({
       ? routesState
       : routesState.filter((route) => (route.route_day || route.route_date) === selectedDate);
 
-    if (highlightedRouteId) {
-      return filtered.filter((route) => route.id === highlightedRouteId);
-    }
-
-    return filtered;
+    return highlightedRouteId ? filtered.filter((route) => route.id === highlightedRouteId) : filtered;
   }, [highlightedRouteId, routesState, selectedDate]);
 
   const visiblePoints = useMemo(() => {
@@ -461,20 +445,25 @@ export default function TripMapView({
 
   useEffect(() => {
     if (!isLoaded) return;
+
     const signature = JSON.stringify({
       selectedDate,
       highlightedRouteId,
       routeIds: visibleRoutes.map((r) => r.id),
       pointIds: visiblePoints.map((p) => p.id),
       directionIds: Object.keys(directionsMap).sort(),
+      preview: Boolean(preview),
     });
 
     if (fitSignatureRef.current === signature) return;
     fitSignatureRef.current = signature;
 
-    const timer = window.setTimeout(() => fitMapToData(), 180);
+    const timer = window.setTimeout(() => {
+      fitMapToData();
+    }, 150);
+
     return () => window.clearTimeout(timer);
-  }, [directionsMap, fitMapToData, highlightedRouteId, isLoaded, selectedDate, visiblePoints, visibleRoutes]);
+  }, [directionsMap, fitMapToData, highlightedRouteId, isLoaded, preview, selectedDate, visiblePoints, visibleRoutes]);
 
   const resetForm = useCallback(() => {
     setRouteDate(selectedDate !== "all" ? selectedDate : tripDates[0] || "");
@@ -506,15 +495,14 @@ export default function TripMapView({
   };
 
   const buildGoogleMapsUrl = (route: TripMapRoute) => {
-    const origin = route.origin_address || route.origin_name || "";
-    const destination = route.destination_address || route.destination_name || "";
-    const travelmode = normalizeTravelMode(route.travel_mode).toLowerCase();
-    let url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&travelmode=${encodeURIComponent(travelmode)}`;
+    const originAddress = route.origin_address || route.origin_name || "";
+    const destinationAddress = route.destination_address || route.destination_name || "";
+    const mode = normalizeTravelMode(route.travel_mode).toLowerCase();
 
+    let url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(originAddress)}&destination=${encodeURIComponent(destinationAddress)}&travelmode=${encodeURIComponent(mode)}`;
     if (route.stop_address || route.stop_name) {
       url += `&waypoints=${encodeURIComponent(route.stop_address || route.stop_name || "")}`;
     }
-
     return url;
   };
 
@@ -570,22 +558,21 @@ export default function TripMapView({
         provideRouteAlternatives: false,
       });
 
-      const legSummary = result.routes[0]?.legs ?? [];
-      const distanceText =
-        legSummary.map((leg) => leg.distance?.text).filter(Boolean).join(" + ") || null;
-      const durationText =
-        legSummary.map((leg) => leg.duration?.text).filter(Boolean).join(" + ") || null;
-      const arrivalTime = legSummary[legSummary.length - 1]?.arrival_time?.text || null;
+      const legs = result.routes[0]?.legs ?? [];
+      const distanceText = legs.map((leg) => leg.distance?.text).filter(Boolean).join(" + ") || null;
+      const durationText = legs.map((leg) => leg.duration?.text).filter(Boolean).join(" + ") || null;
+      const arrivalTime = legs[legs.length - 1]?.arrival_time?.text || null;
 
       setPreview({
         directions: result,
         distanceText,
         durationText,
         arrivalTime,
-        overviewPath: result.routes[0]?.overview_path?.map((point) => ({
-          lat: point.lat(),
-          lng: point.lng(),
-        })) || [],
+        overviewPath:
+          result.routes[0]?.overview_path?.map((point) => ({
+            lat: point.lat(),
+            lng: point.lng(),
+          })) || [],
       });
     } catch (error) {
       console.error(error);
@@ -603,6 +590,7 @@ export default function TripMapView({
 
     try {
       setRouteError(null);
+
       const saved = await saveRoute(
         {
           routeDate,
@@ -613,10 +601,17 @@ export default function TripMapView({
           originAddress: origin.address,
           originLatitude: origin.latitude,
           originLongitude: origin.longitude,
-          stopName: hasStop ? stop.address : undefined,
-          stopAddress: hasStop ? stop.address : undefined,
-          stopLatitude: hasStop ? stop.latitude : undefined,
-          stopLongitude: hasStop ? stop.longitude : undefined,
+          stops:
+            hasStop && typeof stop.latitude === "number" && typeof stop.longitude === "number"
+              ? [
+                  {
+                    name: stop.address,
+                    address: stop.address,
+                    latitude: stop.latitude,
+                    longitude: stop.longitude,
+                  },
+                ]
+              : [],
           destinationName: destination.address,
           destinationAddress: destination.address,
           destinationLatitude: destination.latitude,
@@ -630,15 +625,18 @@ export default function TripMapView({
         editingRouteId || undefined
       );
 
-      const nextRoute = saved as TripMapRoute;
-      setRoutesState((current) => {
-        const filtered = current.filter((route) => route.id !== nextRoute.id);
-        return [...filtered, nextRoute].sort((a, b) =>
-          String(a.route_day || a.route_date || "").localeCompare(String(b.route_day || b.route_date || "")) ||
-          String(a.departure_time || "").localeCompare(String(b.departure_time || ""))
-        );
-      });
-      setHighlightedRouteId(nextRoute.id);
+      const nextRoute = (Array.isArray(saved) ? saved[0] : saved) as TripMapRoute;
+      if (nextRoute?.id) {
+        setRoutesState((current) => {
+          const filtered = current.filter((route) => route.id !== nextRoute.id);
+          return [...filtered, nextRoute].sort((a, b) =>
+            String(a.route_day || a.route_date || "").localeCompare(String(b.route_day || b.route_date || "")) ||
+            String(a.departure_time || "").localeCompare(String(b.departure_time || ""))
+          );
+        });
+        setHighlightedRouteId(nextRoute.id);
+      }
+
       setIsCreating(false);
       resetForm();
     } catch (error) {
@@ -662,7 +660,7 @@ export default function TripMapView({
       latitude: route.origin_latitude ?? null,
       longitude: route.origin_longitude ?? null,
     });
-    setHasStop(Boolean(route.stop_latitude && route.stop_longitude));
+    setHasStop(Boolean(route.stop_latitude != null && route.stop_longitude != null));
     setStop({
       mode: "search",
       planId: "",
@@ -713,9 +711,10 @@ export default function TripMapView({
     );
   }
 
-  const planDateOptions = selectedDate === "all"
-    ? planPlaces
-    : planPlaces.filter((place) => !place.activityDate || place.activityDate === selectedDate);
+  const planDateOptions =
+    selectedDate === "all"
+      ? planPlaces
+      : planPlaces.filter((place) => !place.activityDate || place.activityDate === selectedDate);
 
   return (
     <div className="grid gap-6 lg:grid-cols-[420px_minmax(0,1fr)]">
@@ -723,7 +722,7 @@ export default function TripMapView({
         <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-lg font-bold text-slate-950">Seleccionar día</h2>
           <div className="mt-4 flex flex-wrap gap-2">
-            {availableDates.map((date) => (
+            {dateOptions.map((date) => (
               <button
                 key={date}
                 type="button"
@@ -758,8 +757,8 @@ export default function TripMapView({
           <button
             type="button"
             onClick={() => {
-              setIsCreating((prev) => !prev);
               if (!isCreating) resetForm();
+              setIsCreating((prev) => !prev);
             }}
             className="mt-4 inline-flex min-h-[44px] items-center justify-center rounded-2xl bg-violet-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-violet-700"
           >
@@ -816,7 +815,7 @@ export default function TripMapView({
                   type="text"
                   value={routeName}
                   onChange={(e) => setRouteName(e.target.value)}
-                  placeholder="Ej. Del hotel al Coliseo"
+                  placeholder="Ej. Hotel → Playa"
                   className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3"
                 />
               </label>
