@@ -178,7 +178,6 @@ function buildInitialRoutes(rows: unknown[] | undefined, prefix: string): TripMa
 
 export default function TripMapView({ tripId, tripDates = [], planSources, routeSources }: Props) {
   const googleMapsApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
-
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey,
     libraries: GOOGLE_LIBRARIES,
@@ -208,17 +207,11 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
 
   const [routesState, setRoutesState] = useState<TripMapRoute[]>(initialRoutes);
   const [selectedDate, setSelectedDate] = useState<string>("all");
-  const [routeError, setRouteError] = useState<string | null>(null);
-  const [routeDate, setRouteDate] = useState(tripDates[0] || "");
-  const [routeName, setRouteName] = useState("");
-  const [departureTime, setDepartureTime] = useState("");
   const [origin, setOrigin] = useState<FormPlaceState>(emptyPlaceState());
   const [destination, setDestination] = useState<FormPlaceState>(emptyPlaceState());
-  const [preview, setPreview] = useState<RoutePreview | null>(null);
-  const [calculating, setCalculating] = useState(false);
   const [directionsMap, setDirectionsMap] = useState<Record<string, google.maps.DirectionsResult | null>>({});
-
   const { routeError: hookRouteError } = useTripRoutes(tripId);
+  const [routeError, setRouteError] = useState<string | null>(null);
 
   useEffect(() => {
     setRoutesState(initialRoutes);
@@ -234,15 +227,27 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
       : routesState.filter((route) => (route.route_day || route.route_date) === selectedDate);
   }, [routesState, selectedDate]);
 
-  useEffect(() => {
-    const gm = typeof window !== "undefined" ? window.google : undefined;
-    if (!isLoaded || !gm?.maps) return;
+  const visiblePoints = useMemo(() => {
+    return planPlaces
+      .filter((place) => selectedDate === "all" || place.activityDate === selectedDate)
+      .map((place) => ({
+        id: place.id,
+        latitude: place.latitude,
+        longitude: place.longitude,
+        title: place.label,
+      }));
+  }, [planPlaces, selectedDate]);
 
-    const service = new gm.maps.DirectionsService();
+  useEffect(() => {
+    if (!isLoaded || typeof window === "undefined" || !window.google?.maps) return;
+
+    const gmMaps = window.google.maps;
+    const service = new gmMaps.DirectionsService();
     let cancelled = false;
 
     async function loadDirections() {
       const next: Record<string, google.maps.DirectionsResult | null> = {};
+
       for (const route of visibleRoutes) {
         if (
           typeof route.origin_latitude !== "number" ||
@@ -257,7 +262,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
           const result = await service.route({
             origin: { lat: route.origin_latitude, lng: route.origin_longitude },
             destination: { lat: route.destination_latitude, lng: route.destination_longitude },
-            travelMode: gm.maps.TravelMode[normalizeTravelMode(route.travel_mode)],
+            travelMode: gmMaps.TravelMode[normalizeTravelMode(route.travel_mode)],
             provideRouteAlternatives: false,
           });
           next[route.id] = result;
@@ -265,10 +270,14 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
           next[route.id] = null;
         }
       }
-      if (!cancelled) setDirectionsMap(next);
+
+      if (!cancelled) {
+        setDirectionsMap(next);
+      }
     }
 
     void loadDirections();
+
     return () => {
       cancelled = true;
     };
@@ -304,23 +313,10 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     });
   };
 
-  const visiblePoints = useMemo(() => {
-    return planPlaces
-      .filter((place) => selectedDate === "all" || place.activityDate === selectedDate)
-      .map((place) => ({
-        id: place.id,
-        latitude: place.latitude,
-        longitude: place.longitude,
-        title: place.label,
-      }));
-  }, [planPlaces, selectedDate]);
-
   const fitMapToData = useCallback(() => {
-    const gm = typeof window !== "undefined" ? window.google : undefined;
-    const map = mapRef.current;
-    if (!map || !gm?.maps) return;
+    if (typeof window === "undefined" || !window.google?.maps || !mapRef.current) return;
 
-    const bounds = new gm.maps.LatLngBounds();
+    const bounds = new window.google.maps.LatLngBounds();
     let hasData = false;
 
     visiblePoints.forEach((point) => {
@@ -339,21 +335,14 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
       }
     });
 
-    if (preview?.directions?.routes?.[0]?.overview_path?.length) {
-      preview.directions.routes[0].overview_path.forEach((point) => {
-        bounds.extend(point);
-        hasData = true;
-      });
-    }
-
     if (!hasData) {
-      map.setCenter(DEFAULT_CENTER);
-      map.setZoom(6);
+      mapRef.current.setCenter(DEFAULT_CENTER);
+      mapRef.current.setZoom(6);
       return;
     }
 
-    map.fitBounds(bounds, 80);
-  }, [directionsMap, preview, visiblePoints, visibleRoutes]);
+    mapRef.current.fitBounds(bounds, 80);
+  }, [directionsMap, visiblePoints, visibleRoutes]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -378,12 +367,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
           <div className="mt-4 space-y-2">
             <PlaceAutocompleteInput
               value={origin.address}
-              onChange={(value) =>
-                setOrigin((prev) => ({
-                  ...prev,
-                  address: value,
-                }))
-              }
+              onChange={(value) => setOrigin((prev) => ({ ...prev, address: value }))}
               onPlaceSelect={(payload) => void handleAutocompleteSelect(setOrigin, payload)}
             />
             <div className="text-xs text-slate-500">Lat: {origin.latitude ?? "—"} · Lng: {origin.longitude ?? "—"}</div>
@@ -395,17 +379,16 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
           <div className="mt-4 space-y-2">
             <PlaceAutocompleteInput
               value={destination.address}
-              onChange={(value) =>
-                setDestination((prev) => ({
-                  ...prev,
-                  address: value,
-                }))
-              }
+              onChange={(value) => setDestination((prev) => ({ ...prev, address: value }))}
               onPlaceSelect={(payload) => void handleAutocompleteSelect(setDestination, payload)}
             />
             <div className="text-xs text-slate-500">Lat: {destination.latitude ?? "—"} · Lng: {destination.longitude ?? "—"}</div>
           </div>
         </section>
+
+        {routeError ? (
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{routeError}</div>
+        ) : null}
       </div>
 
       <div className="space-y-4">
@@ -450,20 +433,6 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                   />
                 );
               })}
-
-              {preview ? (
-                <DirectionsRenderer
-                  directions={preview.directions}
-                  options={{
-                    suppressMarkers: false,
-                    polylineOptions: {
-                      strokeColor: "#0f766e",
-                      strokeOpacity: 0.9,
-                      strokeWeight: 6,
-                    },
-                  }}
-                />
-              ) : null}
             </GoogleMap>
           )}
         </section>
