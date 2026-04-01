@@ -193,6 +193,7 @@ export default function TripMapView({
 }: Props) {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
   const mapRef = useRef<google.maps.Map | null>(null);
+  const fittedRef = useRef<string | null>(null);
   const [internalSelectedDate, setInternalSelectedDate] = useState("all");
   const [directionsMap, setDirectionsMap] = useState<DirectionsMap>({});
   const [directionsLoading, setDirectionsLoading] = useState(false);
@@ -313,6 +314,7 @@ export default function TripMapView({
 
     if (!visibleRoutes.length) {
       setDirectionsMap({});
+      setDirectionsLoading(false);
       return;
     }
 
@@ -361,21 +363,26 @@ export default function TripMapView({
     const map = mapRef.current;
     if (!map || !isLoaded) return;
 
+    const fitKey = JSON.stringify({
+      selectedDate: effectiveSelectedDate,
+      points: visiblePoints.map((p) => p.id),
+      routes: visibleRoutes.map((r) => r.id),
+      loadedDirections: Object.keys(directionsMap).sort(),
+    });
+
+    if (fittedRef.current === fitKey) return;
+
     const timer = window.setTimeout(() => {
-      google.maps.event.trigger(map, "resize");
       fitMapToData(map);
+      fittedRef.current = fitKey;
     }, 200);
 
     return () => window.clearTimeout(timer);
-  }, [fitMapToData, directionsMap, visiblePoints, visibleRoutes, isLoaded]);
+  }, [effectiveSelectedDate, visiblePoints, visibleRoutes, directionsMap, fitMapToData, isLoaded]);
 
   const handleMapLoad = useCallback((map: google.maps.Map) => {
     mapRef.current = map;
-    window.setTimeout(() => {
-      google.maps.event.trigger(map, "resize");
-      fitMapToData(map);
-    }, 250);
-  }, [fitMapToData]);
+  }, []);
 
   if (!apiKey) {
     return (
