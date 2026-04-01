@@ -1,4 +1,3 @@
-\
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -761,8 +760,8 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                   ) : (
                     <PlaceAutocompleteInput
                       value={item.state.address}
-                      onChange={(value: string) => item.setState((prev) => ({ ...prev, address: value }))}
-                      onPlaceSelect={(payload: { address: string; latitude: number; longitude: number }) =>
+                      onChange={(value) => item.setState((prev) => ({ ...prev, address: value }))}
+                      onPlaceSelect={(payload) =>
                         item.setState((prev) => ({
                           ...prev,
                           address: payload.address,
@@ -817,8 +816,8 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                     ) : (
                       <PlaceAutocompleteInput
                         value={stop.address}
-                        onChange={(value: string) => setStop((prev) => ({ ...prev, address: value }))}
-                        onPlaceSelect={(payload: { address: string; latitude: number; longitude: number }) =>
+                        onChange={(value) => setStop((prev) => ({ ...prev, address: value }))}
+                        onPlaceSelect={(payload) =>
                           setStop((prev) => ({
                             ...prev,
                             address: payload.address,
