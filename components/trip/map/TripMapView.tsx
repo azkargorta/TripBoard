@@ -60,7 +60,7 @@ type Props = {
 type RouteRenderItem = {
   id: string;
   color: string;
-  travelMode: google.maps.TravelMode;
+  travelMode: "DRIVING" | "WALKING" | "BICYCLING" | "TRANSIT";
   routeDay: string | null;
   path: { lat: number; lng: number }[];
 };
@@ -82,12 +82,12 @@ function asString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function normalizeTravelMode(value: string | null | undefined): google.maps.TravelMode {
+function normalizeTravelMode(value: string | null | undefined): RouteRenderItem["travelMode"] {
   const clean = (value || "").toUpperCase();
-  if (clean === "WALKING") return google.maps.TravelMode.WALKING;
-  if (clean === "BICYCLING") return google.maps.TravelMode.BICYCLING;
-  if (clean === "TRANSIT") return google.maps.TravelMode.TRANSIT;
-  return google.maps.TravelMode.DRIVING;
+  if (clean === "WALKING") return "WALKING";
+  if (clean === "BICYCLING") return "BICYCLING";
+  if (clean === "TRANSIT") return "TRANSIT";
+  return "DRIVING";
 }
 
 function buildPlanPoints(rows: unknown[] | undefined, prefix: string) {
@@ -328,7 +328,7 @@ export default function TripMapView({
             const result = await service.route({
               origin: route.path[0],
               destination: route.path[1],
-              travelMode: route.travelMode,
+              travelMode: google.maps.TravelMode[route.travelMode],
               provideRouteAlternatives: false,
             });
             return [route.id, result] as const;
@@ -359,7 +359,7 @@ export default function TripMapView({
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || !isLoaded) return;
 
     const timer = window.setTimeout(() => {
       google.maps.event.trigger(map, "resize");
@@ -367,7 +367,7 @@ export default function TripMapView({
     }, 200);
 
     return () => window.clearTimeout(timer);
-  }, [fitMapToData, directionsMap, visiblePoints, visibleRoutes]);
+  }, [fitMapToData, directionsMap, visiblePoints, visibleRoutes, isLoaded]);
 
   const handleMapLoad = useCallback((map: google.maps.Map) => {
     mapRef.current = map;
