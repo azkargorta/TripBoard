@@ -11,6 +11,12 @@ const DEFAULT_CENTER = { lat: 48.8566, lng: 2.3522 };
 type UnknownRow = Record<string, unknown>;
 type RouteMode = "DRIVING" | "WALKING" | "BICYCLING" | "TRANSIT";
 
+type AutocompletePayload = {
+  address: string;
+  latitude: number | null;
+  longitude: number | null;
+};
+
 export type TripMapRoute = {
   id: string;
   route_day?: string | null;
@@ -77,7 +83,7 @@ type RoutePreview = {
 
 function asNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim()) {
+  if (typeof value === "string" && value.trim() !== "") {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : null;
   }
@@ -98,13 +104,6 @@ function normalizeTravelMode(value: string | null | undefined): RouteMode {
 
 function emptyPlaceState(): FormPlaceState {
   return { mode: "plan", planId: "", address: "", latitude: null, longitude: null };
-}
-
-function formatDateLabel(date: string) {
-  if (!date) return date;
-  const parsed = new Date(`${date}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) return date;
-  return new Intl.DateTimeFormat("es-ES", { day: "2-digit", month: "short" }).format(parsed);
 }
 
 function buildPlanPlaces(rows: unknown[] | undefined, prefix: string): PlaceOption[] {
@@ -239,13 +238,6 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     if (hookRouteError) setRouteError(hookRouteError);
   }, [hookRouteError]);
 
-  const dateOptions = useMemo(() => {
-    const sourceDates = tripDates.length
-      ? tripDates
-      : routesState.map((route) => route.route_day || route.route_date || "").filter(Boolean);
-    return ["all", ...Array.from(new Set(sourceDates))];
-  }, [routesState, tripDates]);
-
   const visibleRoutes = useMemo(() => {
     const filtered =
       selectedDate === "all"
@@ -313,7 +305,6 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     if (!isLoaded || !gm?.maps) return;
 
     const gmMaps = gm.maps;
-
     const routesForDirections = visibleRoutes.filter(
       (route) =>
         typeof route.origin_latitude === "number" &&
@@ -414,6 +405,19 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     setState({ mode: "plan", planId: placeId, address: selected.address, latitude: selected.latitude, longitude: selected.longitude });
   };
 
+  const handleAutocompleteSelect = (
+    setState: React.Dispatch<React.SetStateAction<FormPlaceState>>,
+    payload: AutocompletePayload
+  ) => {
+    setState({
+      mode: "search",
+      planId: "",
+      address: payload.address,
+      latitude: payload.latitude,
+      longitude: payload.longitude,
+    });
+  };
+
   const buildGoogleMapsUrl = (route: TripMapRoute) => {
     const originAddress = route.origin_address || route.origin_name || "";
     const destinationAddress = route.destination_address || route.destination_name || "";
@@ -431,30 +435,21 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     setRouteError(null);
     setPreview(null);
 
-    if (!gm?.maps) {
-      setRouteError("Google Maps todavía no está listo.");
-      return;
-    }
-    if (!routeDate) {
-      setRouteError("Selecciona un día para la ruta.");
-      return;
-    }
-    if (!routeName.trim()) {
-      setRouteError("Ponle un nombre a la ruta.");
-      return;
-    }
+    if (!gm?.maps) return setRouteError("Google Maps todavía no está listo.");
+    if (!routeDate) return setRouteError("Selecciona un día para la ruta.");
+    if (!routeName.trim()) return setRouteError("Ponle un nombre a la ruta.");
+
     if (
       typeof origin.latitude !== "number" ||
       typeof origin.longitude !== "number" ||
       typeof destination.latitude !== "number" ||
       typeof destination.longitude !== "number"
     ) {
-      setRouteError("Origen y destino deben tener coordenadas válidas.");
-      return;
+      return setRouteError("Origen y destino deben tener coordenadas válidas. Selecciona el lugar del autocompletar o desde Plan.");
     }
+
     if (hasStop && (typeof stop.latitude !== "number" || typeof stop.longitude !== "number")) {
-      setRouteError("La parada intermedia debe tener coordenadas válidas.");
-      return;
+      return setRouteError("La parada intermedia debe tener coordenadas válidas.");
     }
 
     try {
@@ -493,10 +488,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   };
 
   const handleSave = async () => {
-    if (!preview) {
-      setRouteError("Primero calcula la ruta.");
-      return;
-    }
+    if (!preview) return setRouteError("Primero calcula la ruta.");
 
     try {
       setRouteError(null);
@@ -622,38 +614,52 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
       <div className="space-y-6">
         <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-lg font-bold text-slate-950">Seleccionar día</h2>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {dateOptions.map((date) => (
-              <button
-                key={date}
-                type="button"
-                onClick={() => {
-                  setSelectedDate(date);
-                  setHighlightedRouteId(null);
-                  if (!isCreating && date !== "all") setRouteDate(date);
-                }}
-                className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
-                  selectedDate === date
-                    ? "bg-slate-900 text-white"
-                    : "border border-slate-200 bg-white text-slate-700"
-                }`}
-              >
-                {date === "all" ? "Todos los días" : formatDateLabel(date)}
-              </button>
-            ))}
-          </div>
 
-          {selectedDate !== "all" ? (
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => {
-                setSelectedDate(e.target.value);
-                setHighlightedRouteId(null);
-              }}
-              className="mt-4 w-full rounded-xl border border-slate-300 bg-white px-4 py-3"
-            />
-          ) : null}
+          <div className="mt-4 space-y-3">
+            <label className="block space-y-2">
+              <span className="text-sm font-semibold text-slate-800">Vista del mapa</span>
+              <select
+                value={selectedDate === "all" ? "all" : "custom"}
+                onChange={(e) => {
+                  if (e.target.value === "all") {
+                    setSelectedDate("all");
+                    setHighlightedRouteId(null);
+                  }
+                }}
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3"
+              >
+                <option value="all">Todos los días</option>
+                <option value="custom">Elegir un día concreto</option>
+              </select>
+            </label>
+
+            <label className="block space-y-2">
+              <span className="text-sm font-semibold text-slate-800">Seleccionar fecha</span>
+              <input
+                type="date"
+                value={selectedDate === "all" ? "" : selectedDate}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setSelectedDate(value || "all");
+                  setHighlightedRouteId(null);
+                  if (!isCreating && value) {
+                    setRouteDate(value);
+                  }
+                }}
+                list="trip-date-options"
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3"
+              />
+              <datalist id="trip-date-options">
+                {dateOptions.filter((d) => d !== "all").map((date) => (
+                  <option key={date} value={date} />
+                ))}
+              </datalist>
+            </label>
+
+            <p className="text-xs text-slate-500">
+              Puedes abrir el calendario o escribir la fecha manualmente.
+            </p>
+          </div>
 
           <button
             type="button"
@@ -693,9 +699,16 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                     type="date"
                     value={routeDate}
                     onChange={(e) => setRouteDate(e.target.value)}
+                    list="trip-route-date-options"
                     className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3"
                   />
+                  <datalist id="trip-route-date-options">
+                    {dateOptions.filter((d) => d !== "all").map((date) => (
+                      <option key={date} value={date} />
+                    ))}
+                  </datalist>
                 </label>
+
                 <label className="block space-y-2">
                   <span className="text-sm font-semibold text-slate-800">Hora de salida</span>
                   <input
@@ -728,14 +741,32 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                     <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1 text-xs">
                       <button
                         type="button"
-                        onClick={() => item.setState((prev) => ({ ...prev, mode: "plan" }))}
+                        onClick={() =>
+                          item.setState((prev) => ({
+                            ...prev,
+                            mode: "plan",
+                            planId: "",
+                            address: "",
+                            latitude: null,
+                            longitude: null,
+                          }))
+                        }
                         className={`rounded-lg px-3 py-1 ${item.state.mode === "plan" ? "bg-white shadow-sm" : "text-slate-500"}`}
                       >
                         Desde Plan
                       </button>
                       <button
                         type="button"
-                        onClick={() => item.setState((prev) => ({ ...prev, mode: "search", planId: "" }))}
+                        onClick={() =>
+                          item.setState((prev) => ({
+                            ...prev,
+                            mode: "search",
+                            planId: "",
+                            address: "",
+                            latitude: null,
+                            longitude: null,
+                          }))
+                        }
                         className={`rounded-lg px-3 py-1 ${item.state.mode === "search" ? "bg-white shadow-sm" : "text-slate-500"}`}
                       >
                         Buscar
@@ -758,18 +789,24 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                       ))}
                     </select>
                   ) : (
-                    <PlaceAutocompleteInput
-                      value={item.state.address}
-                      onChange={(value) => item.setState((prev) => ({ ...prev, address: value }))}
-                      onPlaceSelect={(payload) =>
-                        item.setState((prev) => ({
-                          ...prev,
-                          address: payload.address,
-                          latitude: payload.latitude,
-                          longitude: payload.longitude,
-                        }))
-                      }
-                    />
+                    <div className="space-y-2">
+                      <PlaceAutocompleteInput
+                        value={item.state.address}
+                        onChange={(value) =>
+                          item.setState((prev) => ({
+                            ...prev,
+                            address: value,
+                          }))
+                        }
+                        onPlaceSelect={(payload) => handleAutocompleteSelect(item.setState, payload)}
+                      />
+                      <p className="text-xs text-slate-500">
+                        Selecciona una opción del autocompletar para guardar coordenadas.
+                      </p>
+                      <div className="text-xs text-slate-500">
+                        Lat: {item.state.latitude ?? "—"} · Lng: {item.state.longitude ?? "—"}
+                      </div>
+                    </div>
                   )}
                 </div>
               ))}
@@ -785,14 +822,30 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                     <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1 text-xs w-fit">
                       <button
                         type="button"
-                        onClick={() => setStop((prev) => ({ ...prev, mode: "plan" }))}
+                        onClick={() =>
+                          setStop({
+                            mode: "plan",
+                            planId: "",
+                            address: "",
+                            latitude: null,
+                            longitude: null,
+                          })
+                        }
                         className={`rounded-lg px-3 py-1 ${stop.mode === "plan" ? "bg-white shadow-sm" : "text-slate-500"}`}
                       >
                         Desde Plan
                       </button>
                       <button
                         type="button"
-                        onClick={() => setStop((prev) => ({ ...prev, mode: "search", planId: "" }))}
+                        onClick={() =>
+                          setStop({
+                            mode: "search",
+                            planId: "",
+                            address: "",
+                            latitude: null,
+                            longitude: null,
+                          })
+                        }
                         className={`rounded-lg px-3 py-1 ${stop.mode === "search" ? "bg-white shadow-sm" : "text-slate-500"}`}
                       >
                         Buscar
@@ -814,18 +867,24 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                         ))}
                       </select>
                     ) : (
-                      <PlaceAutocompleteInput
-                        value={stop.address}
-                        onChange={(value) => setStop((prev) => ({ ...prev, address: value }))}
-                        onPlaceSelect={(payload) =>
-                          setStop((prev) => ({
-                            ...prev,
-                            address: payload.address,
-                            latitude: payload.latitude,
-                            longitude: payload.longitude,
-                          }))
-                        }
-                      />
+                      <div className="space-y-2">
+                        <PlaceAutocompleteInput
+                          value={stop.address}
+                          onChange={(value) =>
+                            setStop((prev) => ({
+                              ...prev,
+                              address: value,
+                            }))
+                          }
+                          onPlaceSelect={(payload) => handleAutocompleteSelect(setStop, payload)}
+                        />
+                        <p className="text-xs text-slate-500">
+                          Selecciona una opción del autocompletar para guardar coordenadas.
+                        </p>
+                        <div className="text-xs text-slate-500">
+                          Lat: {stop.latitude ?? "—"} · Lng: {stop.longitude ?? "—"}
+                        </div>
+                      </div>
                     )}
                   </div>
                 ) : null}
