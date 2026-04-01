@@ -238,6 +238,13 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     if (hookRouteError) setRouteError(hookRouteError);
   }, [hookRouteError]);
 
+  const dateOptions = useMemo(() => {
+    const sourceDates = tripDates.length
+      ? tripDates
+      : routesState.map((route) => route.route_day || route.route_date || "").filter(Boolean);
+    return ["all", ...Array.from(new Set(sourceDates))];
+  }, [routesState, tripDates]);
+
   const visibleRoutes = useMemo(() => {
     const filtered =
       selectedDate === "all"
@@ -742,14 +749,13 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                       <button
                         type="button"
                         onClick={() =>
-                          item.setState((prev) => ({
-                            ...prev,
+                          item.setState({
                             mode: "plan",
                             planId: "",
                             address: "",
                             latitude: null,
                             longitude: null,
-                          }))
+                          })
                         }
                         className={`rounded-lg px-3 py-1 ${item.state.mode === "plan" ? "bg-white shadow-sm" : "text-slate-500"}`}
                       >
@@ -758,14 +764,13 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                       <button
                         type="button"
                         onClick={() =>
-                          item.setState((prev) => ({
-                            ...prev,
+                          item.setState({
                             mode: "search",
                             planId: "",
                             address: "",
                             latitude: null,
                             longitude: null,
-                          }))
+                          })
                         }
                         className={`rounded-lg px-3 py-1 ${item.state.mode === "search" ? "bg-white shadow-sm" : "text-slate-500"}`}
                       >
@@ -798,7 +803,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                             address: value,
                           }))
                         }
-                        onPlaceSelect={(payload) => handleAutocompleteSelect(item.setState, payload)}
+                        onPlaceSelect={(payload) => handleAutocompleteSelect(item.setState, payload as AutocompletePayload)}
                       />
                       <p className="text-xs text-slate-500">
                         Selecciona una opción del autocompletar para guardar coordenadas.
@@ -876,7 +881,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                               address: value,
                             }))
                           }
-                          onPlaceSelect={(payload) => handleAutocompleteSelect(setStop, payload)}
+                          onPlaceSelect={(payload) => handleAutocompleteSelect(setStop, payload as AutocompletePayload)}
                         />
                         <p className="text-xs text-slate-500">
                           Selecciona una opción del autocompletar para guardar coordenadas.
