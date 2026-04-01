@@ -547,6 +547,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
           routeName,
           departureTime,
           mode: travelMode.toLowerCase(),
+          color: routeColor,
           originName: origin.address,
           originAddress: origin.address,
           originLatitude: origin.latitude,

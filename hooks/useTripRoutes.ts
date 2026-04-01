@@ -21,6 +21,7 @@ export type SaveRouteInput = {
   routeName: string;
   departureTime: string;
   mode: string;
+  color?: string | null;
   originName: string;
   originAddress: string;
   originLatitude: number | null;
@@ -148,6 +149,7 @@ export function useTripRoutes(tripId: string, reload?: () => Promise<void>) {
         route_start_time: input.departureTime || null,
         mode: input.mode || "driving",
         travel_mode: (input.mode || "driving").toUpperCase(),
+        color: input.color || null,
         origin_name: input.originName || input.originAddress || "Origen",
         origin_address: input.originAddress || null,
         origin_latitude: input.originLatitude,
