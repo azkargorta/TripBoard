@@ -18,6 +18,7 @@ type Props = {
   value: string;
   onChange: (value: string) => void;
   onPlaceSelect: (payload: AutocompletePayload) => void;
+  label?: string;
   placeholder?: string;
   className?: string;
 };
@@ -26,6 +27,7 @@ export default function PlaceAutocompleteInput({
   value,
   onChange,
   onPlaceSelect,
+  label,
   placeholder = "Busca un lugar",
   className = "",
 }: Props) {
@@ -77,7 +79,7 @@ export default function PlaceAutocompleteInput({
           types: ["geocode"],
         });
 
-        if (cancelled || currentRequestId !== requestIdRef.current) return;
+        if (cancelled || currentRequestId != requestIdRef.current) return;
 
         const next = (result.predictions || []).map((prediction) => ({
           id: prediction.place_id,
@@ -185,6 +187,12 @@ export default function PlaceAutocompleteInput({
 
   return (
     <div ref={rootRef} className={`relative ${className}`}>
+      {label ? (
+        <label className="mb-2 block text-sm font-medium text-slate-700">
+          {label}
+        </label>
+      ) : null}
+
       <input
         type="text"
         value={value}
