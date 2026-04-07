@@ -38,7 +38,7 @@ export function useParticipantBalances(tripId: string | undefined) {
 
       const { data, error } = await supabase
         .from("trip_expenses")
-        .select("id, amount, amount_in_base, paid_by_participant_id, split_between")
+        .select("id, amount, paid_by_participant_id, split_between")
         .eq("trip_id", tripId);
 
       if (cancelled) return;
@@ -53,7 +53,7 @@ export function useParticipantBalances(tripId: string | undefined) {
       const next: Record<string, ParticipantBalanceSummary> = {};
 
       for (const expense of (data ?? []) as ExpenseRow[]) {
-        const amount = toAmount(expense.amount_in_base ?? expense.amount);
+        const amount = toAmount(expense.amount);
         if (amount <= 0) continue;
 
         const splitBetween = normalizeSplitBetween(expense.split_between);

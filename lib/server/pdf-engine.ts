@@ -18,6 +18,11 @@ async function tryPdfParse(buffer: Buffer): Promise<string> {
 
 async function tryPdfJs(buffer: Buffer): Promise<string> {
   try {
+    // En Vercel/producción, pdfjs-dist puede intentar cargar dependencias nativas (canvas/@napi-rs/canvas)
+    // que no están disponibles en runtime serverless, provocando warnings y a veces cortes de conexión.
+    // Preferimos quedarnos con pdf-parse y delegar a OCR.Space como fallback.
+    if (process.env.VERCEL === "1" || process.env.NODE_ENV === "production") return "";
+
     const pdfjs: any = await import("pdfjs-dist/legacy/build/pdf.mjs");
     const loadingTask = pdfjs.getDocument({ data: new Uint8Array(buffer) });
     const pdf = await loadingTask.promise;

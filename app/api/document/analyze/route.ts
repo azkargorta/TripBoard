@@ -13,6 +13,18 @@ async function extractTextFromPdfBuffer(
   buffer: Buffer,
   options?: { fileName?: string | null; mimeType?: string | null }
 ): Promise<string> {
+  // En Vercel/producción, algunas librerías de PDF pueden intentar cargar dependencias nativas (canvas)
+  // y provocar cortes de conexión. Si OCR.Space está disponible, lo priorizamos para mantener estabilidad.
+  const isProd = process.env.VERCEL === "1" || process.env.NODE_ENV === "production";
+  if (isProd && isOcrSpaceConfigured()) {
+    const ocrText = await extractTextWithOcrSpace({
+      buffer,
+      fileName: options?.fileName,
+      mimeType: options?.mimeType || "application/pdf",
+    });
+    if (ocrText.trim()) return ocrText.trim();
+  }
+
   const parsedText = await extractTextFromPdfWithUnpdf(buffer);
   if (parsedText.trim()) return parsedText.trim();
 

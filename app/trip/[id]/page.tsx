@@ -57,7 +57,7 @@ type RouteRow = {
 type ExpenseRow = {
   id: string;
   amount: number | string | null;
-  amount_in_base: number | string | null;
+  amount_in_base?: number | string | null;
   currency: string | null;
   payer_name?: string | null;
   participant_names?: unknown;
@@ -154,7 +154,7 @@ export default async function TripPage({ params }: TripPageProps) {
     supabase
       .from("trip_expenses")
       .select(
-        "id, amount, amount_in_base, currency, payer_name, participant_names, paid_by_names, owed_by_names, paid_by_participant_id, split_between"
+        "id, amount, currency, payer_name, participant_names, paid_by_names, owed_by_names, paid_by_participant_id, split_between"
       )
       .eq("trip_id", tripId),
     supabase.from("trip_resources").select("id").eq("trip_id", tripId),
