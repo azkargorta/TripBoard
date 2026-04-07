@@ -110,6 +110,7 @@ type RoutePreview = {
   durationText: string | null;
   arrivalTime: string | null;
   overviewPath: { lat: number; lng: number }[];
+  tollEstimated?: { currencyCode: string; units: string; nanos?: number } | null;
 };
 
 type DriveAltKey = "with_tolls" | "without_tolls";
@@ -350,6 +351,19 @@ function secondsToHuman(seconds: number | null) {
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
   return rest ? `${hours} h ${rest} min` : `${hours} h`;
+}
+
+function formatMoney(m: { currencyCode: string; units: string; nanos?: number } | null | undefined) {
+  if (!m) return "—";
+  const units = Number(m.units || "0");
+  const nanos = Number(m.nanos || 0);
+  if (!Number.isFinite(units) || !Number.isFinite(nanos)) return "—";
+  const amount = units + nanos / 1_000_000_000;
+  try {
+    return new Intl.NumberFormat("es-ES", { style: "currency", currency: m.currencyCode || "EUR" }).format(amount);
+  } catch {
+    return `${amount.toFixed(2)} ${m.currencyCode || ""}`.trim();
+  }
 }
 
 function metersToHuman(meters: number | null) {
@@ -1089,7 +1103,36 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
         const durationText = secondsToHuman(totalSeconds);
         const arrivalTime = form.departureTime ? addSecondsToTime(form.departureTime, totalSeconds + restSeconds) : null;
         const overviewPath = (firstRoute?.overview_path || []).map((p) => ({ lat: p.lat(), lng: p.lng() }));
-        return { directions: result, distanceText, durationText, arrivalTime, overviewPath };
+        return { directions: result, distanceText, durationText, arrivalTime, overviewPath, tollEstimated: null };
+      };
+
+      const fetchTollEstimate = async (avoidTolls: boolean) => {
+        try {
+          const resp = await fetch("/api/route-tolls", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              tripId,
+              origin: { lat: origin.latitude, lng: origin.longitude },
+              destination: { lat: destination.latitude, lng: destination.longitude },
+              stop: hasStop ? { lat: stop.latitude!, lng: stop.longitude! } : null,
+              avoidTolls,
+            }),
+          });
+          const text = await resp.text();
+          let payload: any = null;
+          try {
+            payload = text ? JSON.parse(text) : null;
+          } catch {
+            payload = { error: text || "Respuesta no JSON." };
+          }
+          if (!resp.ok) return null;
+          const price = payload?.tollInfo?.estimatedPrice?.[0];
+          if (!price || typeof price.currencyCode !== "string" || typeof price.units !== "string") return null;
+          return { currencyCode: price.currencyCode, units: price.units, nanos: typeof price.nanos === "number" ? price.nanos : 0 };
+        } catch {
+          return null;
+        }
       };
 
       if (form.travelMode === "DRIVING") {
@@ -1098,8 +1141,9 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
           service.route({ ...baseRequest, avoidTolls: true }),
         ]);
 
-        const withPreview = buildPreview(withTolls);
-        const withoutPreview = buildPreview(withoutTolls);
+        const [withTollPrice, withoutTollPrice] = await Promise.all([fetchTollEstimate(false), fetchTollEstimate(true)]);
+        const withPreview = { ...buildPreview(withTolls), tollEstimated: withTollPrice };
+        const withoutPreview = { ...buildPreview(withoutTolls), tollEstimated: withoutTollPrice };
 
         setDriveAlternatives({
           with_tolls: withPreview,
@@ -1120,7 +1164,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     } finally {
       setCalculating(false);
     }
-  }, [destination.latitude, destination.longitude, form.departureTime, form.stopEnabled, form.travelMode, form.restStopsEnabled, form.restStopsCount, form.restStopMinutes, isLoaded, origin.latitude, origin.longitude, stop.latitude, stop.longitude]);
+  }, [destination.latitude, destination.longitude, form.departureTime, form.stopEnabled, form.travelMode, form.restStopsEnabled, form.restStopsCount, form.restStopMinutes, isLoaded, origin.latitude, origin.longitude, stop.latitude, stop.longitude, tripId]);
 
   const handleSave = useCallback(async () => {
     setRouteError(null);
@@ -2151,7 +2195,9 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                       {driveAlternatives.with_tolls?.distanceText ?? "—"} · {driveAlternatives.with_tolls?.durationText ?? "—"}
                       {driveAlternatives.with_tolls?.arrivalTime ? ` · Llegada ${driveAlternatives.with_tolls.arrivalTime}` : ""}
                     </div>
-                    <div className="mt-1 text-[11px] text-slate-500">Coste peajes: —</div>
+                    <div className="mt-1 text-[11px] text-slate-500">
+                      Coste peajes: {formatMoney(driveAlternatives.with_tolls?.tollEstimated)}
+                    </div>
                   </button>
 
                   <button
@@ -2172,7 +2218,9 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                       {driveAlternatives.without_tolls?.distanceText ?? "—"} · {driveAlternatives.without_tolls?.durationText ?? "—"}
                       {driveAlternatives.without_tolls?.arrivalTime ? ` · Llegada ${driveAlternatives.without_tolls.arrivalTime}` : ""}
                     </div>
-                    <div className="mt-1 text-[11px] text-slate-500">Coste peajes: —</div>
+                    <div className="mt-1 text-[11px] text-slate-500">
+                      Coste peajes: {formatMoney(driveAlternatives.without_tolls?.tollEstimated)}
+                    </div>
                   </button>
                 </div>
               </div>
