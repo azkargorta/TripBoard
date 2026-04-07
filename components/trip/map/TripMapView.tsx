@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DirectionsRenderer, GoogleMap, MarkerF, useJsApiLoader } from "@react-google-maps/api";
 import PlaceAutocompleteInput from "@/components/PlaceAutocompleteInput";
 import { useTripRoutes } from "@/hooks/useTripRoutes";
+import { supabase } from "@/lib/supabase";
 
 const GOOGLE_LIBRARIES: ("places")[] = ["places"];
 const DEFAULT_CENTER = { lat: 48.8566, lng: 2.3522 };
@@ -19,6 +20,7 @@ type AutocompletePayload = {
 
 export type TripMapRoute = {
   id: string;
+  source?: "trip_routes" | "legacy_routes";
   route_day?: string | null;
   route_date?: string | null;
   departure_time?: string | null;
@@ -45,6 +47,13 @@ export type TripMapRoute = {
 
 type Props = {
   tripId: string;
+  trip?: {
+    id: string;
+    name?: string | null;
+    destination?: string | null;
+    start_date?: string | null;
+    end_date?: string | null;
+  };
   tripDates?: string[];
   planSources?: {
     tripActivities?: unknown[];
@@ -79,6 +88,19 @@ type RoutePreview = {
   durationText: string | null;
   arrivalTime: string | null;
   overviewPath: { lat: number; lng: number }[];
+};
+
+type RouteFormState = {
+  editingRouteId: string | null;
+  routeDate: string;
+  routeName: string;
+  departureTime: string;
+  travelMode: RouteMode;
+  color: string;
+  originName: string;
+  destinationName: string;
+  stopEnabled: boolean;
+  stopName: string;
 };
 
 function asNumber(value: unknown): number | null {
@@ -135,7 +157,11 @@ function buildPlanPlaces(rows: unknown[] | undefined, prefix: string): PlaceOpti
     .filter(Boolean) as PlaceOption[];
 }
 
-function buildInitialRoutes(rows: unknown[] | undefined, prefix: string): TripMapRoute[] {
+function buildInitialRoutes(
+  rows: unknown[] | undefined,
+  source: TripMapRoute["source"],
+  prefix: string
+): TripMapRoute[] {
   return (rows ?? [])
     .map((row, index) => {
       const item = row as UnknownRow;
@@ -149,6 +175,7 @@ function buildInitialRoutes(rows: unknown[] | undefined, prefix: string): TripMa
 
       return {
         id: String(item.id ?? `${prefix}-${index}`),
+        source,
         route_day: asString(item.route_day) ?? asString(item.route_date) ?? asString(item.day_date) ?? null,
         route_date: asString(item.route_date) ?? asString(item.route_day) ?? asString(item.day_date) ?? null,
         departure_time: asString(item.departure_time) ?? asString(item.start_time) ?? null,
@@ -176,6 +203,98 @@ function buildInitialRoutes(rows: unknown[] | undefined, prefix: string): TripMa
     .filter(Boolean) as TripMapRoute[];
 }
 
+function formatRouteMeta(route: TripMapRoute) {
+  const date = route.route_day || route.route_date || "";
+  const time = route.departure_time || "";
+  const mode = normalizeTravelMode(route.travel_mode);
+  const base = [date, time].filter(Boolean).join(" · ");
+  const extra = [
+    route.distance_text ? `📏 ${route.distance_text}` : null,
+    route.duration_text ? `⏱️ ${route.duration_text}` : null,
+    route.arrival_time ? `Llegada ${route.arrival_time}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return {
+    base,
+    extra,
+    modeLabel: mode === "DRIVING" ? "Coche" : mode === "WALKING" ? "Andando" : mode === "BICYCLING" ? "Bici" : "Transporte público",
+  };
+}
+
+function buildGoogleMapsDirectionsUrl(route: TripMapRoute) {
+  const origin =
+    typeof route.origin_latitude === "number" && typeof route.origin_longitude === "number"
+      ? `${route.origin_latitude},${route.origin_longitude}`
+      : route.origin_address || route.origin_name || "";
+  const destination =
+    typeof route.destination_latitude === "number" && typeof route.destination_longitude === "number"
+      ? `${route.destination_latitude},${route.destination_longitude}`
+      : route.destination_address || route.destination_name || "";
+
+  const waypoints: string[] = [];
+  if (typeof route.stop_latitude === "number" && typeof route.stop_longitude === "number") {
+    waypoints.push(`${route.stop_latitude},${route.stop_longitude}`);
+  } else if (route.stop_address) {
+    waypoints.push(route.stop_address);
+  }
+
+  const travelMode = normalizeTravelMode(route.travel_mode).toLowerCase();
+  const params = new URLSearchParams({
+    api: "1",
+    origin,
+    destination,
+    travelmode: travelMode,
+  });
+  if (waypoints.length) params.set("waypoints", waypoints.join("|"));
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+
+function secondsToHuman(seconds: number | null) {
+  if (seconds == null || !Number.isFinite(seconds) || seconds <= 0) return null;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest ? `${hours} h ${rest} min` : `${hours} h`;
+}
+
+function metersToHuman(meters: number | null) {
+  if (meters == null || !Number.isFinite(meters) || meters <= 0) return null;
+  if (meters < 1000) return `${Math.round(meters)} m`;
+  const km = meters / 1000;
+  return `${km.toFixed(km < 10 ? 1 : 0)} km`;
+}
+
+function addSecondsToTime(timeHHMM: string, seconds: number) {
+  const [hStr, mStr] = timeHHMM.split(":");
+  const h = Number(hStr);
+  const m = Number(mStr);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  const base = h * 3600 + m * 60;
+  const next = base + seconds;
+  const nextH = Math.floor(next / 3600) % 24;
+  const nextM = Math.floor((next % 3600) / 60);
+  return `${String(nextH).padStart(2, "0")}:${String(nextM).padStart(2, "0")}`;
+}
+
+function defaultFormState(tripDates: string[], selectedDate: string): RouteFormState {
+  const firstDate = tripDates[0] || "";
+  const date = selectedDate !== "all" ? selectedDate : firstDate;
+  return {
+    editingRouteId: null,
+    routeDate: date,
+    routeName: "",
+    departureTime: "",
+    travelMode: "DRIVING",
+    color: "#4f46e5",
+    originName: "Origen",
+    destinationName: "Destino",
+    stopEnabled: false,
+    stopName: "Parada",
+  };
+}
+
 export default function TripMapView({ tripId, tripDates = [], planSources, routeSources }: Props) {
   const googleMapsApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
   const { isLoaded, loadError } = useJsApiLoader({
@@ -197,25 +316,70 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
 
   const initialRoutes = useMemo(() => {
     const all = [
-      ...buildInitialRoutes(routeSources?.tripRoutes, "trip-route"),
-      ...buildInitialRoutes(routeSources?.legacyRoutes, "legacy-route"),
+      ...buildInitialRoutes(routeSources?.tripRoutes, "trip_routes", "trip-route"),
+      ...buildInitialRoutes(routeSources?.legacyRoutes, "legacy_routes", "legacy-route"),
     ];
-    const byId = new Map<string, TripMapRoute>();
-    all.forEach((route) => byId.set(route.id, route));
-    return Array.from(byId.values());
+    const byKey = new Map<string, TripMapRoute>();
+    all.forEach((route) => byKey.set(`${route.source || "trip_routes"}:${route.id}`, route));
+    return Array.from(byKey.values());
   }, [routeSources]);
 
   const [routesState, setRoutesState] = useState<TripMapRoute[]>(initialRoutes);
   const [selectedDate, setSelectedDate] = useState<string>("all");
-  const [origin, setOrigin] = useState<FormPlaceState>(emptyPlaceState());
-  const [destination, setDestination] = useState<FormPlaceState>(emptyPlaceState());
   const [directionsMap, setDirectionsMap] = useState<Record<string, google.maps.DirectionsResult | null>>({});
-  const { routeError: hookRouteError } = useTripRoutes(tripId);
   const [routeError, setRouteError] = useState<string | null>(null);
+  const [activeRouteKey, setActiveRouteKey] = useState<string | null>(null);
+  const [form, setForm] = useState<RouteFormState>(() => defaultFormState(tripDates, "all"));
+  const [origin, setOrigin] = useState<FormPlaceState>(emptyPlaceState());
+  const [stop, setStop] = useState<FormPlaceState>(emptyPlaceState());
+  const [destination, setDestination] = useState<FormPlaceState>(emptyPlaceState());
+  const [preview, setPreview] = useState<RoutePreview | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [calculating, setCalculating] = useState(false);
+  const [loadingRoutes, setLoadingRoutes] = useState(false);
 
   useEffect(() => {
     setRoutesState(initialRoutes);
   }, [initialRoutes]);
+
+  useEffect(() => {
+    setForm((prev) => {
+      if (prev.editingRouteId) return prev;
+      const next = defaultFormState(tripDates, selectedDate);
+      return { ...next, routeDate: next.routeDate || prev.routeDate || "" };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tripDates, selectedDate]);
+
+  const reloadRoutes = useCallback(async () => {
+    if (!tripId) return;
+    setLoadingRoutes(true);
+    setRouteError(null);
+    try {
+      const { data, error } = await supabase
+        .from("trip_routes")
+        .select("*")
+        .eq("trip_id", tripId)
+        .order("route_day", { ascending: true })
+        .order("departure_time", { ascending: true });
+      if (error) throw new Error(error.message);
+
+      const nextTripRoutes = buildInitialRoutes(data as unknown[], "trip_routes", "trip-route");
+      setRoutesState((prev) => {
+        const legacy = prev.filter((r) => r.source === "legacy_routes");
+        const byKey = new Map<string, TripMapRoute>();
+        legacy.forEach((r) => byKey.set(`legacy_routes:${r.id}`, r));
+        nextTripRoutes.forEach((r) => byKey.set(`trip_routes:${r.id}`, r));
+        return Array.from(byKey.values());
+      });
+    } catch (error) {
+      setRouteError(error instanceof Error ? error.message : "No se pudieron recargar las rutas.");
+    } finally {
+      setLoadingRoutes(false);
+    }
+  }, [tripId]);
+
+  const { routeError: hookRouteError, saveRoute, deleteRoute, savingRoute } = useTripRoutes(tripId, reloadRoutes);
 
   useEffect(() => {
     if (hookRouteError) setRouteError(hookRouteError);
@@ -249,6 +413,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
       const next: Record<string, google.maps.DirectionsResult | null> = {};
 
       for (const route of visibleRoutes) {
+        const routeKey = `${route.source || "trip_routes"}:${route.id}`;
         if (
           typeof route.origin_latitude !== "number" ||
           typeof route.origin_longitude !== "number" ||
@@ -265,9 +430,9 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
             travelMode: gmMaps.TravelMode[normalizeTravelMode(route.travel_mode)],
             provideRouteAlternatives: false,
           });
-          next[route.id] = result;
+          next[routeKey] = result;
         } catch {
-          next[route.id] = null;
+          next[routeKey] = null;
         }
       }
 
@@ -313,6 +478,211 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     });
   };
 
+  const applyPlanPlace = useCallback(
+    (setState: React.Dispatch<React.SetStateAction<FormPlaceState>>, placeId: string) => {
+      const place = planPlaces.find((p) => p.id === placeId);
+      if (!place) return;
+      setState({
+        mode: "plan",
+        planId: place.id,
+        address: place.address,
+        latitude: place.latitude,
+        longitude: place.longitude,
+      });
+    },
+    [planPlaces]
+  );
+
+  const resetForm = useCallback(() => {
+    setActiveRouteKey(null);
+    setPreview(null);
+    setPreviewError(null);
+    setOrigin(emptyPlaceState());
+    setStop(emptyPlaceState());
+    setDestination(emptyPlaceState());
+    setForm(defaultFormState(tripDates, selectedDate));
+  }, [selectedDate, tripDates]);
+
+  const beginEditRoute = useCallback(
+    (route: TripMapRoute) => {
+      const key = `${route.source || "trip_routes"}:${route.id}`;
+      setActiveRouteKey(key);
+      setPreview(null);
+      setPreviewError(null);
+
+      setForm({
+        editingRouteId: route.source === "trip_routes" ? route.id : null,
+        routeDate: route.route_day || route.route_date || (selectedDate !== "all" ? selectedDate : tripDates[0] || ""),
+        routeName: route.route_name || route.title || "Ruta",
+        departureTime: route.departure_time || "",
+        travelMode: normalizeTravelMode(route.travel_mode),
+        color: route.color || "#4f46e5",
+        originName: route.origin_name || "Origen",
+        destinationName: route.destination_name || "Destino",
+        stopEnabled: !!(route.stop_latitude && route.stop_longitude) || !!route.stop_address,
+        stopName: route.stop_name || "Parada",
+      });
+
+      setOrigin({
+        mode: "search",
+        planId: "",
+        address: route.origin_address || route.origin_name || "",
+        latitude: route.origin_latitude ?? null,
+        longitude: route.origin_longitude ?? null,
+      });
+
+      setStop({
+        mode: "search",
+        planId: "",
+        address: route.stop_address || route.stop_name || "",
+        latitude: route.stop_latitude ?? null,
+        longitude: route.stop_longitude ?? null,
+      });
+
+      setDestination({
+        mode: "search",
+        planId: "",
+        address: route.destination_address || route.destination_name || "",
+        latitude: route.destination_latitude ?? null,
+        longitude: route.destination_longitude ?? null,
+      });
+    },
+    [selectedDate, tripDates]
+  );
+
+  const calculatePreview = useCallback(async () => {
+    if (!isLoaded || typeof window === "undefined" || !window.google?.maps) {
+      setPreviewError("Google Maps aún no está listo.");
+      return;
+    }
+
+    setPreviewError(null);
+    setCalculating(true);
+
+    try {
+      const gmMaps = window.google.maps;
+      const service = new gmMaps.DirectionsService();
+
+      if (typeof origin.latitude !== "number" || typeof origin.longitude !== "number") {
+        throw new Error("El origen debe tener coordenadas válidas.");
+      }
+      if (typeof destination.latitude !== "number" || typeof destination.longitude !== "number") {
+        throw new Error("El destino debe tener coordenadas válidas.");
+      }
+
+      const hasStop = form.stopEnabled && typeof stop.latitude === "number" && typeof stop.longitude === "number";
+
+      const result = await service.route({
+        origin: { lat: origin.latitude, lng: origin.longitude },
+        destination: { lat: destination.latitude, lng: destination.longitude },
+        travelMode: gmMaps.TravelMode[form.travelMode],
+        waypoints: hasStop ? [{ location: { lat: stop.latitude!, lng: stop.longitude! }, stopover: true }] : [],
+        provideRouteAlternatives: false,
+      });
+
+      const firstRoute = result.routes?.[0];
+      const legs = firstRoute?.legs || [];
+      const totalMeters = legs.reduce((sum, leg) => sum + (leg.distance?.value || 0), 0);
+      const totalSeconds = legs.reduce((sum, leg) => sum + (leg.duration?.value || 0), 0);
+
+      const distanceText = metersToHuman(totalMeters);
+      const durationText = secondsToHuman(totalSeconds);
+      const arrivalTime = form.departureTime ? addSecondsToTime(form.departureTime, totalSeconds) : null;
+      const overviewPath = (firstRoute?.overview_path || []).map((p) => ({ lat: p.lat(), lng: p.lng() }));
+
+      setPreview({
+        directions: result,
+        distanceText,
+        durationText,
+        arrivalTime,
+        overviewPath,
+      });
+    } catch (error) {
+      setPreview(null);
+      setPreviewError(error instanceof Error ? error.message : "No se pudo calcular la ruta.");
+    } finally {
+      setCalculating(false);
+    }
+  }, [destination.latitude, destination.longitude, form.departureTime, form.stopEnabled, form.travelMode, isLoaded, origin.latitude, origin.longitude, stop.latitude, stop.longitude]);
+
+  const handleSave = useCallback(async () => {
+    setRouteError(null);
+    setPreviewError(null);
+
+    const date = form.routeDate?.trim();
+    if (!date) {
+      setRouteError("Selecciona un día para la ruta.");
+      return;
+    }
+    if (!form.routeName.trim()) {
+      setRouteError("Escribe un nombre para la ruta.");
+      return;
+    }
+    if (typeof origin.latitude !== "number" || typeof origin.longitude !== "number") {
+      setRouteError("El origen debe tener coordenadas válidas.");
+      return;
+    }
+    if (typeof destination.latitude !== "number" || typeof destination.longitude !== "number") {
+      setRouteError("El destino debe tener coordenadas válidas.");
+      return;
+    }
+
+    try {
+      const result = await saveRoute(
+        {
+          routeDate: date,
+          routeName: form.routeName.trim(),
+          departureTime: form.departureTime,
+          mode: form.travelMode,
+          color: form.color,
+          originName: form.originName || origin.address || "Origen",
+          originAddress: origin.address || form.originName || "Origen",
+          originLatitude: origin.latitude,
+          originLongitude: origin.longitude,
+          stopName: form.stopEnabled ? form.stopName : undefined,
+          stopAddress: form.stopEnabled ? stop.address : undefined,
+          stopLatitude: form.stopEnabled ? stop.latitude : undefined,
+          stopLongitude: form.stopEnabled ? stop.longitude : undefined,
+          destinationName: form.destinationName || destination.address || "Destino",
+          destinationAddress: destination.address || form.destinationName || "Destino",
+          destinationLatitude: destination.latitude,
+          destinationLongitude: destination.longitude,
+          distanceText: preview?.distanceText ?? null,
+          durationText: preview?.durationText ?? null,
+          arrivalTime: preview?.arrivalTime ?? null,
+          routePoints: preview?.overviewPath ?? [],
+          pathPoints: preview?.overviewPath ?? [],
+        },
+        form.editingRouteId || undefined
+      );
+
+      if (result) {
+        setSelectedDate(date);
+        resetForm();
+      }
+    } catch {
+      // `useTripRoutes` ya setea `routeError`
+    }
+  }, [destination.address, destination.latitude, destination.longitude, form, origin.address, origin.latitude, origin.longitude, preview, resetForm, saveRoute, stop.address, stop.latitude, stop.longitude]);
+
+  const handleDelete = useCallback(
+    async (route: TripMapRoute) => {
+      if (route.source !== "trip_routes") {
+        setRouteError("Esta ruta es legacy y no se puede eliminar desde aquí.");
+        return;
+      }
+      try {
+        await deleteRoute(route.id);
+        if (form.editingRouteId === route.id) {
+          resetForm();
+        }
+      } catch {
+        // hook maneja error
+      }
+    },
+    [deleteRoute, form.editingRouteId, resetForm]
+  );
+
   const fitMapToData = useCallback(() => {
     if (typeof window === "undefined" || !window.google?.maps || !mapRef.current) return;
 
@@ -325,7 +695,8 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     });
 
     visibleRoutes.forEach((route) => {
-      const directions = directionsMap[route.id];
+      const routeKey = `${route.source || "trip_routes"}:${route.id}`;
+      const directions = directionsMap[routeKey];
       const overview = directions?.routes?.[0]?.overview_path;
       if (overview?.length) {
         overview.forEach((point) => {
@@ -335,6 +706,13 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
       }
     });
 
+    if (preview?.overviewPath?.length) {
+      preview.overviewPath.forEach((point) => {
+        bounds.extend(point);
+        hasData = true;
+      });
+    }
+
     if (!hasData) {
       mapRef.current.setCenter(DEFAULT_CENTER);
       mapRef.current.setZoom(6);
@@ -342,7 +720,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     }
 
     mapRef.current.fitBounds(bounds, 80);
-  }, [directionsMap, visiblePoints, visibleRoutes]);
+  }, [directionsMap, preview, visiblePoints, visibleRoutes]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -359,30 +737,407 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     return <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">No se pudo cargar Google Maps.</div>;
   }
 
+  const dateOptions = useMemo(() => {
+    const uniq = new Set<string>();
+    tripDates.forEach((d) => uniq.add(d));
+    visibleRoutes.forEach((r) => {
+      const d = r.route_day || r.route_date;
+      if (d) uniq.add(d);
+    });
+    return Array.from(uniq.values()).sort();
+  }, [tripDates, visibleRoutes]);
+
+  const planOptionsForForm = useMemo(() => {
+    const date = form.routeDate;
+    const rows = planPlaces.filter((p) => !date || !p.activityDate || p.activityDate === date);
+    return rows.sort((a, b) => (a.label || "").localeCompare(b.label || ""));
+  }, [form.routeDate, planPlaces]);
+
   return (
     <div className="grid gap-6 lg:grid-cols-[420px_minmax(0,1fr)]">
       <div className="space-y-6">
         <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-bold text-slate-950">Origen</h2>
-          <div className="mt-4 space-y-2">
-            <PlaceAutocompleteInput
-              value={origin.address}
-              onChange={(value) => setOrigin((prev) => ({ ...prev, address: value }))}
-              onPlaceSelect={(payload) => void handleAutocompleteSelect(setOrigin, payload)}
-            />
-            <div className="text-xs text-slate-500">Lat: {origin.latitude ?? "—"} · Lng: {origin.longitude ?? "—"}</div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-slate-950">Rutas</h2>
+              <p className="mt-1 text-sm text-slate-600">Filtra por día, edita rutas guardadas o crea una nueva.</p>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => void reloadRoutes()}
+                className="inline-flex min-h-[40px] items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900 disabled:opacity-50"
+                disabled={loadingRoutes}
+              >
+                {loadingRoutes ? "Recargando..." : "Recargar"}
+              </button>
+              <button
+                type="button"
+                onClick={resetForm}
+                className="inline-flex min-h-[40px] items-center justify-center rounded-xl bg-slate-900 px-3 text-sm font-semibold text-white"
+              >
+                Nueva ruta
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-3">
+            <div className="grid grid-cols-[1fr_140px] gap-3">
+              <select
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
+              >
+                <option value="all">Todos los días</option>
+                {dateOptions.map((date) => (
+                  <option key={date} value={date}>
+                    {date}
+                  </option>
+                ))}
+              </select>
+
+              <input
+                type="date"
+                value={selectedDate === "all" ? "" : selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value ? e.target.value : "all")}
+                className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
+              />
+            </div>
+
+            {visibleRoutes.length === 0 ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                No hay rutas guardadas para este filtro.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {visibleRoutes
+                  .slice()
+                  .sort((a, b) => {
+                    const da = a.route_day || a.route_date || "";
+                    const db = b.route_day || b.route_date || "";
+                    if (da !== db) return da.localeCompare(db);
+                    const ta = a.departure_time || "";
+                    const tb = b.departure_time || "";
+                    return ta.localeCompare(tb);
+                  })
+                  .map((route) => {
+                    const key = `${route.source || "trip_routes"}:${route.id}`;
+                    const meta = formatRouteMeta(route);
+                    const isActive = activeRouteKey === key;
+                    const canEdit = route.source === "trip_routes";
+
+                    return (
+                      <div
+                        key={key}
+                        className={`rounded-2xl border p-4 transition ${
+                          isActive ? "border-violet-300 bg-violet-50" : "border-slate-200 bg-white hover:bg-slate-50"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <button
+                            type="button"
+                            onClick={() => beginEditRoute(route)}
+                            className="text-left"
+                            title={canEdit ? "Editar ruta" : "Ruta legacy (solo lectura)"}
+                          >
+                            <div className="text-sm font-extrabold text-slate-950">{route.route_name || route.title || "Ruta"}</div>
+                            <div className="mt-1 text-xs font-semibold text-slate-600">
+                              {meta.base ? meta.base : "Sin fecha"} {meta.base ? `· ${meta.modeLabel}` : meta.modeLabel}
+                            </div>
+                            {meta.extra ? <div className="mt-1 text-xs text-slate-500">{meta.extra}</div> : null}
+                          </button>
+
+                          <div className="flex flex-wrap gap-2">
+                            <a
+                              href={buildGoogleMapsDirectionsUrl(route)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex min-h-[36px] items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-slate-900"
+                            >
+                              Abrir
+                            </a>
+                            {canEdit ? (
+                              <button
+                                type="button"
+                                onClick={() => void handleDelete(route)}
+                                disabled={savingRoute}
+                                className="inline-flex min-h-[36px] items-center justify-center rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-bold text-red-700 disabled:opacity-50"
+                              >
+                                Eliminar
+                              </button>
+                            ) : (
+                              <span className="inline-flex min-h-[36px] items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-600">
+                                Legacy
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
           </div>
         </section>
 
         <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-bold text-slate-950">Destino</h2>
-          <div className="mt-4 space-y-2">
-            <PlaceAutocompleteInput
-              value={destination.address}
-              onChange={(value) => setDestination((prev) => ({ ...prev, address: value }))}
-              onPlaceSelect={(payload) => void handleAutocompleteSelect(setDestination, payload)}
+          <h2 className="text-lg font-bold text-slate-950">{form.editingRouteId ? "Editar ruta" : "Nueva ruta"}</h2>
+
+          <div className="mt-4 grid gap-3">
+            <div className="grid grid-cols-[1fr_140px] gap-3">
+              <input
+                type="date"
+                value={form.routeDate}
+                onChange={(e) => setForm((prev) => ({ ...prev, routeDate: e.target.value }))}
+                className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
+              />
+              <input
+                type="time"
+                value={form.departureTime}
+                onChange={(e) => setForm((prev) => ({ ...prev, departureTime: e.target.value }))}
+                className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
+              />
+            </div>
+
+            <input
+              type="text"
+              value={form.routeName}
+              onChange={(e) => setForm((prev) => ({ ...prev, routeName: e.target.value }))}
+              placeholder="Nombre de la ruta (ej. Hotel → Museo → Restaurante)"
+              className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-900"
             />
-            <div className="text-xs text-slate-500">Lat: {destination.latitude ?? "—"} · Lng: {destination.longitude ?? "—"}</div>
+
+            <div className="grid grid-cols-[1fr_1fr] gap-3">
+              <select
+                value={form.travelMode}
+                onChange={(e) => setForm((prev) => ({ ...prev, travelMode: e.target.value as RouteMode }))}
+                className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
+              >
+                <option value="DRIVING">Coche</option>
+                <option value="WALKING">Andando</option>
+                <option value="TRANSIT">Transporte público</option>
+                <option value="BICYCLING">Bicicleta</option>
+              </select>
+
+              <input
+                type="color"
+                value={form.color}
+                onChange={(e) => setForm((prev) => ({ ...prev, color: e.target.value }))}
+                className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3"
+                title="Color de la ruta"
+              />
+            </div>
+          </div>
+
+          <div className="mt-5 space-y-4">
+            <div className="rounded-2xl border border-slate-200 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-sm font-extrabold text-slate-950">Origen</h3>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setOrigin((prev) => ({ ...prev, mode: "plan" }))}
+                    className={`rounded-xl px-3 py-2 text-xs font-bold ${
+                      origin.mode === "plan" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-800"
+                    }`}
+                  >
+                    Plan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOrigin((prev) => ({ ...prev, mode: "search" }))}
+                    className={`rounded-xl px-3 py-2 text-xs font-bold ${
+                      origin.mode === "search" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-800"
+                    }`}
+                  >
+                    Buscar
+                  </button>
+                </div>
+              </div>
+
+              {origin.mode === "plan" ? (
+                <select
+                  value={origin.planId}
+                  onChange={(e) => applyPlanPlace(setOrigin, e.target.value)}
+                  className="mt-3 min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
+                >
+                  <option value="">Selecciona un lugar del Plan…</option>
+                  {planOptionsForForm.map((place) => (
+                    <option key={place.id} value={place.id}>
+                      {place.label} {place.activityDate ? `· ${place.activityDate}` : ""}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="mt-3">
+                  <PlaceAutocompleteInput
+                    value={origin.address}
+                    onChange={(value) => setOrigin((prev) => ({ ...prev, address: value }))}
+                    onPlaceSelect={(payload) => void handleAutocompleteSelect(setOrigin, payload)}
+                    placeholder="Busca el origen"
+                  />
+                </div>
+              )}
+
+              <div className="mt-2 text-xs text-slate-500">Lat: {origin.latitude ?? "—"} · Lng: {origin.longitude ?? "—"}</div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-sm font-extrabold text-slate-950">Parada intermedia (opcional)</h3>
+                <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={form.stopEnabled}
+                    onChange={(e) => setForm((prev) => ({ ...prev, stopEnabled: e.target.checked }))}
+                  />
+                  Activar
+                </label>
+              </div>
+
+              {form.stopEnabled ? (
+                <>
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setStop((prev) => ({ ...prev, mode: "plan" }))}
+                      className={`rounded-xl px-3 py-2 text-xs font-bold ${
+                        stop.mode === "plan" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-800"
+                      }`}
+                    >
+                      Plan
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStop((prev) => ({ ...prev, mode: "search" }))}
+                      className={`rounded-xl px-3 py-2 text-xs font-bold ${
+                        stop.mode === "search" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-800"
+                      }`}
+                    >
+                      Buscar
+                    </button>
+                  </div>
+
+                  {stop.mode === "plan" ? (
+                    <select
+                      value={stop.planId}
+                      onChange={(e) => applyPlanPlace(setStop, e.target.value)}
+                      className="mt-3 min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
+                    >
+                      <option value="">Selecciona una parada del Plan…</option>
+                      {planOptionsForForm.map((place) => (
+                        <option key={place.id} value={place.id}>
+                          {place.label} {place.activityDate ? `· ${place.activityDate}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="mt-3">
+                      <PlaceAutocompleteInput
+                        value={stop.address}
+                        onChange={(value) => setStop((prev) => ({ ...prev, address: value }))}
+                        onPlaceSelect={(payload) => void handleAutocompleteSelect(setStop, payload)}
+                        placeholder="Busca una parada"
+                      />
+                    </div>
+                  )}
+
+                  <div className="mt-2 text-xs text-slate-500">Lat: {stop.latitude ?? "—"} · Lng: {stop.longitude ?? "—"}</div>
+                </>
+              ) : (
+                <div className="mt-3 text-xs text-slate-500">Activa la parada si quieres añadir un punto intermedio.</div>
+              )}
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-sm font-extrabold text-slate-950">Destino</h3>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDestination((prev) => ({ ...prev, mode: "plan" }))}
+                    className={`rounded-xl px-3 py-2 text-xs font-bold ${
+                      destination.mode === "plan" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-800"
+                    }`}
+                  >
+                    Plan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDestination((prev) => ({ ...prev, mode: "search" }))}
+                    className={`rounded-xl px-3 py-2 text-xs font-bold ${
+                      destination.mode === "search" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-800"
+                    }`}
+                  >
+                    Buscar
+                  </button>
+                </div>
+              </div>
+
+              {destination.mode === "plan" ? (
+                <select
+                  value={destination.planId}
+                  onChange={(e) => applyPlanPlace(setDestination, e.target.value)}
+                  className="mt-3 min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
+                >
+                  <option value="">Selecciona un lugar del Plan…</option>
+                  {planOptionsForForm.map((place) => (
+                    <option key={place.id} value={place.id}>
+                      {place.label} {place.activityDate ? `· ${place.activityDate}` : ""}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="mt-3">
+                  <PlaceAutocompleteInput
+                    value={destination.address}
+                    onChange={(value) => setDestination((prev) => ({ ...prev, address: value }))}
+                    onPlaceSelect={(payload) => void handleAutocompleteSelect(setDestination, payload)}
+                    placeholder="Busca el destino"
+                  />
+                </div>
+              )}
+
+              <div className="mt-2 text-xs text-slate-500">
+                Lat: {destination.latitude ?? "—"} · Lng: {destination.longitude ?? "—"}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => void calculatePreview()}
+                disabled={calculating || savingRoute}
+                className="inline-flex min-h-[44px] flex-1 items-center justify-center rounded-xl bg-violet-600 px-4 font-extrabold text-white disabled:opacity-60"
+              >
+                {calculating ? "Calculando..." : "Calcular ruta"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSave()}
+                disabled={savingRoute}
+                className="inline-flex min-h-[44px] flex-1 items-center justify-center rounded-xl bg-slate-900 px-4 font-extrabold text-white disabled:opacity-60"
+              >
+                {savingRoute ? "Guardando..." : form.editingRouteId ? "Guardar cambios" : "Guardar ruta"}
+              </button>
+            </div>
+
+            {preview ? (
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+                <div className="font-extrabold">Resultado del cálculo</div>
+                <div className="mt-1 text-emerald-800">
+                  {preview.distanceText ? <span>📏 {preview.distanceText}</span> : null}
+                  {preview.distanceText && preview.durationText ? <span> · </span> : null}
+                  {preview.durationText ? <span>⏱️ {preview.durationText}</span> : null}
+                  {preview.arrivalTime ? <span> · Llegada {preview.arrivalTime}</span> : null}
+                </div>
+              </div>
+            ) : null}
+
+            {previewError ? (
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{previewError}</div>
+            ) : null}
           </div>
         </section>
 
@@ -415,12 +1170,13 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
               ))}
 
               {visibleRoutes.map((route) => {
-                const directions = directionsMap[route.id];
+                const routeKey = `${route.source || "trip_routes"}:${route.id}`;
+                const directions = directionsMap[routeKey];
                 if (!directions) return null;
 
                 return (
                   <DirectionsRenderer
-                    key={route.id}
+                    key={routeKey}
                     directions={directions}
                     options={{
                       suppressMarkers: false,
@@ -433,6 +1189,20 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                   />
                 );
               })}
+
+              {preview ? (
+                <DirectionsRenderer
+                  directions={preview.directions}
+                  options={{
+                    suppressMarkers: false,
+                    polylineOptions: {
+                      strokeColor: "#0ea5e9",
+                      strokeOpacity: 0.95,
+                      strokeWeight: 6,
+                    },
+                  }}
+                />
+              ) : null}
             </GoogleMap>
           )}
         </section>
