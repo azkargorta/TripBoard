@@ -213,7 +213,19 @@ export function useTripRoutes(tripId: string, reload?: () => Promise<void>) {
         ? supabase.from("trip_routes").update(payload).eq("id", routeId).select("*").single()
         : supabase.from("trip_routes").insert(payload).select("*").single();
 
-      const result = await withLockRetry(async () => await query);
+      let result = await withLockRetry(async () => await query);
+
+      // Fallback: si la tabla no tiene columna `notes`, reintenta sin ella.
+      if (result.error) {
+        const msg = (result.error.message || "").toLowerCase();
+        if (msg.includes("notes") && (msg.includes("column") || msg.includes("schema cache") || msg.includes("could not find"))) {
+          const { notes, ...payloadWithoutNotes } = payload as any;
+          const retryQuery = routeId
+            ? supabase.from("trip_routes").update(payloadWithoutNotes).eq("id", routeId).select("*").single()
+            : supabase.from("trip_routes").insert(payloadWithoutNotes).select("*").single();
+          result = await withLockRetry(async () => await retryQuery);
+        }
+      }
 
       if (result.error) {
         const raw = result.error.message || "No se pudo guardar la ruta.";

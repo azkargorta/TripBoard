@@ -955,12 +955,25 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     mapRef.current.fitBounds(bounds, 80);
   }, [directionsMap, preview, visiblePoints, visibleRoutes]);
 
+  const lastFitRef = useRef<string>("");
   useEffect(() => {
+    // Evitar `fitBounds` constante (provoca movimiento/tiles). Solo cuando cambie "la foto" del mapa.
+    const signature = JSON.stringify({
+      focusedRouteKey,
+      selectedDate,
+      preview: !!preview,
+      routes: visibleRoutes.map((r) => `${r.source || "trip_routes"}:${r.id}`),
+      pointsCount: visiblePoints.length,
+      gas: focusedRouteKey ? gasStations.length : 0,
+    });
+    if (signature === lastFitRef.current) return;
+    lastFitRef.current = signature;
+
     const timer = window.setTimeout(() => {
       fitMapToData();
-    }, 120);
+    }, 180);
     return () => window.clearTimeout(timer);
-  }, [fitMapToData]);
+  }, [fitMapToData, focusedRouteKey, gasStations.length, preview, selectedDate, visiblePoints.length, visibleRoutes]);
 
   if (!googleMapsApiKey) {
     return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-800">Falta configurar <strong>NEXT_PUBLIC_GOOGLE_MAPS_API_KEY</strong> en Vercel.</div>;
@@ -1533,7 +1546,9 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                 streetViewControl: false,
                 mapTypeControl: false,
                 fullscreenControl: true,
-                gestureHandling: "greedy",
+                gestureHandling: "cooperative",
+                minZoom: 3,
+                maxZoom: 17,
               }}
             >
               {visiblePoints.map((point) => (
