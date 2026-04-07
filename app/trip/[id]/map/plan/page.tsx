@@ -1,7 +1,6 @@
 "use client";
 
 import Script from "next/script";
-import { useTripData } from "@/hooks/useTripData";
 import TripPlanView from "@/components/trip/plan/TripPlanView";
 import TripTabActions from "@/components/trip/common/TripTabActions";
 
@@ -10,12 +9,6 @@ export default function TripPlanPage({
 }: {
   params: { id: string };
 }) {
-  const { trip, activities, loading, error, reload } = useTripData(params.id);
-
-  if (loading) {
-    return <p style={{ padding: 16 }}>Cargando plan...</p>;
-  }
-
   return (
     <>
       <Script
@@ -45,7 +38,7 @@ export default function TripPlanPage({
             </div>
 
             <h1 style={{ margin: 0, fontSize: 42, fontWeight: 900, color: "#0f172a" }}>
-              {trip?.name ? `Plan · ${trip.name}` : "Plan"}
+              Plan
             </h1>
 
             <p style={{ marginTop: 12, color: "#475569", fontSize: 16, maxWidth: 900 }}>
@@ -57,22 +50,7 @@ export default function TripPlanPage({
           <TripTabActions tripId={params.id} />
         </section>
 
-        {error ? (
-          <div
-            style={{
-              padding: 16,
-              borderRadius: 16,
-              background: "#fef2f2",
-              border: "1px solid #fecaca",
-              color: "#b91c1c",
-              fontWeight: 700,
-            }}
-          >
-            {error}
-          </div>
-        ) : null}
-
-        <TripPlanView tripId={params.id} activities={activities} reload={reload} />
+        <TripPlanView tripId={params.id} />
       </main>
     </>
   );
