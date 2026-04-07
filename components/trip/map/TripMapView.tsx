@@ -76,6 +76,7 @@ type PlaceOption = {
   latitude: number;
   longitude: number;
   activityDate?: string | null;
+  kind?: string | null;
 };
 
 type FormPlaceState = {
@@ -176,6 +177,7 @@ function buildPlanPlaces(rows: unknown[] | undefined, prefix: string): PlaceOpti
         latitude,
         longitude,
         activityDate: asString(item.activity_date) ?? asString(item.day_date) ?? asString(item.date) ?? null,
+        kind: asString(item.activity_type) ?? asString(item.place_type) ?? asString(item.category) ?? null,
       };
     })
     .filter(Boolean) as PlaceOption[];
@@ -461,6 +463,9 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   const [gasStations, setGasStations] = useState<GasStationMarker[]>([]);
   const [gasStationsLoading, setGasStationsLoading] = useState(false);
   const [gasStationsError, setGasStationsError] = useState<string | null>(null);
+  const [routeQuery, setRouteQuery] = useState("");
+  const [showPlanMarkers, setShowPlanMarkers] = useState(true);
+  const [planKindFilter, setPlanKindFilter] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setRoutesState(initialRoutes);
@@ -524,16 +529,37 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     return base.filter((route) => `${route.source || "trip_routes"}:${route.id}` === focusedRouteKey);
   }, [routesState, selectedDate, focusedRouteKey]);
 
+  const filteredRoutes = useMemo(() => {
+    const q = routeQuery.trim().toLowerCase();
+    if (!q) return visibleRoutes;
+    return visibleRoutes.filter((r) => ((r.route_name || r.title || "") as string).toLowerCase().includes(q));
+  }, [routeQuery, visibleRoutes]);
+
+  const availablePlanKinds = useMemo(() => {
+    const kinds = new Set<string>();
+    planPlaces.forEach((p) => {
+      const kind = (p.kind || "").trim().toLowerCase();
+      if (kind) kinds.add(kind);
+    });
+    return Array.from(kinds.values()).sort();
+  }, [planPlaces]);
+
   const visiblePoints = useMemo(() => {
+    if (!showPlanMarkers) return [];
     return planPlaces
       .filter((place) => selectedDate === "all" || place.activityDate === selectedDate)
+      .filter((place) => {
+        if (!planKindFilter.size) return true;
+        const kind = (place.kind || "").trim().toLowerCase();
+        return kind ? planKindFilter.has(kind) : planKindFilter.has("otros");
+      })
       .map((place) => ({
         id: place.id,
         latitude: place.latitude,
         longitude: place.longitude,
         title: place.label,
       }));
-  }, [planPlaces, selectedDate]);
+  }, [planKindFilter, planPlaces, selectedDate, showPlanMarkers]);
 
   useEffect(() => {
     if (!isLoaded || typeof window === "undefined" || !window.google?.maps) return;
@@ -545,7 +571,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     async function loadDirections() {
       const next: Record<string, google.maps.DirectionsResult | null> = {};
 
-      for (const route of visibleRoutes) {
+      for (const route of filteredRoutes) {
         const routeKey = `${route.source || "trip_routes"}:${route.id}`;
         if (
           typeof route.origin_latitude !== "number" ||
@@ -579,7 +605,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     return () => {
       cancelled = true;
     };
-  }, [isLoaded, visibleRoutes]);
+  }, [isLoaded, filteredRoutes]);
 
   const focusedDirections = useMemo(() => {
     if (!focusedRouteKey) return null;
@@ -1087,6 +1113,14 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
           </div>
 
           <div className="mt-4 grid gap-3">
+            <input
+              type="text"
+              value={routeQuery}
+              onChange={(e) => setRouteQuery(e.target.value)}
+              placeholder="Buscar ruta por nombre…"
+              className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-900"
+            />
+
             <div className="grid grid-cols-[1fr_140px] gap-3">
               <select
                 value={selectedDate}
@@ -1109,13 +1143,13 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
               />
             </div>
 
-            {visibleRoutes.length === 0 ? (
+            {filteredRoutes.length === 0 ? (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-                No hay rutas guardadas para este filtro.
+                No hay rutas que coincidan con el filtro/búsqueda.
               </div>
             ) : (
               <div className="space-y-2">
-                {visibleRoutes
+                {filteredRoutes
                   .slice()
                   .sort((a, b) => {
                     const da = a.route_day || a.route_date || "";
@@ -1277,6 +1311,78 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
           </div>
 
           <div className="mt-5 space-y-4">
+            <div className="rounded-2xl border border-slate-200 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-extrabold text-slate-950">Lugares del Plan</h3>
+                  <p className="mt-1 text-xs text-slate-600">Muestra/oculta marcadores y filtra por tipo.</p>
+                </div>
+
+                <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={showPlanMarkers}
+                    onChange={(e) => setShowPlanMarkers(e.target.checked)}
+                  />
+                  Mostrar
+                </label>
+              </div>
+
+              {showPlanMarkers ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPlanKindFilter(new Set())}
+                    className={`rounded-full border px-3 py-2 text-xs font-extrabold ${
+                      planKindFilter.size === 0 ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-700"
+                    }`}
+                  >
+                    Todos
+                  </button>
+
+                  {availablePlanKinds.map((kind) => {
+                    const isActive = planKindFilter.has(kind);
+                    return (
+                      <button
+                        key={kind}
+                        type="button"
+                        onClick={() =>
+                          setPlanKindFilter((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(kind)) next.delete(kind);
+                            else next.add(kind);
+                            return next;
+                          })
+                        }
+                        className={`rounded-full border px-3 py-2 text-xs font-extrabold ${
+                          isActive ? "border-violet-300 bg-violet-50 text-violet-900" : "border-slate-200 bg-white text-slate-700"
+                        }`}
+                      >
+                        {kind}
+                      </button>
+                    );
+                  })}
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPlanKindFilter((prev) => {
+                        const next = new Set(prev);
+                        if (next.has("otros")) next.delete("otros");
+                        else next.add("otros");
+                        return next;
+                      })
+                    }
+                    className={`rounded-full border px-3 py-2 text-xs font-extrabold ${
+                      planKindFilter.has("otros") ? "border-violet-300 bg-violet-50 text-violet-900" : "border-slate-200 bg-white text-slate-700"
+                    }`}
+                  >
+                    otros
+                  </button>
+                </div>
+              ) : null}
+            </div>
+
             {form.travelMode === "DRIVING" ? (
               <div className="rounded-2xl border border-slate-200 p-4">
                 <div className="flex items-center justify-between gap-3">
@@ -1628,7 +1734,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                   ))
                 : null}
 
-              {visibleRoutes.map((route) => {
+              {filteredRoutes.map((route) => {
                 const routeKey = `${route.source || "trip_routes"}:${route.id}`;
                 const points =
                   (Array.isArray(route.path_points) && route.path_points.length ? route.path_points : route.route_points) ||
