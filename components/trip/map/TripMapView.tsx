@@ -559,6 +559,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   const [preview, setPreview] = useState<RoutePreview | null>(null);
   const [driveAlternatives, setDriveAlternatives] = useState<DriveAlternatives | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  const [tollsError, setTollsError] = useState<string | null>(null);
   const [calculating, setCalculating] = useState(false);
   const [loadingRoutes, setLoadingRoutes] = useState(false);
   const [gasStations, setGasStations] = useState<GasStationMarker[]>([]);
@@ -1067,6 +1068,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
 
     setPreviewError(null);
     setCalculating(true);
+    setTollsError(null);
 
     try {
       const gmMaps = window.google.maps;
@@ -1126,11 +1128,19 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
           } catch {
             payload = { error: text || "Respuesta no JSON." };
           }
-          if (!resp.ok) return null;
+          if (!resp.ok) {
+            const msg =
+              payload?.error?.message ||
+              payload?.error ||
+              (typeof text === "string" && text.trim() ? text : `Error ${resp.status}`);
+            setTollsError((prev) => prev || String(msg));
+            return null;
+          }
           const price = payload?.tollInfo?.estimatedPrice?.[0];
           if (!price || typeof price.currencyCode !== "string" || typeof price.units !== "string") return null;
           return { currencyCode: price.currencyCode, units: price.units, nanos: typeof price.nanos === "number" ? price.nanos : 0 };
         } catch {
+          setTollsError((prev) => prev || "No se pudo consultar el precio de peajes.");
           return null;
         }
       };
@@ -2173,7 +2183,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
               <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-900">
                 <div className="font-extrabold">Opciones en coche</div>
                 <p className="mt-1 text-xs text-slate-600">
-                  Nota: Google Directions no devuelve el precio de peajes. Mostramos tiempos/distancias y guardas la opción elegida.
+                  Mostramos tiempos/distancias y, si Google Routes devuelve estimación, también el precio de peajes.
                 </p>
 
                 <div className="mt-3 grid gap-2">
@@ -2223,6 +2233,12 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                     </div>
                   </button>
                 </div>
+
+                {tollsError ? (
+                  <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                    Precio de peajes no disponible: {tollsError}
+                  </div>
+                ) : null}
               </div>
             ) : null}
 

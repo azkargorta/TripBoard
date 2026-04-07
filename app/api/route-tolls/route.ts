@@ -37,7 +37,11 @@
  
  export async function POST(request: Request) {
    try {
-     const key = process.env.GOOGLE_ROUTES_API_KEY || process.env.GOOGLE_MAPS_API_KEY || "";
+    const key =
+      process.env.GOOGLE_ROUTES_API_KEY ||
+      process.env.GOOGLE_MAPS_API_KEY ||
+      process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ||
+      "";
      if (!key) {
        return NextResponse.json(
          { error: "Falta configurar GOOGLE_ROUTES_API_KEY en el servidor." },
