@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
 import type {
   ParticipantPermissions,
   ParticipantStatus,
@@ -55,6 +54,20 @@ type UseTripParticipantsResult = {
   refetch: () => Promise<void>;
 };
 
+async function apiRequest<T>(input: RequestInfo, init: RequestInit, label: string): Promise<T> {
+  const response = await fetch(input, init);
+  const text = await response.text();
+  let payload: any = null;
+  try {
+    payload = text ? JSON.parse(text) : null;
+  } catch {
+    payload = { error: text || "Respuesta no JSON." };
+  }
+  if (!response.ok) throw new Error(payload?.error || `Error ${response.status} (${label})`);
+  if (payload?.error) throw new Error(payload.error);
+  return payload as T;
+}
+
 export function useTripParticipants(
   tripId: string | undefined
 ): UseTripParticipantsResult {
@@ -74,18 +87,12 @@ export function useTripParticipants(
       setLoading(true);
       setError(null);
 
-      const { data, error } = await supabase
-        .from("trip_participants")
-        .select("*")
-        .eq("trip_id", tripId)
-        .neq("status", "removed")
-        .order("created_at", { ascending: true });
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      setParticipants((data ?? []) as TripParticipant[]);
+      const payload = await apiRequest<{ participants: TripParticipant[] }>(
+        `/api/trip-participants?tripId=${encodeURIComponent(tripId)}`,
+        { method: "GET" },
+        "cargar participantes"
+      );
+      setParticipants(Array.isArray(payload.participants) ? payload.participants : []);
     } catch (err) {
       console.error("Error cargando participantes:", err);
       setParticipants([]);
@@ -121,20 +128,13 @@ export function useTripParticipants(
         ...permissions,
       };
 
-      const { data, error } = await supabase
-        .from("trip_participants")
-        .insert(payload)
-        .select("*")
-        .single();
-
-      if (error || !data) {
-        const message = error?.message ?? "No se pudo crear el participante";
-        setError(message);
-        throw new Error(message);
-      }
-
+      const res = await apiRequest<{ participant: TripParticipant }>(
+        "/api/trip-participants",
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) },
+        "crear participante"
+      );
       await fetchParticipants();
-      return data as TripParticipant;
+      return res.participant;
     },
     [fetchParticipants]
   );
@@ -162,7 +162,6 @@ export function useTripParticipants(
       });
 
       const payload: Record<string, unknown> = {
-        updated_at: new Date().toISOString(),
         role: nextRole,
         status: input.status ?? current.status,
         can_manage_trip: permissions.can_manage_trip,
@@ -195,21 +194,13 @@ export function useTripParticipants(
         payload.linked_at = input.linked_at;
       }
 
-      const { data, error } = await supabase
-        .from("trip_participants")
-        .update(payload)
-        .eq("id", id)
-        .select("*")
-        .single();
-
-      if (error || !data) {
-        const message = error?.message ?? "No se pudo actualizar el participante";
-        setError(message);
-        throw new Error(message);
-      }
-
+      const res = await apiRequest<{ participant: TripParticipant }>(
+        `/api/trip-participants/${encodeURIComponent(id)}`,
+        { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) },
+        "actualizar participante"
+      );
       await fetchParticipants();
-      return data as TripParticipant;
+      return res.participant;
     },
     [fetchParticipants, participants]
   );
@@ -231,78 +222,35 @@ export function useTripParticipants(
         throw new Error(message);
       }
 
-      const { error } = await supabase
-        .from("trip_participants")
-        .update({
-          status: "removed",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", id);
-
-      if (error) {
-        setError(error.message);
-        throw new Error(error.message);
-      }
-
+      await apiRequest<{ ok: true }>(
+        `/api/trip-participants/${encodeURIComponent(id)}`,
+        { method: "DELETE" },
+        "eliminar participante"
+      );
       await fetchParticipants();
     },
     [fetchParticipants, participants]
   );
 
   const searchProfiles = useCallback(async (query: string) => {
+    // Aún no se usa en la UI principal; lo dejamos listo para cuando se conecte el panel.
     const normalized = query.trim();
     if (!normalized) return [];
-
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, username, email, full_name")
-      .or(`username.ilike.%${normalized}%,email.ilike.%${normalized}%`)
-      .limit(8);
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    return (data ?? []) as ProfileSearchResult[];
+    const payload = await apiRequest<{ profiles: ProfileSearchResult[] }>(
+      `/api/trip-participants/profiles?query=${encodeURIComponent(normalized)}`,
+      { method: "GET" },
+      "buscar perfiles"
+    );
+    return Array.isArray(payload.profiles) ? payload.profiles : [];
   }, []);
 
   const linkParticipantToProfile = useCallback(
     async (participantId: string, profile: ProfileSearchResult) => {
-      const participant = participants.find((item) => item.id === participantId);
-      if (!participant) {
-        throw new Error("Participante no encontrado");
-      }
-
-      const duplicate = participants.find(
-        (item) =>
-          item.trip_id === participant.trip_id &&
-          item.id !== participantId &&
-          item.user_id === profile.id &&
-          item.status !== "removed"
+      await apiRequest<{ ok: true }>(
+        "/api/trip-participants/link",
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ participantId, profile }) },
+        "vincular perfil"
       );
-
-      if (duplicate) {
-        throw new Error("Ese usuario ya está vinculado a otro participante del viaje.");
-      }
-
-      const { error } = await supabase
-        .from("trip_participants")
-        .update({
-          user_id: profile.id,
-          username: profile.username,
-          email: profile.email,
-          joined_via: participant.joined_via === "manual" ? "linked" : participant.joined_via,
-          linked_at: new Date().toISOString(),
-          status: "active",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", participantId);
-
-      if (error) {
-        setError(error.message);
-        throw new Error(error.message);
-      }
-
       await fetchParticipants();
     },
     [fetchParticipants, participants]
