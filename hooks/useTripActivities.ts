@@ -1,8 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
-
 export type TripActivity = {
   id: string;
   trip_id?: string;
@@ -86,43 +84,18 @@ export function useTripActivities(tripId: string) {
     return payload as T;
   }
 
-  async function withLockRetry<T>(fn: () => Promise<T>) {
-    try {
-      return await fn();
-    } catch (err) {
-      if (!isLockAbortError(err)) throw err;
-      try {
-        await supabase.auth.getSession();
-      } catch {
-        // no-op
-      }
-      await new Promise((r) => setTimeout(r, 200));
-      return await fn();
-    }
-  }
-
   const load = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Trip summary (puede quedarse como Supabase client; es 1 query pequeña)
-      const tripResponse = await withLockRetry(async () => {
-        return await withTimeout(
-          (async () => await supabase.from("trips").select("id, name, destination").eq("id", tripId).single())(),
-          20000,
-          "cargar viaje (plan)"
-        );
-      });
-      if (tripResponse.error) throw new Error(tripResponse.error.message);
-      setTrip((tripResponse.data || null) as TripPlanSummary | null);
-
-      // Actividades via API server-side (evita locks/hangs del navegador)
-      const payload = await apiRequest<{ activities: TripActivity[] }>(
+      // Trip + actividades via API server-side (evita locks/hangs del navegador)
+      const payload = await apiRequest<{ trip: TripPlanSummary | null; activities: TripActivity[] }>(
         `/api/trip-activities?tripId=${encodeURIComponent(tripId)}`,
         { method: "GET" },
         "cargar plan"
       );
+      setTrip((payload.trip || null) as TripPlanSummary | null);
       setActivities(Array.isArray(payload.activities) ? payload.activities : []);
     } catch (err) {
       console.error(err);

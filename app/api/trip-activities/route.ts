@@ -11,16 +11,21 @@
      await requireTripAccess(tripId);
      const supabase = await createClient();
  
-     const { data, error } = await supabase
-       .from("trip_activities")
-       .select("*")
-       .eq("trip_id", tripId)
-       .order("activity_date", { ascending: true })
-       .order("activity_time", { ascending: true })
-       .order("created_at", { ascending: true });
+    const [{ data: trip, error: tripError }, { data: activities, error: activitiesError }] = await Promise.all([
+      supabase.from("trips").select("id, name, destination").eq("id", tripId).single(),
+      supabase
+        .from("trip_activities")
+        .select("*")
+        .eq("trip_id", tripId)
+        .order("activity_date", { ascending: true })
+        .order("activity_time", { ascending: true })
+        .order("created_at", { ascending: true }),
+    ]);
  
-     if (error) throw new Error(error.message);
-     return NextResponse.json({ activities: data || [] });
+    if (tripError) throw new Error(tripError.message);
+    if (activitiesError) throw new Error(activitiesError.message);
+
+    return NextResponse.json({ trip: trip || null, activities: activities || [] });
    } catch (error) {
      return NextResponse.json(
        { error: error instanceof Error ? error.message : "No se pudo cargar el plan." },
