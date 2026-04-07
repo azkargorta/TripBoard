@@ -119,6 +119,12 @@ type DriveAlternatives = {
   selected: DriveAltKey;
 };
 
+type ChecklistItem = {
+  id: string;
+  text: string;
+  done: boolean;
+};
+
 type GasStationMarker = {
   placeId: string;
   name: string;
@@ -142,6 +148,8 @@ type RouteFormState = {
   restStopsCount: number;
   restStopMinutes: number;
   autoColor: boolean;
+  noteText: string;
+  checklist: ChecklistItem[];
 };
 
 function asNumber(value: unknown): number | null {
@@ -380,6 +388,8 @@ function defaultFormState(tripDates: string[], selectedDate: string): RouteFormS
     restStopsCount: 1,
     restStopMinutes: 15,
     autoColor: false,
+    noteText: "",
+    checklist: [],
   };
 }
 
@@ -402,7 +412,14 @@ function pickAutoColor(used: string[]) {
   return free || ROUTE_COLOR_PALETTE[Math.floor(Math.random() * ROUTE_COLOR_PALETTE.length)];
 }
 
-function buildRouteNotes(form: RouteFormState) {
+function randomId() {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function buildRouteNotes(form: RouteFormState, previousNotesRaw: unknown) {
+  const prev = parseRouteNotes(previousNotesRaw);
+  const base = prev && typeof prev === "object" && !Array.isArray(prev) ? { ...prev } : {};
+
   const rest =
     form.travelMode === "DRIVING" && form.restStopsEnabled
       ? {
@@ -412,8 +429,22 @@ function buildRouteNotes(form: RouteFormState) {
         }
       : { enabled: false, count: 0, minutesEach: 0 };
 
+  const noteText = String(form.noteText || "").trim();
+  const checklist = Array.isArray(form.checklist)
+    ? form.checklist
+        .filter((i) => i && typeof i.text === "string" && i.text.trim())
+        .map((i) => ({
+          id: typeof i.id === "string" && i.id ? i.id : randomId(),
+          text: i.text.trim(),
+          done: !!i.done,
+        }))
+    : [];
+
   return JSON.stringify({
+    ...base,
     restStops: rest,
+    noteText,
+    checklist,
   });
 }
 
@@ -422,7 +453,7 @@ function parseRouteNotes(notes: unknown) {
   try {
     return JSON.parse(notes) as any;
   } catch {
-    return null;
+    return { noteText: String(notes) };
   }
 }
 
@@ -915,6 +946,16 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
 
       const notes = parseRouteNotes(route.notes);
       const restStops = notes?.restStops;
+      const noteText = typeof notes?.noteText === "string" ? notes.noteText : "";
+      const checklist = Array.isArray(notes?.checklist)
+        ? (notes.checklist as any[])
+            .filter((i) => i && typeof i.text === "string")
+            .map((i) => ({
+              id: typeof i.id === "string" && i.id ? i.id : randomId(),
+              text: String(i.text || ""),
+              done: !!i.done,
+            }))
+        : [];
 
       setForm({
         editingRouteId: route.source === "trip_routes" ? route.id : null,
@@ -931,6 +972,8 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
         restStopsCount: typeof restStops?.count === "number" ? restStops.count : 1,
         restStopMinutes: typeof restStops?.minutesEach === "number" ? restStops.minutesEach : 15,
         autoColor: false,
+        noteText,
+        checklist,
       });
 
       setOrigin({
@@ -1083,7 +1126,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
           departureTime: form.departureTime,
           mode: form.travelMode,
           color: effectiveColor,
-          notes: buildRouteNotes(form),
+          notes: buildRouteNotes(form, (form.editingRouteId ? routesState.find((r) => r.id === form.editingRouteId && r.source === "trip_routes")?.notes : null) ?? null),
           originName: form.originName || origin.address || "Origen",
           originAddress: origin.address || form.originName || "Origen",
           originLatitude: origin.latitude,
@@ -1643,6 +1686,77 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                   </button>
                 </div>
               ) : null}
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 p-4">
+              <h3 className="text-sm font-extrabold text-slate-950">Notas y checklist</h3>
+              <p className="mt-1 text-xs text-slate-600">Guarda recordatorios rápidos para esta ruta.</p>
+
+              <textarea
+                value={form.noteText}
+                onChange={(e) => setForm((prev) => ({ ...prev, noteText: e.target.value }))}
+                placeholder="Notas… (ej. salir con depósito lleno, llevar agua, parar a comer)"
+                className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+                rows={3}
+              />
+
+              <div className="mt-3 space-y-2">
+                {form.checklist.length ? (
+                  form.checklist.map((item) => (
+                    <div key={item.id} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                      <input
+                        type="checkbox"
+                        checked={item.done}
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            checklist: prev.checklist.map((x) => (x.id === item.id ? { ...x, done: e.target.checked } : x)),
+                          }))
+                        }
+                      />
+                      <input
+                        type="text"
+                        value={item.text}
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            checklist: prev.checklist.map((x) => (x.id === item.id ? { ...x, text: e.target.value } : x)),
+                          }))
+                        }
+                        className="w-full bg-transparent text-sm font-semibold text-slate-900 outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setForm((prev) => ({
+                            ...prev,
+                            checklist: prev.checklist.filter((x) => x.id !== item.id),
+                          }))
+                        }
+                        className="rounded-xl px-2 py-1 text-xs font-extrabold text-slate-600 hover:bg-white"
+                        title="Eliminar"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-xs text-slate-500">Aún no hay checklist.</div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setForm((prev) => ({
+                      ...prev,
+                      checklist: [...prev.checklist, { id: randomId(), text: "", done: false }],
+                    }))
+                  }
+                  className="inline-flex min-h-[40px] items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-xs font-extrabold text-slate-900"
+                >
+                  + Añadir item
+                </button>
+              </div>
             </div>
 
             {form.travelMode === "DRIVING" ? (
