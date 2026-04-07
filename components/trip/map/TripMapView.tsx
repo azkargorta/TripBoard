@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { DirectionsRenderer, GoogleMap, MarkerF, useJsApiLoader } from "@react-google-maps/api";
+import { DirectionsRenderer, GoogleMap, MarkerF, PolylineF, useJsApiLoader } from "@react-google-maps/api";
 import PlaceAutocompleteInput from "@/components/PlaceAutocompleteInput";
 import { useTripRoutes } from "@/hooks/useTripRoutes";
 import { supabase } from "@/lib/supabase";
@@ -11,6 +11,7 @@ const DEFAULT_CENTER = { lat: 48.8566, lng: 2.3522 };
 
 type UnknownRow = Record<string, unknown>;
 type RouteMode = "DRIVING" | "WALKING" | "BICYCLING" | "TRANSIT";
+type RoutePoint = { lat: number; lng: number };
 
 type AutocompletePayload = {
   address: string;
@@ -43,6 +44,9 @@ export type TripMapRoute = {
   distance_text?: string | null;
   duration_text?: string | null;
   arrival_time?: string | null;
+  route_points?: RoutePoint[] | null;
+  path_points?: RoutePoint[] | null;
+  notes?: string | null;
 };
 
 type Props = {
@@ -120,6 +124,7 @@ type RouteFormState = {
   restStopsEnabled: boolean;
   restStopsCount: number;
   restStopMinutes: number;
+  autoColor: boolean;
 };
 
 function asNumber(value: unknown): number | null {
@@ -217,6 +222,9 @@ function buildInitialRoutes(
         distance_text: asString(item.distance_text) ?? null,
         duration_text: asString(item.duration_text) ?? null,
         arrival_time: asString(item.arrival_time) ?? null,
+        route_points: Array.isArray(item.route_points) ? (item.route_points as any) : null,
+        path_points: Array.isArray(item.path_points) ? (item.path_points as any) : null,
+        notes: asString(item.notes) ?? null,
       };
     })
     .filter(Boolean) as TripMapRoute[];
@@ -314,7 +322,27 @@ function defaultFormState(tripDates: string[], selectedDate: string): RouteFormS
     restStopsEnabled: false,
     restStopsCount: 1,
     restStopMinutes: 15,
+    autoColor: false,
   };
+}
+
+const ROUTE_COLOR_PALETTE = [
+  "#4f46e5", // indigo
+  "#0ea5e9", // sky
+  "#10b981", // emerald
+  "#f97316", // orange
+  "#ef4444", // red
+  "#a855f7", // purple
+  "#14b8a6", // teal
+  "#f59e0b", // amber
+  "#22c55e", // green
+  "#3b82f6", // blue
+];
+
+function pickAutoColor(used: string[]) {
+  const usedSet = new Set(used.map((c) => String(c || "").toLowerCase()));
+  const free = ROUTE_COLOR_PALETTE.find((c) => !usedSet.has(c.toLowerCase()));
+  return free || ROUTE_COLOR_PALETTE[Math.floor(Math.random() * ROUTE_COLOR_PALETTE.length)];
 }
 
 function buildRouteNotes(form: RouteFormState) {
@@ -709,7 +737,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
       setDriveAlternatives(null);
       setPreviewError(null);
 
-      const notes = parseRouteNotes((route as any).notes);
+      const notes = parseRouteNotes(route.notes);
       const restStops = notes?.restStops;
 
       setForm({
@@ -726,6 +754,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
         restStopsEnabled: !!restStops?.enabled,
         restStopsCount: typeof restStops?.count === "number" ? restStops.count : 1,
         restStopMinutes: typeof restStops?.minutesEach === "number" ? restStops.minutesEach : 15,
+        autoColor: false,
       });
 
       setOrigin({
@@ -855,6 +884,12 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     }
 
     try {
+      const usedColorsSameDay = routesState
+        .filter((r) => (r.route_day || r.route_date) === date && r.id !== form.editingRouteId)
+        .map((r) => r.color || "")
+        .filter(Boolean);
+      const effectiveColor = form.autoColor ? pickAutoColor(usedColorsSameDay) : form.color;
+
       const effectivePreview =
         driveAlternatives && form.travelMode === "DRIVING"
           ? driveAlternatives[driveAlternatives.selected]
@@ -866,7 +901,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
           routeName: form.routeName.trim(),
           departureTime: form.departureTime,
           mode: form.travelMode,
-          color: form.color,
+          color: effectiveColor,
           notes: buildRouteNotes(form),
           originName: form.originName || origin.address || "Origen",
           originAddress: origin.address || form.originName || "Origen",
@@ -896,7 +931,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     } catch {
       // `useTripRoutes` ya setea `routeError`
     }
-  }, [destination.address, destination.latitude, destination.longitude, driveAlternatives, form, origin.address, origin.latitude, origin.longitude, preview, resetForm, saveRoute, stop.address, stop.latitude, stop.longitude]);
+  }, [destination.address, destination.latitude, destination.longitude, driveAlternatives, form, origin.address, origin.latitude, origin.longitude, preview, resetForm, routesState, saveRoute, stop.address, stop.latitude, stop.longitude]);
 
   const handleDelete = useCallback(
     async (route: TripMapRoute) => {
@@ -929,14 +964,23 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
 
     visibleRoutes.forEach((route) => {
       const routeKey = `${route.source || "trip_routes"}:${route.id}`;
-      const directions = directionsMap[routeKey];
-      const overview = directions?.routes?.[0]?.overview_path;
-      if (overview?.length) {
-        overview.forEach((point) => {
-          bounds.extend(point);
+      const points =
+        (Array.isArray(route.path_points) && route.path_points.length ? route.path_points : route.route_points) || null;
+      if (points?.length) {
+        points.forEach((p) => {
+          bounds.extend(p);
           hasData = true;
         });
+        return;
       }
+
+      const directions = directionsMap[routeKey];
+      const overview = directions?.routes?.[0]?.overview_path;
+      if (!overview?.length) return;
+      overview.forEach((point) => {
+        bounds.extend(point);
+        hasData = true;
+      });
     });
 
     if (preview?.overviewPath?.length) {
@@ -952,7 +996,12 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
       return;
     }
 
-    mapRef.current.fitBounds(bounds, 80);
+    mapRef.current.fitBounds(bounds, 96);
+    // Evitar zoom excesivo (sobre todo en "Todos los días")
+    const zoom = mapRef.current.getZoom();
+    if (selectedDate === "all" && typeof zoom === "number" && zoom > 12) {
+      mapRef.current.setZoom(12);
+    }
   }, [directionsMap, preview, visiblePoints, visibleRoutes]);
 
   const lastFitRef = useRef<string>("");
@@ -1206,13 +1255,24 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                 <option value="BICYCLING">Bicicleta</option>
               </select>
 
-              <input
-                type="color"
-                value={form.color}
-                onChange={(e) => setForm((prev) => ({ ...prev, color: e.target.value }))}
-                className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3"
-                title="Color de la ruta"
-              />
+              <div className="grid grid-cols-[1fr_auto] gap-3">
+                <input
+                  type="color"
+                  value={form.color}
+                  onChange={(e) => setForm((prev) => ({ ...prev, color: e.target.value, autoColor: false }))}
+                  className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 disabled:opacity-60"
+                  title="Color de la ruta"
+                  disabled={form.autoColor}
+                />
+                <label className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-xs font-extrabold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={form.autoColor}
+                    onChange={(e) => setForm((prev) => ({ ...prev, autoColor: e.target.checked }))}
+                  />
+                  Auto
+                </label>
+              </div>
             </div>
           </div>
 
@@ -1570,9 +1630,27 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
 
               {visibleRoutes.map((route) => {
                 const routeKey = `${route.source || "trip_routes"}:${route.id}`;
+                const points =
+                  (Array.isArray(route.path_points) && route.path_points.length ? route.path_points : route.route_points) ||
+                  null;
+
+                // En vista "Todos los días" o múltiples rutas: dibujar con puntos guardados para evitar saturar Directions API.
+                if (selectedDate === "all" && points && points.length > 1) {
+                  return (
+                    <PolylineF
+                      key={routeKey}
+                      path={points}
+                      options={{
+                        strokeColor: route.color || "#4f46e5",
+                        strokeOpacity: 0.9,
+                        strokeWeight: 5,
+                      }}
+                    />
+                  );
+                }
+
                 const directions = directionsMap[routeKey];
                 if (!directions) return null;
-
                 return (
                   <DirectionsRenderer
                     key={routeKey}
