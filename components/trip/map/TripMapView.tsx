@@ -90,6 +90,22 @@ type RoutePreview = {
   overviewPath: { lat: number; lng: number }[];
 };
 
+type DriveAltKey = "with_tolls" | "without_tolls";
+
+type DriveAlternatives = {
+  with_tolls: RoutePreview | null;
+  without_tolls: RoutePreview | null;
+  selected: DriveAltKey;
+};
+
+type GasStationMarker = {
+  placeId: string;
+  name: string;
+  lat: number;
+  lng: number;
+  brand: string | null;
+};
+
 type RouteFormState = {
   editingRouteId: string | null;
   routeDate: string;
@@ -101,6 +117,9 @@ type RouteFormState = {
   destinationName: string;
   stopEnabled: boolean;
   stopName: string;
+  restStopsEnabled: boolean;
+  restStopsCount: number;
+  restStopMinutes: number;
 };
 
 function asNumber(value: unknown): number | null {
@@ -292,6 +311,78 @@ function defaultFormState(tripDates: string[], selectedDate: string): RouteFormS
     destinationName: "Destino",
     stopEnabled: false,
     stopName: "Parada",
+    restStopsEnabled: false,
+    restStopsCount: 1,
+    restStopMinutes: 15,
+  };
+}
+
+function buildRouteNotes(form: RouteFormState) {
+  const rest =
+    form.travelMode === "DRIVING" && form.restStopsEnabled
+      ? {
+          enabled: true,
+          count: Math.max(0, Math.floor(form.restStopsCount || 0)),
+          minutesEach: Math.max(0, Math.floor(form.restStopMinutes || 0)),
+        }
+      : { enabled: false, count: 0, minutesEach: 0 };
+
+  return JSON.stringify({
+    restStops: rest,
+  });
+}
+
+function parseRouteNotes(notes: unknown) {
+  if (typeof notes !== "string" || !notes.trim()) return null;
+  try {
+    return JSON.parse(notes) as any;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeBrand(input: string | null | undefined) {
+  const value = (input || "").toLowerCase();
+  if (!value) return null;
+  if (value.includes("repsol")) return "Repsol";
+  if (value.includes("cepsa")) return "Cepsa";
+  if (value.includes("shell")) return "Shell";
+  if (value.includes("bp")) return "BP";
+  if (value.includes("total")) return "Total";
+  if (value.includes("galp")) return "Galp";
+  if (value.includes("av")) return "AVIA";
+  return null;
+}
+
+function brandBadge(brand: string | null) {
+  if (!brand) return { text: "⛽", bg: "#0f172a", fg: "#ffffff" };
+  if (brand === "Repsol") return { text: "R", bg: "#f97316", fg: "#ffffff" };
+  if (brand === "Cepsa") return { text: "C", bg: "#ef4444", fg: "#ffffff" };
+  if (brand === "Shell") return { text: "S", bg: "#facc15", fg: "#111827" };
+  if (brand === "BP") return { text: "BP", bg: "#16a34a", fg: "#ffffff" };
+  if (brand === "Total") return { text: "T", bg: "#2563eb", fg: "#ffffff" };
+  if (brand === "Galp") return { text: "G", bg: "#111827", fg: "#ffffff" };
+  if (brand === "AVIA") return { text: "A", bg: "#0ea5e9", fg: "#ffffff" };
+  return { text: "⛽", bg: "#0f172a", fg: "#ffffff" };
+}
+
+function buildBrandSvgIcon(brand: string | null) {
+  const badge = brandBadge(brand);
+  const text = badge.text;
+  const size = 44;
+  const r = 18;
+  const fontSize = text.length >= 2 ? 13 : 16;
+  const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+  <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="${badge.bg}" stroke="#ffffff" stroke-width="3"/>
+  <text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle"
+    font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto"
+    font-size="${fontSize}" font-weight="800" fill="${badge.fg}">${text}</text>
+</svg>`;
+  return {
+    url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+    scaledSize: new window.google.maps.Size(36, 36),
+    anchor: new window.google.maps.Point(18, 18),
   };
 }
 
@@ -329,18 +420,29 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   const [directionsMap, setDirectionsMap] = useState<Record<string, google.maps.DirectionsResult | null>>({});
   const [routeError, setRouteError] = useState<string | null>(null);
   const [activeRouteKey, setActiveRouteKey] = useState<string | null>(null);
+  const [focusedRouteKey, setFocusedRouteKey] = useState<string | null>(null);
   const [form, setForm] = useState<RouteFormState>(() => defaultFormState(tripDates, "all"));
   const [origin, setOrigin] = useState<FormPlaceState>(emptyPlaceState());
   const [stop, setStop] = useState<FormPlaceState>(emptyPlaceState());
   const [destination, setDestination] = useState<FormPlaceState>(emptyPlaceState());
   const [preview, setPreview] = useState<RoutePreview | null>(null);
+  const [driveAlternatives, setDriveAlternatives] = useState<DriveAlternatives | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [calculating, setCalculating] = useState(false);
   const [loadingRoutes, setLoadingRoutes] = useState(false);
+  const [gasStations, setGasStations] = useState<GasStationMarker[]>([]);
+  const [gasStationsLoading, setGasStationsLoading] = useState(false);
+  const [gasStationsError, setGasStationsError] = useState<string | null>(null);
 
   useEffect(() => {
     setRoutesState(initialRoutes);
   }, [initialRoutes]);
+
+  useEffect(() => {
+    // limpiar gasolineras al cambiar focus o filtro
+    setGasStations([]);
+    setGasStationsError(null);
+  }, [focusedRouteKey, selectedDate]);
 
   useEffect(() => {
     setForm((prev) => {
@@ -386,10 +488,13 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   }, [hookRouteError]);
 
   const visibleRoutes = useMemo(() => {
-    return selectedDate === "all"
+    const base =
+      selectedDate === "all"
       ? routesState
       : routesState.filter((route) => (route.route_day || route.route_date) === selectedDate);
-  }, [routesState, selectedDate]);
+    if (!focusedRouteKey) return base;
+    return base.filter((route) => `${route.source || "trip_routes"}:${route.id}` === focusedRouteKey);
+  }, [routesState, selectedDate, focusedRouteKey]);
 
   const visiblePoints = useMemo(() => {
     return planPlaces
@@ -448,6 +553,96 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     };
   }, [isLoaded, visibleRoutes]);
 
+  const focusedDirections = useMemo(() => {
+    if (!focusedRouteKey) return null;
+    return directionsMap[focusedRouteKey] || null;
+  }, [directionsMap, focusedRouteKey]);
+
+  useEffect(() => {
+    if (!isLoaded || typeof window === "undefined" || !window.google?.maps?.places) return;
+    if (!focusedRouteKey) return;
+
+    const directions = focusedDirections;
+    const overview = directions?.routes?.[0]?.overview_path;
+    if (!overview || overview.length < 2) return;
+
+    let cancelled = false;
+    setGasStationsLoading(true);
+    setGasStationsError(null);
+
+    const service = new window.google.maps.places.PlacesService(document.createElement("div"));
+
+    const sampled: google.maps.LatLng[] = [];
+    // muestrear cada ~25 puntos (limitamos llamadas)
+    for (let i = 0; i < overview.length; i += 25) {
+      sampled.push(overview[i]);
+    }
+    // siempre incluir final
+    sampled.push(overview[overview.length - 1]);
+
+    const maxRequests = 8;
+    const points = sampled.slice(0, maxRequests);
+    const found = new Map<string, GasStationMarker>();
+
+    function nearbySearchAt(point: google.maps.LatLng) {
+      return new Promise<void>((resolve) => {
+        service.nearbySearch(
+          {
+            location: point,
+            radius: 2500,
+            type: "gas_station",
+          },
+          (results, status) => {
+            if (cancelled) return resolve();
+            if (status !== window.google.maps.places.PlacesServiceStatus.OK || !results) return resolve();
+
+            results.forEach((r) => {
+              const placeId = r.place_id;
+              const loc = r.geometry?.location;
+              if (!placeId || !loc) return;
+
+              const name = r.name || "Gasolinera";
+              const brand = normalizeBrand(name);
+              found.set(placeId, {
+                placeId,
+                name,
+                lat: loc.lat(),
+                lng: loc.lng(),
+                brand,
+              });
+            });
+
+            resolve();
+          }
+        );
+      });
+    }
+
+    (async () => {
+      try {
+        for (const point of points) {
+          if (cancelled) return;
+          // eslint-disable-next-line no-await-in-loop
+          await nearbySearchAt(point);
+        }
+
+        if (cancelled) return;
+        const list = Array.from(found.values()).slice(0, 30);
+        setGasStations(list);
+      } catch (error) {
+        if (!cancelled) {
+          setGasStationsError(error instanceof Error ? error.message : "No se pudieron cargar gasolineras.");
+        }
+      } finally {
+        if (!cancelled) setGasStationsLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [focusedDirections, focusedRouteKey, isLoaded]);
+
   const handleAutocompleteSelect = async (
     setState: React.Dispatch<React.SetStateAction<FormPlaceState>>,
     payload: AutocompletePayload
@@ -495,7 +690,9 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
 
   const resetForm = useCallback(() => {
     setActiveRouteKey(null);
+    setFocusedRouteKey(null);
     setPreview(null);
+    setDriveAlternatives(null);
     setPreviewError(null);
     setOrigin(emptyPlaceState());
     setStop(emptyPlaceState());
@@ -507,8 +704,13 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     (route: TripMapRoute) => {
       const key = `${route.source || "trip_routes"}:${route.id}`;
       setActiveRouteKey(key);
+      setFocusedRouteKey(key);
       setPreview(null);
+      setDriveAlternatives(null);
       setPreviewError(null);
+
+      const notes = parseRouteNotes((route as any).notes);
+      const restStops = notes?.restStops;
 
       setForm({
         editingRouteId: route.source === "trip_routes" ? route.id : null,
@@ -521,6 +723,9 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
         destinationName: route.destination_name || "Destino",
         stopEnabled: !!(route.stop_latitude && route.stop_longitude) || !!route.stop_address,
         stopName: route.stop_name || "Parada",
+        restStopsEnabled: !!restStops?.enabled,
+        restStopsCount: typeof restStops?.count === "number" ? restStops.count : 1,
+        restStopMinutes: typeof restStops?.minutesEach === "number" ? restStops.minutesEach : 15,
       });
 
       setOrigin({
@@ -572,38 +777,60 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
 
       const hasStop = form.stopEnabled && typeof stop.latitude === "number" && typeof stop.longitude === "number";
 
-      const result = await service.route({
+      const baseRequest: google.maps.DirectionsRequest = {
         origin: { lat: origin.latitude, lng: origin.longitude },
         destination: { lat: destination.latitude, lng: destination.longitude },
         travelMode: gmMaps.TravelMode[form.travelMode],
         waypoints: hasStop ? [{ location: { lat: stop.latitude!, lng: stop.longitude! }, stopover: true }] : [],
         provideRouteAlternatives: false,
-      });
+      };
 
-      const firstRoute = result.routes?.[0];
-      const legs = firstRoute?.legs || [];
-      const totalMeters = legs.reduce((sum, leg) => sum + (leg.distance?.value || 0), 0);
-      const totalSeconds = legs.reduce((sum, leg) => sum + (leg.duration?.value || 0), 0);
+      const restSeconds =
+        form.travelMode === "DRIVING" && form.restStopsEnabled
+          ? Math.max(0, Math.floor(form.restStopsCount)) * Math.max(0, Math.floor(form.restStopMinutes)) * 60
+          : 0;
 
-      const distanceText = metersToHuman(totalMeters);
-      const durationText = secondsToHuman(totalSeconds);
-      const arrivalTime = form.departureTime ? addSecondsToTime(form.departureTime, totalSeconds) : null;
-      const overviewPath = (firstRoute?.overview_path || []).map((p) => ({ lat: p.lat(), lng: p.lng() }));
+      const buildPreview = (result: google.maps.DirectionsResult): RoutePreview => {
+        const firstRoute = result.routes?.[0];
+        const legs = firstRoute?.legs || [];
+        const totalMeters = legs.reduce((sum, leg) => sum + (leg.distance?.value || 0), 0);
+        const totalSeconds = legs.reduce((sum, leg) => sum + (leg.duration?.value || 0), 0);
+        const distanceText = metersToHuman(totalMeters);
+        const durationText = secondsToHuman(totalSeconds);
+        const arrivalTime = form.departureTime ? addSecondsToTime(form.departureTime, totalSeconds + restSeconds) : null;
+        const overviewPath = (firstRoute?.overview_path || []).map((p) => ({ lat: p.lat(), lng: p.lng() }));
+        return { directions: result, distanceText, durationText, arrivalTime, overviewPath };
+      };
 
-      setPreview({
-        directions: result,
-        distanceText,
-        durationText,
-        arrivalTime,
-        overviewPath,
-      });
+      if (form.travelMode === "DRIVING") {
+        const [withTolls, withoutTolls] = await Promise.all([
+          service.route({ ...baseRequest, avoidTolls: false }),
+          service.route({ ...baseRequest, avoidTolls: true }),
+        ]);
+
+        const withPreview = buildPreview(withTolls);
+        const withoutPreview = buildPreview(withoutTolls);
+
+        setDriveAlternatives({
+          with_tolls: withPreview,
+          without_tolls: withoutPreview,
+          selected: "with_tolls",
+        });
+        setPreview(withPreview);
+      } else {
+        const result = await service.route(baseRequest);
+        const one = buildPreview(result);
+        setDriveAlternatives(null);
+        setPreview(one);
+      }
     } catch (error) {
       setPreview(null);
+      setDriveAlternatives(null);
       setPreviewError(error instanceof Error ? error.message : "No se pudo calcular la ruta.");
     } finally {
       setCalculating(false);
     }
-  }, [destination.latitude, destination.longitude, form.departureTime, form.stopEnabled, form.travelMode, isLoaded, origin.latitude, origin.longitude, stop.latitude, stop.longitude]);
+  }, [destination.latitude, destination.longitude, form.departureTime, form.stopEnabled, form.travelMode, form.restStopsEnabled, form.restStopsCount, form.restStopMinutes, isLoaded, origin.latitude, origin.longitude, stop.latitude, stop.longitude]);
 
   const handleSave = useCallback(async () => {
     setRouteError(null);
@@ -628,6 +855,11 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     }
 
     try {
+      const effectivePreview =
+        driveAlternatives && form.travelMode === "DRIVING"
+          ? driveAlternatives[driveAlternatives.selected]
+          : preview;
+
       const result = await saveRoute(
         {
           routeDate: date,
@@ -635,6 +867,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
           departureTime: form.departureTime,
           mode: form.travelMode,
           color: form.color,
+          notes: buildRouteNotes(form),
           originName: form.originName || origin.address || "Origen",
           originAddress: origin.address || form.originName || "Origen",
           originLatitude: origin.latitude,
@@ -647,11 +880,11 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
           destinationAddress: destination.address || form.destinationName || "Destino",
           destinationLatitude: destination.latitude,
           destinationLongitude: destination.longitude,
-          distanceText: preview?.distanceText ?? null,
-          durationText: preview?.durationText ?? null,
-          arrivalTime: preview?.arrivalTime ?? null,
-          routePoints: preview?.overviewPath ?? [],
-          pathPoints: preview?.overviewPath ?? [],
+          distanceText: effectivePreview?.distanceText ?? null,
+          durationText: effectivePreview?.durationText ?? null,
+          arrivalTime: effectivePreview?.arrivalTime ?? null,
+          routePoints: effectivePreview?.overviewPath ?? [],
+          pathPoints: effectivePreview?.overviewPath ?? [],
         },
         form.editingRouteId || undefined
       );
@@ -663,7 +896,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     } catch {
       // `useTripRoutes` ya setea `routeError`
     }
-  }, [destination.address, destination.latitude, destination.longitude, form, origin.address, origin.latitude, origin.longitude, preview, resetForm, saveRoute, stop.address, stop.latitude, stop.longitude]);
+  }, [destination.address, destination.latitude, destination.longitude, driveAlternatives, form, origin.address, origin.latitude, origin.longitude, preview, resetForm, saveRoute, stop.address, stop.latitude, stop.longitude]);
 
   const handleDelete = useCallback(
     async (route: TripMapRoute) => {
@@ -772,6 +1005,15 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
               >
                 {loadingRoutes ? "Recargando..." : "Recargar"}
               </button>
+              {focusedRouteKey ? (
+                <button
+                  type="button"
+                  onClick={() => setFocusedRouteKey(null)}
+                  className="inline-flex min-h-[40px] items-center justify-center rounded-xl border border-violet-200 bg-violet-50 px-3 text-sm font-semibold text-violet-900"
+                >
+                  Ver todas
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={resetForm}
@@ -825,6 +1067,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                     const key = `${route.source || "trip_routes"}:${route.id}`;
                     const meta = formatRouteMeta(route);
                     const isActive = activeRouteKey === key;
+                    const isFocused = focusedRouteKey === key;
                     const canEdit = route.source === "trip_routes";
 
                     return (
@@ -849,6 +1092,17 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                           </button>
 
                           <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setFocusedRouteKey((prev) => (prev === key ? null : key))}
+                              className={`inline-flex min-h-[36px] items-center justify-center rounded-xl border px-3 text-xs font-bold ${
+                                isFocused
+                                  ? "border-violet-200 bg-violet-50 text-violet-900"
+                                  : "border-slate-300 bg-white text-slate-900"
+                              }`}
+                            >
+                              {isFocused ? "Mostrando" : "Mostrar"}
+                            </button>
                             <a
                               href={buildGoogleMapsDirectionsUrl(route)}
                               target="_blank"
@@ -878,6 +1132,25 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                   })}
               </div>
             )}
+
+            {focusedRouteKey ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="font-extrabold">Vista enfocada</div>
+                  <button
+                    type="button"
+                    onClick={() => setFocusedRouteKey(null)}
+                    className="inline-flex min-h-[36px] items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-slate-900"
+                  >
+                    Mostrar todas las rutas
+                  </button>
+                </div>
+                <div className="mt-2 text-xs text-slate-600">
+                  {gasStationsLoading ? "Buscando gasolineras en la ruta…" : gasStations.length ? `${gasStations.length} gasolineras encontradas.` : "Sin gasolineras (o aún cargando)."}
+                </div>
+                {gasStationsError ? <div className="mt-2 text-xs text-red-700">{gasStationsError}</div> : null}
+              </div>
+            ) : null}
           </div>
         </section>
 
@@ -931,6 +1204,51 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
           </div>
 
           <div className="mt-5 space-y-4">
+            {form.travelMode === "DRIVING" ? (
+              <div className="rounded-2xl border border-slate-200 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-extrabold text-slate-950">Paradas de descanso</h3>
+                  <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={form.restStopsEnabled}
+                      onChange={(e) => setForm((prev) => ({ ...prev, restStopsEnabled: e.target.checked }))}
+                    />
+                    Activar
+                  </label>
+                </div>
+
+                {form.restStopsEnabled ? (
+                  <div className="mt-3 grid grid-cols-[1fr_1fr] gap-3">
+                    <label className="text-xs font-semibold text-slate-700">
+                      Nº paradas
+                      <input
+                        type="number"
+                        min={0}
+                        value={form.restStopsCount}
+                        onChange={(e) => setForm((prev) => ({ ...prev, restStopsCount: Number(e.target.value || 0) }))}
+                        className="mt-2 min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
+                      />
+                    </label>
+                    <label className="text-xs font-semibold text-slate-700">
+                      Minutos por parada
+                      <input
+                        type="number"
+                        min={0}
+                        value={form.restStopMinutes}
+                        onChange={(e) => setForm((prev) => ({ ...prev, restStopMinutes: Number(e.target.value || 0) }))}
+                        className="mt-2 min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
+                      />
+                    </label>
+                  </div>
+                ) : (
+                  <div className="mt-3 text-xs text-slate-500">
+                    Añade descansos para ajustar la hora de llegada (se suman al tiempo de ruta).
+                  </div>
+                )}
+              </div>
+            ) : null}
+
             <div className="rounded-2xl border border-slate-200 p-4">
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-sm font-extrabold text-slate-950">Origen</h3>
@@ -1135,6 +1453,59 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
               </div>
             ) : null}
 
+            {driveAlternatives && form.travelMode === "DRIVING" ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-900">
+                <div className="font-extrabold">Opciones en coche</div>
+                <p className="mt-1 text-xs text-slate-600">
+                  Nota: Google Directions no devuelve el precio de peajes. Mostramos tiempos/distancias y guardas la opción elegida.
+                </p>
+
+                <div className="mt-3 grid gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDriveAlternatives((prev) => (prev ? { ...prev, selected: "with_tolls" } : prev));
+                      const alt = driveAlternatives.with_tolls;
+                      if (alt) setPreview(alt);
+                    }}
+                    className={`rounded-2xl border p-3 text-left transition ${
+                      driveAlternatives.selected === "with_tolls"
+                        ? "border-violet-300 bg-violet-50"
+                        : "border-slate-200 bg-white hover:bg-slate-50"
+                    }`}
+                  >
+                    <div className="text-xs font-extrabold text-slate-950">Con peajes</div>
+                    <div className="mt-1 text-xs text-slate-700">
+                      {driveAlternatives.with_tolls?.distanceText ?? "—"} · {driveAlternatives.with_tolls?.durationText ?? "—"}
+                      {driveAlternatives.with_tolls?.arrivalTime ? ` · Llegada ${driveAlternatives.with_tolls.arrivalTime}` : ""}
+                    </div>
+                    <div className="mt-1 text-[11px] text-slate-500">Coste peajes: —</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDriveAlternatives((prev) => (prev ? { ...prev, selected: "without_tolls" } : prev));
+                      const alt = driveAlternatives.without_tolls;
+                      if (alt) setPreview(alt);
+                    }}
+                    className={`rounded-2xl border p-3 text-left transition ${
+                      driveAlternatives.selected === "without_tolls"
+                        ? "border-violet-300 bg-violet-50"
+                        : "border-slate-200 bg-white hover:bg-slate-50"
+                    }`}
+                  >
+                    <div className="text-xs font-extrabold text-slate-950">Sin peajes</div>
+                    <div className="mt-1 text-xs text-slate-700">
+                      {driveAlternatives.without_tolls?.distanceText ?? "—"} · {driveAlternatives.without_tolls?.durationText ?? "—"}
+                      {driveAlternatives.without_tolls?.arrivalTime ? ` · Llegada ${driveAlternatives.without_tolls.arrivalTime}` : ""}
+                    </div>
+                    <div className="mt-1 text-[11px] text-slate-500">Coste peajes: —</div>
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
             {previewError ? (
               <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{previewError}</div>
             ) : null}
@@ -1168,6 +1539,19 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
               {visiblePoints.map((point) => (
                 <MarkerF key={point.id} position={{ lat: point.latitude, lng: point.longitude }} title={point.title || undefined} />
               ))}
+
+              {focusedRouteKey
+                ? gasStations.map((station) => (
+                    <MarkerF
+                      key={station.placeId}
+                      position={{ lat: station.lat, lng: station.lng }}
+                      title={station.name}
+                      options={{
+                        icon: buildBrandSvgIcon(station.brand),
+                      }}
+                    />
+                  ))
+                : null}
 
               {visibleRoutes.map((route) => {
                 const routeKey = `${route.source || "trip_routes"}:${route.id}`;
