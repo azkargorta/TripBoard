@@ -97,6 +97,20 @@ async function withTimeout<T>(promiseLike: PromiseLike<T>, ms: number, message: 
   ]);
 }
 
+async function apiRequest<T>(input: RequestInfo, init: RequestInit, label: string): Promise<T> {
+  const response = await withTimeout(fetch(input, init), 20000, `Timeout (${label})`);
+  const text = await response.text();
+  let payload: any = null;
+  try {
+    payload = text ? JSON.parse(text) : null;
+  } catch {
+    payload = { error: text || "Respuesta no JSON." };
+  }
+  if (!response.ok) throw new Error(payload?.error || `Error ${response.status}`);
+  if (payload?.error) throw new Error(payload.error);
+  return payload as T;
+}
+
 function extractNamesFromRows(rows: Record<string, unknown>[]) {
   const names = new Set<string>();
 
@@ -229,32 +243,15 @@ export function useTripExpenses(tripId: string) {
       setLoading(true);
       setError(null);
 
-      const [expensesResponse, settlementsResponse] = await withTimeout(
-        Promise.all([
-          supabase
-            .from("trip_expenses")
-            .select("*")
-            .eq("trip_id", tripId)
-            .order("expense_date", { ascending: false })
-            .order("created_at", { ascending: false }),
-          supabase
-            .from("trip_expense_settlements")
-            .select("*")
-            .eq("trip_id", tripId)
-            .order("created_at", { ascending: false }),
-        ]),
-        12000,
-        "La carga de gastos tardó demasiado."
-      );
+      const payload = await apiRequest<{
+        expenses: TripExpenseRecord[];
+        settlements: TripSettlement[];
+        registeredTravelers: string[];
+      }>(`/api/trip-expenses?tripId=${encodeURIComponent(tripId)}`, { method: "GET" }, "cargar gastos");
 
-      if (expensesResponse.error) throw new Error(expensesResponse.error.message);
-      if (settlementsResponse.error) throw new Error(settlementsResponse.error.message);
-
-      setExpenses((expensesResponse.data || []) as TripExpenseRecord[]);
-      setSettlements((settlementsResponse.data || []) as TripSettlement[]);
-
-      const travelers = await loadRegisteredTravelersFromKnownTables(tripId);
-      setRegisteredTravelers(travelers);
+      setExpenses(Array.isArray(payload.expenses) ? payload.expenses : []);
+      setSettlements(Array.isArray(payload.settlements) ? payload.settlements : []);
+      setRegisteredTravelers(Array.isArray(payload.registeredTravelers) ? payload.registeredTravelers : []);
     } catch (err) {
       console.error("Error cargando gastos:", err);
       setExpenses([]);
@@ -344,7 +341,7 @@ export function useTripExpenses(tripId: string) {
       if (input.attachment) attachment = await uploadExpenseAttachment(tripId, input.attachment);
 
       const payload = {
-        trip_id: tripId,
+        tripId,
         title: input.title.trim(),
         category: input.category || "general",
         payer_name: input.payerName.trim() || null,
@@ -361,12 +358,11 @@ export function useTripExpenses(tripId: string) {
         analysis_data: input.analysisData || {},
       };
 
-      const expenseInsertResult = await withTimeout(
-        supabase.from("trip_expenses").insert(payload),
-        15000,
-        "El guardado del gasto tardó demasiado."
+      await apiRequest<{ expense: TripExpenseRecord }>(
+        "/api/trip-expenses",
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) },
+        "crear gasto"
       );
-      if (expenseInsertResult.error) throw new Error(expenseInsertResult.error.message);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo guardar el gasto.");
@@ -406,12 +402,11 @@ export function useTripExpenses(tripId: string) {
         analysis_data: input.analysisData || currentExpense?.analysis_data || {},
       };
 
-      const expenseUpdateResult = await withTimeout(
-        supabase.from("trip_expenses").update(payload).eq("id", expenseId),
-        15000,
-        "La actualización del gasto tardó demasiado."
+      await apiRequest<{ expense: TripExpenseRecord }>(
+        `/api/trip-expenses/${expenseId}`,
+        { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) },
+        "actualizar gasto"
       );
-      if (expenseUpdateResult.error) throw new Error(expenseUpdateResult.error.message);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo actualizar el gasto.");
@@ -425,12 +420,7 @@ export function useTripExpenses(tripId: string) {
     setSaving(true);
     setError(null);
     try {
-      const { error } = await withTimeout(
-        supabase.from("trip_expenses").delete().eq("id", expenseId),
-        12000,
-        "La eliminación del gasto tardó demasiado."
-      );
-      if (error) throw new Error(error.message);
+      await apiRequest<{ ok: true }>(`/api/trip-expenses/${expenseId}`, { method: "DELETE" }, "eliminar gasto");
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo eliminar el gasto.");
@@ -444,29 +434,11 @@ export function useTripExpenses(tripId: string) {
     setSaving(true);
     setError(null);
     try {
-      const newStatus = settlement.status === "paid" ? "pending" : "paid";
-      if (settlement.id && !String(settlement.id).includes("->")) {
-        const { error } = await supabase
-          .from("trip_expense_settlements")
-          .update({
-            status: newStatus,
-            paid_at: newStatus === "paid" ? new Date().toISOString() : null,
-          })
-          .eq("id", settlement.id);
-        if (error) throw new Error(error.message);
-      } else {
-        const { error } = await supabase.from("trip_expense_settlements").insert({
-          trip_id: tripId,
-          debtor_name: settlement.debtor_name,
-          creditor_name: settlement.creditor_name,
-          amount: settlement.amount,
-          currency: settlement.currency,
-          status: newStatus,
-          source_balance_key: settlement.source_balance_key,
-          paid_at: newStatus === "paid" ? new Date().toISOString() : null,
-        });
-        if (error) throw new Error(error.message);
-      }
+      await apiRequest<{ ok: true; status: string }>(
+        "/api/trip-expense-settlements",
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tripId, settlement }) },
+        "toggle settlement"
+      );
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo actualizar el estado del pago.");
