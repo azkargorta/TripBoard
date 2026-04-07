@@ -3,6 +3,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DirectionsRenderer, GoogleMap, MarkerF, PolylineF, useJsApiLoader } from "@react-google-maps/api";
 import {
+  CalendarDays,
+  CheckSquare,
+  Copy,
+  Eye,
+  EyeOff,
+  Focus,
+  GripVertical,
+  MapPin,
+  Navigation,
+  Plus,
+  RefreshCw,
+  SlidersHorizontal,
+  Trash2,
+} from "lucide-react";
+import {
   DndContext,
   PointerSensor,
   closestCenter,
@@ -519,6 +534,80 @@ function buildBrandSvgIcon(brand: string | null) {
   };
 }
 
+type CategoryVisual = { key: string; label: string; glyph: string; color: string };
+
+function normalizeKind(value: string | null | undefined) {
+  return (value || "").trim().toLowerCase();
+}
+
+function categoryVisual(kindRaw: string | null | undefined): CategoryVisual {
+  const kind = normalizeKind(kindRaw);
+  if (!kind) return { key: "otros", label: "Otros", glyph: "•", color: "#64748b" };
+
+  const has = (...tokens: string[]) => tokens.some((t) => kind.includes(t));
+  if (has("hotel", "hostel", "aloj", "accommodation", "apart")) return { key: kind, label: "Alojamiento", glyph: "H", color: "#0ea5e9" };
+  if (has("rest", "restaurant", "comida", "food", "bar", "cafe", "cafeter")) return { key: kind, label: "Comida", glyph: "🍴", color: "#f97316" };
+  if (has("museum", "museo", "art", "galer")) return { key: kind, label: "Museo", glyph: "M", color: "#a855f7" };
+  if (has("playa", "beach", "park", "parque", "nature", "sender")) return { key: kind, label: "Naturaleza", glyph: "🌿", color: "#10b981" };
+  if (has("shop", "tienda", "shopping", "market", "mercad")) return { key: kind, label: "Compras", glyph: "🛍️", color: "#ef4444" };
+  if (has("transport", "station", "estacion", "airport", "aerop", "train", "bus")) return { key: kind, label: "Transporte", glyph: "✈", color: "#0f172a" };
+  return { key: kind, label: kindRaw || "Otros", glyph: "•", color: "#64748b" };
+}
+
+function buildCategoryMarkerIcon(glyph: string, color: string) {
+  const size = 46;
+  const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+  <defs>
+    <filter id="s" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.22"/>
+    </filter>
+  </defs>
+  <g filter="url(#s)">
+    <path d="M23 3c7.2 0 13 5.8 13 13 0 10-13 27-13 27S10 26 10 16C10 8.8 15.8 3 23 3Z" fill="${color}" stroke="#ffffff" stroke-width="2"/>
+    <circle cx="23" cy="16" r="8.5" fill="#ffffff" opacity="0.92"/>
+    <text x="23" y="18.5" text-anchor="middle" dominant-baseline="middle"
+      font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto" font-size="12" font-weight="900" fill="#0f172a">${glyph}</text>
+  </g>
+</svg>`;
+
+  return {
+    url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+    scaledSize: new window.google.maps.Size(34, 34),
+    anchor: new window.google.maps.Point(17, 34),
+  };
+}
+
+function IconButton({
+  onClick,
+  disabled,
+  title,
+  variant = "secondary",
+  children,
+}: {
+  onClick?: () => void;
+  disabled?: boolean;
+  title?: string;
+  variant?: "primary" | "secondary" | "danger" | "ghost";
+  children: React.ReactNode;
+}) {
+  const base =
+    "inline-flex min-h-[36px] items-center justify-center gap-2 rounded-xl px-3 text-xs font-extrabold transition focus:outline-none focus:ring-2 focus:ring-violet-200 disabled:opacity-50";
+  const styles =
+    variant === "primary"
+      ? "bg-slate-900 text-white hover:bg-slate-800"
+      : variant === "danger"
+        ? "border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+        : variant === "ghost"
+          ? "bg-transparent text-slate-700 hover:bg-slate-100"
+          : "border border-slate-300 bg-white text-slate-900 hover:bg-slate-50";
+  return (
+    <button type="button" onClick={onClick} disabled={disabled} title={title} className={`${base} ${styles}`}>
+      {children}
+    </button>
+  );
+}
+
 export default function TripMapView({ tripId, tripDates = [], planSources, routeSources }: Props) {
   const googleMapsApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
   const { isLoaded, loadError } = useJsApiLoader({
@@ -755,6 +844,17 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     return list;
   }, [filteredRoutes]);
 
+  const allDaysRoutesGrouped = useMemo(() => {
+    const groups = new Map<string, TripMapRoute[]>();
+    allDaysRoutesSorted.forEach((r) => {
+      const d = r.route_day || r.route_date || "Sin fecha";
+      const arr = groups.get(d) || [];
+      arr.push(r);
+      groups.set(d, arr);
+    });
+    return Array.from(groups.entries()).map(([date, routes]) => ({ date, routes }));
+  }, [allDaysRoutesSorted]);
+
   const selectedDateIndex = useMemo(() => {
     if (selectedDate === "all") return -1;
     return Math.max(
@@ -766,7 +866,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   const availablePlanKinds = useMemo(() => {
     const kinds = new Set<string>();
     planPlaces.forEach((p) => {
-      const kind = (p.kind || "").trim().toLowerCase();
+      const kind = normalizeKind(p.kind);
       if (kind) kinds.add(kind);
     });
     return Array.from(kinds.values()).sort();
@@ -778,7 +878,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
       .filter((place) => selectedDate === "all" || place.activityDate === selectedDate)
       .filter((place) => {
         if (!planKindFilter.size) return true;
-        const kind = (place.kind || "").trim().toLowerCase();
+        const kind = normalizeKind(place.kind);
         return kind ? planKindFilter.has(kind) : planKindFilter.has("otros");
       })
       .map((place) => ({
@@ -786,6 +886,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
         latitude: place.latitude,
         longitude: place.longitude,
         title: place.label,
+        kind: normalizeKind(place.kind) || "otros",
       }));
   }, [planKindFilter, planPlaces, selectedDate, showPlanMarkers]);
 
@@ -1410,42 +1511,37 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
               </div>
 
               <div className="flex flex-wrap justify-end gap-2">
-                <button
-                  type="button"
+                <IconButton
                   onClick={() => void reloadRoutes()}
-                  className="inline-flex min-h-[40px] items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900 disabled:opacity-50"
                   disabled={loadingRoutes}
+                  title="Recargar"
+                  variant="secondary"
                 >
+                  <RefreshCw className="h-4 w-4" />
                   {loadingRoutes ? "Recargando..." : "Recargar"}
-                </button>
+                </IconButton>
                 {focusedRouteKey ? (
                   <>
-                    <button
-                      type="button"
+                    <IconButton
                       onClick={() => {
                         lastFitRef.current = "";
                         fitMapToData();
                       }}
-                      className="inline-flex min-h-[40px] items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
+                      title="Centrar"
                     >
+                      <Focus className="h-4 w-4" />
                       Centrar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFocusedRouteKey(null)}
-                      className="inline-flex min-h-[40px] items-center justify-center rounded-xl border border-violet-200 bg-violet-50 px-3 text-sm font-semibold text-violet-900"
-                    >
+                    </IconButton>
+                    <IconButton onClick={() => setFocusedRouteKey(null)} title="Ver todas" variant="ghost">
+                      <Eye className="h-4 w-4" />
                       Ver todas
-                    </button>
+                    </IconButton>
                   </>
                 ) : null}
-                <button
-                  type="button"
-                  onClick={beginNewRoute}
-                  className="inline-flex min-h-[40px] items-center justify-center rounded-xl bg-slate-900 px-3 text-sm font-semibold text-white"
-                >
+                <IconButton onClick={beginNewRoute} title="Nueva ruta" variant="primary">
+                  <Plus className="h-4 w-4" />
                   Nueva ruta
-                </button>
+                </IconButton>
               </div>
             </div>
 
@@ -1481,50 +1577,46 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
+              <IconButton
                 onClick={() => setSelectedDate("all")}
-                className={`rounded-full border px-3 py-2 text-xs font-extrabold ${
-                  selectedDate === "all"
-                    ? "border-slate-900 bg-slate-900 text-white"
-                    : "border-slate-200 bg-white text-slate-700"
-                }`}
+                variant={selectedDate === "all" ? "primary" : "secondary"}
+                title="Todos los días"
               >
+                <CalendarDays className="h-4 w-4" />
                 Todos
-              </button>
-              <button
-                type="button"
+              </IconButton>
+              <IconButton
                 onClick={() => {
                   if (tripDates[0]) setSelectedDate(tripDates[0]);
                 }}
-                className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700"
                 disabled={!tripDates.length}
+                title="Hoy (primer día del viaje)"
               >
+                <Navigation className="h-4 w-4" />
                 Hoy
-              </button>
-              <button
-                type="button"
+              </IconButton>
+              <IconButton
                 onClick={() => {
                   if (tripDates[1]) setSelectedDate(tripDates[1]);
                 }}
-                className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 disabled:opacity-50"
                 disabled={tripDates.length < 2}
+                title="Mañana (segundo día del viaje)"
               >
+                <Navigation className="h-4 w-4" />
                 Mañana
-              </button>
-              <button
-                type="button"
+              </IconButton>
+              <IconButton
                 onClick={() => {
                   const idx = selectedDateIndex >= 0 ? selectedDateIndex + 1 : 0;
                   const next = tripDates[idx];
                   if (next) setSelectedDate(next);
                 }}
-                className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 disabled:opacity-50"
                 disabled={!tripDates.length}
                 title="Siguiente día del viaje"
               >
+                <Plus className="h-4 w-4" />
                 +1 día
-              </button>
+              </IconButton>
             </div>
             </div>
           </div>
@@ -1642,98 +1734,118 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
               </DndContext>
             ) : (
               <div className="space-y-2">
-                {allDaysRoutesSorted.map((route) => {
-                    const key = `${route.source || "trip_routes"}:${route.id}`;
-                    const meta = formatRouteMeta(route);
-                    const isActive = activeRouteKey === key;
-                    const isFocused = focusedRouteKey === key;
-                    const canEdit = route.source === "trip_routes";
+                {allDaysRoutesGrouped.map((group) => (
+                  <div key={group.date} className="space-y-2">
+                    <div className="flex items-center gap-3 px-1">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700">
+                        <CalendarDays className="h-4 w-4" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-xs font-extrabold text-slate-900">{group.date}</div>
+                        <div className="text-[11px] text-slate-500">{group.routes.length} rutas</div>
+                      </div>
+                      <div className="h-px flex-1 bg-slate-200" />
+                    </div>
 
-                    return (
-                      <div
-                        key={key}
-                        className={`rounded-2xl border p-4 transition ${
-                          isActive ? "border-violet-300 bg-violet-50" : "border-slate-200 bg-white hover:bg-slate-50"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <button
-                            type="button"
-                            onClick={() => beginEditRoute(route)}
-                            className="text-left"
-                            title={canEdit ? "Editar ruta" : "Ruta legacy (solo lectura)"}
-                          >
-                            <div className="flex items-center gap-2">
-                              <span
-                                className="h-2.5 w-2.5 rounded-full"
-                                style={{ backgroundColor: route.color || "#4f46e5" }}
-                                aria-hidden="true"
-                              />
-                              <div className="text-sm font-extrabold text-slate-950">{route.route_name || route.title || "Ruta"}</div>
-                            </div>
-                            <div className="mt-1 text-xs font-semibold text-slate-600">
-                              {meta.base ? meta.base : "Sin fecha"} {meta.base ? `· ${meta.modeLabel}` : meta.modeLabel}
-                            </div>
-                            {meta.extra ? <div className="mt-1 text-xs text-slate-500">{meta.extra}</div> : null}
-                          </button>
+                    <div className="space-y-2 border-l border-slate-200 pl-4">
+                      {group.routes.map((route) => {
+                        const key = `${route.source || "trip_routes"}:${route.id}`;
+                        const meta = formatRouteMeta(route);
+                        const isActive = activeRouteKey === key;
+                        const isFocused = focusedRouteKey === key;
+                        const canEdit = route.source === "trip_routes";
 
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setFocusedRouteKey((prev) => (prev === key ? null : key))}
-                              className={`inline-flex min-h-[36px] items-center justify-center rounded-xl border px-3 text-xs font-bold ${
-                                isFocused
-                                  ? "border-violet-200 bg-violet-50 text-violet-900"
-                                  : "border-slate-300 bg-white text-slate-900"
+                        return (
+                          <div key={key} className="relative">
+                            <span
+                              className="absolute -left-[21px] top-5 h-3 w-3 rounded-full border border-white"
+                              style={{ backgroundColor: route.color || "#4f46e5" }}
+                            />
+                            <div
+                              className={`rounded-2xl border p-4 transition ${
+                                isActive
+                                  ? "border-violet-300 bg-violet-50"
+                                  : "border-slate-200 bg-white hover:bg-slate-50"
                               }`}
                             >
-                              {isFocused ? "Mostrando" : "Mostrar"}
-                            </button>
-                            {canEdit ? (
-                              <button
-                                type="button"
-                                onClick={() => beginEditRoute(route)}
-                                className="inline-flex min-h-[36px] items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-slate-900"
-                              >
-                                Editar
-                              </button>
-                            ) : null}
-                            {canEdit ? (
-                              <button
-                                type="button"
-                                onClick={() => setDuplicateRouteKey(key)}
-                                className="inline-flex min-h-[36px] items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-slate-900"
-                              >
-                                Duplicar
-                              </button>
-                            ) : null}
-                            <a
-                              href={buildGoogleMapsDirectionsUrl(route)}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex min-h-[36px] items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-slate-900"
-                            >
-                              Abrir
-                            </a>
-                            {canEdit ? (
-                              <button
-                                type="button"
-                                onClick={() => void handleDelete(route)}
-                                disabled={savingRoute}
-                                className="inline-flex min-h-[36px] items-center justify-center rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-bold text-red-700 disabled:opacity-50"
-                              >
-                                Eliminar
-                              </button>
-                            ) : (
-                              <span className="inline-flex min-h-[36px] items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-600">
-                                Legacy
-                              </span>
-                            )}
+                              <div className="flex items-start justify-between gap-3">
+                                <button
+                                  type="button"
+                                  onClick={() => beginEditRoute(route)}
+                                  className="text-left"
+                                  title={canEdit ? "Editar ruta" : "Ruta legacy (solo lectura)"}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <div className="text-sm font-extrabold text-slate-950">
+                                      {route.route_name || route.title || "Ruta"}
+                                    </div>
+                                  </div>
+                                  <div className="mt-1 text-xs font-semibold text-slate-600">
+                                    {meta.base ? meta.base : "Sin fecha"}{" "}
+                                    {meta.base ? `· ${meta.modeLabel}` : meta.modeLabel}
+                                  </div>
+                                  {meta.extra ? <div className="mt-1 text-xs text-slate-500">{meta.extra}</div> : null}
+                                </button>
+
+                                <div className="flex flex-wrap gap-2">
+                                  <IconButton
+                                    onClick={() => setFocusedRouteKey((prev) => (prev === key ? null : key))}
+                                    variant={isFocused ? "primary" : "secondary"}
+                                    title="Mostrar en el mapa"
+                                  >
+                                    {isFocused ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                                    {isFocused ? "Mostrando" : "Mostrar"}
+                                  </IconButton>
+
+                                  {canEdit ? (
+                                    <IconButton onClick={() => beginEditRoute(route)} title="Editar" variant="secondary">
+                                      <SlidersHorizontal className="h-4 w-4" />
+                                      Editar
+                                    </IconButton>
+                                  ) : null}
+
+                                  {canEdit ? (
+                                    <IconButton onClick={() => setDuplicateRouteKey(key)} title="Duplicar" variant="secondary">
+                                      <Copy className="h-4 w-4" />
+                                      Duplicar
+                                    </IconButton>
+                                  ) : null}
+
+                                  <a
+                                    href={buildGoogleMapsDirectionsUrl(route)}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex min-h-[36px] items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-xs font-extrabold text-slate-900 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-violet-200"
+                                    title="Abrir en Google Maps"
+                                  >
+                                    <MapPin className="h-4 w-4" />
+                                    Abrir
+                                  </a>
+
+                                  {canEdit ? (
+                                    <IconButton
+                                      onClick={() => void handleDelete(route)}
+                                      disabled={savingRoute}
+                                      title="Eliminar"
+                                      variant="danger"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                      Eliminar
+                                    </IconButton>
+                                  ) : (
+                                    <span className="inline-flex min-h-[36px] items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-600">
+                                      Legacy
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
 
@@ -1848,30 +1960,30 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                   <p className="mt-1 text-xs text-slate-600">Muestra/oculta marcadores y filtra por tipo.</p>
                 </div>
 
-                <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={showPlanMarkers}
-                    onChange={(e) => setShowPlanMarkers(e.target.checked)}
-                  />
-                  Mostrar
-                </label>
+                <IconButton
+                  onClick={() => setShowPlanMarkers((v) => !v)}
+                  variant={showPlanMarkers ? "primary" : "secondary"}
+                  title="Mostrar/ocultar marcadores del plan"
+                >
+                  {showPlanMarkers ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                  {showPlanMarkers ? "Mostrando" : "Ocultos"}
+                </IconButton>
               </div>
 
               {showPlanMarkers ? (
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    type="button"
+                  <IconButton
                     onClick={() => setPlanKindFilter(new Set())}
-                    className={`rounded-full border px-3 py-2 text-xs font-extrabold ${
-                      planKindFilter.size === 0 ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-700"
-                    }`}
+                    variant={planKindFilter.size === 0 ? "primary" : "secondary"}
+                    title="Todas las categorías"
                   >
+                    <MapPin className="h-4 w-4" />
                     Todos
-                  </button>
+                  </IconButton>
 
                   {availablePlanKinds.map((kind) => {
                     const isActive = planKindFilter.has(kind);
+                    const vis = categoryVisual(kind);
                     return (
                       <button
                         key={kind}
@@ -1884,17 +1996,19 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                             return next;
                           })
                         }
-                        className={`rounded-full border px-3 py-2 text-xs font-extrabold ${
-                          isActive ? "border-violet-300 bg-violet-50 text-violet-900" : "border-slate-200 bg-white text-slate-700"
+                        className={`inline-flex min-h-[36px] items-center justify-center gap-2 rounded-full border px-3 py-2 text-xs font-extrabold transition focus:outline-none focus:ring-2 focus:ring-violet-200 ${
+                          isActive ? "border-violet-300 bg-violet-50 text-violet-900" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                         }`}
                       >
-                        {kind}
+                        <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-white/70" style={{ backgroundColor: vis.color }}>
+                          <span className="text-[11px] font-black text-white">{vis.glyph}</span>
+                        </span>
+                        <span className="max-w-[180px] truncate">{vis.label}</span>
                       </button>
                     );
                   })}
 
-                  <button
-                    type="button"
+                  <IconButton
                     onClick={() =>
                       setPlanKindFilter((prev) => {
                         const next = new Set(prev);
@@ -1903,12 +2017,12 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                         return next;
                       })
                     }
-                    className={`rounded-full border px-3 py-2 text-xs font-extrabold ${
-                      planKindFilter.has("otros") ? "border-violet-300 bg-violet-50 text-violet-900" : "border-slate-200 bg-white text-slate-700"
-                    }`}
+                    variant={planKindFilter.has("otros") ? "primary" : "secondary"}
+                    title="Otros"
                   >
-                    otros
-                  </button>
+                    <CheckSquare className="h-4 w-4" />
+                    Otros
+                  </IconButton>
                 </div>
               ) : null}
             </div>
@@ -2323,24 +2437,35 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
           {!isLoaded ? (
             <div className="p-6 text-sm text-slate-600">Cargando mapa...</div>
           ) : (
-            <GoogleMap
-              mapContainerStyle={{ width: "100%", height: "min(720px, calc(100vh - 180px))" }}
-              center={DEFAULT_CENTER}
-              zoom={6}
-              onLoad={(map) => {
-                mapRef.current = map;
-              }}
-              options={{
-                streetViewControl: false,
-                mapTypeControl: false,
-                fullscreenControl: true,
-                gestureHandling: "cooperative",
-                minZoom: 3,
-                maxZoom: 17,
-              }}
-            >
+            <div className="relative">
+              <GoogleMap
+                mapContainerStyle={{ width: "100%", height: "min(720px, calc(100vh - 180px))" }}
+                center={DEFAULT_CENTER}
+                zoom={6}
+                onLoad={(map) => {
+                  mapRef.current = map;
+                }}
+                options={{
+                  streetViewControl: false,
+                  mapTypeControl: false,
+                  fullscreenControl: true,
+                  gestureHandling: "cooperative",
+                  minZoom: 3,
+                  maxZoom: 17,
+                }}
+              >
               {visiblePoints.map((point) => (
-                <MarkerF key={point.id} position={{ lat: point.latitude, lng: point.longitude }} title={point.title || undefined} />
+                <MarkerF
+                  key={point.id}
+                  position={{ lat: point.latitude, lng: point.longitude }}
+                  title={point.title || undefined}
+                  options={{
+                    icon: buildCategoryMarkerIcon(
+                      categoryVisual(point.kind).glyph,
+                      categoryVisual(point.kind).color
+                    ),
+                  }}
+                />
               ))}
 
               {focusedRouteKey
@@ -2408,7 +2533,43 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                   }}
                 />
               ) : null}
-            </GoogleMap>
+              </GoogleMap>
+
+              <div className="pointer-events-none absolute left-3 top-3 z-10 flex flex-col gap-2">
+                <div className="pointer-events-auto inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-sm backdrop-blur">
+                  <IconButton
+                    onClick={() => {
+                      lastFitRef.current = "";
+                      fitMapToData();
+                    }}
+                    title="Centrar"
+                    variant="secondary"
+                  >
+                    <Focus className="h-4 w-4" />
+                    Centrar
+                  </IconButton>
+
+                  <IconButton
+                    onClick={() => setFocusedRouteKey(null)}
+                    title="Ver todas las rutas"
+                    variant={focusedRouteKey ? "secondary" : "ghost"}
+                    disabled={!focusedRouteKey}
+                  >
+                    <Eye className="h-4 w-4" />
+                    Ver todas
+                  </IconButton>
+
+                  <IconButton
+                    onClick={() => setShowPlanMarkers((v) => !v)}
+                    title="Mostrar/ocultar marcadores del plan"
+                    variant={showPlanMarkers ? "primary" : "secondary"}
+                  >
+                    {showPlanMarkers ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                    Plan
+                  </IconButton>
+                </div>
+              </div>
+            </div>
           )}
         </section>
       </div>
