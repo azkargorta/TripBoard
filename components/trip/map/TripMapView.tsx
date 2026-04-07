@@ -2,6 +2,21 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DirectionsRenderer, GoogleMap, MarkerF, PolylineF, useJsApiLoader } from "@react-google-maps/api";
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import PlaceAutocompleteInput from "@/components/PlaceAutocompleteInput";
 import { useTripRoutes } from "@/hooks/useTripRoutes";
 import { supabase } from "@/lib/supabase";
@@ -22,6 +37,7 @@ type AutocompletePayload = {
 export type TripMapRoute = {
   id: string;
   source?: "trip_routes" | "legacy_routes";
+  route_order?: number | null;
   route_day?: string | null;
   route_date?: string | null;
   departure_time?: string | null;
@@ -202,6 +218,7 @@ function buildInitialRoutes(
       return {
         id: String(item.id ?? `${prefix}-${index}`),
         source,
+        route_order: asNumber(item.route_order),
         route_day: asString(item.route_day) ?? asString(item.route_date) ?? asString(item.day_date) ?? null,
         route_date: asString(item.route_date) ?? asString(item.route_day) ?? asString(item.day_date) ?? null,
         departure_time: asString(item.departure_time) ?? asString(item.start_time) ?? null,
@@ -230,6 +247,44 @@ function buildInitialRoutes(
       };
     })
     .filter(Boolean) as TripMapRoute[];
+}
+
+function SortableRouteCard({
+  id,
+  children,
+  disabled,
+}: {
+  id: string;
+  children: React.ReactNode;
+  disabled?: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id,
+    disabled,
+  });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.75 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="relative">
+      {!disabled ? (
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+          title="Arrastra para reordenar"
+        >
+          ⋮⋮
+        </button>
+      ) : null}
+      {children}
+    </div>
+  );
 }
 
 function formatRouteMeta(route: TripMapRoute) {
@@ -517,6 +572,8 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
 
   const { routeError: hookRouteError, saveRoute, deleteRoute, savingRoute } = useTripRoutes(tripId, reloadRoutes);
 
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+
   useEffect(() => {
     if (hookRouteError) setRouteError(hookRouteError);
   }, [hookRouteError]);
@@ -529,6 +586,97 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     if (!focusedRouteKey) return base;
     return base.filter((route) => `${route.source || "trip_routes"}:${route.id}` === focusedRouteKey);
   }, [routesState, selectedDate, focusedRouteKey]);
+
+  const dayRoutesSorted = useMemo(() => {
+    const q = routeQuery.trim().toLowerCase();
+    const base = (q
+      ? visibleRoutes.filter((r) => ((r.route_name || r.title || "") as string).toLowerCase().includes(q))
+      : visibleRoutes
+    ).slice();
+    base.sort((a, b) => {
+      const oa = a.route_order ?? Number.POSITIVE_INFINITY;
+      const ob = b.route_order ?? Number.POSITIVE_INFINITY;
+      if (oa !== ob) return oa - ob;
+      const ta = a.departure_time || "";
+      const tb = b.departure_time || "";
+      if (ta !== tb) return ta.localeCompare(tb);
+      const na = (a.route_name || a.title || "").toLowerCase();
+      const nb = (b.route_name || b.title || "").toLowerCase();
+      return na.localeCompare(nb);
+    });
+    return base;
+  }, [routeQuery, visibleRoutes]);
+
+  const persistDayOrder = useCallback(
+    async (orderedKeys: string[]) => {
+      if (selectedDate === "all") return;
+      const updates = orderedKeys
+        .map((routeKey, index) => {
+          const [source, id] = String(routeKey).split(":");
+          return { source, id, order: index + 1 };
+        })
+        .filter((u) => u.source === "trip_routes" && !!u.id);
+
+      if (!updates.length) return;
+
+      const results = await Promise.all(
+        updates.map((u) =>
+          fetch(`/api/trip-routes/${u.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ route_order: u.order }),
+          })
+        )
+      );
+
+      const failed = results.find((r) => !r.ok);
+      if (failed) {
+        const text = await failed.text();
+        throw new Error(text || "No se pudo guardar el orden.");
+      }
+
+      void reloadRoutes();
+    },
+    [reloadRoutes, selectedDate]
+  );
+
+  const handleDragEnd = useCallback(
+    async (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over) return;
+      if (active.id === over.id) return;
+
+      const ids = dayRoutesSorted.map((r) => `${r.source || "trip_routes"}:${r.id}`);
+      const oldIndex = ids.indexOf(String(active.id));
+      const newIndex = ids.indexOf(String(over.id));
+      if (oldIndex < 0 || newIndex < 0) return;
+
+      const next = arrayMove(ids, oldIndex, newIndex);
+
+      // Optimista: reflejar orden en UI al instante (solo rutas editables)
+      setRoutesState((prev) => {
+        const byKey = new Map<string, TripMapRoute>(
+          prev.map((r) => [`${r.source || "trip_routes"}:${r.id}`, r])
+        );
+        return next
+          .map((key, index) => {
+            const route = byKey.get(key);
+            if (!route) return null;
+            if (route.source === "trip_routes") return { ...route, route_order: index + 1 };
+            return route;
+          })
+          .filter(Boolean) as TripMapRoute[];
+      });
+
+      try {
+        await persistDayOrder(next);
+      } catch (e) {
+        setRouteError(e instanceof Error ? e.message : "No se pudo guardar el orden.");
+        void reloadRoutes();
+      }
+    },
+    [dayRoutesSorted, persistDayOrder, reloadRoutes]
+  );
 
   const filteredRoutes = useMemo(() => {
     const q = routeQuery.trim().toLowerCase();
@@ -1154,6 +1302,94 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
                 No hay rutas que coincidan con el filtro/búsqueda.
               </div>
+            ) : selectedDate !== "all" ? (
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext
+                  items={dayRoutesSorted.map((r) => `${r.source || "trip_routes"}:${r.id}`)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="space-y-2">
+                    {dayRoutesSorted.map((route) => {
+                      const key = `${route.source || "trip_routes"}:${route.id}`;
+                      const meta = formatRouteMeta(route);
+                      const isActive = activeRouteKey === key;
+                      const isFocused = focusedRouteKey === key;
+                      const canEdit = route.source === "trip_routes";
+                      const canDrag = canEdit && !savingRoute;
+
+                      return (
+                        <SortableRouteCard key={key} id={key} disabled={!canDrag}>
+                          <div
+                            className={`rounded-2xl border p-4 transition ${
+                              isActive ? "border-violet-300 bg-violet-50" : "border-slate-200 bg-white hover:bg-slate-50"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <button
+                                type="button"
+                                onClick={() => beginEditRoute(route)}
+                                className="text-left"
+                                title={canEdit ? "Editar ruta" : "Ruta legacy (solo lectura)"}
+                              >
+                                <div className="text-sm font-extrabold text-slate-950">{route.route_name || route.title || "Ruta"}</div>
+                                <div className="mt-1 text-xs font-semibold text-slate-600">
+                                  {meta.base ? meta.base : "Sin fecha"} {meta.base ? `· ${meta.modeLabel}` : meta.modeLabel}
+                                </div>
+                                {meta.extra ? <div className="mt-1 text-xs text-slate-500">{meta.extra}</div> : null}
+                              </button>
+
+                              <div className="flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setFocusedRouteKey((prev) => (prev === key ? null : key))}
+                                  className={`inline-flex min-h-[36px] items-center justify-center rounded-xl border px-3 text-xs font-bold ${
+                                    isFocused
+                                      ? "border-violet-200 bg-violet-50 text-violet-900"
+                                      : "border-slate-300 bg-white text-slate-900"
+                                  }`}
+                                >
+                                  {isFocused ? "Mostrando" : "Mostrar"}
+                                </button>
+                                {canEdit ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => beginEditRoute(route)}
+                                    className="inline-flex min-h-[36px] items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-slate-900"
+                                  >
+                                    Editar
+                                  </button>
+                                ) : null}
+                                <a
+                                  href={buildGoogleMapsDirectionsUrl(route)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex min-h-[36px] items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-slate-900"
+                                >
+                                  Abrir
+                                </a>
+                                {canEdit ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleDelete(route)}
+                                    disabled={savingRoute}
+                                    className="inline-flex min-h-[36px] items-center justify-center rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-bold text-red-700 disabled:opacity-50"
+                                  >
+                                    Eliminar
+                                  </button>
+                                ) : (
+                                  <span className="inline-flex min-h-[36px] items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-600">
+                                    Legacy
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </SortableRouteCard>
+                      );
+                    })}
+                  </div>
+                </SortableContext>
+              </DndContext>
             ) : (
               <div className="space-y-2">
                 {filteredRoutes
