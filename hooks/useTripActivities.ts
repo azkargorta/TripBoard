@@ -72,6 +72,20 @@ export function useTripActivities(tripId: string) {
     }
   }
 
+  async function apiRequest<T>(input: RequestInfo, init: RequestInit, label: string): Promise<T> {
+    const resp = await withTimeout(fetch(input, init), 20000, label);
+    const text = await resp.text();
+    let payload: any = null;
+    try {
+      payload = text ? JSON.parse(text) : null;
+    } catch {
+      payload = { error: text || "Respuesta no JSON." };
+    }
+    if (!resp.ok) throw new Error(payload?.error || `Error ${resp.status}`);
+    if (payload?.error) throw new Error(payload.error);
+    return payload as T;
+  }
+
   async function withLockRetry<T>(fn: () => Promise<T>) {
     try {
       return await fn();
@@ -92,33 +106,24 @@ export function useTripActivities(tripId: string) {
       setLoading(true);
       setError(null);
 
-      const [tripResponse, activitiesResponse] = await withLockRetry(async () => {
+      // Trip summary (puede quedarse como Supabase client; es 1 query pequeña)
+      const tripResponse = await withLockRetry(async () => {
         return await withTimeout(
-          Promise.all([
-            supabase.from("trips").select("id, name, destination").eq("id", tripId).single(),
-            supabase
-              .from("trip_activities")
-              .select("*")
-              .eq("trip_id", tripId)
-              .order("activity_date", { ascending: true })
-              .order("activity_time", { ascending: true })
-              .order("created_at", { ascending: true }),
-          ]),
+          (async () => await supabase.from("trips").select("id, name, destination").eq("id", tripId).single())(),
           20000,
-          "cargar plan"
+          "cargar viaje (plan)"
         );
       });
-
-      if (tripResponse.error) {
-        throw new Error(tripResponse.error.message);
-      }
-
-      if (activitiesResponse.error) {
-        throw new Error(activitiesResponse.error.message);
-      }
-
+      if (tripResponse.error) throw new Error(tripResponse.error.message);
       setTrip((tripResponse.data || null) as TripPlanSummary | null);
-      setActivities((activitiesResponse.data || []) as TripActivity[]);
+
+      // Actividades via API server-side (evita locks/hangs del navegador)
+      const payload = await apiRequest<{ activities: TripActivity[] }>(
+        `/api/trip-activities?tripId=${encodeURIComponent(tripId)}`,
+        { method: "GET" },
+        "cargar plan"
+      );
+      setActivities(Array.isArray(payload.activities) ? payload.activities : []);
     } catch (err) {
       console.error(err);
       const msg =
@@ -144,28 +149,28 @@ export function useTripActivities(tripId: string) {
       setSaving(true);
       setError(null);
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        const payload = {
-          trip_id: tripId,
-          title: input.title.trim(),
-          description: input.description?.trim() || null,
-          activity_date: input.activityDate || null,
-          activity_time: input.activityTime || null,
-          place_name: input.placeName?.trim() || null,
-          address: input.address?.trim() || null,
-          latitude: input.latitude ?? null,
-          longitude: input.longitude ?? null,
-          activity_type: input.activityKind === "lodging" ? "lodging" : "general",
-          activity_kind: input.activityKind || "visit",
-          source: "manual",
-          created_by_user_id: session?.user?.id || null,
-        };
-
-        const { error } = await supabase.from("trip_activities").insert(payload);
-        if (error) throw new Error(error.message);
+        await apiRequest<{ activity: TripActivity }>(
+          "/api/trip-activities",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              tripId,
+              title: input.title.trim(),
+              description: input.description?.trim() || null,
+              activity_date: input.activityDate || null,
+              activity_time: input.activityTime || null,
+              place_name: input.placeName?.trim() || null,
+              address: input.address?.trim() || null,
+              latitude: input.latitude ?? null,
+              longitude: input.longitude ?? null,
+              activity_type: input.activityKind === "lodging" ? "lodging" : "general",
+              activity_kind: input.activityKind || "visit",
+              source: "manual",
+            }),
+          },
+          "crear actividad"
+        );
 
         await load();
       } finally {
@@ -180,21 +185,26 @@ export function useTripActivities(tripId: string) {
       setSaving(true);
       setError(null);
       try {
-        const payload = {
-          title: input.title.trim(),
-          description: input.description?.trim() || null,
-          activity_date: input.activityDate || null,
-          activity_time: input.activityTime || null,
-          place_name: input.placeName?.trim() || null,
-          address: input.address?.trim() || null,
-          latitude: input.latitude ?? null,
-          longitude: input.longitude ?? null,
-          activity_type: input.activityKind === "lodging" ? "lodging" : "general",
-          activity_kind: input.activityKind || "visit",
-        };
-
-        const { error } = await supabase.from("trip_activities").update(payload).eq("id", activityId);
-        if (error) throw new Error(error.message);
+        await apiRequest<{ activity: TripActivity }>(
+          `/api/trip-activities/${activityId}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: input.title.trim(),
+              description: input.description?.trim() || null,
+              activity_date: input.activityDate || null,
+              activity_time: input.activityTime || null,
+              place_name: input.placeName?.trim() || null,
+              address: input.address?.trim() || null,
+              latitude: input.latitude ?? null,
+              longitude: input.longitude ?? null,
+              activity_type: input.activityKind === "lodging" ? "lodging" : "general",
+              activity_kind: input.activityKind || "visit",
+            }),
+          },
+          "editar actividad"
+        );
 
         await load();
       } finally {
@@ -212,8 +222,11 @@ export function useTripActivities(tripId: string) {
       setSaving(true);
       setError(null);
       try {
-        const { error } = await supabase.from("trip_activities").delete().eq("id", activityId);
-        if (error) throw new Error(error.message);
+        await apiRequest<{ ok: true }>(
+          `/api/trip-activities/${activityId}`,
+          { method: "DELETE" },
+          "borrar actividad"
+        );
 
         await load();
       } finally {
