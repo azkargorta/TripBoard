@@ -56,7 +56,16 @@ export default function DocumentAnalyzerPanel({ onUseDetectedData }: Props) {
       const llm = data?.llmDetected;
       setDetected(llm && typeof llm === "object" ? { ...data.detected, ...llm } : data.detected);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo analizar el documento.");
+      const message = err instanceof Error ? err.message : "No se pudo analizar el documento.";
+      if (/fetch failed|failed to fetch|networkerror/i.test(message)) {
+        setError(
+          `No se pudo conectar con el servidor (${typeof window !== "undefined" ? window.location.origin : "localhost"}). ` +
+            "Normalmente es porque estás en otro puerto (3001/3002) o el servidor se reinició. " +
+            "Abre la app en http://localhost:3000 y recarga (Ctrl+F5)."
+        );
+        return;
+      }
+      setError(message);
     } finally {
       setLoading(false);
     }
