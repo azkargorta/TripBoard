@@ -47,6 +47,12 @@ async function insertWithFallback(
   if (!response.error) return response;
 
   const message = response.error.message.toLowerCase();
+  if (message.includes("notes") && message.includes("schema cache")) {
+    const { notes, ...fallbackPayload } = payload as any;
+    response = await supabase.from("trip_routes").insert(fallbackPayload).select("*").single();
+    return response;
+  }
+
   if (!message.includes("route_order")) return response;
 
   const { route_order, ...fallbackPayload } = payload;
