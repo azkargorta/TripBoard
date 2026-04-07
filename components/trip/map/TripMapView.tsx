@@ -1149,9 +1149,15 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
           }
           const hasTolls = typeof payload?.hasTolls === "boolean" ? payload.hasTolls : null;
           const hasEstimate = typeof payload?.hasEstimate === "boolean" ? payload.hasEstimate : null;
+          const fallback = payload?.fallbackEstimatedPrice;
+          const fallbackPrice =
+            fallback && typeof fallback.currencyCode === "string" && typeof fallback.units === "string"
+              ? { currencyCode: fallback.currencyCode, units: fallback.units, nanos: typeof fallback.nanos === "number" ? fallback.nanos : 0 }
+              : null;
+
           const price = payload?.tollInfo?.estimatedPrice?.[0];
           if (!price || typeof price.currencyCode !== "string" || typeof price.units !== "string") {
-            return { price: null as any, hasTolls, hasEstimate };
+            return { price: fallbackPrice, hasTolls, hasEstimate: fallbackPrice ? true : hasEstimate };
           }
           return {
             price: { currencyCode: price.currencyCode, units: price.units, nanos: typeof price.nanos === "number" ? price.nanos : 0 },
@@ -1393,70 +1399,70 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   }, [form.routeDate, planPlaces]);
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[420px_minmax(0,1fr)]">
-      <div className="space-y-6">
-        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-bold text-slate-950">Rutas</h2>
-              <p className="mt-1 text-sm text-slate-600">Filtra por día, edita rutas guardadas o crea una nueva.</p>
+    <div className="grid gap-6 lg:grid-cols-[460px_minmax(0,1fr)]">
+      <div className="space-y-6 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-hidden">
+        <section className="rounded-3xl border border-slate-200 bg-white shadow-sm lg:max-h-[calc(100vh-3rem)] lg:overflow-hidden">
+          <div className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 p-5 backdrop-blur">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-slate-950">Rutas</h2>
+                <p className="mt-1 text-sm text-slate-600">Filtra por día, edita rutas guardadas o crea una nueva.</p>
+              </div>
+
+              <div className="flex flex-wrap justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => void reloadRoutes()}
+                  className="inline-flex min-h-[40px] items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900 disabled:opacity-50"
+                  disabled={loadingRoutes}
+                >
+                  {loadingRoutes ? "Recargando..." : "Recargar"}
+                </button>
+                {focusedRouteKey ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        lastFitRef.current = "";
+                        fitMapToData();
+                      }}
+                      className="inline-flex min-h-[40px] items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
+                    >
+                      Centrar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFocusedRouteKey(null)}
+                      className="inline-flex min-h-[40px] items-center justify-center rounded-xl border border-violet-200 bg-violet-50 px-3 text-sm font-semibold text-violet-900"
+                    >
+                      Ver todas
+                    </button>
+                  </>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={beginNewRoute}
+                  className="inline-flex min-h-[40px] items-center justify-center rounded-xl bg-slate-900 px-3 text-sm font-semibold text-white"
+                >
+                  Nueva ruta
+                </button>
+              </div>
             </div>
 
-            <div className="flex flex-wrap justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => void reloadRoutes()}
-                className="inline-flex min-h-[40px] items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900 disabled:opacity-50"
-                disabled={loadingRoutes}
-              >
-                {loadingRoutes ? "Recargando..." : "Recargar"}
-              </button>
-              {focusedRouteKey ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      // Re-encuadrar a la ruta/markers visibles (en focus: solo la ruta enfocada).
-                      lastFitRef.current = "";
-                      fitMapToData();
-                    }}
-                    className="inline-flex min-h-[40px] items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
-                  >
-                    Centrar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFocusedRouteKey(null)}
-                    className="inline-flex min-h-[40px] items-center justify-center rounded-xl border border-violet-200 bg-violet-50 px-3 text-sm font-semibold text-violet-900"
-                  >
-                    Ver todas
-                  </button>
-                </>
-              ) : null}
-              <button
-                type="button"
-                onClick={beginNewRoute}
-                className="inline-flex min-h-[40px] items-center justify-center rounded-xl bg-slate-900 px-3 text-sm font-semibold text-white"
-              >
-                Nueva ruta
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-4 grid gap-3">
+            <div className="mt-4 grid gap-3">
             <input
               type="text"
               value={routeQuery}
               onChange={(e) => setRouteQuery(e.target.value)}
               placeholder="Buscar ruta por nombre…"
-              className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-900"
+              className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-900 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
             />
 
             <div className="grid grid-cols-[1fr_140px] gap-3">
               <select
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
+                className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
               >
                 <option value="all">Todos los días</option>
                 {dateOptions.map((date) => (
@@ -1470,7 +1476,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                 type="date"
                 value={selectedDate === "all" ? "" : selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value ? e.target.value : "all")}
-                className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
+                className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
               />
             </div>
 
@@ -1520,7 +1526,10 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                 +1 día
               </button>
             </div>
+            </div>
+          </div>
 
+          <div className="max-h-[calc(100vh-17rem)] overflow-y-auto p-5 lg:max-h-[calc(100vh-19rem)]">
             {filteredRoutes.length === 0 ? (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
                 No hay rutas que coincidan con el filtro/búsqueda.
@@ -1554,7 +1563,16 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                                 className="text-left"
                                 title={canEdit ? "Editar ruta" : "Ruta legacy (solo lectura)"}
                               >
-                                <div className="text-sm font-extrabold text-slate-950">{route.route_name || route.title || "Ruta"}</div>
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className="h-2.5 w-2.5 rounded-full"
+                                    style={{ backgroundColor: route.color || "#4f46e5" }}
+                                    aria-hidden="true"
+                                  />
+                                  <div className="text-sm font-extrabold text-slate-950">
+                                    {route.route_name || route.title || "Ruta"}
+                                  </div>
+                                </div>
                                 <div className="mt-1 text-xs font-semibold text-slate-600">
                                   {meta.base ? meta.base : "Sin fecha"} {meta.base ? `· ${meta.modeLabel}` : meta.modeLabel}
                                 </div>
@@ -1645,7 +1663,14 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                             className="text-left"
                             title={canEdit ? "Editar ruta" : "Ruta legacy (solo lectura)"}
                           >
-                            <div className="text-sm font-extrabold text-slate-950">{route.route_name || route.title || "Ruta"}</div>
+                            <div className="flex items-center gap-2">
+                              <span
+                                className="h-2.5 w-2.5 rounded-full"
+                                style={{ backgroundColor: route.color || "#4f46e5" }}
+                                aria-hidden="true"
+                              />
+                              <div className="text-sm font-extrabold text-slate-950">{route.route_name || route.title || "Ruta"}</div>
+                            </div>
                             <div className="mt-1 text-xs font-semibold text-slate-600">
                               {meta.base ? meta.base : "Sin fecha"} {meta.base ? `· ${meta.modeLabel}` : meta.modeLabel}
                             </div>
@@ -2299,7 +2324,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
             <div className="p-6 text-sm text-slate-600">Cargando mapa...</div>
           ) : (
             <GoogleMap
-              mapContainerStyle={{ width: "100%", height: "720px" }}
+              mapContainerStyle={{ width: "100%", height: "min(720px, calc(100vh - 180px))" }}
               center={DEFAULT_CENTER}
               zoom={6}
               onLoad={(map) => {
