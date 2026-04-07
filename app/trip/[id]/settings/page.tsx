@@ -16,13 +16,14 @@ export default function SettingsPage({ params }: SettingsPageProps) {
   const { loading, error, canManageTrip, role } = useTripPermissions(tripId);
 
   if (loading) {
-    return <div className="p-4">Cargando permisos...</div>;
+    return <div className="py-2 text-sm text-slate-600">Cargando permisos...</div>;
   }
 
   return (
-    <div className="space-y-6 p-4">
+    <div className="space-y-6">
       <TripModuleHeader
         tripId={tripId}
+        eyebrow="Configuración"
         title="Ajustes del viaje"
         description="Configura datos generales y opciones del viaje."
       />

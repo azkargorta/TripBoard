@@ -57,13 +57,6 @@ export default function TripExpensesView({ tripId }: { tripId: string }) {
         </div>
       ) : null}
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
-          <span>💸</span><span>Gastos del viaje</span>
-        </div>
-        <h2 className="mt-3 text-3xl font-bold text-slate-950">Balance y control de gastos</h2>
-      </div>
-
       <div className="grid gap-6 xl:grid-cols-2">
         <ExpenseAnalyzerPanel onUseDetectedData={setDetectedData} />
         <CurrencyConverterCard onConvert={convertAmount} balanceCurrency={balanceCurrency} onChangeBalanceCurrency={setBalanceCurrency} />

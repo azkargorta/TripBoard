@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import SignOutButton from "@/components/auth/SignOutButton";
 import CreateTripSection from "@/components/dashboard/CreateTripSection";
+import TripBoardLogo from "@/components/brand/TripBoardLogo";
 
 type Trip = {
   id: string;
@@ -204,9 +205,11 @@ export default async function DashboardPage() {
         <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-violet-900 p-6 text-white md:p-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="space-y-4">
-              <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white/80">
-                <span>TripBoard</span>
-                <span>•</span>
+              <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-white/80">
+                <TripBoardLogo variant="light" size="sm" withWordmark={false} />
+                <span className="text-white/40" aria-hidden>
+                  •
+                </span>
                 <span>Dashboard</span>
               </div>
               <div>

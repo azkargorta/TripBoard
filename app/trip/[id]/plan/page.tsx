@@ -3,6 +3,7 @@
 import Script from "next/script";
 import TripPlanView from "@/components/trip/plan/TripPlanView";
 import TripScreenActions from "@/components/trip/common/TripScreenActions";
+import TripBoardPremiumHero from "@/components/layout/TripBoardPremiumHero";
 
 export default function TripPlanPage({
   params,
@@ -17,22 +18,13 @@ export default function TripPlanPage({
         strategy="afterInteractive"
       />
 
-      <main className="page-shell" style={{ display: "grid", gap: 24 }}>
-        <section className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <div className="inline-flex rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-700">
-              Plan
-            </div>
-            <h1 className="mt-4 text-4xl font-black tracking-tight text-slate-950 md:text-5xl">
-              Plan
-            </h1>
-            <p className="mt-3 max-w-3xl text-lg text-slate-600">
-              Añade lugares, fechas, horas y coordenadas. Todo lo guardado aquí se reutiliza en la pestaña de mapa para crear rutas y organizar el viaje.
-            </p>
-          </div>
-
-          <TripScreenActions tripId={params.id} />
-        </section>
+      <main className="space-y-8">
+        <TripBoardPremiumHero
+          eyebrow="Plan del viaje"
+          title="Plan"
+          description="Añade lugares, fechas, horas y coordenadas. Todo lo guardado aquí se reutiliza en el mapa para crear rutas y organizar el viaje."
+          actions={<TripScreenActions tripId={params.id} variant="inverse" />}
+        />
 
         <TripPlanView tripId={params.id} />
       </main>

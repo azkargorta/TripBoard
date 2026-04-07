@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import TripScreenActions from "@/components/trip/common/TripScreenActions";
+import TripBoardPremiumHero from "@/components/layout/TripBoardPremiumHero";
 
 type ChatMode = "general" | "planning" | "expenses" | "optimizer" | "actions";
 
@@ -183,33 +184,29 @@ export default function TripAiChatView({ tripId }: { tripId: string }) {
   }
 
   return (
-    <main className="page-shell space-y-6">
-      <section className="rounded-[28px] border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-sky-50 p-6 shadow-sm">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-          <div className="max-w-3xl">
-            <div className="inline-flex items-center gap-2 rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-700">
-              <span>🤖</span>
-              <span>Asistente IA del viaje</span>
+    <main className="space-y-6">
+      <TripBoardPremiumHero
+        eyebrow="Asistente IA del viaje"
+        title="Chat, memoria, acciones y optimización"
+        description="Recuerda conversaciones, ayuda con gastos, optimiza el viaje y ejecuta acciones básicas dentro de la app."
+        actions={<TripScreenActions tripId={tripId} variant="inverse" />}
+        footer={
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-white/90 backdrop-blur">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-white/60">Viaje</p>
+              <p className="mt-1 font-mono text-sm">{tripId.slice(0, 8)}…</p>
             </div>
-            <h1 className="mt-4 text-3xl font-black tracking-tight text-slate-950 md:text-5xl">
-              Chat, memoria, acciones y optimización
-            </h1>
-            <p className="mt-3 text-sm leading-6 text-slate-600 md:text-base">
-              Ya puede recordar conversaciones, ayudarte con gastos, optimizar el viaje y ejecutar
-              acciones básicas dentro de la app.
-            </p>
-          </div>
-
-          <div className="grid gap-3 xl:w-[360px]">
-            <TripScreenActions tripId={tripId} />
-            <div className="grid gap-2 rounded-2xl border border-slate-200 bg-white/80 p-4 text-sm text-slate-600 shadow-sm">
-              <p><strong>Viaje:</strong> {tripId.slice(0, 8)}…</p>
-              <p><strong>Conversación activa:</strong> {conversationId ? conversationId.slice(0, 8) : "Nueva"}</p>
-              <p><strong>Modo actual:</strong> {MODE_OPTIONS.find((m) => m.id === mode)?.label}</p>
+            <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-white/90 backdrop-blur">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-white/60">Conversación</p>
+              <p className="mt-1 font-mono text-sm">{conversationId ? `${conversationId.slice(0, 8)}…` : "Nueva"}</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-white/90 backdrop-blur">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-white/60">Modo IA</p>
+              <p className="mt-1 font-semibold">{MODE_OPTIONS.find((m) => m.id === mode)?.label}</p>
             </div>
           </div>
-        </div>
-      </section>
+        }
+      />
 
       <section className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
         <aside className="space-y-6">

@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireTripAccess } from "@/lib/trip-access";
 import TripMapView from "@/components/trip/map/TripMapView";
 import TripTabActions from "@/components/trip/common/TripTabActions";
+import TripBoardPremiumHero from "@/components/layout/TripBoardPremiumHero";
 
 type Props = {
   params: { id: string };
@@ -76,24 +77,13 @@ export default async function TripMapPage({ params }: Props) {
   const availableDates = buildTripDates(trip.start_date, trip.end_date);
 
   return (
-    <main className="page-shell space-y-6">
-      <section className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
-            Mapa del viaje
-          </div>
-
-          <h1 className="mt-4 text-4xl font-black tracking-tight text-slate-950 md:text-5xl">
-            {trip.name || "Viaje"}
-          </h1>
-
-          <p className="mt-3 text-lg text-slate-600">
-            Organiza actividades sobre el mapa, crea rutas del día y visualiza lugares guardados.
-          </p>
-        </div>
-
-<TripTabActions tripId={tripId} />
-      </section>
+    <main className="space-y-6">
+      <TripBoardPremiumHero
+        eyebrow="Mapa del viaje"
+        title={trip.name || "Viaje"}
+        description="Organiza actividades sobre el mapa, crea rutas del día y visualiza lugares guardados."
+        actions={<TripTabActions tripId={tripId} variant="inverse" />}
+      />
 
       <TripMapView
         tripId={tripId}

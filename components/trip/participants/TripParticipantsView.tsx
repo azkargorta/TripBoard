@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import ParticipantForm from "./ParticipantForm";
 import InviteParticipantPanel from "./InviteParticipantPanel";
 import TripScreenActions from "@/components/trip/common/TripScreenActions";
+import TripTabActions from "@/components/trip/common/TripTabActions";
 import {
   useTripParticipants,
   type TripParticipant,
@@ -11,6 +12,7 @@ import {
 } from "@/hooks/useTripParticipants";
 import { supabase } from "@/lib/supabase";
 import ParticipantLinkProfilePanel from "./ParticipantLinkProfilePanel";
+import TripBoardPremiumHero from "@/components/layout/TripBoardPremiumHero";
 import { getRoleLabel, getStatusLabel } from "@/lib/participants";
 import {
   Info,
@@ -27,6 +29,8 @@ import {
 
 type TripParticipantsViewProps = {
   tripId: string;
+  /** Rutas bajo `/trip/[id]/map/*`: pestañas del flujo mapa en lugar de acciones de pantalla completa */
+  mapFlow?: boolean;
 };
 
 function initials(name: string) {
@@ -42,7 +46,7 @@ function roleStyle(role: string) {
   return "bg-slate-100 text-slate-700 border-slate-200";
 }
 
-export default function TripParticipantsView({ tripId }: TripParticipantsViewProps) {
+export default function TripParticipantsView({ tripId, mapFlow = false }: TripParticipantsViewProps) {
   const {
     participants,
     loading,
@@ -207,7 +211,7 @@ export default function TripParticipantsView({ tripId }: TripParticipantsViewPro
 
   if (loading) {
     return (
-      <main className="page-shell space-y-6">
+      <main className="space-y-6">
         <div className="h-40 animate-pulse rounded-3xl bg-gradient-to-r from-slate-200 via-slate-100 to-violet-100" />
         <div className="grid gap-3 md:grid-cols-3">
           {[1, 2, 3].map((i) => (
@@ -225,7 +229,7 @@ export default function TripParticipantsView({ tripId }: TripParticipantsViewPro
 
   if (error) {
     return (
-      <main className="page-shell space-y-4">
+      <main className="space-y-4">
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
         <button
           type="button"
@@ -239,25 +243,20 @@ export default function TripParticipantsView({ tripId }: TripParticipantsViewPro
   }
 
   return (
-    <main className="page-shell space-y-8">
-      <section className="card-soft overflow-hidden">
-        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-violet-900 px-6 py-8 text-white md:px-8 md:py-10">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="space-y-3">
-              <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-white/80">
-                <Users className="h-3.5 w-3.5" aria-hidden />
-                Pasajeros del viaje
-              </div>
-              <h1 className="text-3xl font-extrabold tracking-tight md:text-4xl">Participantes</h1>
-              <p className="max-w-xl text-sm text-white/75 md:text-base">
-                Añade compañeros, envía invitaciones por WhatsApp para que vinculen su cuenta y evita duplicados
-                buscando su perfil.
-              </p>
-            </div>
-            <TripScreenActions tripId={tripId} />
-          </div>
-
-          <div className="mt-8 grid gap-3 sm:grid-cols-3">
+    <main className="space-y-8">
+      <TripBoardPremiumHero
+        eyebrow="Pasajeros del viaje"
+        title="Participantes"
+        description="Añade compañeros, envía invitaciones por WhatsApp para que vinculen su cuenta y evita duplicados buscando su perfil."
+        actions={
+          mapFlow ? (
+            <TripTabActions tripId={tripId} variant="inverse" />
+          ) : (
+            <TripScreenActions tripId={tripId} variant="inverse" />
+          )
+        }
+        footer={
+          <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-4 backdrop-blur">
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-white/60">Total</p>
               <p className="mt-1 text-2xl font-black">{stats.total}</p>
@@ -277,8 +276,8 @@ export default function TripParticipantsView({ tripId }: TripParticipantsViewPro
               </p>
             </div>
           </div>
-        </div>
-      </section>
+        }
+      />
 
       {actionError ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{actionError}</div>

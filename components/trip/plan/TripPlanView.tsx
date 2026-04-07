@@ -160,46 +160,34 @@ export default function TripPlanView({ tripId }: { tripId: string }) {
         </div>
       ) : null}
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-          <span>🗓️</span>
-          <span>Plan del viaje</span>
+      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <p className="text-sm text-slate-600">
+          <span className="font-semibold text-slate-900">{trip?.name || trip?.destination || "Este viaje"}</span>
+          {" · "}
+          Actividades manuales y alojamientos sincronizados desde Reservas.
+        </p>
+        <button
+          type="button"
+          onClick={handleStartCreate}
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-200 sm:w-auto"
+        >
+          <Plus className="h-4 w-4" />
+          Añadir plan
+        </button>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+          <p className="text-sm text-slate-500">Actividades totales</p>
+          <p className="mt-2 text-3xl font-bold text-slate-950">{activities.length}</p>
         </div>
-
-        <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h2 className="text-3xl font-bold text-slate-950">
-              {trip?.name || trip?.destination || "Plan del viaje"}
-            </h2>
-
-            <p className="mt-2 text-sm text-slate-600 max-w-3xl">
-              Mantiene las actividades manuales y añade automáticamente los alojamientos sincronizados desde Reservas.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleStartCreate}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-200"
-          >
-            <Plus className="h-4 w-4" />
-            Añadir plan
-          </button>
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+          <p className="text-sm text-slate-500">Planes manuales</p>
+          <p className="mt-2 text-3xl font-bold text-slate-950">{manualCount}</p>
         </div>
-
-        <div className="mt-6 grid gap-4 md:grid-cols-3">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-sm text-slate-500">Actividades totales</p>
-            <p className="mt-2 text-3xl font-bold text-slate-950">{activities.length}</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-sm text-slate-500">Planes manuales</p>
-            <p className="mt-2 text-3xl font-bold text-slate-950">{manualCount}</p>
-          </div>
-          <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4">
-            <p className="text-sm text-violet-600">Alojamientos</p>
-            <p className="mt-2 text-3xl font-bold text-violet-900">{lodgingCount}</p>
-          </div>
+        <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4 shadow-sm">
+          <p className="text-sm text-violet-600">Alojamientos</p>
+          <p className="mt-2 text-3xl font-bold text-violet-900">{lodgingCount}</p>
         </div>
       </div>
 

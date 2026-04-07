@@ -5,6 +5,7 @@ import { requireTripAccess } from "@/lib/trip-access";
 import TripHomeActions from "@/components/trip/home/TripHomeActions";
 import TripWeatherCard from "@/components/trip/home/TripWeatherCard";
 import { computePersonalBalance } from "@/lib/personal-balance";
+import TripBoardLogo from "@/components/brand/TripBoardLogo";
 
 type TripPageProps = {
   params: {
@@ -271,14 +272,16 @@ export default async function TripPage({ params }: TripPageProps) {
   ];
 
   return (
-    <main className="page-shell space-y-8">
+    <main className="space-y-8">
       <section className="card-soft overflow-hidden">
         <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-violet-900 p-6 text-white md:p-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="space-y-4">
-              <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white/80">
-                <span>TripBoard</span>
-                <span>•</span>
+              <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-white/80">
+                <TripBoardLogo variant="light" size="sm" withWordmark={false} />
+                <span className="text-white/40" aria-hidden>
+                  •
+                </span>
                 <span>
                   {activeToday ? "Viaje en curso" : futureTrip ? "Viaje futuro" : "Resumen del viaje"}
                 </span>
