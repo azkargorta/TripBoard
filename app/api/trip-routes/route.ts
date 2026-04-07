@@ -89,3 +89,33 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const tripId = searchParams.get("tripId");
+
+    if (!tripId) {
+      return NextResponse.json({ error: "Falta tripId" }, { status: 400 });
+    }
+
+    await requireTripAccess(tripId);
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("trip_routes")
+      .select("*")
+      .eq("trip_id", tripId)
+      .order("route_day", { ascending: true })
+      .order("route_order", { ascending: true, nullsFirst: false })
+      .order("departure_time", { ascending: true });
+
+    if (error) throw new Error(error.message);
+
+    return NextResponse.json({ routes: data || [] });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "No se pudieron cargar las rutas." },
+      { status: 500 }
+    );
+  }
+}

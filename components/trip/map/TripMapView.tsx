@@ -580,15 +580,17 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     setLoadingRoutes(true);
     setRouteError(null);
     try {
-      const { data, error } = await supabase
-        .from("trip_routes")
-        .select("*")
-        .eq("trip_id", tripId)
-        .order("route_day", { ascending: true })
-        .order("departure_time", { ascending: true });
-      if (error) throw new Error(error.message);
-
-      const nextTripRoutes = buildInitialRoutes(data as unknown[], "trip_routes", "trip-route");
+      const resp = await fetch(`/api/trip-routes?tripId=${encodeURIComponent(tripId)}`, { method: "GET" });
+      const text = await resp.text();
+      let payload: any = null;
+      try {
+        payload = text ? JSON.parse(text) : null;
+      } catch {
+        payload = { error: text || "Respuesta no JSON." };
+      }
+      if (!resp.ok) throw new Error(payload?.error || `Error ${resp.status}`);
+      const rows = Array.isArray(payload?.routes) ? payload.routes : [];
+      const nextTripRoutes = buildInitialRoutes(rows as unknown[], "trip_routes", "trip-route");
       setRoutesState((prev) => {
         const legacy = prev.filter((r) => r.source === "legacy_routes");
         const byKey = new Map<string, TripMapRoute>();
