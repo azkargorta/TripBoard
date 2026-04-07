@@ -553,6 +553,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   const [showPlanMarkers, setShowPlanMarkers] = useState(true);
   const [planKindFilter, setPlanKindFilter] = useState<Set<string>>(new Set());
   const [isRouteFormOpen, setIsRouteFormOpen] = useState(false);
+  // D (duplicar ruta) se implementará en el siguiente paso.
 
   useEffect(() => {
     setRoutesState(initialRoutes);
@@ -1258,11 +1259,11 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
 
   const dateOptions = useMemo(() => {
     const uniq = new Set<string>();
-    tripDates.forEach((d) => uniq.add(d));
-    visibleRoutes.forEach((r) => {
+    for (const d of tripDates) uniq.add(d);
+    for (const r of visibleRoutes) {
       const d = r.route_day || r.route_date;
       if (d) uniq.add(d);
-    });
+    }
     return Array.from(uniq.values()).sort();
   }, [tripDates, visibleRoutes]);
 
