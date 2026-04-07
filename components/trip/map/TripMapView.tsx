@@ -1319,7 +1319,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
               <p className="mt-1 text-sm text-slate-600">Filtra por día, edita rutas guardadas o crea una nueva.</p>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-wrap justify-end gap-2">
               <button
                 type="button"
                 onClick={() => void reloadRoutes()}
@@ -1633,13 +1633,25 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="font-extrabold">Vista enfocada</div>
-                  <button
-                    type="button"
-                    onClick={() => setFocusedRouteKey(null)}
-                    className="inline-flex min-h-[36px] items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-slate-900"
-                  >
-                    Mostrar todas las rutas
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        lastFitRef.current = "";
+                        fitMapToData();
+                      }}
+                      className="inline-flex min-h-[36px] items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-slate-900"
+                    >
+                      Centrar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFocusedRouteKey(null)}
+                      className="inline-flex min-h-[36px] items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-slate-900"
+                    >
+                      Mostrar todas las rutas
+                    </button>
+                  </div>
                 </div>
                 <div className="mt-2 text-xs text-slate-600">
                   {gasStationsLoading ? "Buscando gasolineras en la ruta…" : gasStations.length ? `${gasStations.length} gasolineras encontradas.` : "Sin gasolineras (o aún cargando)."}
