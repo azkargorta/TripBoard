@@ -1,9 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { supabase } from "@/lib/supabase";
 import type { ParticipantPermissions, TripRole } from "@/lib/participants";
-import { normalizePermissions } from "@/lib/participants";
 
 export type TripInvite = {
   id: string;
@@ -45,36 +43,22 @@ export function useTripInvites(): UseTripInvitesResult {
     setError(null);
 
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const response = await fetch("/api/trip-invites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
 
-      const role = input.role ?? "viewer";
-      const permissions = normalizePermissions(role, input);
-      const token = crypto.randomUUID().replace(/-/g, "");
-
-      const { data, error } = await supabase
-        .from("trip_invites")
-        .insert({
-          trip_id: input.trip_id,
-          participant_id: input.participant_id ?? null,
-          token,
-          display_name: input.display_name?.trim() || null,
-          email: input.email?.trim().toLowerCase() || null,
-          role,
-          status: "pending",
-          created_by_user_id: session?.user?.id ?? null,
-          expires_at: null,
-          ...permissions,
-        })
-        .select("*")
-        .single();
-
-      if (error || !data) {
-        throw error || new Error("No se pudo crear la invitación");
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.error || "No se pudo crear la invitación");
       }
 
-      return data as TripInvite;
+      if (!payload?.invite) {
+        throw new Error("No se recibió la invitación.");
+      }
+
+      return payload.invite as TripInvite;
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "No se pudo crear la invitación";

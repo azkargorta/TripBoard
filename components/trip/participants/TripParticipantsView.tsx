@@ -10,6 +10,7 @@ import {
   type TripRole,
 } from "@/hooks/useTripParticipants";
 import { supabase } from "@/lib/supabase";
+import ParticipantLinkProfilePanel from "./ParticipantLinkProfilePanel";
 
 type TripParticipantsViewProps = {
   tripId: string;
@@ -25,6 +26,8 @@ export default function TripParticipantsView({
     addParticipant,
     updateParticipant,
     removeParticipant,
+    searchProfiles,
+    linkParticipantToProfile,
     refetch,
   } = useTripParticipants(tripId);
 
@@ -36,6 +39,8 @@ export default function TripParticipantsView({
   const [inviteParticipant, setInviteParticipant] =
     useState<TripParticipant | null>(null);
   const [editingParticipant, setEditingParticipant] =
+    useState<TripParticipant | null>(null);
+  const [linkingParticipant, setLinkingParticipant] =
     useState<TripParticipant | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -59,7 +64,9 @@ export default function TripParticipantsView({
     return participants.find((p) => p.user_id === currentUserId) ?? null;
   }, [participants, currentUserId]);
 
-  const canManageParticipants = myParticipant?.role === "owner";
+  const canManageParticipants = Boolean(
+    myParticipant?.role === "owner" || myParticipant?.can_manage_participants
+  );
 
   async function handleCreate(input: {
     trip_id: string;
@@ -135,6 +142,7 @@ export default function TripParticipantsView({
 
   function openGenericInvite() {
     setEditingParticipant(null);
+    setLinkingParticipant(null);
     setIsCreating(false);
     setInviteParticipant(null);
     setIsInviting((prev) => !prev);
@@ -142,9 +150,18 @@ export default function TripParticipantsView({
 
   function openParticipantInvite(participant: TripParticipant) {
     setEditingParticipant(null);
+    setLinkingParticipant(null);
     setIsCreating(false);
     setInviteParticipant(participant);
     setIsInviting(true);
+  }
+
+  function openLinkProfile(participant: TripParticipant) {
+    setInviteParticipant(null);
+    setIsInviting(false);
+    setIsCreating(false);
+    setEditingParticipant(null);
+    setLinkingParticipant((prev) => (prev?.id === participant.id ? null : participant));
   }
 
   if (loading) {
@@ -255,6 +272,22 @@ export default function TripParticipantsView({
         />
       )}
 
+      {canManageParticipants && linkingParticipant && (
+        <ParticipantLinkProfilePanel
+          participant={linkingParticipant}
+          onSearchProfiles={searchProfiles}
+          onLinkProfile={async (profile) => {
+            setActionError(null);
+            try {
+              await linkParticipantToProfile(linkingParticipant.id, profile);
+              setLinkingParticipant(null);
+            } catch (e) {
+              setActionError(e instanceof Error ? e.message : "No se pudo vincular el usuario.");
+            }
+          }}
+        />
+      )}
+
       {sortedParticipants.length === 0 ? (
         <div className="rounded-xl border bg-white p-4 text-sm text-gray-600">
           No hay participantes todavía.
@@ -311,6 +344,13 @@ export default function TripParticipantsView({
                           Invitar
                         </button>
                       )}
+
+                      <button
+                        onClick={() => openLinkProfile(participant)}
+                        className="rounded-lg border px-3 py-2 text-sm hover:bg-gray-50"
+                      >
+                        Vincular usuario
+                      </button>
 
                       <button
                         onClick={() => void handleRemove(participant.id)}
