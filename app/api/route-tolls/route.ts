@@ -105,6 +105,8 @@
      // Si no hay estimatedPrice, puede significar “hay peajes pero sin precio” o “no hay peajes”.
      return NextResponse.json({
        tollInfo: tollInfo ? { estimatedPrice } : null,
+       hasTolls: !!tollInfo,
+       hasEstimate: !!(tollInfo && estimatedPrice.length),
      });
    } catch (error) {
      return NextResponse.json(
