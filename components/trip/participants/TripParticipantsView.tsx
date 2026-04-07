@@ -53,6 +53,12 @@ export default function TripParticipantsView({
     });
   }, [isLoadedUser]);
 
+  useEffect(() => {
+    if (!linkingParticipant) return;
+    const row = participants.find((p) => p.id === linkingParticipant.id);
+    if (row?.user_id) setLinkingParticipant(null);
+  }, [linkingParticipant, participants]);
+
   const sortedParticipants = useMemo(() => {
     return [...participants].sort((a, b) =>
       a.display_name.localeCompare(b.display_name, "es")
@@ -234,7 +240,7 @@ export default function TripParticipantsView({
 
       {!canManageParticipants && (
         <div className="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
-          Solo el owner puede gestionar participantes.
+          Solo quien tenga permiso de gestionar participantes (owner o permiso explícito) puede editar esta lista.
         </div>
       )}
 
@@ -341,16 +347,18 @@ export default function TripParticipantsView({
                           onClick={() => openParticipantInvite(participant)}
                           className="rounded-lg border px-3 py-2 text-sm hover:bg-gray-50"
                         >
-                          Invitar
+                          Invitar (WhatsApp)
                         </button>
                       )}
 
-                      <button
-                        onClick={() => openLinkProfile(participant)}
-                        className="rounded-lg border px-3 py-2 text-sm hover:bg-gray-50"
-                      >
-                        Vincular usuario
-                      </button>
+                      {canInviteThisParticipant && (
+                        <button
+                          onClick={() => openLinkProfile(participant)}
+                          className="rounded-lg border px-3 py-2 text-sm hover:bg-gray-50"
+                        >
+                          Vincular usuario
+                        </button>
+                      )}
 
                       <button
                         onClick={() => void handleRemove(participant.id)}
