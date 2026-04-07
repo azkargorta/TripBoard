@@ -3,10 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { analyzeTravelDocument, type DetectedDocumentData } from "@/lib/document-analyzer";
-import {
-  syncLodgingReservationToPlan,
-  removeLodgingReservationFromPlan,
-} from "@/lib/trip-plan-sync";
 
 export type TripResource = {
   id: string;
@@ -86,37 +82,32 @@ export function useTripResources(tripId: string) {
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  async function apiRequest<T>(input: RequestInfo, init: RequestInit, label: string): Promise<T> {
+    const resp = await fetch(input, init);
+    const text = await resp.text();
+    let payload: any = null;
+    try {
+      payload = text ? JSON.parse(text) : null;
+    } catch {
+      payload = { error: text || "Respuesta no JSON." };
+    }
+    if (!resp.ok) throw new Error(payload?.error || `Error ${resp.status} (${label})`);
+    if (payload?.error) throw new Error(payload.error);
+    return payload as T;
+  }
+
   const load = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const [resourcesResponse, reservationsResponse] = await Promise.all([
-        supabase
-          .from("trip_resources")
-          .select("*")
-          .eq("trip_id", tripId)
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("trip_reservations")
-          .select("*")
-          .eq("trip_id", tripId)
-          .order("check_in_date", { ascending: true }),
-      ]);
-
-      if (resourcesResponse.error || reservationsResponse.error) {
-        const messages = [
-          resourcesResponse.error?.message,
-          reservationsResponse.error?.message,
-        ]
-          .filter(Boolean)
-          .join(" · ");
-
-        throw new Error(messages || "No se pudieron cargar recursos");
-      }
-
-      setResources((resourcesResponse.data ?? []) as TripResource[]);
-      setReservations((reservationsResponse.data ?? []) as TripReservation[]);
+      const payload = await apiRequest<{ resources: TripResource[]; reservations: TripReservation[] }>(
+        `/api/trip-resources?tripId=${encodeURIComponent(tripId)}`,
+        { method: "GET" },
+        "cargar recursos"
+      );
+      setResources(Array.isArray(payload.resources) ? payload.resources : []);
+      setReservations(Array.isArray(payload.reservations) ? payload.reservations : []);
     } catch (err) {
       console.error("Error cargando recursos/reservas:", err);
       setResources([]);
@@ -179,12 +170,8 @@ export function useTripResources(tripId: string) {
       setError(null);
 
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
         const payload = {
-          trip_id: tripId,
+          tripId,
           title: input.title.trim(),
           resource_type: input.resourceType || "document",
           category: input.category || null,
@@ -195,21 +182,15 @@ export function useTripResources(tripId: string) {
           detected_document_type: input.detectedDocumentType || null,
           detected_data: input.detectedData || {},
           linked_reservation_id: input.linkedReservationId || null,
-          created_by_user_id: session?.user?.id || null,
         };
 
-        const { data, error } = await supabase
-          .from("trip_resources")
-          .insert(payload)
-          .select("*")
-          .single();
-
-        if (error || !data) {
-          throw new Error(error?.message || "No se pudo crear el recurso.");
-        }
-
+        const result = await apiRequest<{ resource: TripResource }>(
+          "/api/trip-resources",
+          { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) },
+          "crear recurso"
+        );
         await load();
-        return data as TripResource;
+        return result.resource;
       } finally {
         setSaving(false);
       }
@@ -246,12 +227,8 @@ export function useTripResources(tripId: string) {
       setError(null);
 
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
         const payload = {
-          trip_id: tripId,
+          tripId,
           resource_id: input.resourceId || null,
           reservation_type: input.reservationType || "lodging",
           provider_name: input.providerName || null,
@@ -272,32 +249,18 @@ export function useTripResources(tripId: string) {
           notes: input.notes || null,
           detected_document_type: input.detectedDocumentType || null,
           detected_data: input.detectedData || {},
-          created_by_user_id: session?.user?.id || null,
           sync_to_plan: input.syncToPlan ?? (input.reservationType === "lodging"),
           latitude: input.latitude ?? null,
           longitude: input.longitude ?? null,
         };
 
-        const { data, error } = await supabase
-          .from("trip_reservations")
-          .insert(payload)
-          .select("*")
-          .single();
-
-        if (error || !data) {
-          throw new Error(error?.message || "No se pudo crear la reserva.");
-        }
-
-        if ((data as TripReservation).reservation_type === "lodging") {
-          try {
-            await syncLodgingReservationToPlan(data as unknown as any);
-          } catch (syncError) {
-            console.error("Error sincronizando con el plan:", syncError);
-          }
-        }
-
+        const result = await apiRequest<{ reservation: TripReservation }>(
+          "/api/trip-reservations",
+          { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) },
+          "crear reserva"
+        );
         await load();
-        return data as TripReservation;
+        return result.reservation;
       } finally {
         setSaving(false);
       }
@@ -355,29 +318,11 @@ export function useTripResources(tripId: string) {
           longitude: input.longitude ?? null,
         };
 
-        const { data, error } = await supabase
-          .from("trip_reservations")
-          .update(payload)
-          .eq("id", reservationId)
-          .select("*")
-          .single();
-
-        if (error || !data) {
-          throw new Error(error?.message || "No se pudo actualizar la reserva.");
-        }
-
-        if ((data as TripReservation).reservation_type === "lodging") {
-          try {
-            if ((data as TripReservation).sync_to_plan) {
-              await syncLodgingReservationToPlan(data as unknown as any);
-            } else {
-              await removeLodgingReservationFromPlan(reservationId);
-            }
-          } catch (syncError) {
-            console.error("Error sincronizando actualización con el plan:", syncError);
-          }
-        }
-
+        await apiRequest<{ reservation: TripReservation }>(
+          `/api/trip-reservations/${reservationId}`,
+          { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) },
+          "actualizar reserva"
+        );
         await load();
       } finally {
         setSaving(false);
@@ -395,10 +340,7 @@ export function useTripResources(tripId: string) {
       setError(null);
 
       try {
-        const { error } = await supabase.from("trip_resources").delete().eq("id", resourceId);
-        if (error) {
-          throw new Error(error.message || "No se pudo eliminar el recurso.");
-        }
+        await apiRequest<{ ok: true }>(`/api/trip-resources/${resourceId}`, { method: "DELETE" }, "borrar recurso");
         await load();
       } finally {
         setSaving(false);
@@ -416,12 +358,11 @@ export function useTripResources(tripId: string) {
       setError(null);
 
       try {
-        await removeLodgingReservationFromPlan(reservationId).catch(() => null);
-
-        const { error } = await supabase.from("trip_reservations").delete().eq("id", reservationId);
-        if (error) {
-          throw new Error(error.message || "No se pudo eliminar la reserva.");
-        }
+        await apiRequest<{ ok: true }>(
+          `/api/trip-reservations/${reservationId}`,
+          { method: "DELETE" },
+          "borrar reserva"
+        );
         await load();
       } finally {
         setSaving(false);
