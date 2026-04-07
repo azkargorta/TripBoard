@@ -3,6 +3,8 @@ import { extractTextFromPdfWithUnpdf } from "@/lib/server/pdf-engine";
 import { extractTextFromImageBuffer } from "@/lib/server/document-ocr";
 import { extractTextWithOcrSpace, isOcrSpaceConfigured } from "@/lib/server/ocr-space";
 import { analyzeDocumentText } from "@/lib/document-analyzer";
+import { askTripAI } from "@/lib/trip-ai/providers";
+import { extractFirstJsonObject } from "@/lib/ai/llmJson";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -37,6 +39,8 @@ export async function POST(request: Request) {
   try {
     const formData = await request.formData();
     const file = formData.get("file");
+    const provider = typeof formData.get("provider") === "string" ? String(formData.get("provider")) : null;
+    const enhance = String(formData.get("enhance") || "").trim() === "1" || process.env.AI_ENHANCE_ANALYSIS === "1";
 
     if (!(file instanceof File)) {
       return NextResponse.json({ error: "Falta el archivo" }, { status: 400 });
@@ -63,6 +67,23 @@ export async function POST(request: Request) {
 
     const detected = analyzeDocumentText(extractedText, fileName);
 
+    let llmDetected: any = null;
+    if (enhance && extractedText.trim()) {
+      const prompt = [
+        "Eres un extractor de datos de reservas/tickets/documentos de viaje.",
+        "Devuelve SOLO un JSON (sin texto extra) con claves que puedan encajar en este esquema:",
+        "{ documentType, providerName, reservationName, reservationCode, totalAmount, currency, checkInDate, checkOutDate, checkInTime, checkOutTime, address, city, country, guests, paymentStatus, confidence }",
+        "Si no sabes un campo, pon null. confidence entre 0 y 1.",
+        "",
+        `Nombre de archivo: ${fileName}`,
+        "TEXTO EXTRAÍDO:",
+        extractedText.slice(0, 12000),
+      ].join("\n");
+
+      const answer = await askTripAI(prompt, "general" as any, { provider });
+      llmDetected = extractFirstJsonObject(answer);
+    }
+
     return NextResponse.json({
       ok: true,
       fileName,
@@ -70,6 +91,7 @@ export async function POST(request: Request) {
       extractedTextLength: extractedText.length,
       ocrSpaceEnabled: isOcrSpaceConfigured(),
       detected,
+      llmDetected,
     });
   } catch (error) {
     return NextResponse.json(

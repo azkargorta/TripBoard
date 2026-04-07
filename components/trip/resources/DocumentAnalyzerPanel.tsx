@@ -19,6 +19,7 @@ export default function DocumentAnalyzerPanel({ onUseDetectedData }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detected, setDetected] = useState<DetectedDocumentData | null>(null);
+  const [useGemini, setUseGemini] = useState(false);
 
   async function handleAnalyze() {
     if (!file) {
@@ -33,6 +34,8 @@ export default function DocumentAnalyzerPanel({ onUseDetectedData }: Props) {
     try {
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("enhance", "1");
+      if (useGemini) formData.append("provider", "gemini");
 
       const response = await fetch("/api/document/analyze", {
         method: "POST",
@@ -49,7 +52,9 @@ export default function DocumentAnalyzerPanel({ onUseDetectedData }: Props) {
         throw new Error("No se ha recibido ningún resultado del analizador.");
       }
 
-      setDetected(data.detected);
+      // Si hay mejora LLM, mezclar (LLM tiene prioridad) manteniendo extractedText/confidence si vienen.
+      const llm = data?.llmDetected;
+      setDetected(llm && typeof llm === "object" ? { ...data.detected, ...llm } : data.detected);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo analizar el documento.");
     } finally {
@@ -65,6 +70,11 @@ export default function DocumentAnalyzerPanel({ onUseDetectedData }: Props) {
       </p>
 
       <div className="mt-5 space-y-4">
+        <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800">
+          <input type="checkbox" checked={useGemini} onChange={(e) => setUseGemini(e.target.checked)} />
+          Mejor calidad (Gemini)
+        </label>
+
         <div>
           <label className="block text-sm font-semibold text-slate-900">Archivo del documento</label>
           <div className="mt-2 rounded-2xl border border-slate-300 bg-white px-4 py-3">

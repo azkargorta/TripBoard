@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { analyzeTravelDocument } from "@/lib/document-analyzer";
 import { buildExpenseAnalyzerResult } from "@/lib/expense-analyzer";
+import { askTripAI } from "@/lib/trip-ai/providers";
+import { extractFirstJsonObject } from "@/lib/ai/llmJson";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -43,6 +45,8 @@ export async function POST(req: Request) {
   try {
     const formData = await req.formData();
     const file = formData.get("file");
+    const provider = typeof formData.get("provider") === "string" ? String(formData.get("provider")) : null;
+    const enhance = String(formData.get("enhance") || "").trim() === "1" || process.env.AI_ENHANCE_ANALYSIS === "1";
 
     if (!(file instanceof File)) {
       return NextResponse.json({ error: "Falta el archivo." }, { status: 400 });
@@ -90,10 +94,29 @@ export async function POST(req: Request) {
       extractionMethod: extractionMethod as any,
     });
 
+    let llmExpense: any = null;
+    if (enhance && text.trim()) {
+      const prompt = [
+        "Eres un extractor de datos de gastos a partir de tickets/facturas.",
+        "Devuelve SOLO un JSON con este esquema:",
+        "{ title, category, amount, currency, expenseDate, merchantName, confidence }",
+        "category debe ser una de: lodging, transport, food, tickets, shopping, general.",
+        "expenseDate en formato YYYY-MM-DD si es posible. confidence entre 0 y 1.",
+        "Si no sabes un campo, pon null.",
+        "",
+        `Nombre de archivo: ${file.name}`,
+        "TEXTO EXTRAÍDO:",
+        text.slice(0, 12000),
+      ].join("\n");
+      const answer = await askTripAI(prompt, "general" as any, { provider });
+      llmExpense = extractFirstJsonObject(answer);
+    }
+
     return NextResponse.json({
       ...expense,
       extractedText: text,
       sharedWarnings: warnings,
+      llmExpense,
     });
 
   } catch (error) {

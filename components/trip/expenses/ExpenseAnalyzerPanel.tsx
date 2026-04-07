@@ -25,6 +25,7 @@ export default function ExpenseAnalyzerPanel({
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ExpenseDetectedData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [useGemini, setUseGemini] = useState(false);
 
   async function analyze() {
     if (!file) return;
@@ -35,6 +36,8 @@ export default function ExpenseAnalyzerPanel({
     try {
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("enhance", "1");
+      if (useGemini) formData.append("provider", "gemini");
 
       const response = await fetch("/api/expense/analyze", {
         method: "POST",
@@ -47,13 +50,14 @@ export default function ExpenseAnalyzerPanel({
         throw new Error(payload?.error || "No se pudo analizar el archivo.");
       }
 
+      const llm = payload?.llmExpense && typeof payload.llmExpense === "object" ? payload.llmExpense : null;
       setResult({
-        title: payload?.title || payload?.suggestedTitle || null,
-        category: payload?.category || "general",
-        amount: typeof payload?.amount === "number" ? payload.amount : null,
-        currency: payload?.currency || "EUR",
-        expenseDate: payload?.expenseDate || null,
-        merchantName: payload?.merchantName || null,
+        title: llm?.title ?? payload?.title ?? payload?.suggestedTitle ?? null,
+        category: llm?.category ?? payload?.category ?? "general",
+        amount: typeof llm?.amount === "number" ? llm.amount : typeof payload?.amount === "number" ? payload.amount : null,
+        currency: llm?.currency ?? payload?.currency ?? "EUR",
+        expenseDate: llm?.expenseDate ?? payload?.expenseDate ?? null,
+        merchantName: llm?.merchantName ?? payload?.merchantName ?? null,
         extractedText: payload?.extractedText || null,
         extractionMethod: payload?.extractionMethod || null,
         warnings: Array.isArray(payload?.warnings) ? payload.warnings : [],
@@ -85,6 +89,10 @@ export default function ExpenseAnalyzerPanel({
       </p>
 
       <div className="mt-4 space-y-4">
+        <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800">
+          <input type="checkbox" checked={useGemini} onChange={(e) => setUseGemini(e.target.checked)} />
+          Mejor calidad (Gemini)
+        </label>
         <label className="block space-y-2">
           <span className="text-sm font-semibold text-slate-800">Archivo</span>
           <input
