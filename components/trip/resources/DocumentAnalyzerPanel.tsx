@@ -20,6 +20,7 @@ export default function DocumentAnalyzerPanel({ onUseDetectedData }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [detected, setDetected] = useState<DetectedDocumentData | null>(null);
   const [useGemini, setUseGemini] = useState(false);
+  const [aiNotice, setAiNotice] = useState<string | null>(null);
 
   async function handleAnalyze() {
     if (!file) {
@@ -30,6 +31,7 @@ export default function DocumentAnalyzerPanel({ onUseDetectedData }: Props) {
     setLoading(true);
     setError(null);
     setDetected(null);
+    setAiNotice(null);
 
     try {
       const formData = new FormData();
@@ -50,6 +52,10 @@ export default function DocumentAnalyzerPanel({ onUseDetectedData }: Props) {
 
       if (!data?.detected) {
         throw new Error("No se ha recibido ningún resultado del analizador.");
+      }
+
+      if (typeof data?.llmError === "string" && data.llmError.trim()) {
+        setAiNotice(data.llmError.trim());
       }
 
       // Si hay mejora LLM, mezclar (LLM tiene prioridad) manteniendo extractedText/confidence si vienen.
@@ -125,6 +131,12 @@ export default function DocumentAnalyzerPanel({ onUseDetectedData }: Props) {
             </button>
           ) : null}
         </div>
+
+        {aiNotice ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            IA (Gemini): {aiNotice} Se ha mostrado el resultado básico por reglas.
+          </div>
+        ) : null}
 
         {error ? (
           <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

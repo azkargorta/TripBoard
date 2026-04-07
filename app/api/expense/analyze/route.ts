@@ -95,6 +95,7 @@ export async function POST(req: Request) {
     });
 
     let llmExpense: any = null;
+    let llmError: string | null = null;
     if (enhance && text.trim()) {
       const prompt = [
         "Eres un extractor de datos de gastos a partir de tickets/facturas.",
@@ -108,8 +109,12 @@ export async function POST(req: Request) {
         "TEXTO EXTRAÍDO:",
         text.slice(0, 12000),
       ].join("\n");
-      const answer = await askTripAI(prompt, "general" as any, { provider });
-      llmExpense = extractFirstJsonObject(answer);
+      try {
+        const answer = await askTripAI(prompt, "general" as any, { provider });
+        llmExpense = extractFirstJsonObject(answer);
+      } catch (e) {
+        llmError = e instanceof Error ? e.message : "Error al llamar a la IA.";
+      }
     }
 
     return NextResponse.json({
@@ -117,6 +122,7 @@ export async function POST(req: Request) {
       extractedText: text,
       sharedWarnings: warnings,
       llmExpense,
+      llmError,
     });
 
   } catch (error) {

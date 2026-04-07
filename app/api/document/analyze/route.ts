@@ -80,6 +80,7 @@ export async function POST(request: Request) {
     const detected = analyzeDocumentText(extractedText, fileName);
 
     let llmDetected: any = null;
+    let llmError: string | null = null;
     if (enhance && extractedText.trim()) {
       const prompt = [
         "Eres un extractor de datos de reservas/tickets/documentos de viaje.",
@@ -92,8 +93,12 @@ export async function POST(request: Request) {
         extractedText.slice(0, 12000),
       ].join("\n");
 
-      const answer = await askTripAI(prompt, "general" as any, { provider });
-      llmDetected = extractFirstJsonObject(answer);
+      try {
+        const answer = await askTripAI(prompt, "general" as any, { provider });
+        llmDetected = extractFirstJsonObject(answer);
+      } catch (e) {
+        llmError = e instanceof Error ? e.message : "Error al llamar a la IA.";
+      }
     }
 
     return NextResponse.json({
@@ -104,6 +109,7 @@ export async function POST(request: Request) {
       ocrSpaceEnabled: isOcrSpaceConfigured(),
       detected,
       llmDetected,
+      llmError,
     });
   } catch (error) {
     return NextResponse.json(

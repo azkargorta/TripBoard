@@ -69,14 +69,21 @@ function resolveProvider(requested?: string | null): AiProviderId {
   return pick === "gemini" ? "gemini" : "ollama";
 }
 
+function isServerlessProduction() {
+  return process.env.VERCEL === "1" || process.env.NODE_ENV === "production";
+}
+
 export async function askTripAI(prompt: string, mode: TripAiMode, options?: { provider?: string | null }) {
   const provider = resolveProvider(options?.provider ?? null);
   if (provider === "gemini") {
     try {
       return await askGemini(prompt, mode);
     } catch (e) {
-      // fallback a Ollama para no romper UX
       const detail = e instanceof Error ? e.message : "error desconocido";
+      // En Vercel/producción no existe Ollama en localhost: el fallback rompía todo el endpoint (500).
+      if (isServerlessProduction()) {
+        throw new Error(`Gemini no disponible: ${detail}`);
+      }
       const fallback = await askOllama(prompt, mode);
       return `${fallback}\n\n(Nota: Gemini falló y usé Ollama como fallback: ${detail})`;
     }
