@@ -1,5 +1,7 @@
 "use client";
 
+import { ExternalLink } from "lucide-react";
+
 type PlanLodging = {
   id: string;
   title: string;
@@ -63,9 +65,10 @@ export default function PlanLodgingCard({ activity }: Props) {
             href={googleMapsUrl}
             target="_blank"
             rel="noreferrer"
-            className="shrink-0 rounded-xl border border-violet-200 bg-white px-3 py-2 text-xs font-semibold text-violet-700"
+            className="shrink-0 inline-flex min-h-[36px] items-center gap-2 rounded-xl border border-violet-200 bg-white px-3 text-xs font-extrabold text-violet-700 transition hover:bg-violet-50 focus:outline-none focus:ring-2 focus:ring-violet-200"
           >
-            Ir a Google Maps
+            <ExternalLink className="h-4 w-4" />
+            Google Maps
           </a>
         ) : null}
       </div>

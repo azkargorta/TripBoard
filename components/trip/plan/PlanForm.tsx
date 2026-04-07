@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import PlaceAutocompleteInput from "@/components/PlaceAutocompleteInput";
+import { Check, X } from "lucide-react";
 
 export type ActivityKind =
   | "visit"
@@ -134,8 +135,9 @@ export default function PlanForm({ saving = false, initialData, onCancelEdit, on
             <button
               type="button"
               onClick={onCancelEdit}
-              className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-900"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-violet-200"
             >
+              <X className="h-4 w-4" />
               {isEditing ? "Cancelar edición" : "Cerrar"}
             </button>
           ) : null}
@@ -147,7 +149,7 @@ export default function PlanForm({ saving = false, initialData, onCancelEdit, on
             <input
               value={form.title}
               onChange={(e) => update("title", e.target.value)}
-              className="w-full rounded-xl border border-slate-300 px-4 py-3"
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
             />
           </label>
 
@@ -156,7 +158,7 @@ export default function PlanForm({ saving = false, initialData, onCancelEdit, on
             <select
               value={form.activityKind}
               onChange={(e) => update("activityKind", e.target.value as ActivityKind)}
-              className="w-full rounded-xl border border-slate-300 px-4 py-3"
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
             >
               <option value="visit">Visita</option>
               <option value="museum">Museo</option>
@@ -173,7 +175,7 @@ export default function PlanForm({ saving = false, initialData, onCancelEdit, on
           <input
             value={form.placeName}
             onChange={(e) => update("placeName", e.target.value)}
-            className="w-full rounded-xl border border-slate-300 px-4 py-3"
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
           />
         </label>
 
@@ -206,7 +208,7 @@ export default function PlanForm({ saving = false, initialData, onCancelEdit, on
               type="date"
               value={form.activityDate}
               onChange={(e) => update("activityDate", e.target.value)}
-              className="w-full rounded-xl border border-slate-300 px-4 py-3"
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
             />
           </label>
 
@@ -216,7 +218,7 @@ export default function PlanForm({ saving = false, initialData, onCancelEdit, on
               type="time"
               value={form.activityTime}
               onChange={(e) => update("activityTime", e.target.value)}
-              className="w-full rounded-xl border border-slate-300 px-4 py-3"
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
             />
           </label>
         </div>
@@ -227,7 +229,7 @@ export default function PlanForm({ saving = false, initialData, onCancelEdit, on
             value={form.description}
             onChange={(e) => update("description", e.target.value)}
             rows={4}
-            className="w-full rounded-xl border border-slate-300 px-4 py-3"
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
           />
         </label>
 
@@ -241,10 +243,11 @@ export default function PlanForm({ saving = false, initialData, onCancelEdit, on
           <button
             type="submit"
             disabled={saving}
-            className={`rounded-xl px-4 py-3 text-sm font-semibold ${
-              saving ? "bg-slate-200 text-slate-500" : "bg-slate-950 text-white"
+            className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-violet-200 ${
+              saving ? "bg-slate-200 text-slate-500" : "bg-slate-950 text-white hover:bg-slate-800"
             }`}
           >
+            <Check className="h-4 w-4" />
             {saving ? "Guardando..." : isEditing ? "Guardar cambios" : "Guardar actividad"}
           </button>
 
@@ -252,8 +255,9 @@ export default function PlanForm({ saving = false, initialData, onCancelEdit, on
             <button
               type="button"
               onClick={onCancelEdit}
-              className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-900"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-violet-200"
             >
+              <X className="h-4 w-4" />
               Cancelar
             </button>
           ) : null}

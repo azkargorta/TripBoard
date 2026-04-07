@@ -1,5 +1,7 @@
 "use client";
 
+import { ExternalLink, Pencil, Trash2 } from "lucide-react";
+
 type PlanActivity = {
   trip_id?: string;
   id: string;
@@ -83,17 +85,19 @@ export default function PlanActivityCard({ activity, onEdit, onDelete }: Props) 
             href={googleMapsUrl}
             target="_blank"
             rel="noreferrer"
-            className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700"
+            className="inline-flex min-h-[36px] items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-extrabold text-emerald-700 transition hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-violet-200"
           >
-            Ir a Google Maps
+            <ExternalLink className="h-4 w-4" />
+            Google Maps
           </a>
         ) : null}
         {onEdit ? (
           <button
             type="button"
             onClick={() => onEdit(activity)}
-            className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-900"
+            className="inline-flex min-h-[36px] items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-xs font-extrabold text-slate-900 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-violet-200"
           >
+            <Pencil className="h-4 w-4" />
             Editar
           </button>
         ) : null}
@@ -101,8 +105,9 @@ export default function PlanActivityCard({ activity, onEdit, onDelete }: Props) 
           <button
             type="button"
             onClick={() => onDelete(activity)}
-            className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700"
+            className="inline-flex min-h-[36px] items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-extrabold text-red-700 transition hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-violet-200"
           >
+            <Trash2 className="h-4 w-4" />
             Borrar
           </button>
         ) : null}
