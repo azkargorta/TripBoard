@@ -105,6 +105,42 @@ export function useTripRoutes(tripId: string, reload?: () => Promise<void>) {
   const [savingRoute, setSavingRoute] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
 
+  function isLockAbortError(error: unknown) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : typeof error === "string"
+          ? error
+          : "";
+
+    const name = error instanceof Error ? error.name : "";
+    const lower = message.toLowerCase();
+
+    return (
+      name === "AbortError" ||
+      lower.includes("the lock request is aborted") ||
+      lower.includes("lock request is aborted")
+    );
+  }
+
+  async function withLockRetry<T>(fn: () => Promise<T>) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (!isLockAbortError(error)) throw error;
+
+      // Pequeño backoff + asegurar sesión inicializada.
+      try {
+        await supabase.auth.getSession();
+      } catch {
+        // no-op
+      }
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      return await fn();
+    }
+  }
+
   async function saveRoute(input: SaveRouteInput, routeId?: string) {
     setSavingRoute(true);
     setRouteError(null);
@@ -175,7 +211,7 @@ export function useTripRoutes(tripId: string, reload?: () => Promise<void>) {
         ? supabase.from("trip_routes").update(payload).eq("id", routeId).select("*").single()
         : supabase.from("trip_routes").insert(payload).select("*").single();
 
-      const result = await query;
+      const result = await withLockRetry(async () => await query);
 
       if (result.error) {
         const raw = result.error.message || "No se pudo guardar la ruta.";
@@ -198,7 +234,11 @@ export function useTripRoutes(tripId: string, reload?: () => Promise<void>) {
       await reload?.();
       return result.data;
     } catch (error) {
-      const message = error instanceof Error ? error.message : "No se pudo guardar la ruta.";
+      const message = isLockAbortError(error)
+        ? "El navegador ha abortado un lock de almacenamiento al guardar (suele pasar con varias pestañas abiertas o sesión inestable). Prueba a recargar la página y cerrar otras pestañas de TripBoard, y vuelve a guardar."
+        : error instanceof Error
+          ? error.message
+          : "No se pudo guardar la ruta.";
       console.error("saveRoute error:", error);
       setRouteError(message);
       throw error;
@@ -212,11 +252,15 @@ export function useTripRoutes(tripId: string, reload?: () => Promise<void>) {
     setRouteError(null);
 
     try {
-      const { error } = await supabase.from("trip_routes").delete().eq("id", routeId);
+      const { error } = await withLockRetry(async () => await supabase.from("trip_routes").delete().eq("id", routeId));
       if (error) throw new Error(error.message);
       await reload?.();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "No se pudo eliminar la ruta.";
+      const message = isLockAbortError(error)
+        ? "El navegador ha abortado un lock de almacenamiento al eliminar. Prueba a recargar la página y cerrar otras pestañas de TripBoard, y vuelve a intentarlo."
+        : error instanceof Error
+          ? error.message
+          : "No se pudo eliminar la ruta.";
       setRouteError(message);
       throw error;
     } finally {
@@ -229,14 +273,20 @@ export function useTripRoutes(tripId: string, reload?: () => Promise<void>) {
     setRouteError(null);
 
     try {
-      await Promise.all(
-        routeIds.map((routeId, index) =>
-          supabase.from("trip_routes").update({ route_order: index + 1 }).eq("id", routeId)
-        )
-      );
+      await withLockRetry(async () => {
+        await Promise.all(
+          routeIds.map((routeId, index) =>
+            supabase.from("trip_routes").update({ route_order: index + 1 }).eq("id", routeId)
+          )
+        );
+      });
       await reload?.();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "No se pudo reordenar las rutas.";
+      const message = isLockAbortError(error)
+        ? "El navegador ha abortado un lock de almacenamiento al reordenar. Prueba a recargar la página y cerrar otras pestañas de TripBoard."
+        : error instanceof Error
+          ? error.message
+          : "No se pudo reordenar las rutas.";
       setRouteError(message);
       throw error;
     } finally {
