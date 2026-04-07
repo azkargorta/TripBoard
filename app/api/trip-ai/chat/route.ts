@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildTripContext } from "@/lib/trip-ai/buildTripContext";
 import { buildTripPrompt, type TripAiMode } from "@/lib/trip-ai/buildPrompt";
-import { askOllama } from "@/lib/trip-ai/providers";
+import { askTripAI } from "@/lib/trip-ai/providers";
 import { appendMessage, createConversation, getConversation, listMessages } from "@/lib/trip-ai/chatStore";
 import { detectAction, executeAction } from "@/lib/trip-ai/actions";
 
@@ -14,6 +14,7 @@ export async function POST(req: Request) {
     const tripId = typeof body?.tripId === "string" ? body.tripId : "";
     const question = typeof body?.question === "string" ? body.question.trim() : "";
     const mode = (typeof body?.mode === "string" ? body.mode : "general") as TripAiMode;
+    const provider = typeof body?.provider === "string" ? body.provider : null;
     let conversationId = typeof body?.conversationId === "string" ? body.conversationId : "";
 
     if (!tripId) {
@@ -65,7 +66,7 @@ export async function POST(req: Request) {
       mode
     );
 
-    const answer = await askOllama(prompt, mode);
+    const answer = await askTripAI(prompt, mode, { provider });
 
     await appendMessage({
       conversationId,

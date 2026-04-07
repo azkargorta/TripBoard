@@ -1,4 +1,7 @@
 import type { TripAiMode } from "@/lib/trip-ai/buildPrompt";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
+export type AiProviderId = "ollama" | "gemini";
 
 export async function askOllama(prompt: string, mode: TripAiMode) {
   const model = process.env.OLLAMA_MODEL || "llama3";
@@ -32,4 +35,51 @@ export async function askOllama(prompt: string, mode: TripAiMode) {
   }
 
   return answer.trim();
+}
+
+export async function askGemini(prompt: string, mode: TripAiMode) {
+  const apiKey = process.env.GEMINI_API_KEY || "";
+  if (!apiKey) {
+    throw new Error("Falta GEMINI_API_KEY en el servidor.");
+  }
+
+  const modelName = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+  const temperature = mode === "optimizer" ? 0.3 : 0.5;
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({
+    model: modelName,
+    generationConfig: { temperature },
+  });
+
+  const result = await model.generateContent(prompt);
+  const text = result.response.text();
+
+  if (typeof text !== "string" || !text.trim()) {
+    throw new Error("Gemini no devolvió una respuesta válida.");
+  }
+
+  return text.trim();
+}
+
+function resolveProvider(requested?: string | null): AiProviderId {
+  const env = (process.env.AI_PROVIDER || "").toLowerCase();
+  const req = (requested || "").toLowerCase();
+  const pick = (req || env) as AiProviderId;
+  return pick === "gemini" ? "gemini" : "ollama";
+}
+
+export async function askTripAI(prompt: string, mode: TripAiMode, options?: { provider?: string | null }) {
+  const provider = resolveProvider(options?.provider ?? null);
+  if (provider === "gemini") {
+    try {
+      return await askGemini(prompt, mode);
+    } catch (e) {
+      // fallback a Ollama para no romper UX
+      const detail = e instanceof Error ? e.message : "error desconocido";
+      const fallback = await askOllama(prompt, mode);
+      return `${fallback}\n\n(Nota: Gemini falló y usé Ollama como fallback: ${detail})`;
+    }
+  }
+  return await askOllama(prompt, mode);
 }
