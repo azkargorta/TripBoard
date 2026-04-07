@@ -134,7 +134,8 @@ export default function DocumentAnalyzerPanel({ onUseDetectedData }: Props) {
 
         {aiNotice ? (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            IA (Gemini): {aiNotice} Se ha mostrado el resultado básico por reglas.
+            <span className="font-semibold">Aviso (Gemini): </span>
+            {aiNotice}
           </div>
         ) : null}
 

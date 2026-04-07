@@ -37,6 +37,29 @@ export async function askOllama(prompt: string, mode: TripAiMode) {
   return answer.trim();
 }
 
+/** Mensaje corto para la UI cuando Google devuelve 429 / cuota. */
+function formatGeminiUserError(raw: string): string {
+  const lower = raw.toLowerCase();
+  if (
+    raw.includes("429") ||
+    lower.includes("too many requests") ||
+    lower.includes("quota") ||
+    lower.includes("resource_exhausted") ||
+    lower.includes("rate limit")
+  ) {
+    return (
+      "Cuota de Gemini agotada (429). En el plan gratuito hay límites por minuto y por día. " +
+      "Opciones: esperar unos minutos, activar facturación en Google AI Studio / Cloud, " +
+      "o cambiar la variable GEMINI_MODEL por otro modelo que tu proyecto tenga habilitado. " +
+      "Mientras tanto puedes desmarcar «Mejor calidad (Gemini)» y usar solo el análisis básico."
+    );
+  }
+  if (raw.length > 400) {
+    return `${raw.slice(0, 380)}…`;
+  }
+  return raw;
+}
+
 export async function askGemini(prompt: string, mode: TripAiMode) {
   const apiKey = process.env.GEMINI_API_KEY || "";
   if (!apiKey) {
@@ -52,14 +75,19 @@ export async function askGemini(prompt: string, mode: TripAiMode) {
     generationConfig: { temperature },
   });
 
-  const result = await model.generateContent(prompt);
-  const text = result.response.text();
+  try {
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
 
-  if (typeof text !== "string" || !text.trim()) {
-    throw new Error("Gemini no devolvió una respuesta válida.");
+    if (typeof text !== "string" || !text.trim()) {
+      throw new Error("Gemini no devolvió una respuesta válida.");
+    }
+
+    return text.trim();
+  } catch (e) {
+    const raw = e instanceof Error ? e.message : String(e);
+    throw new Error(formatGeminiUserError(raw));
   }
-
-  return text.trim();
 }
 
 function resolveProvider(requested?: string | null): AiProviderId {
@@ -82,7 +110,7 @@ export async function askTripAI(prompt: string, mode: TripAiMode, options?: { pr
       const detail = e instanceof Error ? e.message : "error desconocido";
       // En Vercel/producción no existe Ollama en localhost: el fallback rompía todo el endpoint (500).
       if (isServerlessProduction()) {
-        throw new Error(`Gemini no disponible: ${detail}`);
+        throw new Error(detail.startsWith("Cuota de Gemini") ? detail : `Gemini no disponible: ${detail}`);
       }
       const fallback = await askOllama(prompt, mode);
       return `${fallback}\n\n(Nota: Gemini falló y usé Ollama como fallback: ${detail})`;
