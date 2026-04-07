@@ -1,18 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-function createServerSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!url || !key) {
-    throw new Error("Falta configurar Supabase para trip-routes.");
-  }
-
-  return createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
+import { createClient } from "@/lib/supabase/server";
+import { requireTripAccess } from "@/lib/trip-access";
 
 function buildPayload(body: any) {
   return {
@@ -51,7 +39,10 @@ function buildPayload(body: any) {
   };
 }
 
-async function insertWithFallback(supabase: ReturnType<typeof createServerSupabase>, payload: Record<string, unknown>) {
+async function insertWithFallback(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  payload: Record<string, unknown>
+) {
   let response = await supabase.from("trip_routes").insert(payload).select("*").single();
   if (!response.error) return response;
 
@@ -72,7 +63,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Falta tripId" }, { status: 400 });
     }
 
-    const supabase = createServerSupabase();
+    await requireTripAccess(tripId);
+    const supabase = await createClient();
     const payload = buildPayload(body);
     const response = await insertWithFallback(supabase, payload);
 

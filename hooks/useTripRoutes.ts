@@ -122,6 +122,23 @@ export function useTripRoutes(tripId: string, reload?: () => Promise<void>) {
     }
   }
 
+  async function apiRequest<T>(input: RequestInfo, init: RequestInit, label: string): Promise<T> {
+    const response = await withTimeout(fetch(input, init), 20000, label);
+    const text = await response.text();
+    let payload: any = null;
+    try {
+      payload = text ? JSON.parse(text) : null;
+    } catch {
+      payload = { error: text || "Respuesta no JSON." };
+    }
+
+    if (!response.ok) {
+      throw new Error(payload?.error || `Error ${response.status}`);
+    }
+    if (payload?.error) throw new Error(payload.error);
+    return payload as T;
+  }
+
   function isLockAbortError(error: unknown) {
     const message =
       error instanceof Error
@@ -225,24 +242,55 @@ export function useTripRoutes(tripId: string, reload?: () => Promise<void>) {
         route_order: typeof input.routeOrder === "number" ? input.routeOrder : null,
       };
 
-      const query = routeId
-        ? supabase.from("trip_routes").update(payload).eq("id", routeId).select("*").single()
-        : supabase.from("trip_routes").insert(payload).select("*").single();
+      // Guardado vía API server-side para evitar locks del navegador (Supabase storage).
+      // Mantiene RLS/permiso porque el server client usa cookies del usuario.
+      const body = {
+        tripId,
+        ...payload,
+      };
 
-      let result = await withLockRetry(async () => await withTimeout(Promise.resolve(query), 15000, "guardar ruta"));
+      const apiResult = routeId
+        ? await apiRequest<{ route: any }>(
+            `/api/trip-routes/${routeId}`,
+            {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            },
+            "guardar ruta (PATCH)"
+          )
+        : await apiRequest<{ route: any }>(
+            `/api/trip-routes`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            },
+            "guardar ruta (POST)"
+          );
 
-      // Fallback: si la tabla no tiene columna `notes`, reintenta sin ella.
-      if (result.error) {
-        const msg = (result.error.message || "").toLowerCase();
-        if (msg.includes("notes") && (msg.includes("column") || msg.includes("schema cache") || msg.includes("could not find"))) {
-          const { notes, ...payloadWithoutNotes } = payload as any;
-          const retryQuery = routeId
-            ? supabase.from("trip_routes").update(payloadWithoutNotes).eq("id", routeId).select("*").single()
-            : supabase.from("trip_routes").insert(payloadWithoutNotes).select("*").single();
-          result = await withLockRetry(async () => await retryQuery);
-        }
+      if (!apiResult?.route) {
+        throw new Error("No se recibió la ruta guardada.");
       }
 
+      void reload?.();
+      return apiResult.route;
+    } catch (error) {
+      const message = isLockAbortError(error)
+        ? "El navegador ha abortado un lock de almacenamiento al guardar (suele pasar con varias pestañas abiertas o sesión inestable). Prueba a recargar la página y cerrar otras pestañas de TripBoard, y vuelve a guardar."
+        : error instanceof Error && error.message.startsWith("Timeout")
+          ? "La petición se ha quedado colgada al guardar. Revisa tu conexión/VPN, recarga la página y vuelve a intentarlo."
+          : error instanceof Error
+            ? error.message
+            : "No se pudo guardar la ruta.";
+      console.error("saveRoute error:", error);
+      setRouteError(message);
+      throw error;
+    } finally {
+      setSavingRoute(false);
+    }
+
+    /* Unreachable: kept for reference of old client-side approach.
       if (result.error) {
         const raw = result.error.message || "No se pudo guardar la ruta.";
 
@@ -265,20 +313,7 @@ export function useTripRoutes(tripId: string, reload?: () => Promise<void>) {
       // (p. ej. por locks del navegador o latencias). El usuario puede seguir.
       void reload?.();
       return result.data;
-    } catch (error) {
-      const message = isLockAbortError(error)
-        ? "El navegador ha abortado un lock de almacenamiento al guardar (suele pasar con varias pestañas abiertas o sesión inestable). Prueba a recargar la página y cerrar otras pestañas de TripBoard, y vuelve a guardar."
-        : error instanceof Error && error.message.startsWith("Timeout")
-          ? "La petición a Supabase se ha quedado colgada al guardar. Revisa tu conexión/VPN, recarga la página y vuelve a intentarlo."
-          : error instanceof Error
-            ? error.message
-          : "No se pudo guardar la ruta.";
-      console.error("saveRoute error:", error);
-      setRouteError(message);
-      throw error;
-    } finally {
-      setSavingRoute(false);
-    }
+    */
   }
 
   async function deleteRoute(routeId: string) {
@@ -286,10 +321,11 @@ export function useTripRoutes(tripId: string, reload?: () => Promise<void>) {
     setRouteError(null);
 
     try {
-      const { error } = await withLockRetry(async () =>
-        await withTimeout(Promise.resolve(supabase.from("trip_routes").delete().eq("id", routeId)), 15000, "eliminar ruta")
+      await apiRequest<{ ok: true }>(
+        `/api/trip-routes/${routeId}`,
+        { method: "DELETE" },
+        "eliminar ruta (DELETE)"
       );
-      if (error) throw new Error(error.message);
       void reload?.();
     } catch (error) {
       const message = isLockAbortError(error)
@@ -311,6 +347,7 @@ export function useTripRoutes(tripId: string, reload?: () => Promise<void>) {
     setRouteError(null);
 
     try {
+      // No usado en el mapa actual; mantenemos implementación client-side.
       await withLockRetry(async () => {
         await withTimeout(
           Promise.all(

@@ -1,18 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-function createServerSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!url || !key) {
-    throw new Error("Falta configurar Supabase para trip-routes.");
-  }
-
-  return createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
+import { createClient } from "@/lib/supabase/server";
+import { requireTripAccess } from "@/lib/trip-access";
 
 function buildPatchPayload(body: any) {
   const payload: Record<string, unknown> = {};
@@ -55,7 +43,11 @@ function buildPatchPayload(body: any) {
   return payload;
 }
 
-async function patchWithFallback(supabase: ReturnType<typeof createServerSupabase>, routeId: string, payload: Record<string, unknown>) {
+async function patchWithFallback(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  routeId: string,
+  payload: Record<string, unknown>
+) {
   let response = await supabase.from("trip_routes").update(payload).eq("id", routeId).select("*").single();
   if (!response.error) return response;
 
@@ -71,7 +63,20 @@ export async function PATCH(request: Request, { params }: { params: { routeId: s
   try {
     const body = await request.json();
     const payload = buildPatchPayload(body);
-    const supabase = createServerSupabase();
+    const supabase = await createClient();
+
+    // Verifica acceso al viaje asociado a la ruta (y evita updates sin permiso).
+    const { data: routeRow, error: routeError } = await supabase
+      .from("trip_routes")
+      .select("trip_id")
+      .eq("id", params.routeId)
+      .maybeSingle();
+    if (routeError) throw new Error(routeError.message);
+    if (!routeRow?.trip_id) {
+      return NextResponse.json({ error: "Ruta no encontrada." }, { status: 404 });
+    }
+    await requireTripAccess(routeRow.trip_id);
+
     const response = await patchWithFallback(supabase, params.routeId, payload);
 
     if (response.error) throw new Error(response.error.message);
@@ -90,7 +95,19 @@ export async function DELETE(
   { params }: { params: { routeId: string } }
 ) {
   try {
-    const supabase = createServerSupabase();
+    const supabase = await createClient();
+
+    const { data: routeRow, error: routeError } = await supabase
+      .from("trip_routes")
+      .select("trip_id")
+      .eq("id", params.routeId)
+      .maybeSingle();
+    if (routeError) throw new Error(routeError.message);
+    if (!routeRow?.trip_id) {
+      return NextResponse.json({ error: "Ruta no encontrada." }, { status: 404 });
+    }
+    await requireTripAccess(routeRow.trip_id);
+
     const response = await supabase.from("trip_routes").delete().eq("id", params.routeId);
     if (response.error) throw new Error(response.error.message);
 
