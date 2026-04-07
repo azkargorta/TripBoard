@@ -466,6 +466,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   const [routeQuery, setRouteQuery] = useState("");
   const [showPlanMarkers, setShowPlanMarkers] = useState(true);
   const [planKindFilter, setPlanKindFilter] = useState<Set<string>>(new Set());
+  const [isRouteFormOpen, setIsRouteFormOpen] = useState(false);
 
   useEffect(() => {
     setRoutesState(initialRoutes);
@@ -759,6 +760,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
       const key = `${route.source || "trip_routes"}:${route.id}`;
       setActiveRouteKey(key);
       setFocusedRouteKey(key);
+      setIsRouteFormOpen(true);
       setPreview(null);
       setDriveAlternatives(null);
       setPreviewError(null);
@@ -809,6 +811,11 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     },
     [selectedDate, tripDates]
   );
+
+  const beginNewRoute = useCallback(() => {
+    resetForm();
+    setIsRouteFormOpen(true);
+  }, [resetForm]);
 
   const calculatePreview = useCallback(async () => {
     if (!isLoaded || typeof window === "undefined" || !window.google?.maps) {
@@ -1104,7 +1111,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
               ) : null}
               <button
                 type="button"
-                onClick={resetForm}
+                onClick={beginNewRoute}
                 className="inline-flex min-h-[40px] items-center justify-center rounded-xl bg-slate-900 px-3 text-sm font-semibold text-white"
               >
                 Nueva ruta
@@ -1199,6 +1206,15 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                             >
                               {isFocused ? "Mostrando" : "Mostrar"}
                             </button>
+                            {canEdit ? (
+                              <button
+                                type="button"
+                                onClick={() => beginEditRoute(route)}
+                                className="inline-flex min-h-[36px] items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-slate-900"
+                              >
+                                Editar
+                              </button>
+                            ) : null}
                             <a
                               href={buildGoogleMapsDirectionsUrl(route)}
                               target="_blank"
@@ -1250,10 +1266,20 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
           </div>
         </section>
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-bold text-slate-950">{form.editingRouteId ? "Editar ruta" : "Nueva ruta"}</h2>
+        {isRouteFormOpen ? (
+          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <h2 className="text-lg font-bold text-slate-950">{form.editingRouteId ? "Editar ruta" : "Nueva ruta"}</h2>
+              <button
+                type="button"
+                onClick={() => setIsRouteFormOpen(false)}
+                className="inline-flex min-h-[40px] items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
+              >
+                Cerrar
+              </button>
+            </div>
 
-          <div className="mt-4 grid gap-3">
+            <div className="mt-4 grid gap-3">
             <div className="grid grid-cols-[1fr_140px] gap-3">
               <input
                 type="date"
@@ -1308,9 +1334,9 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                 </label>
               </div>
             </div>
-          </div>
+            </div>
 
-          <div className="mt-5 space-y-4">
+            <div className="mt-5 space-y-4">
             <div className="rounded-2xl border border-slate-200 p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
@@ -1688,8 +1714,9 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
             {previewError ? (
               <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{previewError}</div>
             ) : null}
-          </div>
-        </section>
+            </div>
+          </section>
+        ) : null}
 
         {routeError ? (
           <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{routeError}</div>
