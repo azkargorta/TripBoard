@@ -719,6 +719,33 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     return visibleRoutes.filter((r) => ((r.route_name || r.title || "") as string).toLowerCase().includes(q));
   }, [routeQuery, visibleRoutes]);
 
+  const allDaysRoutesSorted = useMemo(() => {
+    const list = filteredRoutes.slice();
+    list.sort((a, b) => {
+      const da = a.route_day || a.route_date || "";
+      const db = b.route_day || b.route_date || "";
+      if (da !== db) return da.localeCompare(db);
+      const oa = a.route_order ?? Number.POSITIVE_INFINITY;
+      const ob = b.route_order ?? Number.POSITIVE_INFINITY;
+      if (oa !== ob) return oa - ob;
+      const ta = a.departure_time || "";
+      const tb = b.departure_time || "";
+      if (ta !== tb) return ta.localeCompare(tb);
+      const na = (a.route_name || a.title || "").toLowerCase();
+      const nb = (b.route_name || b.title || "").toLowerCase();
+      return na.localeCompare(nb);
+    });
+    return list;
+  }, [filteredRoutes]);
+
+  const selectedDateIndex = useMemo(() => {
+    if (selectedDate === "all") return -1;
+    return Math.max(
+      -1,
+      tripDates.findIndex((d) => d === selectedDate)
+    );
+  }, [selectedDate, tripDates]);
+
   const availablePlanKinds = useMemo(() => {
     const kinds = new Set<string>();
     planPlaces.forEach((p) => {
@@ -1302,13 +1329,26 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                 {loadingRoutes ? "Recargando..." : "Recargar"}
               </button>
               {focusedRouteKey ? (
-                <button
-                  type="button"
-                  onClick={() => setFocusedRouteKey(null)}
-                  className="inline-flex min-h-[40px] items-center justify-center rounded-xl border border-violet-200 bg-violet-50 px-3 text-sm font-semibold text-violet-900"
-                >
-                  Ver todas
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Re-encuadrar a la ruta/markers visibles (en focus: solo la ruta enfocada).
+                      lastFitRef.current = "";
+                      fitMapToData();
+                    }}
+                    className="inline-flex min-h-[40px] items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
+                  >
+                    Centrar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFocusedRouteKey(null)}
+                    className="inline-flex min-h-[40px] items-center justify-center rounded-xl border border-violet-200 bg-violet-50 px-3 text-sm font-semibold text-violet-900"
+                  >
+                    Ver todas
+                  </button>
+                </>
               ) : null}
               <button
                 type="button"
@@ -1349,6 +1389,53 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                 onChange={(e) => setSelectedDate(e.target.value ? e.target.value : "all")}
                 className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
               />
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedDate("all")}
+                className={`rounded-full border px-3 py-2 text-xs font-extrabold ${
+                  selectedDate === "all"
+                    ? "border-slate-900 bg-slate-900 text-white"
+                    : "border-slate-200 bg-white text-slate-700"
+                }`}
+              >
+                Todos
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (tripDates[0]) setSelectedDate(tripDates[0]);
+                }}
+                className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700"
+                disabled={!tripDates.length}
+              >
+                Hoy
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (tripDates[1]) setSelectedDate(tripDates[1]);
+                }}
+                className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 disabled:opacity-50"
+                disabled={tripDates.length < 2}
+              >
+                Mañana
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const idx = selectedDateIndex >= 0 ? selectedDateIndex + 1 : 0;
+                  const next = tripDates[idx];
+                  if (next) setSelectedDate(next);
+                }}
+                className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 disabled:opacity-50"
+                disabled={!tripDates.length}
+                title="Siguiente día del viaje"
+              >
+                +1 día
+              </button>
             </div>
 
             {filteredRoutes.length === 0 ? (
@@ -1454,17 +1541,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
               </DndContext>
             ) : (
               <div className="space-y-2">
-                {filteredRoutes
-                  .slice()
-                  .sort((a, b) => {
-                    const da = a.route_day || a.route_date || "";
-                    const db = b.route_day || b.route_date || "";
-                    if (da !== db) return da.localeCompare(db);
-                    const ta = a.departure_time || "";
-                    const tb = b.departure_time || "";
-                    return ta.localeCompare(tb);
-                  })
-                  .map((route) => {
+                {allDaysRoutesSorted.map((route) => {
                     const key = `${route.source || "trip_routes"}:${route.id}`;
                     const meta = formatRouteMeta(route);
                     const isActive = activeRouteKey === key;
