@@ -20,6 +20,7 @@ import { CSS } from "@dnd-kit/utilities";
 import PlaceAutocompleteInput from "@/components/PlaceAutocompleteInput";
 import { useTripRoutes } from "@/hooks/useTripRoutes";
 import { supabase } from "@/lib/supabase";
+import DuplicateRouteDialog from "@/components/trip/map/DuplicateRouteDialog";
 
 const GOOGLE_LIBRARIES: ("places")[] = ["places"];
 const DEFAULT_CENTER = { lat: 48.8566, lng: 2.3522 };
@@ -553,7 +554,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   const [showPlanMarkers, setShowPlanMarkers] = useState(true);
   const [planKindFilter, setPlanKindFilter] = useState<Set<string>>(new Set());
   const [isRouteFormOpen, setIsRouteFormOpen] = useState(false);
-  // D (duplicar ruta) se implementará en el siguiente paso.
+  const [duplicateRouteKey, setDuplicateRouteKey] = useState<string | null>(null);
 
   useEffect(() => {
     setRoutesState(initialRoutes);
@@ -1009,6 +1010,12 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     setIsRouteFormOpen(true);
   }, [resetForm]);
 
+  const routeToDuplicate = useMemo(() => {
+    if (!duplicateRouteKey) return null;
+    const [source, id] = duplicateRouteKey.split(":");
+    return routesState.find((r) => (r.source || "trip_routes") === source && r.id === id) || null;
+  }, [duplicateRouteKey, routesState]);
+
   const calculatePreview = useCallback(async () => {
     if (!isLoaded || typeof window === "undefined" || !window.google?.maps) {
       setPreviewError("Google Maps aún no está listo.");
@@ -1403,6 +1410,15 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                                     Editar
                                   </button>
                                 ) : null}
+                                {canEdit ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setDuplicateRouteKey(key)}
+                                    className="inline-flex min-h-[36px] items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-slate-900"
+                                  >
+                                    Duplicar
+                                  </button>
+                                ) : null}
                                 <a
                                   href={buildGoogleMapsDirectionsUrl(route)}
                                   target="_blank"
@@ -1493,6 +1509,15 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                                 className="inline-flex min-h-[36px] items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-slate-900"
                               >
                                 Editar
+                              </button>
+                            ) : null}
+                            {canEdit ? (
+                              <button
+                                type="button"
+                                onClick={() => setDuplicateRouteKey(key)}
+                                className="inline-flex min-h-[36px] items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-slate-900"
+                              >
+                                Duplicar
                               </button>
                             ) : null}
                             <a
@@ -2168,6 +2193,16 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
           )}
         </section>
       </div>
+
+      <DuplicateRouteDialog
+        open={!!duplicateRouteKey}
+        route={routeToDuplicate}
+        tripId={tripId}
+        tripDates={tripDates}
+        defaultDate={selectedDate !== "all" ? selectedDate : routeToDuplicate?.route_day || routeToDuplicate?.route_date || ""}
+        onClose={() => setDuplicateRouteKey(null)}
+        onDuplicated={() => void reloadRoutes()}
+      />
     </div>
   );
 }
