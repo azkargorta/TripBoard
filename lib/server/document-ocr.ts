@@ -8,6 +8,10 @@ import { extractTextWithOcrSpace } from "@/lib/server/ocr-space";
 
 async function extractTextWithTesseract(buffer: Buffer): Promise<string> {
   try {
+    // En entornos serverless (p.ej. Vercel), tesseract.js suele fallar/colgar por workers/wasm.
+    // Preferimos OCR.Space para mantener el endpoint estable.
+    if (process.env.VERCEL === "1" || process.env.NODE_ENV === "production") return "";
+
     const mod: any = await import("tesseract.js");
     const tesseract = mod?.default || mod;
     if (!tesseract?.recognize) return "";
