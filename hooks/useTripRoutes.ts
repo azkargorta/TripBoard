@@ -231,7 +231,9 @@ export function useTripRoutes(tripId: string, reload?: () => Promise<void>) {
         throw new Error(raw);
       }
 
-      await reload?.();
+      // Importante: no bloquear el guardado si el reload se queda colgado
+      // (p. ej. por locks del navegador o latencias). El usuario puede seguir.
+      void reload?.();
       return result.data;
     } catch (error) {
       const message = isLockAbortError(error)
@@ -254,7 +256,7 @@ export function useTripRoutes(tripId: string, reload?: () => Promise<void>) {
     try {
       const { error } = await withLockRetry(async () => await supabase.from("trip_routes").delete().eq("id", routeId));
       if (error) throw new Error(error.message);
-      await reload?.();
+      void reload?.();
     } catch (error) {
       const message = isLockAbortError(error)
         ? "El navegador ha abortado un lock de almacenamiento al eliminar. Prueba a recargar la página y cerrar otras pestañas de TripBoard, y vuelve a intentarlo."
@@ -280,7 +282,7 @@ export function useTripRoutes(tripId: string, reload?: () => Promise<void>) {
           )
         );
       });
-      await reload?.();
+      void reload?.();
     } catch (error) {
       const message = isLockAbortError(error)
         ? "El navegador ha abortado un lock de almacenamiento al reordenar. Prueba a recargar la página y cerrar otras pestañas de TripBoard."
