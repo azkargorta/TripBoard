@@ -1,0 +1,17 @@
+{
+  "functions": {
+    "app/api/document/analyze/route.ts": {
+      "maxDuration": 60,
+      "memory": 1024
+    },
+    "app/api/expense/analyze/route.ts": {
+      "maxDuration": 60,
+      "memory": 1024
+    },
+    "app/api/trip-ai/chat/route.ts": {
+      "maxDuration": 60,
+      "memory": 1024
+    }
+  }
+}
+

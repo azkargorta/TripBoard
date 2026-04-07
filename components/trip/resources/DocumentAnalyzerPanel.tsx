@@ -58,10 +58,13 @@ export default function DocumentAnalyzerPanel({ onUseDetectedData }: Props) {
     } catch (err) {
       const message = err instanceof Error ? err.message : "No se pudo analizar el documento.";
       if (/fetch failed|failed to fetch|networkerror/i.test(message)) {
+        const origin = typeof window !== "undefined" ? window.location.origin : "";
+        const isLocal = /localhost|127\.0\.0\.1/i.test(origin);
         setError(
-          `No se pudo conectar con el servidor (${typeof window !== "undefined" ? window.location.origin : "localhost"}). ` +
-            "Normalmente es porque estás en otro puerto (3001/3002) o el servidor se reinició. " +
-            "Abre la app en http://localhost:3000 y recarga (Ctrl+F5)."
+          `No se pudo conectar con el servidor (${origin || "origen desconocido"}). ` +
+            (isLocal
+              ? "Normalmente es porque estás en otro puerto (3001/3002) o el servidor se reinició. Abre la app en http://localhost:3000 y recarga (Ctrl+F5)."
+              : "En producción suele ser un timeout/crash del endpoint o una variable de entorno que falta. Revisa los Logs de Vercel del endpoint `/api/document/analyze` y confirma que existen `GEMINI_API_KEY` (si usas Gemini) y `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`.")
         );
         return;
       }
