@@ -46,21 +46,68 @@ export function useTripActivities(tripId: string) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  function isLockAbortError(err: unknown) {
+    const message =
+      err instanceof Error ? err.message : typeof err === "string" ? err : "";
+    const name = err instanceof Error ? err.name : "";
+    const lower = message.toLowerCase();
+    return (
+      name === "AbortError" ||
+      lower.includes("the lock request is aborted") ||
+      lower.includes("lock request is aborted")
+    );
+  }
+
+  async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+    let timer: number | undefined;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>((_resolve, reject) => {
+          timer = window.setTimeout(() => reject(new Error(`Timeout (${label})`)), ms);
+        }),
+      ]);
+    } finally {
+      if (timer) window.clearTimeout(timer);
+    }
+  }
+
+  async function withLockRetry<T>(fn: () => Promise<T>) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (!isLockAbortError(err)) throw err;
+      try {
+        await supabase.auth.getSession();
+      } catch {
+        // no-op
+      }
+      await new Promise((r) => setTimeout(r, 200));
+      return await fn();
+    }
+  }
+
   const load = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const [tripResponse, activitiesResponse] = await Promise.all([
-        supabase.from("trips").select("id, name, destination").eq("id", tripId).single(),
-        supabase
-          .from("trip_activities")
-          .select("*")
-          .eq("trip_id", tripId)
-          .order("activity_date", { ascending: true })
-          .order("activity_time", { ascending: true })
-          .order("created_at", { ascending: true }),
-      ]);
+      const [tripResponse, activitiesResponse] = await withLockRetry(async () => {
+        return await withTimeout(
+          Promise.all([
+            supabase.from("trips").select("id, name, destination").eq("id", tripId).single(),
+            supabase
+              .from("trip_activities")
+              .select("*")
+              .eq("trip_id", tripId)
+              .order("activity_date", { ascending: true })
+              .order("activity_time", { ascending: true })
+              .order("created_at", { ascending: true }),
+          ]),
+          20000,
+          "cargar plan"
+        );
+      });
 
       if (tripResponse.error) {
         throw new Error(tripResponse.error.message);
@@ -74,7 +121,15 @@ export function useTripActivities(tripId: string) {
       setActivities((activitiesResponse.data || []) as TripActivity[]);
     } catch (err) {
       console.error(err);
-      setError(err instanceof Error ? err.message : "No se pudo cargar el plan.");
+      const msg =
+        isLockAbortError(err)
+          ? "El navegador ha abortado un lock de almacenamiento al cargar el plan. Prueba a recargar la página y cerrar otras pestañas de TripBoard."
+          : err instanceof Error && err.message.startsWith("Timeout")
+            ? "La carga del plan se ha quedado colgada (timeout). Revisa tu conexión/VPN y recarga la página."
+            : err instanceof Error
+              ? err.message
+              : "No se pudo cargar el plan.";
+      setError(msg);
     } finally {
       setLoading(false);
     }
