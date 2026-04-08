@@ -11,6 +11,8 @@ type Props = {
   withWordmark?: boolean;
   href?: string;
   className?: string;
+  /** Permite forzar altura/ancho del <img> desde la barra superior. */
+  imageClassName?: string;
 };
 
 const sizePx = { sm: 96, md: 140, lg: 200 };
@@ -21,6 +23,7 @@ export default function TripBoardLogo({
   withWordmark: _withWordmark,
   href,
   className = "",
+  imageClassName = "",
 }: Props) {
   const px = sizePx[size];
 
@@ -31,7 +34,7 @@ export default function TripBoardLogo({
         width={px}
         height={Math.round(px * 0.32)}
         alt="TripBoard"
-        className="h-auto w-auto max-w-[180px]"
+        className={`h-auto w-auto max-w-[180px] ${imageClassName}`.trim()}
         priority
       />
     </span>
