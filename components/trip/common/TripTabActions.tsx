@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Home, LayoutDashboard } from "lucide-react";
+import { Compass, Home, LayoutDashboard } from "lucide-react";
 
 type Props = {
   tripId: string;
@@ -14,6 +14,15 @@ export default function TripTabActions({ tripId, variant = "default" }: Props) {
 
   return (
     <div className="flex flex-wrap gap-2">
+      <Link
+        href={`/trip/${tripId}/map/explore`}
+        className={className}
+        aria-label="Explorar en el mapa"
+        title="Explorar en el mapa"
+      >
+        <Compass className="h-3.5 w-3.5" aria-hidden />
+        <span className="hidden sm:inline">Explorar</span>
+      </Link>
       <Link href={`/trip/${tripId}`} className={className} aria-label="Pantalla de resumen" title="Pantalla de resumen">
         <LayoutDashboard className="h-3.5 w-3.5" aria-hidden />
         <span className="hidden sm:inline">Pantalla de resumen</span>
