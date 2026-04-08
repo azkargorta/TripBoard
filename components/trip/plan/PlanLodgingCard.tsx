@@ -1,6 +1,7 @@
 "use client";
 
-import { ExternalLink, Star } from "lucide-react";
+import { Star } from "lucide-react";
+import PlanCardActions from "@/components/trip/plan/PlanCardActions";
 
 type PlanLodging = {
   id: string;
@@ -18,6 +19,8 @@ type PlanLodging = {
 
 type Props = {
   activity: PlanLodging;
+  onEdit?: (activity: PlanLodging) => void;
+  onDelete?: (activity: PlanLodging) => void;
 };
 
 function buildGoogleMapsUrl(activity: PlanLodging) {
@@ -30,7 +33,7 @@ function buildGoogleMapsUrl(activity: PlanLodging) {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
 
-export default function PlanLodgingCard({ activity }: Props) {
+export default function PlanLodgingCard({ activity, onEdit, onDelete }: Props) {
   const googleMapsUrl = buildGoogleMapsUrl(activity);
   const rating = typeof activity.rating === "number" ? Math.max(1, Math.min(5, Math.round(activity.rating))) : null;
 
@@ -82,18 +85,18 @@ export default function PlanLodgingCard({ activity }: Props) {
           </div>
         </div>
 
-        {googleMapsUrl ? (
-          <a
-            href={googleMapsUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="shrink-0 inline-flex min-h-[36px] items-center gap-2 rounded-xl border border-violet-200 bg-white px-3 text-xs font-extrabold text-violet-700 transition hover:bg-violet-50 focus:outline-none focus:ring-2 focus:ring-violet-200"
-          >
-            <ExternalLink className="h-4 w-4" />
-            Google Maps
-          </a>
-        ) : null}
       </div>
+
+      <PlanCardActions
+        googleMapsUrl={googleMapsUrl}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        item={activity}
+        accent="violet"
+        disableEdit={!onEdit}
+        disableDelete={!onDelete}
+        disabledReason="Sincronizado desde Reservas"
+      />
     </div>
   );
 }

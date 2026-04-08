@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import PlanActivityCard from "@/components/trip/plan/PlanActivityCard";
 import PlanLodgingCard from "@/components/trip/plan/PlanLodgingCard";
 import PlanForm, { type PlanFormValues } from "@/components/trip/plan/PlanForm";
@@ -73,6 +73,7 @@ export default function TripPlanView({ tripId }: { tripId: string }) {
 
   const [editingActivity, setEditingActivity] = useState<TripActivity | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const formAnchorRef = useRef<HTMLDivElement | null>(null);
   const [query, setQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<Set<string>>(new Set());
   const [showLodging, setShowLodging] = useState(true);
@@ -120,6 +121,15 @@ export default function TripPlanView({ tripId }: { tripId: string }) {
 
   const isEditing = Boolean(editingActivity?.id);
   const showForm = isFormOpen || isEditing;
+
+  useEffect(() => {
+    if (!showForm) return;
+    // Espera un tick para que el formulario esté renderizado
+    const id = window.setTimeout(() => {
+      formAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, [showForm]);
 
   async function handleSubmit(values: PlanFormValues) {
     if (editingActivity) {
@@ -278,12 +288,14 @@ export default function TripPlanView({ tripId }: { tripId: string }) {
       </div>
 
       {showForm ? (
-        <PlanForm
+        <div ref={formAnchorRef} className="scroll-mt-24">
+          <PlanForm
           saving={saving}
           initialData={editingActivity}
           onCancelEdit={handleCancelEditOrClose}
           onSubmit={handleSubmit}
-        />
+          />
+        </div>
       ) : null}
 
       {grouped.length === 0 ? (
