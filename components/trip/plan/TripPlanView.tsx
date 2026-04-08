@@ -283,14 +283,14 @@ export default function TripPlanView({ tripId }: { tripId: string }) {
                 <Chip
                   key={k}
                   active={active}
-                  onClick={() =>
+                  onClick={() => {
                     setKindFilter((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(k)) next.delete(k);
-                      else next.add(k);
-                      return next;
-                    })
-                  }
+                      // Selección única: al elegir un tipo, se limpian los demás.
+                      // Si vuelves a pulsar el mismo, se quita el filtro (equivale a "Todos").
+                      if (prev.has(k) && prev.size === 1) return new Set();
+                      return new Set([k]);
+                    });
+                  }}
                   label={meta.label}
                   glyph={meta.glyph}
                   color={meta.color}
