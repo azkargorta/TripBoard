@@ -66,7 +66,7 @@ function planKindMeta(kind: string | null | undefined) {
   return { label: "Visita", emoji: "📍", accent: "bg-emerald-50 text-emerald-900 border-emerald-200" };
 }
 
-export default function TripExploreView({ tripId }: { tripId: string }) {
+export default function TripExploreView({ tripId, hasGoogleMapsKey }: { tripId: string; hasGoogleMapsKey: boolean }) {
   const mapRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<Map<string, google.maps.Marker>>(new Map());
@@ -85,7 +85,6 @@ export default function TripExploreView({ tripId }: { tripId: string }) {
   const [pendingFolderId, setPendingFolderId] = useState<string | "none">("none");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
   const canUseGoogle = useMemo(() => typeof window !== "undefined" && !!window.google?.maps, []);
 
   async function loadAll() {
@@ -560,7 +559,9 @@ export default function TripExploreView({ tripId }: { tripId: string }) {
         <div ref={mapRef} className="h-[520px] w-full" />
         {!canUseGoogle ? (
           <div className="border-t border-slate-200 px-4 py-3 text-sm text-slate-600">
-            Cargando Google Maps… (revisa `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`).
+            {hasGoogleMapsKey
+              ? "Cargando Google Maps… (si no carga, revisa que tu key tenga Maps JavaScript API activada)."
+              : "No se puede cargar el mapa: falta `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` en `.env.local`."}
           </div>
         ) : null}
       </section>

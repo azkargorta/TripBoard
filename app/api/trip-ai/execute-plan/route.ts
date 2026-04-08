@@ -48,6 +48,37 @@ function inferTimes(items: ItineraryItem[]) {
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
+function normalizeKind(input: string | null | undefined): string {
+  const k = (input || "visit").trim().toLowerCase();
+  if (k === "food" || k === "restaurant" || k === "eat") return "food";
+  if (k === "transport" || k === "transit") return "transport";
+  if (k === "lodging" || k === "hotel") return "lodging";
+  if (k === "shopping") return "shopping";
+  if (k === "nightlife") return "nightlife";
+  if (k === "museum" || k === "activity" || k === "visit") return "visit";
+  return "visit";
+}
+
+function buildGeocodeQuery(opts: { placeName: string | null; address: string | null; tripDestination: string | null }) {
+  const parts = [opts.address, opts.placeName, opts.tripDestination].map((s) => (typeof s === "string" ? s.trim() : "")).filter(Boolean);
+  if (!parts.length) return null;
+  return parts.join(", ");
+}
+
+async function geocodeAddress(address: string, apiKey: string): Promise<{ latitude: number | null; longitude: number | null; formattedAddress?: string | null }> {
+  const url = new URL("https://maps.googleapis.com/maps/api/geocode/json");
+  url.searchParams.set("address", address);
+  url.searchParams.set("key", apiKey);
+  const response = await fetch(url.toString(), { method: "GET", cache: "no-store" });
+  const payload: any = await response.json().catch(() => null);
+  if (!response.ok || payload?.status !== "OK" || !payload?.results?.length) {
+    return { latitude: null, longitude: null, formattedAddress: null };
+  }
+  const first = payload.results[0];
+  const location = first?.geometry?.location;
+  return { latitude: location?.lat ?? null, longitude: location?.lng ?? null, formattedAddress: first?.formatted_address ?? null };
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => null);
@@ -66,6 +97,18 @@ export async function POST(req: Request) {
 
     const supabase = await createClient();
 
+    const { data: tripRow } = await supabase.from("trips").select("destination").eq("id", tripId).single();
+    const tripDestination = typeof tripRow?.destination === "string" ? tripRow.destination : null;
+
+    const apiKey =
+      process.env.GOOGLE_MAPS_API_KEY ||
+      process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ||
+      "";
+
+    const geocodeCache = new Map<string, { latitude: number | null; longitude: number | null; formattedAddress?: string | null }>();
+    let geocodeCount = 0;
+    const GEOCODE_LIMIT = 40; // evita tiempos largos/costes excesivos
+
     const rows: Record<string, unknown>[] = [];
     for (const day of itinerary.days) {
       const date = typeof day?.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(day.date) ? day.date : null;
@@ -76,11 +119,24 @@ export async function POST(req: Request) {
         const title = typeof item?.title === "string" ? item.title.trim() : "";
         if (!title) continue;
 
-        const kindRaw = typeof item?.activity_kind === "string" ? item.activity_kind.trim().toLowerCase() : "visit";
-        const activity_kind =
-          kindRaw === "museum" || kindRaw === "restaurant" || kindRaw === "transport" || kindRaw === "activity" || kindRaw === "visit"
-            ? kindRaw
-            : "visit";
+        const place_name = typeof item?.place_name === "string" ? item.place_name.trim() : null;
+        const address = typeof item?.address === "string" ? item.address.trim() : null;
+        const activity_kind = normalizeKind(item?.activity_kind ?? null);
+
+        let latitude: number | null = null;
+        let longitude: number | null = null;
+        let normalizedAddress: string | null = address;
+
+        const query = buildGeocodeQuery({ placeName: place_name, address, tripDestination });
+        if (apiKey && query && geocodeCount < GEOCODE_LIMIT) {
+          const cached = geocodeCache.get(query);
+          const geo = cached ?? (await geocodeAddress(query, apiKey));
+          if (!cached) geocodeCache.set(query, geo);
+          geocodeCount += 1;
+          latitude = geo.latitude ?? null;
+          longitude = geo.longitude ?? null;
+          if (geo.formattedAddress) normalizedAddress = geo.formattedAddress;
+        }
 
         rows.push({
           trip_id: tripId,
@@ -88,8 +144,10 @@ export async function POST(req: Request) {
           description: typeof item?.notes === "string" ? item.notes.trim() : null,
           activity_date: date,
           activity_time: normalizeTime(item.start_time ?? null),
-          place_name: typeof item?.place_name === "string" ? item.place_name.trim() : null,
-          address: typeof item?.address === "string" ? item.address.trim() : null,
+          place_name,
+          address: normalizedAddress,
+          latitude,
+          longitude,
           activity_type: "general",
           activity_kind,
           source: "ai",

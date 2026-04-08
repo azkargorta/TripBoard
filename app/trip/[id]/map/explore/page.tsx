@@ -6,13 +6,16 @@ import TripTabActions from "@/components/trip/common/TripTabActions";
 import TripExploreView from "@/components/trip/explore/TripExploreView";
 
 export default function ExplorePage({ params }: { params: { id: string } }) {
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
   return (
     <>
-      <Script
-        id="google-maps-places-explore"
-        src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places`}
-        strategy="afterInteractive"
-      />
+      {apiKey ? (
+        <Script
+          id="google-maps-places-explore"
+          src={`https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`}
+          strategy="afterInteractive"
+        />
+      ) : null}
 
       <main className="space-y-6">
         <TripBoardPageHeader
@@ -22,7 +25,7 @@ export default function ExplorePage({ params }: { params: { id: string } }) {
           actions={<TripTabActions tripId={params.id} />}
         />
 
-        <TripExploreView tripId={params.id} />
+        <TripExploreView tripId={params.id} hasGoogleMapsKey={!!apiKey} />
       </main>
     </>
   );
