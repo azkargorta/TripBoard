@@ -58,18 +58,54 @@ function categoryEmoji(category: string | null | undefined) {
 
 function planKindMeta(kind: string | null | undefined) {
   const k = (kind || "visit").toLowerCase();
-  if (k === "food") return { label: "Comida", emoji: "🍽️", accent: "bg-amber-50 text-amber-900 border-amber-200" };
-  if (k === "transport") return { label: "Transporte", emoji: "🚆", accent: "bg-sky-50 text-sky-900 border-sky-200" };
-  if (k === "lodging") return { label: "Alojamiento", emoji: "🏨", accent: "bg-indigo-50 text-indigo-900 border-indigo-200" };
-  if (k === "shopping") return { label: "Compras", emoji: "🛍️", accent: "bg-pink-50 text-pink-900 border-pink-200" };
-  if (k === "nightlife") return { label: "Noche", emoji: "🌙", accent: "bg-slate-50 text-slate-900 border-slate-200" };
-  return { label: "Visita", emoji: "📍", accent: "bg-emerald-50 text-emerald-900 border-emerald-200" };
+  if (k === "food")
+    return {
+      label: "Comida",
+      emoji: "🍽️",
+      accent: "bg-amber-50 text-amber-900 border-amber-200",
+      pin: { fill: "#f59e0b", stroke: "#b45309" },
+    };
+  if (k === "transport")
+    return {
+      label: "Transporte",
+      emoji: "🚆",
+      accent: "bg-sky-50 text-sky-900 border-sky-200",
+      pin: { fill: "#0ea5e9", stroke: "#075985" },
+    };
+  if (k === "lodging")
+    return {
+      label: "Alojamiento",
+      emoji: "🏨",
+      accent: "bg-indigo-50 text-indigo-900 border-indigo-200",
+      pin: { fill: "#6366f1", stroke: "#3730a3" },
+    };
+  if (k === "shopping")
+    return {
+      label: "Compras",
+      emoji: "🛍️",
+      accent: "bg-pink-50 text-pink-900 border-pink-200",
+      pin: { fill: "#ec4899", stroke: "#9d174d" },
+    };
+  if (k === "nightlife")
+    return {
+      label: "Noche",
+      emoji: "🌙",
+      accent: "bg-slate-50 text-slate-900 border-slate-200",
+      pin: { fill: "#334155", stroke: "#0f172a" },
+    };
+  return {
+    label: "Visita",
+    emoji: "📍",
+    accent: "bg-emerald-50 text-emerald-900 border-emerald-200",
+    pin: { fill: "#10b981", stroke: "#065f46" },
+  };
 }
 
 export default function TripExploreView({ tripId, hasGoogleMapsKey }: { tripId: string; hasGoogleMapsKey: boolean }) {
   const mapRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<Map<string, google.maps.Marker>>(new Map());
+  const lastFitKeyRef = useRef<string>("");
 
   const [folders, setFolders] = useState<Folder[]>([]);
   const [places, setPlaces] = useState<PlaceRow[]>([]);
@@ -169,12 +205,16 @@ export default function TripExploreView({ tripId, hasGoogleMapsKey }: { tripId: 
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
+    if (!window.google?.maps) return;
 
     // clear old markers
     for (const marker of markersRef.current.values()) {
       marker.setMap(null);
     }
     markersRef.current.clear();
+
+    const bounds = new window.google.maps.LatLngBounds();
+    let boundsCount = 0;
 
     for (const a of visiblePlans) {
       if (typeof a.latitude !== "number" || typeof a.longitude !== "number") continue;
@@ -184,8 +224,20 @@ export default function TripExploreView({ tripId, hasGoogleMapsKey }: { tripId: 
         position: { lat: a.latitude, lng: a.longitude },
         title: a.title || a.place_name || "Plan",
         label: { text: meta.emoji, fontSize: "16px" },
+        icon: {
+          path: window.google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
+          fillColor: meta.pin.fill,
+          fillOpacity: 1,
+          strokeColor: meta.pin.stroke,
+          strokeOpacity: 1,
+          strokeWeight: 2,
+          scale: 6,
+          labelOrigin: new window.google.maps.Point(0, -2),
+        },
       });
       markersRef.current.set(`plan:${a.id}`, marker);
+      bounds.extend({ lat: a.latitude, lng: a.longitude });
+      boundsCount += 1;
     }
 
     for (const p of visiblePlaces) {
@@ -199,8 +251,20 @@ export default function TripExploreView({ tripId, hasGoogleMapsKey }: { tripId: 
           text: emoji,
           fontSize: "16px",
         },
+        icon: {
+          path: window.google.maps.SymbolPath.CIRCLE,
+          fillColor: "#0f172a",
+          fillOpacity: 0.9,
+          strokeColor: "#ffffff",
+          strokeOpacity: 1,
+          strokeWeight: 2,
+          scale: 9,
+          labelOrigin: new window.google.maps.Point(0, 1),
+        },
       });
       markersRef.current.set(p.id, marker);
+      bounds.extend({ lat: p.latitude, lng: p.longitude });
+      boundsCount += 1;
     }
 
     if (pending && typeof pending.latitude === "number" && typeof pending.longitude === "number") {
@@ -209,12 +273,49 @@ export default function TripExploreView({ tripId, hasGoogleMapsKey }: { tripId: 
         position: { lat: pending.latitude, lng: pending.longitude },
         title: pending.name,
         label: { text: "✨", fontSize: "16px" },
+        icon: {
+          path: window.google.maps.SymbolPath.CIRCLE,
+          fillColor: "#a855f7",
+          fillOpacity: 1,
+          strokeColor: "#ffffff",
+          strokeOpacity: 1,
+          strokeWeight: 2,
+          scale: 10,
+          labelOrigin: new window.google.maps.Point(0, 1),
+        },
       });
       markersRef.current.set("__pending__", marker);
       map.panTo({ lat: pending.latitude, lng: pending.longitude });
       map.setZoom(Math.max(map.getZoom() || 10, 12));
+      bounds.extend({ lat: pending.latitude, lng: pending.longitude });
+      boundsCount += 1;
     }
-  }, [visiblePlaces, pending]);
+
+    const keyParts: string[] = [
+      `f:${selectedFolderId}`,
+      `k:${Object.entries(visiblePlanKinds)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([k, v]) => `${k}:${v === false ? 0 : 1}`)
+        .join(",")}`,
+      `p:${visiblePlans.map((x) => x.id).join(",")}`,
+      `s:${visiblePlaces.map((x) => x.id).join(",")}`,
+      pending ? "__pending__" : "",
+    ];
+    const fitKey = keyParts.join("|");
+
+    // Ajusta el mapa a las chinchetas visibles al entrar o al cambiar filtros.
+    if (boundsCount >= 1 && fitKey !== lastFitKeyRef.current) {
+      lastFitKeyRef.current = fitKey;
+      // fitBounds a veces necesita ejecutarse tras el paint.
+      window.setTimeout(() => {
+        try {
+          map.fitBounds(bounds, 56);
+        } catch {
+          // noop
+        }
+      }, 0);
+    }
+  }, [visiblePlaces, visiblePlans, pending, selectedFolderId, visiblePlanKinds]);
 
   async function createFolder() {
     const name = folderName.trim();
