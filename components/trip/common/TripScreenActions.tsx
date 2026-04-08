@@ -19,21 +19,21 @@ export default function TripScreenActions({
 }: Props) {
   const btn =
     variant === "inverse"
-      ? "inline-flex items-center justify-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-white shadow-sm transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
-      : "inline-flex items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60";
+      ? "inline-flex items-center justify-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-2 py-1 text-[10px] font-semibold text-white shadow-sm transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+      : "inline-flex items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60";
 
   return (
     <div className="flex flex-wrap gap-2">
       {showSummary ? (
-        <Link href={`/trip/${tripId}`} className={btn}>
+        <Link href={`/trip/${tripId}`} className={btn} aria-label={summaryLabel} title={summaryLabel}>
           <LayoutDashboard className="h-3.5 w-3.5" aria-hidden />
-          {summaryLabel}
+          <span className="hidden sm:inline">{summaryLabel}</span>
         </Link>
       ) : null}
 
-      <Link href="/dashboard" className={btn}>
+      <Link href="/dashboard" className={btn} aria-label={homeLabel} title={homeLabel}>
         <Home className="h-3.5 w-3.5" aria-hidden />
-        {homeLabel}
+        <span className="hidden sm:inline">{homeLabel}</span>
       </Link>
     </div>
   );
