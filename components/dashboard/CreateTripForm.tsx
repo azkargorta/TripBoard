@@ -1,14 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
-function withTimeout<T>(promiseLike: PromiseLike<T>, ms = 10000): Promise<T> {
+function withTimeout<T>(promiseLike: PromiseLike<T>, ms = 25000, label = "operación"): Promise<T> {
   return Promise.race([
     Promise.resolve(promiseLike),
     new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error("La operación tardó demasiado")), ms)
+      setTimeout(() => reject(new Error(`La operación tardó demasiado (${label})`)), ms)
     ),
   ]);
 }
@@ -24,12 +24,42 @@ export default function CreateTripForm() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [step, setStep] = useState<"idle" | "session" | "trip" | "participant" | "done">("idle");
+
+  const currencyOptions = useMemo(() => {
+    const values: string[] =
+      typeof Intl !== "undefined" && typeof (Intl as any).supportedValuesOf === "function"
+        ? ((Intl as any).supportedValuesOf("currency") as string[])
+        : ["EUR", "USD", "GBP", "JPY", "CHF"];
+
+    const dn =
+      typeof Intl !== "undefined" && typeof (Intl as any).DisplayNames === "function"
+        ? new (Intl as any).DisplayNames(["es-ES"], { type: "currency" })
+        : null;
+
+    return values
+      .filter((c) => typeof c === "string" && /^[A-Z]{3}$/.test(c))
+      .sort()
+      .map((code) => ({
+        code,
+        label: dn ? `${code} · ${dn.of(code)}` : code,
+      }));
+  }, []);
+
+  useEffect(() => {
+    if (!startDate) return;
+    // Si aún no hay fin, o si fin < inicio, ajustamos fin = inicio (mínimo permitido)
+    if (!endDate || endDate < startDate) {
+      setEndDate(startDate);
+    }
+  }, [startDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleCreateTrip(e: React.FormEvent) {
     e.preventDefault();
     if (loading) return;
 
     setError(null);
+    setStep("idle");
 
     const trimmedName = name.trim();
     const trimmedDestination = destination.trim();
@@ -47,7 +77,8 @@ export default function CreateTripForm() {
     setLoading(true);
 
     try {
-      const sessionResult = await withTimeout(supabase.auth.getSession(), 5000);
+      setStep("session");
+      const sessionResult = await withTimeout(supabase.auth.getSession(), 8000, "sesión");
       const session = sessionResult.data.session;
 
       if (!session?.user) {
@@ -56,6 +87,7 @@ export default function CreateTripForm() {
 
       const user = session.user;
 
+      setStep("trip");
       const tripInsertResult = await withTimeout(
         supabase
           .from("trips")
@@ -68,7 +100,8 @@ export default function CreateTripForm() {
           })
           .select("id")
           .single(),
-        10000
+        25000,
+        "crear viaje"
       );
 
       const tripData = tripInsertResult.data;
@@ -80,6 +113,7 @@ export default function CreateTripForm() {
 
       const newTripId = String(tripData.id);
 
+      setStep("participant");
       const participantInsertResult = await withTimeout(
         supabase.from("trip_participants").insert({
           trip_id: newTripId,
@@ -97,7 +131,8 @@ export default function CreateTripForm() {
           user_id: user.id,
           role: "owner",
         }),
-        10000
+        25000,
+        "añadir owner"
       );
 
       if (participantInsertResult.error) {
@@ -111,6 +146,7 @@ export default function CreateTripForm() {
       setEndDate("");
       setBaseCurrency("EUR");
 
+      setStep("done");
       window.location.href = `/trip/${newTripId}`;
     } catch (err) {
       setError(
@@ -118,6 +154,7 @@ export default function CreateTripForm() {
       );
     } finally {
       setLoading(false);
+      setStep("idle");
     }
   }
 
@@ -168,11 +205,11 @@ export default function CreateTripForm() {
             onChange={(e) => setBaseCurrency(e.target.value)}
             className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
           >
-            <option value="EUR">EUR</option>
-            <option value="USD">USD</option>
-            <option value="GBP">GBP</option>
-            <option value="JPY">JPY</option>
-            <option value="CHF">CHF</option>
+            {currencyOptions.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.label}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -192,6 +229,7 @@ export default function CreateTripForm() {
             type="date"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
+            min={startDate || undefined}
             className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
           />
         </div>
@@ -203,7 +241,15 @@ export default function CreateTripForm() {
           disabled={loading}
           className="btn-primary disabled:opacity-50"
         >
-          {loading ? "Creando viaje..." : "Crear viaje"}
+          {loading
+            ? step === "session"
+              ? "Validando sesión..."
+              : step === "trip"
+                ? "Creando viaje..."
+                : step === "participant"
+                  ? "Añadiéndote como owner..."
+                  : "Creando..."
+            : "Crear viaje"}
         </button>
       </div>
     </form>
