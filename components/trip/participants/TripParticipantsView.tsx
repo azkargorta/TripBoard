@@ -62,6 +62,7 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
   const [isLoadedUser, setIsLoadedUser] = useState(false);
+  const [serverCanManageParticipants, setServerCanManageParticipants] = useState<boolean | null>(null);
 
   const [isCreating, setIsCreating] = useState(false);
   const [isInviting, setIsInviting] = useState(false);
@@ -82,6 +83,24 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
       setIsLoadedUser(true);
     });
   }, [isLoadedUser]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/trip-access?tripId=${encodeURIComponent(tripId)}`)
+      .then((r) => r.json())
+      .then((payload) => {
+        if (cancelled) return;
+        const can = Boolean(payload?.access?.canManageParticipants);
+        setServerCanManageParticipants(can);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setServerCanManageParticipants(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tripId]);
 
   useEffect(() => {
     if (!linkingParticipant) return;
@@ -111,7 +130,7 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
   }, [participants, currentUserId, currentUserEmail]);
 
   const canManageParticipants = Boolean(
-    myParticipant?.role === "owner" || myParticipant?.can_manage_participants
+    serverCanManageParticipants ?? (myParticipant?.role === "owner" || myParticipant?.can_manage_participants)
   );
 
   const stats = useMemo(() => {
