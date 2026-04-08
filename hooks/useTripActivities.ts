@@ -152,6 +152,9 @@ export function useTripActivities(tripId: string) {
         );
 
         await load();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "No se pudo crear la actividad.");
+        throw err;
       } finally {
         setSaving(false);
       }
@@ -188,6 +191,9 @@ export function useTripActivities(tripId: string) {
         );
 
         await load();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "No se pudo actualizar la actividad.");
+        throw err;
       } finally {
         setSaving(false);
       }

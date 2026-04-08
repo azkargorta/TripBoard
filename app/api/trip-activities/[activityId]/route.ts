@@ -48,8 +48,20 @@
     );
     assign("comment", typeof body?.comment === "string" ? body.comment.trim() : body?.comment === null ? null : undefined);
  
-     const { data, error } = await supabase.from("trip_activities").update(patch).eq("id", params.activityId).select("*").single();
-     if (error) throw new Error(error.message);
+    const { data, error } = await supabase.from("trip_activities").update(patch).eq("id", params.activityId).select("*").single();
+    if (error) {
+      const msg = error.message || "No se pudo actualizar la actividad.";
+      if (msg.toLowerCase().includes("column") && (msg.toLowerCase().includes("rating") || msg.toLowerCase().includes("comment"))) {
+        return NextResponse.json(
+          {
+            error:
+              "La tabla `trip_activities` no tiene las columnas `rating`/`comment`. Ejecuta el script `docs/tripboard_plan_ratings_comments.sql` en la SQL editor de Supabase y vuelve a probar.",
+          },
+          { status: 400 }
+        );
+      }
+      throw new Error(msg);
+    }
  
      return NextResponse.json({ activity: data });
    } catch (error) {

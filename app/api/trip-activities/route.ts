@@ -72,8 +72,20 @@
  
      if (!payload.title) return NextResponse.json({ error: "Falta title" }, { status: 400 });
  
-     const { data, error } = await supabase.from("trip_activities").insert(payload).select("*").single();
-     if (error) throw new Error(error.message);
+    const { data, error } = await supabase.from("trip_activities").insert(payload).select("*").single();
+    if (error) {
+      const msg = error.message || "No se pudo crear la actividad.";
+      if (msg.toLowerCase().includes("column") && (msg.toLowerCase().includes("rating") || msg.toLowerCase().includes("comment"))) {
+        return NextResponse.json(
+          {
+            error:
+              "La tabla `trip_activities` no tiene las columnas `rating`/`comment`. Ejecuta el script `docs/tripboard_plan_ratings_comments.sql` en la SQL editor de Supabase y vuelve a probar.",
+          },
+          { status: 400 }
+        );
+      }
+      throw new Error(msg);
+    }
  
      return NextResponse.json({ activity: data });
    } catch (error) {
