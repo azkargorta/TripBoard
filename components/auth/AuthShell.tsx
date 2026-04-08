@@ -14,7 +14,7 @@ export default function AuthShell({
 }: AuthShellProps) {
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-violet-100">
-      <div className="mx-auto flex min-h-screen max-w-7xl items-center justify-center px-4 py-10 md:px-6">
+      <div className="mx-auto flex min-h-screen max-w-7xl items-start justify-center px-4 py-8 md:px-6 md:py-10">
         <div className="grid w-full max-w-6xl overflow-hidden rounded-[32px] border border-slate-200 bg-white/80 shadow-2xl backdrop-blur md:grid-cols-[1.05fr_0.95fr]">
 
           <section className="relative hidden overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-violet-900 p-10 text-white md:flex md:flex-col md:justify-between">
@@ -59,31 +59,8 @@ export default function AuthShell({
             </div>
           </section>
 
-          <section className="flex items-center justify-center p-5 sm:p-8 md:p-10">
+          <section className="flex items-start justify-center p-5 sm:p-8 md:p-10">
             <div className="w-full max-w-xl">
-
-              <div className="mb-6 flex items-center justify-center gap-4">
-                <div className="overflow-hidden rounded-3xl bg-white p-2 shadow-lg">
-                  <Image
-                    src="/logo.png"
-                    alt="TripBoard logo"
-                    width={84}
-                    height={84}
-                    className="h-20 w-20 object-contain"
-                    priority
-                  />
-                </div>
-
-                <div className="text-left">
-                  <h2 className="text-3xl font-extrabold tracking-tight text-slate-950">
-                    TripBoard
-                  </h2>
-                  <p className="text-sm text-slate-500">
-                    Acceso a tu panel de viajes
-                  </p>
-                </div>
-              </div>
-
               <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-xl sm:p-8">
                 <div className="mb-8 text-center">
                   <h3 className="text-4xl font-extrabold tracking-tight text-slate-950">
