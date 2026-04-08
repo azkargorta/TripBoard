@@ -1,6 +1,6 @@
 import TripExpensesView from "@/components/trip/expenses/TripExpensesView";
 import TripTabActions from "@/components/trip/common/TripTabActions";
-import TripBoardPremiumHero from "@/components/layout/TripBoardPremiumHero";
+import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
 
 export default function TripExpensesPage({
   params,
@@ -21,11 +21,11 @@ export default function TripExpensesPage({
 
   return (
     <main className="space-y-6">
-      <TripBoardPremiumHero
-        eyebrow="Gastos del viaje"
+      <TripBoardPageHeader
+        section="Gastos del viaje"
         title="Control económico del viaje"
         description="Añade gastos, revisa balances, analiza tickets y controla quién debe a quién."
-        actions={<TripTabActions tripId={tripId} variant="inverse" />}
+        actions={<TripTabActions tripId={tripId} />}
       />
 
       <TripExpensesView tripId={tripId} />

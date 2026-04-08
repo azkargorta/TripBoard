@@ -5,7 +5,8 @@ import { requireTripAccess } from "@/lib/trip-access";
 import TripHomeActions from "@/components/trip/home/TripHomeActions";
 import TripWeatherCard from "@/components/trip/home/TripWeatherCard";
 import { computePersonalBalance } from "@/lib/personal-balance";
-import TripBoardLogo from "@/components/brand/TripBoardLogo";
+import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
+import TripScreenActions from "@/components/trip/common/TripScreenActions";
 
 type TripPageProps = {
   params: {
@@ -273,37 +274,15 @@ export default async function TripPage({ params }: TripPageProps) {
 
   return (
     <main className="space-y-8">
-      <section className="card-soft overflow-hidden">
-        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-violet-900 p-6 text-white md:p-8">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="space-y-4">
-              <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-white/80">
-                <TripBoardLogo variant="light" size="sm" withWordmark={false} />
-                <span className="text-white/40" aria-hidden>
-                  •
-                </span>
-                <span>
-                  {activeToday ? "Viaje en curso" : futureTrip ? "Viaje futuro" : "Resumen del viaje"}
-                </span>
-              </div>
-              <div>
-                <h1 className="text-4xl font-extrabold tracking-tight md:text-5xl">{currentTrip.name}</h1>
-                <p className="mt-2 text-base text-white/75 md:text-lg">
-                  {currentTrip.destination || "Destino pendiente"}
-                </p>
-              </div>
-            </div>
+      <TripBoardPageHeader
+        section={activeToday ? "Viaje en curso" : futureTrip ? "Viaje futuro" : "Resumen del viaje"}
+        title={currentTrip.name}
+        description={`${currentTrip.destination || "Destino pendiente"} · ${formatDateRange(currentTrip.start_date, currentTrip.end_date)}`}
+        actions={<TripScreenActions tripId={tripId} showSummary={false} homeLabel="Mis viajes" />}
+      />
 
-            <Link
-              href="/dashboard"
-              className="inline-flex min-h-[44px] items-center justify-center rounded-2xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15"
-            >
-              ← Volver al listado de viajes
-            </Link>
-          </div>
-        </div>
-
-        <div className="grid gap-6 p-6 md:grid-cols-[1.8fr_1fr] md:p-8">
+      <section className="card-soft p-6 md:p-8">
+        <div className="grid gap-6 md:grid-cols-[1.8fr_1fr]">
           <div className="space-y-5">
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">

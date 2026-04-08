@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import TripScreenActions from "@/components/trip/common/TripScreenActions";
-import TripBoardPremiumHero from "@/components/layout/TripBoardPremiumHero";
+import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
 
 type ChatMode = "general" | "planning" | "expenses" | "optimizer" | "actions";
 
@@ -185,27 +185,11 @@ export default function TripAiChatView({ tripId }: { tripId: string }) {
 
   return (
     <main className="space-y-6">
-      <TripBoardPremiumHero
-        eyebrow="Asistente IA del viaje"
+      <TripBoardPageHeader
+        section="Asistente IA del viaje"
         title="Chat, memoria, acciones y optimización"
         description="Recuerda conversaciones, ayuda con gastos, optimiza el viaje y ejecuta acciones básicas dentro de la app."
-        actions={<TripScreenActions tripId={tripId} variant="inverse" />}
-        footer={
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-white/90 backdrop-blur">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-white/60">Viaje</p>
-              <p className="mt-1 font-mono text-sm">{tripId.slice(0, 8)}…</p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-white/90 backdrop-blur">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-white/60">Conversación</p>
-              <p className="mt-1 font-mono text-sm">{conversationId ? `${conversationId.slice(0, 8)}…` : "Nueva"}</p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-white/90 backdrop-blur">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-white/60">Modo IA</p>
-              <p className="mt-1 font-semibold">{MODE_OPTIONS.find((m) => m.id === mode)?.label}</p>
-            </div>
-          </div>
-        }
+        actions={<TripScreenActions tripId={tripId} />}
       />
 
       <section className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">

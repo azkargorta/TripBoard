@@ -12,7 +12,7 @@ import {
 } from "@/hooks/useTripParticipants";
 import { supabase } from "@/lib/supabase";
 import ParticipantLinkProfilePanel from "./ParticipantLinkProfilePanel";
-import TripBoardPremiumHero from "@/components/layout/TripBoardPremiumHero";
+import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
 import { getRoleLabel, getStatusLabel } from "@/lib/participants";
 import {
   Info,
@@ -244,40 +244,33 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
 
   return (
     <main className="space-y-8">
-      <TripBoardPremiumHero
-        eyebrow="Pasajeros del viaje"
+      <TripBoardPageHeader
+        section="Pasajeros del viaje"
         title="Participantes"
         description="Añade compañeros, envía invitaciones por WhatsApp para que vinculen su cuenta y evita duplicados buscando su perfil."
-        actions={
-          mapFlow ? (
-            <TripTabActions tripId={tripId} variant="inverse" />
-          ) : (
-            <TripScreenActions tripId={tripId} variant="inverse" />
-          )
-        }
-        footer={
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-4 backdrop-blur">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-white/60">Total</p>
-              <p className="mt-1 text-2xl font-black">{stats.total}</p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-4 backdrop-blur">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-white/60">Con cuenta</p>
-              <p className="mt-1 flex items-center gap-2 text-2xl font-black">
-                <UserCheck className="h-6 w-6 text-emerald-300" aria-hidden />
-                {stats.linked}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-4 backdrop-blur">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-white/60">Pendientes de vincular</p>
-              <p className="mt-1 flex items-center gap-2 text-2xl font-black">
-                <Sparkles className="h-6 w-6 text-amber-200" aria-hidden />
-                {stats.unlinked}
-              </p>
-            </div>
-          </div>
-        }
+        actions={mapFlow ? <TripTabActions tripId={tripId} /> : <TripScreenActions tripId={tripId} />}
       />
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Total</p>
+          <p className="mt-1 text-2xl font-black text-slate-950">{stats.total}</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Con cuenta</p>
+          <p className="mt-1 flex items-center gap-2 text-2xl font-black text-slate-950">
+            <UserCheck className="h-6 w-6 text-emerald-600" aria-hidden />
+            {stats.linked}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Pendientes de vincular</p>
+          <p className="mt-1 flex items-center gap-2 text-2xl font-black text-slate-950">
+            <Sparkles className="h-6 w-6 text-amber-500" aria-hidden />
+            {stats.unlinked}
+          </p>
+        </div>
+      </div>
 
       {actionError ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{actionError}</div>

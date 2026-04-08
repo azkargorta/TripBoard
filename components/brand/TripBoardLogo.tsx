@@ -4,44 +4,36 @@ import Image from "next/image";
 import Link from "next/link";
 
 type Props = {
-  /** Texto claro sobre fondos oscuros (gradiente / rail). */
+  /** Se mantiene por compatibilidad con usos previos. */
   variant?: "light" | "dark";
   size?: "sm" | "md" | "lg";
+  /** Se mantiene por compatibilidad (el logo ya incluye wordmark). */
   withWordmark?: boolean;
   href?: string;
   className?: string;
 };
 
-const sizePx = { sm: 28, md: 36, lg: 44 };
+const sizePx = { sm: 96, md: 140, lg: 200 };
 
 export default function TripBoardLogo({
-  variant = "dark",
+  variant: _variant,
   size = "md",
-  withWordmark = true,
+  withWordmark: _withWordmark,
   href,
   className = "",
 }: Props) {
   const px = sizePx[size];
-  const isLight = variant === "light";
 
   const mark = (
     <span className={`inline-flex items-center gap-2 ${className}`}>
       <Image
-        src="/icons/icon.svg"
+        src="/logo.png"
         width={px}
-        height={px}
-        alt=""
-        className="rounded-lg shadow-sm ring-1 ring-black/5"
+        height={Math.round(px * 0.32)}
+        alt="TripBoard"
+        className="h-auto w-auto max-w-[180px]"
         priority
       />
-      {withWordmark ? (
-        <span
-          className={`font-black tracking-tight ${size === "sm" ? "text-base" : size === "lg" ? "text-2xl" : "text-lg"}`}
-        >
-          <span className={isLight ? "text-white" : "text-slate-900"}>Trip</span>
-          <span className={isLight ? "text-cyan-200" : "text-violet-600"}>Board</span>
-        </span>
-      ) : null}
     </span>
   );
 

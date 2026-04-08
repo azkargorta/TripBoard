@@ -1,4 +1,4 @@
-import TripBoardPremiumHero from "@/components/layout/TripBoardPremiumHero";
+import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
 import TripTabActions from "@/components/trip/common/TripTabActions";
 
 type TripModuleHeaderProps = {
@@ -19,11 +19,11 @@ export default function TripModuleHeader({
   const text = subtitle ?? description ?? "";
 
   return (
-    <TripBoardPremiumHero
-      eyebrow={eyebrow ?? title}
+    <TripBoardPageHeader
+      section={eyebrow ?? title}
       title={title}
       description={text || undefined}
-      actions={<TripTabActions tripId={tripId} variant="inverse" />}
+      actions={<TripTabActions tripId={tripId} />}
     />
   );
 }

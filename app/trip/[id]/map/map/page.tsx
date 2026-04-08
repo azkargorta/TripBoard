@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireTripAccess } from "@/lib/trip-access";
 import TripMapView from "@/components/trip/map/TripMapView";
 import TripTabActions from "@/components/trip/common/TripTabActions";
-import TripBoardPremiumHero from "@/components/layout/TripBoardPremiumHero";
+import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
 
 type Props = {
   params: { id: string };
@@ -78,11 +78,11 @@ export default async function TripMapPage({ params }: Props) {
 
   return (
     <main className="space-y-6">
-      <TripBoardPremiumHero
-        eyebrow="Mapa del viaje"
+      <TripBoardPageHeader
+        section="Mapa del viaje"
         title={trip.name || "Viaje"}
         description="Organiza actividades sobre el mapa, crea rutas del día y visualiza lugares guardados."
-        actions={<TripTabActions tripId={tripId} variant="inverse" />}
+        actions={<TripTabActions tripId={tripId} />}
       />
 
       <TripMapView
