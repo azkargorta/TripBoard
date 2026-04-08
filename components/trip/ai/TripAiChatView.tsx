@@ -91,6 +91,7 @@ const SUGGESTIONS: Record<ChatMode, string[]> = {
 
 export default function TripAiChatView({ tripId }: { tripId: string }) {
   const [mode, setMode] = useState<ChatMode>("general");
+  const [provider, setProvider] = useState<"auto" | "gemini" | "ollama">("auto");
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([
@@ -110,6 +111,23 @@ export default function TripAiChatView({ tripId }: { tripId: string }) {
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const currentSuggestions = useMemo(() => SUGGESTIONS[mode], [mode]);
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem("trip_ai_provider");
+      if (stored === "gemini" || stored === "ollama" || stored === "auto") setProvider(stored);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("trip_ai_provider", provider);
+    } catch {
+      // ignore
+    }
+  }, [provider]);
 
   useEffect(() => {
     void loadConversations();
@@ -177,7 +195,13 @@ export default function TripAiChatView({ tripId }: { tripId: string }) {
       const res = await fetch("/api/trip-ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tripId, question: clean, mode, conversationId }),
+        body: JSON.stringify({
+          tripId,
+          question: clean,
+          mode,
+          conversationId,
+          provider: provider === "auto" ? null : provider,
+        }),
       });
 
       const data = await res.json().catch(() => null);
@@ -342,6 +366,33 @@ export default function TripAiChatView({ tripId }: { tripId: string }) {
                 >
                   <div className="font-semibold text-slate-900">{item.label}</div>
                   <div className="mt-1 text-xs text-slate-500">{item.description}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 className="text-lg font-bold text-slate-950">Proveedor</h2>
+            <p className="mt-2 text-xs text-slate-600">
+              Auto usa lo configurado en el servidor. Puedes forzar Gemini u Ollama para probar.
+            </p>
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              {[
+                { id: "auto" as const, label: "Auto" },
+                { id: "gemini" as const, label: "Gemini" },
+                { id: "ollama" as const, label: "Ollama" },
+              ].map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setProvider(opt.id)}
+                  className={`rounded-2xl border px-3 py-2 text-xs font-semibold transition ${
+                    provider === opt.id
+                      ? "border-violet-300 bg-violet-50 text-violet-900"
+                      : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                  }`}
+                >
+                  {opt.label}
                 </button>
               ))}
             </div>
