@@ -38,7 +38,18 @@ export default function PlanLodgingCard({ activity, onEdit, onDelete }: Props) {
   const rating = typeof activity.rating === "number" ? Math.max(1, Math.min(5, Math.round(activity.rating))) : null;
 
   return (
-    <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4 shadow-sm">
+    <div className="relative rounded-2xl border border-violet-200 bg-violet-50 p-4 shadow-sm">
+      <PlanCardActions
+        placement="topRight"
+        googleMapsUrl={googleMapsUrl}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        item={activity}
+        accent="violet"
+        disableEdit={!onEdit}
+        disableDelete={!onDelete}
+        disabledReason="Sincronizado desde Reservas"
+      />
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="inline-flex items-center gap-2 rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-700">
@@ -87,16 +98,6 @@ export default function PlanLodgingCard({ activity, onEdit, onDelete }: Props) {
 
       </div>
 
-      <PlanCardActions
-        googleMapsUrl={googleMapsUrl}
-        onEdit={onEdit}
-        onDelete={onDelete}
-        item={activity}
-        accent="violet"
-        disableEdit={!onEdit}
-        disableDelete={!onDelete}
-        disabledReason="Sincronizado desde Reservas"
-      />
     </div>
   );
 }

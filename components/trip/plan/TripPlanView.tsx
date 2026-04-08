@@ -25,6 +25,20 @@ function normalizeKind(kind: unknown) {
   return typeof kind === "string" ? kind.trim().toLowerCase() : "";
 }
 
+function isLodgingActivity(a: TripActivity) {
+  return (
+    a.activity_type === "lodging" ||
+    a.source === "reservation" ||
+    Boolean(a.linked_reservation_id) ||
+    normalizeKind(a.activity_kind) === "lodging"
+  );
+}
+
+function effectiveKind(a: TripActivity) {
+  if (isLodgingActivity(a)) return "lodging";
+  return normalizeKind(a.activity_kind) || "visit";
+}
+
 function kindMeta(kindRaw: unknown) {
   const kind = normalizeKind(kindRaw);
   if (kind === "museum") return { key: "museum", label: "Museo", glyph: "M", color: "#f59e0b" };
@@ -82,7 +96,7 @@ export default function TripPlanView({ tripId }: { tripId: string }) {
   const availableKinds = useMemo(() => {
     const s = new Set<string>();
     for (const a of activities) {
-      const k = normalizeKind(a.activity_kind);
+      const k = effectiveKind(a);
       if (k) s.add(k);
     }
     return Array.from(s.values()).sort();
@@ -92,14 +106,14 @@ export default function TripPlanView({ tripId }: { tripId: string }) {
     const q = query.trim().toLowerCase();
     return activities
       .filter((a) => {
-        const isLodging = a.activity_type === "lodging" || a.source === "reservation" || normalizeKind(a.activity_kind) === "lodging";
+        const isLodging = isLodgingActivity(a);
         if (!showLodging && isLodging) return false;
         if (!showManual && !isLodging) return false;
         return true;
       })
       .filter((a) => {
         if (!kindFilter.size) return true;
-        const k = normalizeKind(a.activity_kind) || "visit";
+        const k = effectiveKind(a);
         return kindFilter.has(k);
       })
       .filter((a) => {
@@ -111,11 +125,11 @@ export default function TripPlanView({ tripId }: { tripId: string }) {
 
   const grouped = useMemo(() => groupByDate(filtered), [filtered]);
   const lodgingCount = useMemo(
-    () => activities.filter((item) => item.activity_type === "lodging" || item.source === "reservation").length,
+    () => activities.filter((item) => isLodgingActivity(item)).length,
     [activities]
   );
   const manualCount = useMemo(
-    () => activities.filter((item) => item.source !== "reservation").length,
+    () => activities.filter((item) => !isLodgingActivity(item)).length,
     [activities]
   );
 
@@ -320,7 +334,7 @@ export default function TripPlanView({ tripId }: { tripId: string }) {
 
             <div className="space-y-3 border-l border-slate-200 pl-4">
               {items.map((activity) => {
-                const isLodging = activity.activity_type === "lodging" || activity.source === "reservation";
+                const isLodging = isLodgingActivity(activity);
                 const meta = kindMeta(isLodging ? "lodging" : activity.activity_kind);
                 return (
                   <div key={activity.id} className="relative">

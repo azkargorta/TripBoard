@@ -90,7 +90,16 @@ export default function PlanActivityCard({ activity, onEdit, onDelete }: Props) 
   const rating = typeof activity.rating === "number" ? Math.max(1, Math.min(5, Math.round(activity.rating))) : null;
 
   return (
-    <div className={`rounded-2xl border p-4 shadow-sm ${meta.card}`}>
+    <div className={`relative rounded-2xl border p-4 shadow-sm ${meta.card}`}>
+      <PlanCardActions
+        placement="topRight"
+        googleMapsUrl={googleMapsUrl}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        item={activity}
+        accent="emerald"
+      />
+
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${meta.badge}`}>
@@ -131,14 +140,6 @@ export default function PlanActivityCard({ activity, onEdit, onDelete }: Props) 
           </div>
         </div>
       </div>
-
-      <PlanCardActions
-        googleMapsUrl={googleMapsUrl}
-        onEdit={onEdit}
-        onDelete={onDelete}
-        item={activity}
-        accent="emerald"
-      />
     </div>
   );
 }
