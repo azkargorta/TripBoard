@@ -17,10 +17,10 @@ export default function TripBoardBrandRail({ tripId, tripName }: Props) {
 
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur">
-      <div className="page-shell max-w-[1200px] py-1.5">
+      <div className="page-shell max-w-[1200px] py-1">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 flex-1 items-center gap-3">
-            <TripBoardLogo href="/dashboard" variant="dark" size="sm" />
+            <TripBoardLogo href="/dashboard" variant="dark" size="sm" className="max-w-[140px]" />
             <div className="min-w-0">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <Link
@@ -42,7 +42,7 @@ export default function TripBoardBrandRail({ tripId, tripName }: Props) {
                 ) : null}
               </div>
               {title ? (
-                <div className="mt-0.5 truncate text-sm font-extrabold tracking-tight text-slate-950 sm:text-base">
+                <div className="mt-0.5 hidden truncate text-sm font-extrabold tracking-tight text-slate-950 sm:block sm:text-base">
                   {title}
                 </div>
               ) : null}
