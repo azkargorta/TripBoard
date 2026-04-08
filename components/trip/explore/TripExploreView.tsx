@@ -33,6 +33,18 @@ type PendingPlace = {
   category: string | null;
 };
 
+type PlanRow = {
+  id: string;
+  title: string;
+  activity_date: string | null;
+  activity_time: string | null;
+  place_name: string | null;
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  activity_kind: string | null;
+};
+
 function categoryEmoji(category: string | null | undefined) {
   const c = (category || "").toLowerCase();
   if (c.includes("restaurant") || c.includes("food") || c.includes("cafe")) return "🍽️";
@@ -42,6 +54,16 @@ function categoryEmoji(category: string | null | undefined) {
   if (c.includes("transport")) return "🚆";
   if (c.includes("lodging") || c.includes("hotel")) return "🏨";
   return "📍";
+}
+
+function planKindMeta(kind: string | null | undefined) {
+  const k = (kind || "visit").toLowerCase();
+  if (k === "food") return { label: "Comida", emoji: "🍽️", accent: "bg-amber-50 text-amber-900 border-amber-200" };
+  if (k === "transport") return { label: "Transporte", emoji: "🚆", accent: "bg-sky-50 text-sky-900 border-sky-200" };
+  if (k === "lodging") return { label: "Alojamiento", emoji: "🏨", accent: "bg-indigo-50 text-indigo-900 border-indigo-200" };
+  if (k === "shopping") return { label: "Compras", emoji: "🛍️", accent: "bg-pink-50 text-pink-900 border-pink-200" };
+  if (k === "nightlife") return { label: "Noche", emoji: "🌙", accent: "bg-slate-50 text-slate-900 border-slate-200" };
+  return { label: "Visita", emoji: "📍", accent: "bg-emerald-50 text-emerald-900 border-emerald-200" };
 }
 
 export default function TripExploreView({ tripId }: { tripId: string }) {
@@ -54,6 +76,9 @@ export default function TripExploreView({ tripId }: { tripId: string }) {
   const [selectedFolderId, setSelectedFolderId] = useState<string | "all">("all");
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [folderName, setFolderName] = useState("");
+
+  const [plans, setPlans] = useState<PlanRow[]>([]);
+  const [visiblePlanKinds, setVisiblePlanKinds] = useState<Record<string, boolean>>({});
 
   const [query, setQuery] = useState("");
   const [pending, setPending] = useState<PendingPlace | null>(null);
@@ -69,12 +94,28 @@ export default function TripExploreView({ tripId }: { tripId: string }) {
       fetch(`/api/trip-place-folders?tripId=${encodeURIComponent(tripId)}`),
       fetch(`/api/trip-places?tripId=${encodeURIComponent(tripId)}`),
     ]);
+    const aRes = await fetch(`/api/trip-activities?tripId=${encodeURIComponent(tripId)}`);
     const fJson = await fRes.json().catch(() => null);
     const pJson = await pRes.json().catch(() => null);
+    const aJson = await aRes.json().catch(() => null);
     if (!fRes.ok) throw new Error(fJson?.error || "No se pudieron cargar carpetas.");
     if (!pRes.ok) throw new Error(pJson?.error || "No se pudieron cargar lugares.");
+    if (!aRes.ok) throw new Error(aJson?.error || "No se pudieron cargar los planes.");
     setFolders(Array.isArray(fJson?.folders) ? fJson.folders : []);
     setPlaces(Array.isArray(pJson?.places) ? pJson.places : []);
+    const activities = Array.isArray(aJson?.activities) ? (aJson.activities as any[]) : [];
+    const normalizedPlans: PlanRow[] = activities.map((a: any) => ({
+      id: String(a.id),
+      title: typeof a.title === "string" ? a.title : "",
+      activity_date: typeof a.activity_date === "string" ? a.activity_date : null,
+      activity_time: typeof a.activity_time === "string" ? a.activity_time : null,
+      place_name: typeof a.place_name === "string" ? a.place_name : null,
+      address: typeof a.address === "string" ? a.address : null,
+      latitude: typeof a.latitude === "number" ? a.latitude : null,
+      longitude: typeof a.longitude === "number" ? a.longitude : null,
+      activity_kind: typeof a.activity_kind === "string" ? a.activity_kind : null,
+    }));
+    setPlans(normalizedPlans);
   }
 
   useEffect(() => {
@@ -101,6 +142,31 @@ export default function TripExploreView({ tripId }: { tripId: string }) {
     return places.filter((p) => p.folder_id === selectedFolderId);
   }, [places, selectedFolderId]);
 
+  const planKinds = useMemo(() => {
+    const kinds = new Set<string>();
+    for (const p of plans) kinds.add((p.activity_kind || "visit").toLowerCase());
+    return Array.from(kinds).sort((a, b) => a.localeCompare(b));
+  }, [plans]);
+
+  useEffect(() => {
+    // Inicializa el selector de carpetas (kinds) de planes cuando cargan por primera vez.
+    setVisiblePlanKinds((prev) => {
+      const next: Record<string, boolean> = { ...prev };
+      for (const k of planKinds) {
+        if (typeof next[k] !== "boolean") next[k] = true;
+      }
+      // Limpia claves antiguas que ya no existan.
+      for (const k of Object.keys(next)) {
+        if (!planKinds.includes(k)) delete next[k];
+      }
+      return next;
+    });
+  }, [planKinds]);
+
+  const visiblePlans = useMemo(() => {
+    return plans.filter((p) => visiblePlanKinds[(p.activity_kind || "visit").toLowerCase()] !== false);
+  }, [plans, visiblePlanKinds]);
+
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
@@ -110,6 +176,18 @@ export default function TripExploreView({ tripId }: { tripId: string }) {
       marker.setMap(null);
     }
     markersRef.current.clear();
+
+    for (const a of visiblePlans) {
+      if (typeof a.latitude !== "number" || typeof a.longitude !== "number") continue;
+      const meta = planKindMeta(a.activity_kind);
+      const marker = new window.google.maps.Marker({
+        map,
+        position: { lat: a.latitude, lng: a.longitude },
+        title: a.title || a.place_name || "Plan",
+        label: { text: meta.emoji, fontSize: "16px" },
+      });
+      markersRef.current.set(`plan:${a.id}`, marker);
+    }
 
     for (const p of visiblePlaces) {
       if (typeof p.latitude !== "number" || typeof p.longitude !== "number") continue;
@@ -194,6 +272,116 @@ export default function TripExploreView({ tripId }: { tripId: string }) {
         {error ? (
           <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
         ) : null}
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-sm font-extrabold text-slate-950">Planes</div>
+            <button
+              type="button"
+              onClick={() => void loadAll().catch((e) => setError(e instanceof Error ? e.message : "Error"))}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              <RefreshCcw className="h-4 w-4" aria-hidden />
+              Recargar
+            </button>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {planKinds.map((k) => {
+              const meta = planKindMeta(k);
+              const active = visiblePlanKinds[k] !== false;
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setVisiblePlanKinds((prev) => ({ ...prev, [k]: !(prev[k] !== false) }))}
+                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                    active ? meta.accent : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                  aria-pressed={active}
+                  title={`Mostrar/ocultar: ${meta.label}`}
+                >
+                  <MapPin className="h-3.5 w-3.5" aria-hidden />
+                  <span className="tabular-nums">{meta.emoji}</span>
+                  {meta.label}
+                </button>
+              );
+            })}
+            {planKinds.length ? (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setVisiblePlanKinds(() => Object.fromEntries(planKinds.map((k) => [k, true])) as Record<string, boolean>)
+                  }
+                  className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Todas
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setVisiblePlanKinds(() => Object.fromEntries(planKinds.map((k) => [k, false])) as Record<string, boolean>)
+                  }
+                  className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Ninguna
+                </button>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="mt-3 space-y-2">
+            {visiblePlans.filter((p) => typeof p.latitude === "number" && typeof p.longitude === "number").length ? (
+              visiblePlans
+                .filter((p) => typeof p.latitude === "number" && typeof p.longitude === "number")
+                .slice(0, 24)
+                .map((p) => {
+                  const meta = planKindMeta(p.activity_kind);
+                  return (
+                    <div key={p.id} className="rounded-2xl border border-slate-200 bg-white p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-xs font-extrabold text-slate-900 line-clamp-1">
+                            {meta.emoji} {p.title || p.place_name || "Plan"}
+                          </div>
+                          {p.address ? <div className="mt-1 text-[11px] text-slate-600 line-clamp-2">{p.address}</div> : null}
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
+                              {meta.label}
+                            </span>
+                            {p.activity_date ? (
+                              <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700">
+                                {p.activity_date}
+                                {p.activity_time ? ` · ${p.activity_time}` : ""}
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!mapInstanceRef.current) return;
+                            if (typeof p.latitude !== "number" || typeof p.longitude !== "number") return;
+                            mapInstanceRef.current.panTo({ lat: p.latitude, lng: p.longitude });
+                            mapInstanceRef.current.setZoom(14);
+                          }}
+                          className="shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                          title="Centrar en el mapa"
+                        >
+                          <MapPin className="h-4 w-4" aria-hidden />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+            ) : (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                No hay planes con coordenadas (lat/lng) para mostrar en el mapa todavía.
+              </div>
+            )}
+          </div>
+        </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between gap-3">
