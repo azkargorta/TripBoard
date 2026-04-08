@@ -77,7 +77,8 @@ export async function askGemini(prompt: string, mode: TripAiMode) {
     throw new Error("Falta GEMINI_API_KEY en el servidor.");
   }
 
-  const modelName = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+  // gemini-2.0-flash dejó de estar disponible para nuevos usuarios (404).
+  const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash";
   const temperature = mode === "optimizer" ? 0.3 : 0.5;
 
   const genAI = new GoogleGenerativeAI(apiKey);
