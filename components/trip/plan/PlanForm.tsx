@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react";
 import PlaceAutocompleteInput from "@/components/PlaceAutocompleteInput";
-import { Check, X } from "lucide-react";
+import { Check, Star, X } from "lucide-react";
 
 export type ActivityKind =
   | "visit"
@@ -16,6 +16,8 @@ export type ActivityKind =
 export type PlanFormValues = {
   title: string;
   description: string;
+  rating: number;
+  comment: string;
   activityDate: string;
   activityTime: string;
   placeName: string;
@@ -29,6 +31,8 @@ type EditableActivity = {
   id?: string;
   title?: string | null;
   description?: string | null;
+  rating?: number | null;
+  comment?: string | null;
   activity_date?: string | null;
   activity_time?: string | null;
   place_name?: string | null;
@@ -48,6 +52,8 @@ type Props = {
 const EMPTY_FORM: PlanFormValues = {
   title: "",
   description: "",
+  rating: 0,
+  comment: "",
   activityDate: "",
   activityTime: "",
   placeName: "",
@@ -62,6 +68,8 @@ function fromInitial(initialData?: EditableActivity | null): PlanFormValues {
   return {
     title: initialData.title || "",
     description: initialData.description || "",
+    rating: typeof initialData.rating === "number" && initialData.rating >= 1 && initialData.rating <= 5 ? initialData.rating : 0,
+    comment: initialData.comment || "",
     activityDate: initialData.activity_date || "",
     activityTime: initialData.activity_time || "",
     placeName: initialData.place_name || "",
@@ -232,6 +240,51 @@ export default function PlanForm({ saving = false, initialData, onCancelEdit, on
             className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
           />
         </label>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <span className="text-sm font-semibold text-slate-800">Valoración</span>
+            <div className="flex items-center gap-1">
+              {[1, 2, 3, 4, 5].map((n) => {
+                const active = form.rating >= n;
+                return (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => update("rating", form.rating === n ? 0 : n)}
+                    className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border transition focus:outline-none focus:ring-2 focus:ring-violet-200 ${
+                      active ? "border-amber-200 bg-amber-50 text-amber-600" : "border-slate-200 bg-white text-slate-400 hover:bg-slate-50"
+                    }`}
+                    aria-label={`Valorar con ${n} estrellas`}
+                    title={`${n} estrellas`}
+                  >
+                    <Star className={`h-5 w-5 ${active ? "fill-current" : ""}`} aria-hidden />
+                  </button>
+                );
+              })}
+              {form.rating ? (
+                <button
+                  type="button"
+                  onClick={() => update("rating", 0)}
+                  className="ml-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-violet-200"
+                >
+                  Quitar
+                </button>
+              ) : null}
+            </div>
+          </div>
+
+          <label className="block space-y-2">
+            <span className="text-sm font-semibold text-slate-800">Comentarios</span>
+            <textarea
+              value={form.comment}
+              onChange={(e) => update("comment", e.target.value)}
+              rows={3}
+              placeholder="Qué te ha parecido, consejos, cosas a recordar…"
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+            />
+          </label>
+        </div>
 
         {error ? (
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

@@ -46,10 +46,18 @@
      }
  
      const supabase = await createClient();
+    const ratingRaw = body?.rating;
+    const rating =
+      typeof ratingRaw === "number" && Number.isFinite(ratingRaw)
+        ? Math.max(1, Math.min(5, Math.round(ratingRaw)))
+        : null;
+
      const payload = {
        trip_id: tripId,
        title: typeof body?.title === "string" ? body.title.trim() : null,
        description: typeof body?.description === "string" ? body.description.trim() : null,
+      rating,
+      comment: typeof body?.comment === "string" ? body.comment.trim() : null,
        activity_date: typeof body?.activity_date === "string" ? body.activity_date : null,
        activity_time: typeof body?.activity_time === "string" ? body.activity_time : null,
        place_name: typeof body?.place_name === "string" ? body.place_name.trim() : null,

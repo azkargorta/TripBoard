@@ -1,12 +1,14 @@
 "use client";
 
-import { ExternalLink, Pencil, Trash2 } from "lucide-react";
+import { ExternalLink, Pencil, Star, Trash2 } from "lucide-react";
 
 type PlanActivity = {
   trip_id?: string;
   id: string;
   title: string;
   description?: string | null;
+  rating?: number | null;
+  comment?: string | null;
   activity_date?: string | null;
   activity_time?: string | null;
   place_name?: string | null;
@@ -54,6 +56,7 @@ function buildGoogleMapsUrl(activity: PlanActivity) {
 export default function PlanActivityCard({ activity, onEdit, onDelete }: Props) {
   const meta = getActivityMeta(activity.activity_kind);
   const googleMapsUrl = buildGoogleMapsUrl(activity);
+  const rating = typeof activity.rating === "number" ? Math.max(1, Math.min(5, Math.round(activity.rating))) : null;
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -75,6 +78,22 @@ export default function PlanActivityCard({ activity, onEdit, onDelete }: Props) 
             ) : null}
             {activity.place_name ? <p>{activity.place_name}</p> : null}
             {activity.address ? <p className="line-clamp-2">{activity.address}</p> : null}
+            {rating ? (
+              <div className="flex items-center gap-1 text-amber-600" aria-label={`${rating} de 5`}>
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Star
+                    key={i}
+                    className={`h-4 w-4 ${i < rating ? "fill-current" : "text-slate-200"}`}
+                    aria-hidden
+                  />
+                ))}
+              </div>
+            ) : null}
+            {activity.comment ? (
+              <p className="mt-2 line-clamp-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                {activity.comment}
+              </p>
+            ) : null}
           </div>
         </div>
       </div>

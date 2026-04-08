@@ -35,6 +35,15 @@
      assign("longitude", typeof body?.longitude === "number" ? body.longitude : undefined);
      assign("activity_type", typeof body?.activity_type === "string" ? body.activity_type : undefined);
      assign("activity_kind", typeof body?.activity_kind === "string" ? body.activity_kind : undefined);
+    assign(
+      "rating",
+      typeof body?.rating === "number" && Number.isFinite(body.rating)
+        ? Math.max(1, Math.min(5, Math.round(body.rating)))
+        : body?.rating === null
+          ? null
+          : undefined
+    );
+    assign("comment", typeof body?.comment === "string" ? body.comment.trim() : body?.comment === null ? null : undefined);
  
      const { data, error } = await supabase.from("trip_activities").update(patch).eq("id", params.activityId).select("*").single();
      if (error) throw new Error(error.message);

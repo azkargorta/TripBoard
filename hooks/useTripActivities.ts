@@ -7,6 +7,8 @@ export type TripActivity = {
   linked_reservation_id?: string | null;
   title: string;
   description?: string | null;
+  rating?: number | null;
+  comment?: string | null;
   activity_date?: string | null;
   activity_time?: string | null;
   place_name?: string | null;
@@ -28,6 +30,8 @@ export type TripPlanSummary = {
 export type SaveActivityInput = {
   title: string;
   description?: string;
+  rating?: number | null;
+  comment?: string;
   activityDate?: string;
   activityTime?: string;
   placeName?: string;
@@ -131,6 +135,8 @@ export function useTripActivities(tripId: string) {
               tripId,
               title: input.title.trim(),
               description: input.description?.trim() || null,
+              rating: typeof input.rating === "number" ? input.rating : null,
+              comment: input.comment?.trim() || null,
               activity_date: input.activityDate || null,
               activity_time: input.activityTime || null,
               place_name: input.placeName?.trim() || null,
@@ -166,6 +172,8 @@ export function useTripActivities(tripId: string) {
             body: JSON.stringify({
               title: input.title.trim(),
               description: input.description?.trim() || null,
+              rating: typeof input.rating === "number" ? input.rating : null,
+              comment: input.comment?.trim() || null,
               activity_date: input.activityDate || null,
               activity_time: input.activityTime || null,
               place_name: input.placeName?.trim() || null,

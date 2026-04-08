@@ -1,11 +1,13 @@
 "use client";
 
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Star } from "lucide-react";
 
 type PlanLodging = {
   id: string;
   title: string;
   description?: string | null;
+  rating?: number | null;
+  comment?: string | null;
   activity_date?: string | null;
   activity_time?: string | null;
   place_name?: string | null;
@@ -30,6 +32,7 @@ function buildGoogleMapsUrl(activity: PlanLodging) {
 
 export default function PlanLodgingCard({ activity }: Props) {
   const googleMapsUrl = buildGoogleMapsUrl(activity);
+  const rating = typeof activity.rating === "number" ? Math.max(1, Math.min(5, Math.round(activity.rating))) : null;
 
   return (
     <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4 shadow-sm">
@@ -52,6 +55,22 @@ export default function PlanLodgingCard({ activity }: Props) {
             {activity.place_name ? <p>{activity.place_name}</p> : null}
             {activity.address ? <p>{activity.address}</p> : null}
             {activity.description ? <p className="text-slate-600">{activity.description}</p> : null}
+            {rating ? (
+              <div className="flex items-center gap-1 text-amber-600" aria-label={`${rating} de 5`}>
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Star
+                    key={i}
+                    className={`h-4 w-4 ${i < rating ? "fill-current" : "text-slate-200"}`}
+                    aria-hidden
+                  />
+                ))}
+              </div>
+            ) : null}
+            {activity.comment ? (
+              <p className="mt-2 rounded-xl border border-violet-200 bg-white/70 px-3 py-2 text-sm text-slate-700">
+                {activity.comment}
+              </p>
+            ) : null}
             {typeof activity.latitude === "number" && typeof activity.longitude === "number" ? (
               <p className="text-xs text-violet-700">
                 {activity.latitude.toFixed(6)}, {activity.longitude.toFixed(6)}
