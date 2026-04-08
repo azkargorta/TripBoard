@@ -20,6 +20,39 @@ type Message = {
   metadata?: Record<string, unknown>;
 };
 
+type ItineraryPayload = {
+  version: 1;
+  title?: string;
+  days: Array<{
+    day: number;
+    date: string | null;
+    items: Array<{
+      title: string;
+      activity_kind?: string | null;
+      place_name?: string | null;
+      address?: string | null;
+      start_time?: string | null;
+      notes?: string | null;
+    }>;
+  }>;
+};
+
+function extractItinerary(answer: string): ItineraryPayload | null {
+  const start = "TRIPBOARD_ITINERARY_JSON_START";
+  const end = "TRIPBOARD_ITINERARY_JSON_END";
+  const iStart = answer.indexOf(start);
+  const iEnd = answer.indexOf(end);
+  if (iStart === -1 || iEnd === -1 || iEnd <= iStart) return null;
+  const raw = answer.slice(iStart + start.length, iEnd).trim();
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.days)) return null;
+    return parsed as ItineraryPayload;
+  } catch {
+    return null;
+  }
+}
+
 const MODE_OPTIONS: { id: ChatMode; label: string; description: string }[] = [
   { id: "general", label: "General", description: "Consultas generales del viaje" },
   { id: "planning", label: "Planificación", description: "Plan del viaje, días y visitas" },
@@ -72,6 +105,8 @@ export default function TripAiChatView({ tripId }: { tripId: string }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [itineraryDraft, setItineraryDraft] = useState<ItineraryPayload | null>(null);
+  const [executingPlan, setExecutingPlan] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const currentSuggestions = useMemo(() => SUGGESTIONS[mode], [mode]);
@@ -158,6 +193,9 @@ export default function TripAiChatView({ tripId }: { tripId: string }) {
         },
       ]);
 
+      const maybe = typeof data?.answer === "string" ? extractItinerary(data.answer) : null;
+      if (maybe) setItineraryDraft(maybe);
+
       if (data?.actionExecuted && data?.actionResult) {
         setInfo(String(data.actionResult));
       }
@@ -191,6 +229,67 @@ export default function TripAiChatView({ tripId }: { tripId: string }) {
         description="Recuerda conversaciones, ayuda con gastos, optimiza el viaje y ejecuta acciones básicas dentro de la app."
         actions={<TripScreenActions tripId={tripId} />}
       />
+
+      {itineraryDraft ? (
+        <section className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-sky-50 p-5 shadow-sm">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div className="min-w-0">
+              <div className="text-xs font-extrabold uppercase tracking-[0.16em] text-violet-700">Itinerario propuesto</div>
+              <div className="mt-1 text-sm font-semibold text-slate-900">
+                {itineraryDraft.title || `${itineraryDraft.days.length} días`}
+              </div>
+              <div className="mt-1 text-xs text-slate-600">
+                Revisa en el chat y, cuando estés conforme, ejecútalo para añadirlo al Plan.
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {itineraryDraft.days.slice(0, 6).map((d) => (
+                  <div key={d.day} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs">
+                    <div className="font-extrabold text-slate-900">Día {d.day}{d.date ? ` · ${d.date}` : ""}</div>
+                    <div className="mt-0.5 text-slate-600">{d.items.length} paradas</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex shrink-0 flex-col gap-2">
+              <button
+                type="button"
+                disabled={executingPlan || loading}
+                onClick={async () => {
+                  setExecutingPlan(true);
+                  setInfo(null);
+                  setError(null);
+                  try {
+                    const res = await fetch("/api/trip-ai/execute-plan", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ tripId, itinerary: itineraryDraft }),
+                    });
+                    const payload = await res.json().catch(() => null);
+                    if (!res.ok) throw new Error(payload?.error || "No se pudo ejecutar el plan.");
+                    setInfo(`Plan ejecutado. He creado ${payload?.created ?? "varias"} actividades en el Plan.`);
+                    setItineraryDraft(null);
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : "No se pudo ejecutar el plan.");
+                  } finally {
+                    setExecutingPlan(false);
+                  }
+                }}
+                className="inline-flex items-center justify-center rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-60"
+              >
+                {executingPlan ? "Ejecutando..." : "Ejecutar plan"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setItineraryDraft(null)}
+                className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+              >
+                Descartar
+              </button>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <section className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
         <aside className="space-y-6">
