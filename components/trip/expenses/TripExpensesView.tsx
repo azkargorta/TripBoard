@@ -7,7 +7,7 @@ import ExpenseBalancePanel from "@/components/trip/expenses/ExpenseBalancePanel"
 import CurrencyConverterCard from "@/components/trip/expenses/CurrencyConverterCard";
 import ExpenseAnalyzerPanel, { type ExpenseDetectedData } from "@/components/trip/expenses/ExpenseAnalyzerPanel";
 import { useTripExpenses } from "@/hooks/useTripExpenses";
-import { Plus, ScanText } from "lucide-react";
+import { ChevronDown, Plus, ScanText, Wallet } from "lucide-react";
 
 export default function TripExpensesView({ tripId }: { tripId: string }) {
   const {
@@ -34,6 +34,7 @@ export default function TripExpensesView({ tripId }: { tripId: string }) {
   const [detectedData, setDetectedData] = useState<ExpenseDetectedData | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isAnalyzeOpen, setIsAnalyzeOpen] = useState(false);
+  const [isConverterOpen, setIsConverterOpen] = useState(false);
 
   const shouldShowForm = isAddOpen || !!editingExpense || !!detectedData;
 
@@ -42,6 +43,12 @@ export default function TripExpensesView({ tripId }: { tripId: string }) {
       setIsAddOpen(true);
     }
   }, [editingExpense, detectedData]);
+
+  useEffect(() => {
+    if (editingExpense) {
+      setIsAnalyzeOpen(false);
+    }
+  }, [editingExpense]);
 
   const topButtons = useMemo(() => {
     const base =
@@ -102,72 +109,157 @@ export default function TripExpensesView({ tripId }: { tripId: string }) {
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <div className="text-sm font-semibold text-slate-900">Acciones rápidas</div>
-          <div className="mt-1 text-xs text-slate-600">Añade un gasto manualmente o analiza un PDF/imagen del ticket.</div>
+      <div className="card-soft p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+              <Wallet className="h-4 w-4 text-violet-700" aria-hidden />
+              Gastos
+            </div>
+            <div className="mt-1 text-xs text-slate-600">
+              Mantén el balance al día: añade tickets, analiza PDFs/imágenes y comparte pagos pendientes.
+            </div>
+          </div>
+          {topButtons}
         </div>
-        {topButtons}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        {isAnalyzeOpen ? (
-          <ExpenseAnalyzerPanel
-            onUseDetectedData={(data) => {
-              setDetectedData(data);
-              setIsAnalyzeOpen(false);
+      <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+        <div className="space-y-4">
+          <details
+            className="rounded-2xl border border-slate-200 bg-white shadow-sm open:shadow-md"
+            open={isAnalyzeOpen}
+            onToggle={(e) => setIsAnalyzeOpen((e.currentTarget as HTMLDetailsElement).open)}
+          >
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4">
+              <div className="flex items-center gap-2">
+                <ScanText className="h-4 w-4 text-slate-700" aria-hidden />
+                <div>
+                  <div className="text-sm font-semibold text-slate-950">Analizar ticket</div>
+                  <div className="text-xs text-slate-600">Sube un PDF/imagen y rellena el gasto automáticamente.</div>
+                </div>
+              </div>
+              <ChevronDown className="h-4 w-4 text-slate-500 transition group-open:rotate-180" aria-hidden />
+            </summary>
+            <div className="border-t border-slate-200 px-5 py-5">
+              <ExpenseAnalyzerPanel
+                onUseDetectedData={(data) => {
+                  setDetectedData(data);
+                  setIsAnalyzeOpen(false);
+                  setIsAddOpen(true);
+                }}
+              />
+            </div>
+          </details>
+
+          <details
+            className="rounded-2xl border border-slate-200 bg-white shadow-sm open:shadow-md"
+            open={shouldShowForm}
+            onToggle={(e) => {
+              const open = (e.currentTarget as HTMLDetailsElement).open;
+              setIsAddOpen(open);
+              if (!open) {
+                setEditingExpense(null);
+                setDetectedData(null);
+              }
+            }}
+          >
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4">
+              <div className="flex items-center gap-2">
+                <Plus className="h-4 w-4 text-violet-700" aria-hidden />
+                <div>
+                  <div className="text-sm font-semibold text-slate-950">{editingExpense ? "Editar gasto" : "Añadir gasto"}</div>
+                  <div className="text-xs text-slate-600">Define importe, participantes, categoría y notas.</div>
+                </div>
+              </div>
+              <ChevronDown className="h-4 w-4 text-slate-500 transition group-open:rotate-180" aria-hidden />
+            </summary>
+            <div className="border-t border-slate-200 px-5 py-5">
+              <ExpenseForm
+                saving={saving}
+                existingParticipants={participants}
+                registeredTravelers={registeredTravelers}
+                editingExpense={editingExpense}
+                detectedData={detectedData}
+                onCancelEdit={() => {
+                  setEditingExpense(null);
+                  setDetectedData(null);
+                  setIsAddOpen(false);
+                }}
+                onSubmit={async (input) => {
+                  if (editingExpense?.id) {
+                    await updateExpense(editingExpense.id, input, editingExpense);
+                    setEditingExpense(null);
+                  } else {
+                    await createExpense(input);
+                  }
+                  setDetectedData(null);
+                  setIsAddOpen(false);
+                }}
+              />
+            </div>
+          </details>
+
+          <details
+            className="rounded-2xl border border-slate-200 bg-white shadow-sm open:shadow-md"
+            open={isConverterOpen}
+            onToggle={(e) => setIsConverterOpen((e.currentTarget as HTMLDetailsElement).open)}
+          >
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4">
+              <div>
+                <div className="text-sm font-semibold text-slate-950">Convertidor de moneda</div>
+                <div className="text-xs text-slate-600">Convierte importes y ajusta la moneda de balance.</div>
+              </div>
+              <ChevronDown className="h-4 w-4 text-slate-500 transition group-open:rotate-180" aria-hidden />
+            </summary>
+            <div className="border-t border-slate-200 px-5 py-5">
+              <CurrencyConverterCard
+                onConvert={convertAmount}
+                balanceCurrency={balanceCurrency}
+                onChangeBalanceCurrency={setBalanceCurrency}
+              />
+            </div>
+          </details>
+        </div>
+
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 px-5 py-4">
+              <div className="text-sm font-semibold text-slate-950">Balances y pagos</div>
+              <div className="mt-1 text-xs text-slate-600">Quién debe a quién y enlaces rápidos por WhatsApp.</div>
+            </div>
+            <div className="px-4 py-4">
+              <ExpenseBalancePanel
+                balances={balances}
+                settlements={suggestedSettlements}
+                balanceCurrency={balanceCurrency}
+                onChangeBalanceCurrency={setBalanceCurrency}
+                onToggleSettlementStatus={toggleSettlementStatus}
+                createWhatsAppLink={createWhatsAppLink}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-2 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="text-sm font-semibold text-slate-950">Listado de gastos</div>
+            <div className="mt-1 text-xs text-slate-600">Edita, elimina y revisa todos los tickets registrados.</div>
+          </div>
+        </div>
+        <div className="px-4 py-4">
+          <ExpenseList
+            expenses={expenses as any}
+            onEdit={(expense) => {
+              setEditingExpense(expense);
               setIsAddOpen(true);
             }}
+            onDelete={deleteExpense}
           />
-        ) : (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
-            Pulsa <span className="font-semibold">Analizar ticket</span> para subir un PDF o imagen y rellenar el gasto automáticamente.
-          </div>
-        )}
-        <CurrencyConverterCard onConvert={convertAmount} balanceCurrency={balanceCurrency} onChangeBalanceCurrency={setBalanceCurrency} />
+        </div>
       </div>
-
-      <div className="grid gap-6 xl:grid-cols-2">
-        {shouldShowForm ? (
-          <ExpenseForm
-            saving={saving}
-            existingParticipants={participants}
-            registeredTravelers={registeredTravelers}
-            editingExpense={editingExpense}
-            detectedData={detectedData}
-            onCancelEdit={() => {
-              setEditingExpense(null);
-              setDetectedData(null);
-              setIsAddOpen(false);
-            }}
-            onSubmit={async (input) => {
-              if (editingExpense?.id) {
-                await updateExpense(editingExpense.id, input, editingExpense);
-                setEditingExpense(null);
-              } else {
-                await createExpense(input);
-              }
-              setDetectedData(null);
-              setIsAddOpen(false);
-            }}
-          />
-        ) : (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
-            Pulsa <span className="font-semibold">Añadir ticket</span> para crear un gasto. Si editas un gasto existente, el formulario se abrirá automáticamente.
-          </div>
-        )}
-
-        <ExpenseBalancePanel
-          balances={balances}
-          settlements={suggestedSettlements}
-          balanceCurrency={balanceCurrency}
-          onChangeBalanceCurrency={setBalanceCurrency}
-          onToggleSettlementStatus={toggleSettlementStatus}
-          createWhatsAppLink={createWhatsAppLink}
-        />
-      </div>
-
-      <ExpenseList expenses={expenses as any} onEdit={(expense) => setEditingExpense(expense)} onDelete={deleteExpense} />
     </div>
   );
 }
