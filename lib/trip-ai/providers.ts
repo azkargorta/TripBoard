@@ -5,22 +5,33 @@ export type AiProviderId = "ollama" | "gemini";
 
 export async function askOllama(prompt: string, mode: TripAiMode) {
   const model = process.env.OLLAMA_MODEL || "llama3";
+  const baseUrl = (process.env.OLLAMA_URL || "http://127.0.0.1:11434").replace(/\/+$/, "");
+  const url = `${baseUrl}/api/generate`;
 
-  const response = await fetch("http://127.0.0.1:11434/api/generate", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    cache: "no-store",
-    body: JSON.stringify({
-      model,
-      prompt,
-      stream: false,
-      options: {
-        temperature: mode === "optimizer" ? 0.3 : 0.5,
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
       },
-    }),
-  });
+      cache: "no-store",
+      body: JSON.stringify({
+        model,
+        prompt,
+        stream: false,
+        options: {
+          temperature: mode === "optimizer" ? 0.3 : 0.5,
+        },
+      }),
+    });
+  } catch (e) {
+    const detail = e instanceof Error ? e.message : String(e);
+    throw new Error(
+      `No se pudo conectar con Ollama en ${baseUrl}. ` +
+        `Arranca Ollama (puerto 11434) o configura OLLAMA_URL. Detalle: ${detail}`
+    );
+  }
 
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
