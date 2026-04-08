@@ -48,8 +48,8 @@
      const supabase = await createClient();
     const ratingRaw = body?.rating;
     const rating =
-      typeof ratingRaw === "number" && Number.isFinite(ratingRaw)
-        ? Math.max(1, Math.min(5, Math.round(ratingRaw)))
+      typeof ratingRaw === "number" && Number.isFinite(ratingRaw) && ratingRaw >= 1 && ratingRaw <= 5
+        ? Math.round(ratingRaw)
         : null;
 
      const payload = {

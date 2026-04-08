@@ -56,14 +56,17 @@ export default function PlanLodgingCard({ activity }: Props) {
             {activity.address ? <p>{activity.address}</p> : null}
             {activity.description ? <p className="text-slate-600">{activity.description}</p> : null}
             {rating ? (
-              <div className="flex items-center gap-1 text-amber-600" aria-label={`${rating} de 5`}>
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Star
-                    key={i}
-                    className={`h-4 w-4 ${i < rating ? "fill-current" : "text-slate-200"}`}
-                    aria-hidden
-                  />
-                ))}
+              <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-amber-200/70 bg-white/70 px-3 py-1 text-xs font-semibold text-amber-800">
+                <div className="flex items-center gap-1" aria-label={`${rating} de 5`}>
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Star
+                      key={i}
+                      className={`h-4 w-4 ${i < rating ? "fill-current text-amber-500" : "text-amber-200"}`}
+                      aria-hidden
+                    />
+                  ))}
+                </div>
+                <span className="text-amber-900/70">{rating}/5</span>
               </div>
             ) : null}
             {activity.comment ? (

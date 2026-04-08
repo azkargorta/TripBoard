@@ -135,7 +135,7 @@ export function useTripActivities(tripId: string) {
               tripId,
               title: input.title.trim(),
               description: input.description?.trim() || null,
-              rating: typeof input.rating === "number" ? input.rating : null,
+              rating: typeof input.rating === "number" && input.rating >= 1 && input.rating <= 5 ? input.rating : null,
               comment: input.comment?.trim() || null,
               activity_date: input.activityDate || null,
               activity_time: input.activityTime || null,
@@ -172,7 +172,7 @@ export function useTripActivities(tripId: string) {
             body: JSON.stringify({
               title: input.title.trim(),
               description: input.description?.trim() || null,
-              rating: typeof input.rating === "number" ? input.rating : null,
+              rating: typeof input.rating === "number" && input.rating >= 1 && input.rating <= 5 ? input.rating : null,
               comment: input.comment?.trim() || null,
               activity_date: input.activityDate || null,
               activity_time: input.activityTime || null,

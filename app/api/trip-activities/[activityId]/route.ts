@@ -37,8 +37,11 @@
      assign("activity_kind", typeof body?.activity_kind === "string" ? body.activity_kind : undefined);
     assign(
       "rating",
-      typeof body?.rating === "number" && Number.isFinite(body.rating)
-        ? Math.max(1, Math.min(5, Math.round(body.rating)))
+      typeof body?.rating === "number" &&
+        Number.isFinite(body.rating) &&
+        body.rating >= 1 &&
+        body.rating <= 5
+        ? Math.round(body.rating)
         : body?.rating === null
           ? null
           : undefined
