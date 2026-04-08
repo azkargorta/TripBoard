@@ -60,6 +60,7 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
   } = useTripParticipants(tripId);
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
   const [isLoadedUser, setIsLoadedUser] = useState(false);
 
   const [isCreating, setIsCreating] = useState(false);
@@ -77,6 +78,7 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
     if (isLoadedUser) return;
     supabase.auth.getSession().then(({ data }) => {
       setCurrentUserId(data.session?.user?.id ?? null);
+      setCurrentUserEmail((data.session?.user?.email ?? null)?.toLowerCase() ?? null);
       setIsLoadedUser(true);
     });
   }, [isLoadedUser]);
@@ -92,9 +94,21 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
   }, [participants]);
 
   const myParticipant = useMemo(() => {
-    if (!currentUserId) return null;
-    return participants.find((p) => p.user_id === currentUserId) ?? null;
-  }, [participants, currentUserId]);
+    if (!participants.length) return null;
+
+    if (currentUserId) {
+      const byUserId = participants.find((p) => p.user_id === currentUserId) ?? null;
+      if (byUserId) return byUserId;
+    }
+
+    if (currentUserEmail) {
+      const byEmail =
+        participants.find((p) => (p.email ? String(p.email).toLowerCase() : "") === currentUserEmail) ?? null;
+      if (byEmail) return byEmail;
+    }
+
+    return null;
+  }, [participants, currentUserId, currentUserEmail]);
 
   const canManageParticipants = Boolean(
     myParticipant?.role === "owner" || myParticipant?.can_manage_participants
