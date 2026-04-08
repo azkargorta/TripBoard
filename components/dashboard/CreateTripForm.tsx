@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabase";
 
 function withTimeout<T>(promiseLike: PromiseLike<T>, ms = 25000, label = "operación"): Promise<T> {
   return Promise.race([
@@ -24,7 +23,7 @@ export default function CreateTripForm() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [step, setStep] = useState<"idle" | "session" | "trip" | "participant" | "done">("idle");
+  const [step, setStep] = useState<"idle" | "trip" | "participant" | "done">("idle");
 
   const currencyOptions = useMemo(() => {
     const values: string[] =
@@ -77,68 +76,29 @@ export default function CreateTripForm() {
     setLoading(true);
 
     try {
-      setStep("session");
-      const sessionResult = await withTimeout(supabase.auth.getSession(), 8000, "sesión");
-      const session = sessionResult.data.session;
-
-      if (!session?.user) {
-        throw new Error("No hay sesión activa.");
-      }
-
-      const user = session.user;
-
       setStep("trip");
-      const tripInsertResult = await withTimeout(
-        supabase
-          .from("trips")
-          .insert({
+      const createResult = await withTimeout(
+        fetch("/api/trips", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
             name: trimmedName,
             destination: trimmedDestination || null,
             start_date: startDate || null,
             end_date: endDate || null,
             base_currency: baseCurrency || "EUR",
-          })
-          .select("id")
-          .single(),
+          }),
+        }),
         25000,
         "crear viaje"
       );
 
-      const tripData = tripInsertResult.data;
-      const tripError = tripInsertResult.error;
-
-      if (tripError || !tripData) {
-        throw tripError || new Error("No se pudo crear el viaje.");
+      const payload = await createResult.json().catch(() => null);
+      if (!createResult.ok) {
+        throw new Error(payload?.error || "No se pudo crear el viaje.");
       }
-
-      const newTripId = String(tripData.id);
-
-      setStep("participant");
-      const participantInsertResult = await withTimeout(
-        supabase.from("trip_participants").insert({
-          trip_id: newTripId,
-          display_name:
-            user.user_metadata?.full_name ||
-            user.user_metadata?.name ||
-            user.user_metadata?.username ||
-            user.email ||
-            "Usuario",
-          username:
-            user.user_metadata?.username ||
-            user.email?.split("@")[0] ||
-            null,
-          joined_via: "owner",
-          user_id: user.id,
-          role: "owner",
-        }),
-        25000,
-        "añadir owner"
-      );
-
-      if (participantInsertResult.error) {
-        await supabase.from("trips").delete().eq("id", newTripId);
-        throw participantInsertResult.error;
-      }
+      const newTripId = String(payload?.tripId || "");
+      if (!newTripId) throw new Error("No se pudo crear el viaje (sin id).");
 
       setName("");
       setDestination("");
@@ -147,7 +107,8 @@ export default function CreateTripForm() {
       setBaseCurrency("EUR");
 
       setStep("done");
-      window.location.href = `/trip/${newTripId}`;
+      router.push(`/trip/${newTripId}`);
+      router.refresh();
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "No se pudo crear el viaje."
@@ -242,13 +203,9 @@ export default function CreateTripForm() {
           className="btn-primary disabled:opacity-50"
         >
           {loading
-            ? step === "session"
-              ? "Validando sesión..."
-              : step === "trip"
-                ? "Creando viaje..."
-                : step === "participant"
-                  ? "Añadiéndote como owner..."
-                  : "Creando..."
+            ? step === "trip"
+              ? "Creando viaje..."
+              : "Creando..."
             : "Crear viaje"}
         </button>
       </div>
