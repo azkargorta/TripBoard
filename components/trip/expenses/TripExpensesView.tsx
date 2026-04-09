@@ -17,6 +17,11 @@ export default function TripExpensesView({ tripId }: { tripId: string }) {
     participants,
     balances,
     suggestedSettlements,
+    settlementWarning,
+    paymentPreferences,
+    savePaymentPreference,
+    strictPaymentMethods,
+    setStrictPaymentMethods,
     balanceCurrency,
     setBalanceCurrency,
     loading,
@@ -239,6 +244,12 @@ export default function TripExpensesView({ tripId }: { tripId: string }) {
                 onChangeBalanceCurrency={setBalanceCurrency}
                 onToggleSettlementStatus={toggleSettlementStatus}
                 createWhatsAppLink={createWhatsAppLink}
+                settlementWarning={settlementWarning}
+                participants={participants}
+                paymentPreferences={paymentPreferences}
+                onSavePaymentPreference={savePaymentPreference}
+                strictPaymentMethods={strictPaymentMethods}
+                onChangeStrictPaymentMethods={setStrictPaymentMethods}
               />
             </div>
           </div>

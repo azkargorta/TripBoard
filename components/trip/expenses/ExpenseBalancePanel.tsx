@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
-import type { BalanceRow, SettlementSuggestion } from "@/lib/expense-balance";
-import { CheckCircle2, Clock, MessageCircle, SlidersHorizontal } from "lucide-react";
+import { useMemo, useState } from "react";
+import type { BalanceRow, PaymentMethod, PaymentPreferenceRow, SettlementSuggestion } from "@/lib/expense-balance";
+import { CheckCircle2, Clock, MessageCircle, Settings2, SlidersHorizontal } from "lucide-react";
 
 function safeCurrency(currency?: string | null) {
   const code = (currency || "EUR").toUpperCase().trim();
@@ -34,6 +34,12 @@ type Props = {
   onChangeBalanceCurrency: (value: string) => void;
   onToggleSettlementStatus: (settlement: SettlementSuggestion) => Promise<void>;
   createWhatsAppLink: (settlement: SettlementSuggestion) => string;
+  settlementWarning: string | null;
+  participants: string[];
+  paymentPreferences: PaymentPreferenceRow[];
+  onSavePaymentPreference: (participantName: string, next: { send_methods: string[]; receive_methods: string[] }) => Promise<void>;
+  strictPaymentMethods: boolean;
+  onChangeStrictPaymentMethods: (value: boolean) => void;
 };
 
 export default function ExpenseBalancePanel({
@@ -43,8 +49,35 @@ export default function ExpenseBalancePanel({
   onChangeBalanceCurrency,
   onToggleSettlementStatus,
   createWhatsAppLink,
+  settlementWarning,
+  participants,
+  paymentPreferences,
+  onSavePaymentPreference,
+  strictPaymentMethods,
+  onChangeStrictPaymentMethods,
 }: Props) {
   const displayCurrency = safeCurrency(balanceCurrency);
+  const [prefsOpen, setPrefsOpen] = useState(false);
+  const [savingPref, setSavingPref] = useState<string | null>(null);
+
+  const methods: Array<{ id: PaymentMethod; label: string; chip: string }> = [
+    { id: "bizum", label: "Bizum", chip: "bg-emerald-50 text-emerald-900 border-emerald-200" },
+    { id: "transfer", label: "Transfer", chip: "bg-sky-50 text-sky-900 border-sky-200" },
+    { id: "cash", label: "Efectivo", chip: "bg-amber-50 text-amber-950 border-amber-200" },
+  ];
+
+  const prefMap = useMemo(() => {
+    const map = new Map<string, PaymentPreferenceRow>();
+    for (const p of paymentPreferences || []) map.set(p.participant_name, p);
+    return map;
+  }, [paymentPreferences]);
+
+  const effectiveParticipants = useMemo(() => {
+    const set = new Set<string>();
+    participants.forEach((p) => set.add(p));
+    balances.forEach((b) => set.add(b.person));
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [participants, balances]);
 
   const totals = useMemo(() => {
     const totalPaid = balances.reduce((sum, row) => sum + (row.paid || 0), 0);
@@ -80,7 +113,8 @@ export default function ExpenseBalancePanel({
         </div>
 
         <div className="w-full sm:w-auto">
-          <label className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm">
             <SlidersHorizontal className="h-4 w-4" aria-hidden />
             <span className="text-xs text-slate-500">Moneda balance</span>
             <select
@@ -97,9 +131,128 @@ export default function ExpenseBalancePanel({
                 <option value={displayCurrency}>{displayCurrency}</option>
               ) : null}
             </select>
-          </label>
+            </label>
+
+            <button
+              type="button"
+              onClick={() => setPrefsOpen((v) => !v)}
+              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+            >
+              <Settings2 className="h-4 w-4" aria-hidden />
+              Métodos
+            </button>
+          </div>
         </div>
       </div>
+
+      {settlementWarning ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          {settlementWarning}
+        </div>
+      ) : null}
+
+      {prefsOpen ? (
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold text-slate-950">Métodos de pago por viajero</div>
+              <div className="mt-1 text-xs text-slate-600">
+                Define cómo puede <span className="font-semibold">pagar</span> y <span className="font-semibold">recibir</span> cada persona.
+                Si el modo estricto está activo, TripBoard solo propondrá pagos posibles.
+              </div>
+            </div>
+
+            <label className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-800">
+              <input
+                type="checkbox"
+                checked={strictPaymentMethods}
+                onChange={(e) => onChangeStrictPaymentMethods(e.target.checked)}
+              />
+              Modo estricto
+            </label>
+          </div>
+
+          <div className="mt-4 grid gap-3">
+            {effectiveParticipants.map((name) => {
+              const pref = prefMap.get(name);
+              const send = pref?.send_methods?.length ? pref.send_methods : (["bizum", "transfer", "cash"] as PaymentMethod[]);
+              const receive = pref?.receive_methods?.length ? pref.receive_methods : (["bizum", "transfer", "cash"] as PaymentMethod[]);
+
+              async function toggle(kind: "send" | "receive", method: PaymentMethod) {
+                const current = kind === "send" ? send : receive;
+                const next = current.includes(method) ? current.filter((m) => m !== method) : [...current, method];
+                const payload = {
+                  send_methods: kind === "send" ? next : send,
+                  receive_methods: kind === "receive" ? next : receive,
+                };
+                setSavingPref(name);
+                try {
+                  await onSavePaymentPreference(name, payload as any);
+                } finally {
+                  setSavingPref(null);
+                }
+              }
+
+              return (
+                <div key={name} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="font-semibold text-slate-950">{name}</div>
+                    {savingPref === name ? (
+                      <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700">Guardando…</span>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <div>
+                      <div className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">Puede pagar con</div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {methods.map((m) => {
+                          const active = send.includes(m.id);
+                          return (
+                            <button
+                              key={`send-${name}-${m.id}`}
+                              type="button"
+                              onClick={() => void toggle("send", m.id)}
+                              className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                                active ? m.chip : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                              }`}
+                              aria-pressed={active}
+                            >
+                              {m.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">Puede recibir por</div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {methods.map((m) => {
+                          const active = receive.includes(m.id);
+                          return (
+                            <button
+                              key={`recv-${name}-${m.id}`}
+                              type="button"
+                              onClick={() => void toggle("receive", m.id)}
+                              className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                                active ? m.chip : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                              }`}
+                              aria-pressed={active}
+                            >
+                              {m.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between gap-3">
@@ -156,6 +309,8 @@ export default function ExpenseBalancePanel({
             {orderedSettlements.map((s) => {
               const isPaid = s.status === "paid";
               const badge = isPaid ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-900";
+              const methodLabel =
+                s.payment_method === "bizum" ? "Bizum" : s.payment_method === "transfer" ? "Transferencia" : s.payment_method === "cash" ? "Efectivo" : null;
               return (
                 <div key={s.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -168,6 +323,13 @@ export default function ExpenseBalancePanel({
                       <div className="mt-2 text-lg font-black text-slate-950">
                         {formatMoney(s.amount, s.currency || displayCurrency)}
                       </div>
+                      {methodLabel ? (
+                        <div className="mt-2">
+                          <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+                            Método: {methodLabel}
+                          </span>
+                        </div>
+                      ) : null}
                     </div>
                     <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${badge}`}>
                       {isPaid ? <CheckCircle2 className="h-4 w-4" aria-hidden /> : <Clock className="h-4 w-4" aria-hidden />}

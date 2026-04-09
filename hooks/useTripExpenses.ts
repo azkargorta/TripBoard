@@ -5,6 +5,8 @@ import { supabase } from "@/lib/supabase";
 import {
   buildBalances,
   buildSettlementSuggestions,
+  buildSettlementSuggestionsWithMethods,
+  type PaymentPreferenceRow,
   type TripExpenseBalanceInput,
 } from "@/lib/expense-balance";
 
@@ -19,6 +21,7 @@ export type TripSettlement = {
   source_balance_key?: string | null;
   paid_at?: string | null;
   notes?: string | null;
+  payment_method?: "bizum" | "transfer" | "cash" | null;
 };
 
 export type ExpenseAnalysis = {
@@ -229,6 +232,9 @@ export function useTripExpenses(tripId: string) {
   const [balanceCurrency, setBalanceCurrency] = useState("EUR");
   const [balances, setBalances] = useState<any[]>([]);
   const [suggestedSettlements, setSuggestedSettlements] = useState<any[]>([]);
+  const [paymentPreferences, setPaymentPreferences] = useState<PaymentPreferenceRow[]>([]);
+  const [strictPaymentMethods, setStrictPaymentMethods] = useState(true);
+  const [settlementWarning, setSettlementWarning] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!tripId) {
@@ -273,6 +279,18 @@ export function useTripExpenses(tripId: string) {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    // Preferencia local por viaje (estricto on/off)
+    try {
+      const key = `trip:${tripId}:strictPaymentMethods`;
+      const raw = window.localStorage.getItem(key);
+      if (raw === "0") setStrictPaymentMethods(false);
+      if (raw === "1") setStrictPaymentMethods(true);
+    } catch {
+      // ignore
+    }
+  }, [tripId]);
+
   const participants = useMemo(() => {
     const names = new Set<string>();
     registeredTravelers.forEach((name) => names.add(name));
@@ -303,9 +321,17 @@ export function useTripExpenses(tripId: string) {
 
         if (cancelled) return;
 
-        setBalances(buildBalances(convertedExpenses));
+        const nextBalances = buildBalances(convertedExpenses);
+        setBalances(nextBalances);
 
-        const suggestions = buildSettlementSuggestions(convertedExpenses, balanceCurrency);
+        const computed = buildSettlementSuggestionsWithMethods(
+          nextBalances,
+          balanceCurrency,
+          paymentPreferences,
+          strictPaymentMethods
+        );
+        setSettlementWarning(computed.warning);
+        const suggestions = computed.settlements.length ? computed.settlements : buildSettlementSuggestions(convertedExpenses, balanceCurrency);
         const existingByKey = new Map(
           settlements.map((item) => [item.source_balance_key || `${item.debtor_name}->${item.creditor_name}`, item])
         );
@@ -322,6 +348,7 @@ export function useTripExpenses(tripId: string) {
           setError(err instanceof Error ? err.message : "No se pudo recalcular el balance.");
           setBalances([]);
           setSuggestedSettlements([]);
+          setSettlementWarning(null);
         }
       }
     }
@@ -330,12 +357,69 @@ export function useTripExpenses(tripId: string) {
     else {
       setBalances([]);
       setSuggestedSettlements([]);
+      setSettlementWarning(null);
     }
 
     return () => {
       cancelled = true;
     };
-  }, [balanceCurrency, expenses, settlements]);
+  }, [balanceCurrency, expenses, settlements, paymentPreferences, strictPaymentMethods]);
+
+  const loadPaymentPreferences = useCallback(async () => {
+    if (!tripId) {
+      setPaymentPreferences([]);
+      return;
+    }
+    try {
+      const payload = await apiRequest<{ preferences: any[] }>(
+        `/api/trip-payment-preferences?tripId=${encodeURIComponent(tripId)}`,
+        { method: "GET" },
+        "cargar preferencias de pago"
+      );
+      const rows = Array.isArray(payload.preferences) ? payload.preferences : [];
+      const normalized: PaymentPreferenceRow[] = rows.map((r) => ({
+        participant_name: String(r.participant_name || ""),
+        send_methods: Array.isArray(r.send_methods) ? r.send_methods : ["bizum", "transfer", "cash"],
+        receive_methods: Array.isArray(r.receive_methods) ? r.receive_methods : ["bizum", "transfer", "cash"],
+      }));
+      setPaymentPreferences(normalized.filter((r) => r.participant_name));
+    } catch {
+      setPaymentPreferences([]);
+    }
+  }, [tripId]);
+
+  useEffect(() => {
+    void loadPaymentPreferences();
+  }, [loadPaymentPreferences]);
+
+  const savePaymentPreference = useCallback(
+    async (participantName: string, next: { send_methods: string[]; receive_methods: string[] }) => {
+      await apiRequest<{ preference: any }>(
+        "/api/trip-payment-preferences",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tripId, participantName, ...next }),
+        },
+        "guardar preferencia de pago"
+      );
+      await loadPaymentPreferences();
+    },
+    [loadPaymentPreferences, tripId]
+  );
+
+  const setStrictPaymentMethodsPersisted = useCallback(
+    (value: boolean) => {
+      setStrictPaymentMethods(value);
+      try {
+        const key = `trip:${tripId}:strictPaymentMethods`;
+        window.localStorage.setItem(key, value ? "1" : "0");
+      } catch {
+        // ignore
+      }
+    },
+    [tripId]
+  );
 
   const createExpense = useCallback(async (input: ExpenseFormInput) => {
     setSaving(true);
@@ -494,6 +578,11 @@ export function useTripExpenses(tripId: string) {
     participants,
     balances,
     suggestedSettlements,
+    settlementWarning,
+    paymentPreferences,
+    savePaymentPreference,
+    strictPaymentMethods,
+    setStrictPaymentMethods: setStrictPaymentMethodsPersisted,
     balanceCurrency,
     setBalanceCurrency,
     loading,

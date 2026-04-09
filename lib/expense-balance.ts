@@ -24,6 +24,7 @@ export type SettlementSuggestion = {
   currency: string;
   status: "pending" | "paid";
   source_balance_key: string;
+  payment_method?: "bizum" | "transfer" | "cash" | null;
 };
 
 function normalizeAmount(value: number | string | null) {
@@ -50,6 +51,248 @@ function normalizeNames(value: unknown) {
 
 function round2(value: number) {
   return Math.round(value * 100) / 100;
+}
+
+export type PaymentMethod = "bizum" | "transfer" | "cash";
+
+export type PaymentPreferenceRow = {
+  participant_name: string;
+  send_methods: PaymentMethod[];
+  receive_methods: PaymentMethod[];
+};
+
+function toCents(value: number) {
+  return Math.round(value * 100);
+}
+
+function fromCents(value: number) {
+  return Math.round(value) / 100;
+}
+
+function methodCost(method: PaymentMethod) {
+  // Preferimos Bizum, luego transferencia, luego efectivo.
+  if (method === "bizum") return 1;
+  if (method === "transfer") return 2;
+  return 3;
+}
+
+type Edge = { to: number; rev: number; cap: number; cost: number };
+
+function addEdge(graph: Edge[][], u: number, v: number, cap: number, cost: number) {
+  graph[u].push({ to: v, rev: graph[v].length, cap, cost });
+  graph[v].push({ to: u, rev: graph[u].length - 1, cap: 0, cost: -cost });
+}
+
+function minCostMaxFlow(graph: Edge[][], s: number, t: number, maxFlow: number) {
+  const n = graph.length;
+  const dist = new Array<number>(n);
+  const prevV = new Array<number>(n);
+  const prevE = new Array<number>(n);
+  const potential = new Array<number>(n).fill(0);
+
+  let flow = 0;
+  let cost = 0;
+
+  while (flow < maxFlow) {
+    dist.fill(Number.POSITIVE_INFINITY);
+    dist[s] = 0;
+    const inq = new Array<boolean>(n).fill(false);
+    const q: number[] = [s];
+    inq[s] = true;
+
+    // SPFA (n pequeño)
+    while (q.length) {
+      const v = q.shift() as number;
+      inq[v] = false;
+      for (let i = 0; i < graph[v].length; i += 1) {
+        const e = graph[v][i];
+        if (e.cap <= 0) continue;
+        const nd = dist[v] + e.cost + potential[v] - potential[e.to];
+        if (nd < dist[e.to]) {
+          dist[e.to] = nd;
+          prevV[e.to] = v;
+          prevE[e.to] = i;
+          if (!inq[e.to]) {
+            q.push(e.to);
+            inq[e.to] = true;
+          }
+        }
+      }
+    }
+
+    if (!Number.isFinite(dist[t])) break;
+
+    for (let v = 0; v < n; v += 1) {
+      if (Number.isFinite(dist[v])) potential[v] += dist[v];
+    }
+
+    let add = maxFlow - flow;
+    for (let v = t; v !== s; v = prevV[v]) {
+      add = Math.min(add, graph[prevV[v]][prevE[v]].cap);
+    }
+    for (let v = t; v !== s; v = prevV[v]) {
+      const pv = prevV[v];
+      const pe = prevE[v];
+      const e = graph[pv][pe];
+      e.cap -= add;
+      graph[v][e.rev].cap += add;
+      cost += add * e.cost;
+    }
+    flow += add;
+  }
+
+  return { flow, cost };
+}
+
+export function buildSettlementSuggestionsWithMethods(
+  balances: BalanceRow[],
+  currency: string,
+  preferences: PaymentPreferenceRow[] | null | undefined,
+  strict: boolean
+): { settlements: SettlementSuggestion[]; ok: boolean; warning: string | null } {
+  const safeCurrency = normalizeCurrency(currency);
+
+  const prefMap = new Map<string, PaymentPreferenceRow>();
+  for (const p of preferences || []) {
+    if (p?.participant_name) prefMap.set(p.participant_name, p);
+  }
+
+  const debtors = balances
+    .filter((row) => row.balance < -0.009)
+    .map((row) => ({ name: row.person, amountCents: toCents(Math.abs(row.balance)) }))
+    .filter((d) => d.amountCents > 0);
+
+  const creditors = balances
+    .filter((row) => row.balance > 0.009)
+    .map((row) => ({ name: row.person, amountCents: toCents(row.balance) }))
+    .filter((c) => c.amountCents > 0);
+
+  const totalDemand = debtors.reduce((s, d) => s + d.amountCents, 0);
+  const totalSupply = creditors.reduce((s, c) => s + c.amountCents, 0);
+  const total = Math.min(totalDemand, totalSupply);
+  if (total <= 0) return { settlements: [], ok: true, warning: null };
+
+  // Si no hay preferencias, usa el algoritmo actual.
+  if (!preferences?.length) {
+    return { settlements: buildSettlementSuggestions(balances, safeCurrency), ok: true, warning: null };
+  }
+
+  // Grafo: s -> debtors -> creditors (por método) -> t
+  // Modelamos método como coste y lo elegimos en reconstrucción.
+  const s = 0;
+  const debtorOffset = 1;
+  const creditorOffset = debtorOffset + debtors.length;
+  const t = creditorOffset + creditors.length;
+  const graph: Edge[][] = Array.from({ length: t + 1 }, () => []);
+
+  for (let i = 0; i < debtors.length; i += 1) {
+    addEdge(graph, s, debtorOffset + i, debtors[i].amountCents, 0);
+  }
+  for (let j = 0; j < creditors.length; j += 1) {
+    addEdge(graph, creditorOffset + j, t, creditors[j].amountCents, 0);
+  }
+
+  const allMethods: PaymentMethod[] = ["bizum", "transfer", "cash"];
+  const edgeMeta = new Map<string, { debtor: string; creditor: string; method: PaymentMethod }>();
+
+  for (let i = 0; i < debtors.length; i += 1) {
+    const debtor = debtors[i];
+    const debtorPref = prefMap.get(debtor.name);
+    const send = debtorPref?.send_methods?.length ? debtorPref.send_methods : allMethods;
+
+    for (let j = 0; j < creditors.length; j += 1) {
+      const creditor = creditors[j];
+      const creditorPref = prefMap.get(creditor.name);
+      const recv = creditorPref?.receive_methods?.length ? creditorPref.receive_methods : allMethods;
+
+      const intersection = send.filter((m) => recv.includes(m));
+      if (!intersection.length) continue;
+
+      // Creamos una arista por método (para poder escoger método).
+      for (const method of intersection) {
+        const u = debtorOffset + i;
+        const v = creditorOffset + j;
+        const cap = Math.min(debtor.amountCents, creditor.amountCents);
+        const cost = methodCost(method) * 10 + 1; // +1 favorece menos transferencias
+        const key = `${u}->${v}:${method}:${graph[u].length}`;
+        addEdge(graph, u, v, cap, cost);
+        edgeMeta.set(key, { debtor: debtor.name, creditor: creditor.name, method });
+      }
+    }
+  }
+
+  const { flow } = minCostMaxFlow(graph, s, t, total);
+
+  if (flow < total) {
+    if (!strict) {
+      return {
+        settlements: buildSettlementSuggestions(balances, safeCurrency),
+        ok: true,
+        warning:
+          "No se pudo cumplir todas las restricciones de métodos; se han ignorado para poder saldar las cuentas.",
+      };
+    }
+    return {
+      settlements: [],
+      ok: false,
+      warning:
+        "Con las restricciones de métodos actuales no se puede saldar el balance al 100%. Ajusta métodos disponibles o desactiva el modo estricto.",
+    };
+  }
+
+  // Reconstrucción: miramos flujo en aristas debtor->creditor (cap consumida).
+  const agg = new Map<string, { amountCents: number; method: PaymentMethod }>();
+  for (let u = debtorOffset; u < creditorOffset; u += 1) {
+    for (let ei = 0; ei < graph[u].length; ei += 1) {
+      const e = graph[u][ei];
+      if (e.to < creditorOffset || e.to >= t) continue;
+      const rev = graph[e.to][e.rev];
+      const sent = rev.cap; // lo que volvió por el reverse = flujo enviado
+      if (sent <= 0) continue;
+
+      // Encontrar meta: reconstruimos la key igual que la creación (por índice).
+      // Como el grafo se ha mutado, usamos el método más barato disponible por inspección de coste.
+      const creditorIndex = e.to - creditorOffset;
+      const debtorIndex = u - debtorOffset;
+      const debtorName = debtors[debtorIndex]?.name;
+      const creditorName = creditors[creditorIndex]?.name;
+      if (!debtorName || !creditorName) continue;
+
+      // Inferimos método por coste (methodCost*10+1)
+      const method = ((): PaymentMethod => {
+        const raw = Math.floor((e.cost - 1) / 10);
+        if (raw === 1) return "bizum";
+        if (raw === 2) return "transfer";
+        return "cash";
+      })();
+
+      const k = `${debtorName}->${creditorName}:${method}`;
+      const current = agg.get(k) || { amountCents: 0, method };
+      current.amountCents += sent;
+      agg.set(k, current);
+    }
+  }
+
+  const settlements: SettlementSuggestion[] = Array.from(agg.entries())
+    .map(([key, row]) => {
+      const [pair, method] = key.split(":");
+      const [debtor_name, creditor_name] = pair.split("->");
+      const amount = fromCents(row.amountCents);
+      return {
+        id: `${debtor_name}->${creditor_name}:${amount}`,
+        debtor_name,
+        creditor_name,
+        amount,
+        currency: safeCurrency,
+        status: "pending" as const,
+        source_balance_key: `${debtor_name}->${creditor_name}`,
+        payment_method: method as PaymentMethod,
+      };
+    })
+    .filter((s) => s.amount > 0.009)
+    .sort((a, b) => a.debtor_name.localeCompare(b.debtor_name) || a.creditor_name.localeCompare(b.creditor_name));
+
+  return { settlements, ok: true, warning: null };
 }
 
 export function buildBalances(expenses: TripExpenseBalanceInput[]) {
