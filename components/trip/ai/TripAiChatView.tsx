@@ -37,6 +37,18 @@ type ItineraryPayload = {
   }>;
 };
 
+type DiffOperation =
+  | { op: "update_activity"; id: string; patch: Record<string, unknown> }
+  | { op: "create_activity"; fields: Record<string, unknown> }
+  | { op: "delete_activity"; id: string }
+  | { op: "update_route"; id: string; patch: Record<string, unknown> };
+
+type DiffPayload = {
+  version: 1;
+  title?: string;
+  operations: DiffOperation[];
+};
+
 function extractItinerary(answer: string): ItineraryPayload | null {
   const start = "TRIPBOARD_ITINERARY_JSON_START";
   const end = "TRIPBOARD_ITINERARY_JSON_END";
@@ -48,6 +60,22 @@ function extractItinerary(answer: string): ItineraryPayload | null {
     const parsed = JSON.parse(raw);
     if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.days)) return null;
     return parsed as ItineraryPayload;
+  } catch {
+    return null;
+  }
+}
+
+function extractDiff(answer: string): DiffPayload | null {
+  const start = "TRIPBOARD_DIFF_JSON_START";
+  const end = "TRIPBOARD_DIFF_JSON_END";
+  const iStart = answer.indexOf(start);
+  const iEnd = answer.indexOf(end);
+  if (iStart === -1 || iEnd === -1 || iEnd <= iStart) return null;
+  const raw = answer.slice(iStart + start.length, iEnd).trim();
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.operations)) return null;
+    return parsed as DiffPayload;
   } catch {
     return null;
   }
@@ -107,6 +135,8 @@ export default function TripAiChatView({ tripId }: { tripId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [itineraryDraft, setItineraryDraft] = useState<ItineraryPayload | null>(null);
+  const [diffDraft, setDiffDraft] = useState<DiffPayload | null>(null);
+  const [applyingDiff, setApplyingDiff] = useState(false);
   const [executingPlan, setExecutingPlan] = useState(false);
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
@@ -221,6 +251,9 @@ export default function TripAiChatView({ tripId }: { tripId: string }) {
       const maybe = typeof data?.answer === "string" ? extractItinerary(data.answer) : null;
       if (maybe) setItineraryDraft(maybe);
       if (maybe) setExpandedDay(null);
+
+      const maybeDiff = typeof data?.answer === "string" ? extractDiff(data.answer) : null;
+      if (maybeDiff) setDiffDraft(maybeDiff);
 
       if (data?.actionExecuted && data?.actionResult) {
         setInfo(String(data.actionResult));
@@ -387,6 +420,77 @@ export default function TripAiChatView({ tripId }: { tripId: string }) {
                 Descartar
               </button>
             </div>
+          </div>
+        </section>
+      ) : null}
+
+      {diffDraft ? (
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold text-slate-950">Cambios propuestos por la IA</div>
+              <div className="mt-1 text-xs text-slate-600">
+                Revisa el “diff” antes de aplicar. Puedes descartarlo si no te convence.
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setDiffDraft(null)}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Descartar
+              </button>
+              <button
+                type="button"
+                disabled={applyingDiff}
+                onClick={async () => {
+                  setApplyingDiff(true);
+                  setError(null);
+                  try {
+                    const res = await fetch("/api/trip-ai/apply-diff", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ tripId, diff: diffDraft }),
+                    });
+                    const payload = await res.json().catch(() => null);
+                    if (!res.ok) throw new Error(payload?.error || "No se pudo aplicar el diff.");
+                    if (payload?.results?.some?.((r: any) => !r.ok)) {
+                      throw new Error("Se aplicaron algunos cambios, pero otros fallaron. Revisa el historial o vuelve a intentar.");
+                    }
+                    setInfo("Cambios aplicados.");
+                    setDiffDraft(null);
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : "No se pudo aplicar el diff.");
+                  } finally {
+                    setApplyingDiff(false);
+                  }
+                }}
+                className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+              >
+                {applyingDiff ? "Aplicando..." : "Aplicar cambios"}
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-2">
+            {(diffDraft.operations || []).slice(0, 60).map((op, idx) => (
+              <div key={`${op.op}-${(op as any).id || idx}`} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="text-xs font-extrabold uppercase tracking-[0.18em] text-slate-500">{op.op}</div>
+                {"id" in op ? (
+                  <div className="mt-1 text-xs text-slate-600">id: {(op as any).id}</div>
+                ) : null}
+                {"patch" in op ? (
+                  <pre className="mt-2 whitespace-pre-wrap text-xs text-slate-700">{JSON.stringify((op as any).patch, null, 2)}</pre>
+                ) : null}
+                {"fields" in op ? (
+                  <pre className="mt-2 whitespace-pre-wrap text-xs text-slate-700">{JSON.stringify((op as any).fields, null, 2)}</pre>
+                ) : null}
+              </div>
+            ))}
+            {(diffDraft.operations || []).length > 60 ? (
+              <div className="text-xs text-slate-500">… y más cambios (truncado).</div>
+            ) : null}
           </div>
         </section>
       ) : null}

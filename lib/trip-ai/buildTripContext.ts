@@ -108,8 +108,9 @@ export async function buildTripContext(tripId: string) {
     rowsToBullets("Recursos", resources, ["title", "category", "form_type", "location_name", "start_date", "end_date", "notes", "metadata"]),
     rowsToBullets("Gastos", expenses, ["title", "category", "amount", "currency", "expense_date", "payer_name", "paid_by_names", "owed_by_names", "notes"]),
     rowsToBullets("Balance de gastos", settlements, ["debtor_name", "creditor_name", "amount", "currency", "status", "notes"]),
-    rowsToBullets("Rutas", routes, ["route_day", "title", "origin_name", "destination_name", "departure_time", "travel_mode", "notes"]),
-    rowsToBullets("Actividades", activities, ["title", "activity_date", "activity_type", "location_name", "start_time", "end_time", "notes"]),
+    // IMPORTANTE: incluimos `id` para poder proponer cambios aplicables (diff).
+    rowsToBullets("Rutas", routes, ["id", "route_day", "title", "origin_address", "destination_address", "departure_time", "travel_mode", "notes"]),
+    rowsToBullets("Actividades", activities, ["id", "title", "activity_date", "activity_time", "activity_kind", "place_name", "address", "notes"]),
   ];
 
   return sections.join("\n\n").slice(0, 18000);
