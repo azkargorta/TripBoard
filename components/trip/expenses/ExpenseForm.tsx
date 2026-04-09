@@ -109,7 +109,9 @@ export default function ExpenseForm({
     if (detectedData.currency) setCurrency(detectedData.currency);
     if (detectedData.expenseDate) setExpenseDate(detectedData.expenseDate);
     if (detectedData.file) setAttachment(detectedData.file);
-    setAnalysisData(detectedData);
+    // No guardamos el File dentro de analysis_data (rompe JSON / DB y no aporta valor).
+    const { file: _file, ...safeAnalysis } = detectedData as any;
+    setAnalysisData(safeAnalysis);
   }, [detectedData, isEditing]);
 
   function toggleParticipant(name: string) {
@@ -205,6 +207,12 @@ export default function ExpenseForm({
       </div>
 
       <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+        {saving ? (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+            Guardando… Si esto tarda más de 20s, suele ser un problema de permisos/bucket al subir el adjunto.
+          </div>
+        ) : null}
+
         <label className="block space-y-2">
           <span className="text-sm font-semibold text-slate-800">Concepto</span>
           <input value={title} onChange={(e) => setTitle(e.target.value)} className="w-full rounded-xl border border-slate-300 px-4 py-3" />
