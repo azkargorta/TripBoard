@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { extractTextFromPdfClient } from "@/lib/pdfToText";
 
 export type ExpenseDetectedData = {
   title?: string | null;
@@ -34,15 +35,57 @@ export default function ExpenseAnalyzerPanel({
     setResult(null);
 
     try {
+      const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+
+      // Preferimos extraer el texto del PDF en cliente (PDF.js) porque es más fiable en Next.
+      if (isPdf) {
+        const pdfText = await extractTextFromPdfClient(file).catch(() => "");
+        if (pdfText.trim().length >= 50) {
+          const response = await fetch("/api/expense/analyze-text", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              text: pdfText,
+              fileName: file.name,
+              mimeType: file.type,
+              enhance: true,
+              provider: useGemini ? "gemini" : null,
+            }),
+          });
+
+          const payload = await response.json().catch(() => null);
+          if (!response.ok) throw new Error(payload?.error || "No se pudo analizar el archivo.");
+
+          const llm = payload?.llmExpense && typeof payload.llmExpense === "object" ? payload.llmExpense : null;
+          setResult({
+            title: llm?.title ?? payload?.title ?? payload?.suggestedTitle ?? null,
+            category: llm?.category ?? payload?.category ?? "general",
+            amount:
+              typeof llm?.amount === "number"
+                ? llm.amount
+                : typeof payload?.amount === "number"
+                  ? payload.amount
+                  : null,
+            currency: llm?.currency ?? payload?.currency ?? "EUR",
+            expenseDate: llm?.expenseDate ?? payload?.expenseDate ?? null,
+            merchantName: llm?.merchantName ?? payload?.merchantName ?? null,
+            extractedText: payload?.extractedText || pdfText || null,
+            extractionMethod: payload?.extractionMethod || "pdfjs-client",
+            warnings: Array.isArray(payload?.warnings) ? payload.warnings : [],
+            sharedWarnings: Array.isArray(payload?.sharedWarnings) ? payload.sharedWarnings : [],
+            file,
+          });
+          return;
+        }
+      }
+
+      // Fallback: sube el archivo al servidor
       const formData = new FormData();
       formData.append("file", file);
       formData.append("enhance", "1");
       if (useGemini) formData.append("provider", "gemini");
 
-      const response = await fetch("/api/expense/analyze", {
-        method: "POST",
-        body: formData,
-      });
+      const response = await fetch("/api/expense/analyze", { method: "POST", body: formData });
 
       const payload = await response.json().catch(() => null);
 
