@@ -20,6 +20,8 @@ export default function TripExpensesView({ tripId }: { tripId: string }) {
     settlementWarning,
     paymentPreferences,
     savePaymentPreference,
+    paymentPairRules,
+    savePaymentPairRule,
     strictPaymentMethods,
     setStrictPaymentMethods,
     balanceCurrency,
@@ -248,6 +250,8 @@ export default function TripExpensesView({ tripId }: { tripId: string }) {
                 participants={participants}
                 paymentPreferences={paymentPreferences}
                 onSavePaymentPreference={savePaymentPreference}
+                paymentPairRules={paymentPairRules}
+                onSavePaymentPairRule={savePaymentPairRule}
                 strictPaymentMethods={strictPaymentMethods}
                 onChangeStrictPaymentMethods={setStrictPaymentMethods}
               />

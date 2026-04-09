@@ -61,6 +61,13 @@ export type PaymentPreferenceRow = {
   receive_methods: PaymentMethod[];
 };
 
+export type PaymentPairRuleRow = {
+  from_participant_name: string;
+  to_participant_name: string;
+  allowed: boolean;
+  prefer: boolean;
+};
+
 function toCents(value: number) {
   return Math.round(value * 100);
 }
@@ -148,13 +155,20 @@ export function buildSettlementSuggestionsWithMethods(
   balances: BalanceRow[],
   currency: string,
   preferences: PaymentPreferenceRow[] | null | undefined,
-  strict: boolean
+  strict: boolean,
+  pairRules?: PaymentPairRuleRow[] | null
 ): { settlements: SettlementSuggestion[]; ok: boolean; warning: string | null } {
   const safeCurrency = normalizeCurrency(currency);
 
   const prefMap = new Map<string, PaymentPreferenceRow>();
   for (const p of preferences || []) {
     if (p?.participant_name) prefMap.set(p.participant_name, p);
+  }
+
+  const pairMap = new Map<string, PaymentPairRuleRow>();
+  for (const r of pairRules || []) {
+    if (!r?.from_participant_name || !r?.to_participant_name) continue;
+    pairMap.set(`${r.from_participant_name}->${r.to_participant_name}`, r);
   }
 
   const debtors = balances
@@ -202,6 +216,10 @@ export function buildSettlementSuggestionsWithMethods(
 
     for (let j = 0; j < creditors.length; j += 1) {
       const creditor = creditors[j];
+      const pairKey = `${debtor.name}->${creditor.name}`;
+      const pairRule = pairMap.get(pairKey);
+      if (pairRule && pairRule.allowed === false) continue;
+
       const creditorPref = prefMap.get(creditor.name);
       const recv = creditorPref?.receive_methods?.length ? creditorPref.receive_methods : allMethods;
 
@@ -213,7 +231,8 @@ export function buildSettlementSuggestionsWithMethods(
         const u = debtorOffset + i;
         const v = creditorOffset + j;
         const cap = Math.min(debtor.amountCents, creditor.amountCents);
-        const cost = methodCost(method) * 10 + 1; // +1 favorece menos transferencias
+        let cost = methodCost(method) * 10 + 1; // +1 favorece menos transferencias
+        if (pairRule?.prefer) cost -= 3; // preferimos A->B si es posible
         const key = `${u}->${v}:${method}:${graph[u].length}`;
         addEdge(graph, u, v, cap, cost);
         edgeMeta.set(key, { debtor: debtor.name, creditor: creditor.name, method });

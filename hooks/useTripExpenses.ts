@@ -7,6 +7,7 @@ import {
   buildSettlementSuggestions,
   buildSettlementSuggestionsWithMethods,
   type PaymentPreferenceRow,
+  type PaymentPairRuleRow,
   type TripExpenseBalanceInput,
 } from "@/lib/expense-balance";
 
@@ -233,6 +234,7 @@ export function useTripExpenses(tripId: string) {
   const [balances, setBalances] = useState<any[]>([]);
   const [suggestedSettlements, setSuggestedSettlements] = useState<any[]>([]);
   const [paymentPreferences, setPaymentPreferences] = useState<PaymentPreferenceRow[]>([]);
+  const [paymentPairRules, setPaymentPairRules] = useState<PaymentPairRuleRow[]>([]);
   const [strictPaymentMethods, setStrictPaymentMethods] = useState(true);
   const [settlementWarning, setSettlementWarning] = useState<string | null>(null);
 
@@ -328,7 +330,8 @@ export function useTripExpenses(tripId: string) {
           nextBalances,
           balanceCurrency,
           paymentPreferences,
-          strictPaymentMethods
+          strictPaymentMethods,
+          paymentPairRules
         );
         setSettlementWarning(computed.warning);
         const suggestions = computed.settlements.length ? computed.settlements : buildSettlementSuggestions(convertedExpenses, balanceCurrency);
@@ -363,7 +366,7 @@ export function useTripExpenses(tripId: string) {
     return () => {
       cancelled = true;
     };
-  }, [balanceCurrency, expenses, settlements, paymentPreferences, strictPaymentMethods]);
+  }, [balanceCurrency, expenses, settlements, paymentPreferences, paymentPairRules, strictPaymentMethods]);
 
   const loadPaymentPreferences = useCallback(async () => {
     if (!tripId) {
@@ -391,6 +394,56 @@ export function useTripExpenses(tripId: string) {
   useEffect(() => {
     void loadPaymentPreferences();
   }, [loadPaymentPreferences]);
+
+  const loadPaymentPairRules = useCallback(async () => {
+    if (!tripId) {
+      setPaymentPairRules([]);
+      return;
+    }
+    try {
+      const payload = await apiRequest<{ rules: any[] }>(
+        `/api/trip-payment-pair-rules?tripId=${encodeURIComponent(tripId)}`,
+        { method: "GET" },
+        "cargar reglas de pago"
+      );
+      const rows = Array.isArray(payload.rules) ? payload.rules : [];
+      const normalized: PaymentPairRuleRow[] = rows.map((r) => ({
+        from_participant_name: String(r.from_participant_name || ""),
+        to_participant_name: String(r.to_participant_name || ""),
+        allowed: typeof r.allowed === "boolean" ? r.allowed : true,
+        prefer: typeof r.prefer === "boolean" ? r.prefer : false,
+      }));
+      setPaymentPairRules(normalized.filter((r) => r.from_participant_name && r.to_participant_name));
+    } catch {
+      setPaymentPairRules([]);
+    }
+  }, [tripId]);
+
+  useEffect(() => {
+    void loadPaymentPairRules();
+  }, [loadPaymentPairRules]);
+
+  const savePaymentPairRule = useCallback(
+    async (fromName: string, toName: string, patch: { allowed: boolean; prefer: boolean }) => {
+      await apiRequest<{ rule: any }>(
+        "/api/trip-payment-pair-rules",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tripId,
+            fromParticipantName: fromName,
+            toParticipantName: toName,
+            allowed: patch.allowed,
+            prefer: patch.prefer,
+          }),
+        },
+        "guardar regla de pago"
+      );
+      await loadPaymentPairRules();
+    },
+    [loadPaymentPairRules, tripId]
+  );
 
   const savePaymentPreference = useCallback(
     async (participantName: string, next: { send_methods: string[]; receive_methods: string[] }) => {
@@ -581,6 +634,8 @@ export function useTripExpenses(tripId: string) {
     settlementWarning,
     paymentPreferences,
     savePaymentPreference,
+    paymentPairRules,
+    savePaymentPairRule,
     strictPaymentMethods,
     setStrictPaymentMethods: setStrictPaymentMethodsPersisted,
     balanceCurrency,

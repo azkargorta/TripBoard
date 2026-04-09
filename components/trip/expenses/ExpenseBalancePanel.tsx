@@ -1,7 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { BalanceRow, PaymentMethod, PaymentPreferenceRow, SettlementSuggestion } from "@/lib/expense-balance";
+import type {
+  BalanceRow,
+  PaymentMethod,
+  PaymentPairRuleRow,
+  PaymentPreferenceRow,
+  SettlementSuggestion,
+} from "@/lib/expense-balance";
 import { CheckCircle2, Clock, MessageCircle, Settings2, SlidersHorizontal } from "lucide-react";
 
 function safeCurrency(currency?: string | null) {
@@ -38,6 +44,8 @@ type Props = {
   participants: string[];
   paymentPreferences: PaymentPreferenceRow[];
   onSavePaymentPreference: (participantName: string, next: { send_methods: string[]; receive_methods: string[] }) => Promise<void>;
+  paymentPairRules: PaymentPairRuleRow[];
+  onSavePaymentPairRule: (fromName: string, toName: string, patch: { allowed: boolean; prefer: boolean }) => Promise<void>;
   strictPaymentMethods: boolean;
   onChangeStrictPaymentMethods: (value: boolean) => void;
 };
@@ -53,6 +61,8 @@ export default function ExpenseBalancePanel({
   participants,
   paymentPreferences,
   onSavePaymentPreference,
+  paymentPairRules,
+  onSavePaymentPairRule,
   strictPaymentMethods,
   onChangeStrictPaymentMethods,
 }: Props) {
@@ -71,6 +81,15 @@ export default function ExpenseBalancePanel({
     for (const p of paymentPreferences || []) map.set(p.participant_name, p);
     return map;
   }, [paymentPreferences]);
+
+  const pairRuleMap = useMemo(() => {
+    const map = new Map<string, PaymentPairRuleRow>();
+    for (const r of paymentPairRules || []) {
+      if (!r.from_participant_name || !r.to_participant_name) continue;
+      map.set(`${r.from_participant_name}->${r.to_participant_name}`, r);
+    }
+    return map;
+  }, [paymentPairRules]);
 
   const effectiveParticipants = useMemo(() => {
     const set = new Set<string>();
@@ -177,6 +196,7 @@ export default function ExpenseBalancePanel({
               const pref = prefMap.get(name);
               const send = pref?.send_methods?.length ? pref.send_methods : (["bizum", "transfer", "cash"] as PaymentMethod[]);
               const receive = pref?.receive_methods?.length ? pref.receive_methods : (["bizum", "transfer", "cash"] as PaymentMethod[]);
+              const others = effectiveParticipants.filter((p) => p !== name);
 
               async function toggle(kind: "send" | "receive", method: PaymentMethod) {
                 const current = kind === "send" ? send : receive;
@@ -188,6 +208,33 @@ export default function ExpenseBalancePanel({
                 setSavingPref(name);
                 try {
                   await onSavePaymentPreference(name, payload as any);
+                } finally {
+                  setSavingPref(null);
+                }
+              }
+
+              async function toggleAllowed(toName: string) {
+                const key = `${name}->${toName}`;
+                const current = pairRuleMap.get(key);
+                const allowed = current ? !current.allowed : false; // por defecto allowed=true; primer click lo bloquea
+                const prefer = current?.prefer ?? false;
+                setSavingPref(name);
+                try {
+                  await onSavePaymentPairRule(name, toName, { allowed, prefer: allowed ? prefer : false });
+                } finally {
+                  setSavingPref(null);
+                }
+              }
+
+              async function togglePrefer(toName: string) {
+                const key = `${name}->${toName}`;
+                const current = pairRuleMap.get(key);
+                const allowed = current?.allowed ?? true;
+                if (!allowed) return; // no tiene sentido preferir si está bloqueado
+                const prefer = !(current?.prefer ?? false);
+                setSavingPref(name);
+                try {
+                  await onSavePaymentPairRule(name, toName, { allowed: true, prefer });
                 } finally {
                   setSavingPref(null);
                 }
@@ -245,6 +292,56 @@ export default function ExpenseBalancePanel({
                           );
                         })}
                       </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">
+                      Puede pagar a
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {others.length ? (
+                        others.map((toName) => {
+                          const rule = pairRuleMap.get(`${name}->${toName}`);
+                          const allowed = rule?.allowed ?? true;
+                          const prefer = rule?.prefer ?? false;
+                          return (
+                            <div key={`${name}->${toName}`} className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => void toggleAllowed(toName)}
+                                className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                                  allowed
+                                    ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                                    : "border-rose-200 bg-rose-50 text-rose-900"
+                                }`}
+                                title={allowed ? "Permitido (click para bloquear)" : "Bloqueado (click para permitir)"}
+                              >
+                                {allowed ? "✓" : "⛔"} {toName}
+                              </button>
+                              {allowed ? (
+                                <button
+                                  type="button"
+                                  onClick={() => void togglePrefer(toName)}
+                                  className={`rounded-full border px-2 py-1 text-[11px] font-semibold ${
+                                    prefer
+                                      ? "border-violet-200 bg-violet-50 text-violet-900"
+                                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                                  }`}
+                                  title={prefer ? "Preferido (click para quitar)" : "Marcar como preferido"}
+                                >
+                                  {prefer ? "★" : "☆"}
+                                </button>
+                              ) : null}
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="text-xs text-slate-600">Añade más viajeros para configurar parejas.</div>
+                      )}
+                    </div>
+                    <div className="mt-2 text-xs text-slate-500">
+                      Consejo: deja bloqueos solo cuando sea necesario. Si el modo estricto está activo y no hay forma de saldar, TripBoard te avisará.
                     </div>
                   </div>
                 </div>
