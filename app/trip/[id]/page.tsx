@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireTripAccess } from "@/lib/trip-access";
 import TripHomeActions from "@/components/trip/home/TripHomeActions";
 import TripWeatherCard from "@/components/trip/home/TripWeatherCard";
+import TripTripBasicsEditor from "@/components/trip/home/TripTripBasicsEditor";
 import { computePersonalBalance } from "@/lib/personal-balance";
 import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
 import TripScreenActions from "@/components/trip/common/TripScreenActions";
@@ -30,6 +31,8 @@ type ParticipantRow = {
   email: string | null;
   user_id: string | null;
   status: string | null;
+  role?: string | null;
+  can_manage_trip?: boolean | null;
 };
 
 type ProfileRow = {
@@ -134,7 +137,7 @@ export default async function TripPage({ params }: TripPageProps) {
       .maybeSingle(),
     supabase
       .from("trip_participants")
-      .select("id, display_name, username, email, user_id, status")
+      .select("id, display_name, username, email, user_id, status, role, can_manage_trip")
       .eq("trip_id", tripId)
       .neq("status", "removed")
       .order("created_at", { ascending: true }),
@@ -180,6 +183,10 @@ export default async function TripPage({ params }: TripPageProps) {
   );
   const currentParticipant =
     participants.find((participant) => participant.id === access.participantId) ?? null;
+  const canEditTrip = Boolean(
+    currentParticipant &&
+      ((currentParticipant.role ?? access.role) === "owner" || currentParticipant.can_manage_trip)
+  );
   const currentProfile = (profileData ?? null) as ProfileRow | null;
   const activities = (activitiesData ?? []) as ActivityRow[];
   const routes = (routesData ?? []) as RouteRow[];
@@ -284,6 +291,20 @@ export default async function TripPage({ params }: TripPageProps) {
       <section className="card-soft p-6 md:p-8">
         <div className="grid gap-6 md:grid-cols-[1.8fr_1fr]">
           <div className="space-y-5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Datos principales
+              </div>
+              <TripTripBasicsEditor
+                tripId={tripId}
+                destination={currentTrip.destination}
+                startDate={currentTrip.start_date}
+                endDate={currentTrip.end_date}
+                baseCurrency={currentTrip.base_currency}
+                canEdit={canEditTrip}
+              />
+            </div>
+
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Fechas</p>

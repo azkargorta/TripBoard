@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import PlaceAutocompleteInput from "@/components/PlaceAutocompleteInput";
+import { RotateCcw } from "lucide-react";
 
 type WeatherDay = {
   date: string;
@@ -55,12 +57,17 @@ export default function TripWeatherCard({ tripId, destination }: Props) {
   const [data, setData] = useState<WeatherPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [customLocation, setCustomLocation] = useState("");
+  const [effectiveLocation, setEffectiveLocation] = useState<string | null>(null);
+
+  const canUseGooglePlaces = useMemo(() => typeof window !== "undefined" && !!window.google?.maps?.places, []);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadWeather() {
-      if (!destination) {
+      const activeLocation = (effectiveLocation || destination || "").trim();
+      if (!activeLocation) {
         setLoading(false);
         setData(null);
         return;
@@ -70,7 +77,9 @@ export default function TripWeatherCard({ tripId, destination }: Props) {
       setError(null);
 
       try {
-        const response = await fetch(`/api/trips/${tripId}/weather`, { cache: "no-store" });
+        const response = effectiveLocation
+          ? await fetch(`/api/weather/forecast?location=${encodeURIComponent(activeLocation)}`, { cache: "no-store" })
+          : await fetch(`/api/trips/${tripId}/weather`, { cache: "no-store" });
         const payload = await response.json().catch(() => null);
 
         if (!response.ok) {
@@ -78,7 +87,20 @@ export default function TripWeatherCard({ tripId, destination }: Props) {
         }
 
         if (!cancelled) {
-          setData(payload as WeatherPayload);
+          if (effectiveLocation) {
+            const days = Array.isArray(payload?.days) ? payload.days : [];
+            setData({
+              locationLabel: payload?.resolvedLocation || activeLocation,
+              days: days.map((d: any) => ({
+                date: String(d?.date || ""),
+                tempMax: typeof d?.tempMax === "number" ? d.tempMax : null,
+                tempMin: typeof d?.tempMin === "number" ? d.tempMin : null,
+                code: typeof d?.weatherCode === "number" ? d.weatherCode : null,
+              })),
+            });
+          } else {
+            setData(payload as WeatherPayload);
+          }
         }
       } catch (err) {
         if (!cancelled) {
@@ -96,7 +118,7 @@ export default function TripWeatherCard({ tripId, destination }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [tripId, destination]);
+  }, [tripId, destination, effectiveLocation]);
 
   return (
     <div className="card-soft p-6">
@@ -104,14 +126,52 @@ export default function TripWeatherCard({ tripId, destination }: Props) {
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-600">Clima</p>
           <h3 className="mt-1 text-2xl font-bold text-slate-950">Próximos 7 días</h3>
-          <p className="mt-1 text-sm text-slate-600">{data?.locationLabel || destination || "Añade el destino del viaje para activar el clima."}</p>
+          <p className="mt-1 text-sm text-slate-600">
+            {data?.locationLabel || effectiveLocation || destination || "Añade el destino del viaje para activar el clima."}
+          </p>
         </div>
         <div className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
           Previsión rápida
         </div>
       </div>
 
-      {!destination ? (
+      <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="text-sm font-bold text-slate-900">Ver tiempo en otra ubicación</div>
+          {effectiveLocation ? (
+            <button
+              type="button"
+              onClick={() => {
+                setEffectiveLocation(null);
+                setCustomLocation("");
+              }}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              title="Volver al destino del viaje"
+            >
+              <RotateCcw className="h-4 w-4" aria-hidden />
+              Usar destino del viaje
+            </button>
+          ) : null}
+        </div>
+
+        {canUseGooglePlaces ? (
+          <div className="mt-3">
+            <PlaceAutocompleteInput
+              value={customLocation}
+              onChange={setCustomLocation}
+              label="Buscar ubicación"
+              placeholder="Ej. Madrid, España"
+              onPlaceSelect={(p) => setEffectiveLocation(p.address)}
+            />
+          </div>
+        ) : (
+          <div className="mt-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+            Activa Google Places (Maps JavaScript API) para usar el autocompletado aquí.
+          </div>
+        )}
+      </div>
+
+      {!destination && !effectiveLocation ? (
         <div className="mt-5 rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-600">
           Define el destino del viaje para mostrar la previsión meteorológica.
         </div>
