@@ -46,6 +46,7 @@ type Props = {
   onSavePaymentPreference: (participantName: string, next: { send_methods: string[]; receive_methods: string[] }) => Promise<void>;
   paymentPairRules: PaymentPairRuleRow[];
   onSavePaymentPairRule: (fromName: string, toName: string, patch: { allowed: boolean; prefer: boolean }) => Promise<void>;
+  onResetPaymentPairRules: (fromName: string, toParticipantNames: string[]) => Promise<void>;
   strictPaymentMethods: boolean;
   onChangeStrictPaymentMethods: (value: boolean) => void;
 };
@@ -63,6 +64,7 @@ export default function ExpenseBalancePanel({
   onSavePaymentPreference,
   paymentPairRules,
   onSavePaymentPairRule,
+  onResetPaymentPairRules,
   strictPaymentMethods,
   onChangeStrictPaymentMethods,
 }: Props) {
@@ -240,6 +242,15 @@ export default function ExpenseBalancePanel({
                 }
               }
 
+              async function resetAllForThisPerson() {
+                setSavingPref(name);
+                try {
+                  await onResetPaymentPairRules(name, others);
+                } finally {
+                  setSavingPref(null);
+                }
+              }
+
               return (
                 <div key={name} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -296,8 +307,17 @@ export default function ExpenseBalancePanel({
                   </div>
 
                   <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
-                    <div className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">
-                      Puede pagar a
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">
+                        Puede pagar a
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void resetAllForThisPerson()}
+                        className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      >
+                        Restablecer
+                      </button>
                     </div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {others.length ? (

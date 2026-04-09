@@ -22,6 +22,7 @@ export default function TripExpensesView({ tripId }: { tripId: string }) {
     savePaymentPreference,
     paymentPairRules,
     savePaymentPairRule,
+    resetPaymentPairRules,
     strictPaymentMethods,
     setStrictPaymentMethods,
     balanceCurrency,
@@ -230,6 +231,25 @@ export default function TripExpensesView({ tripId }: { tripId: string }) {
               />
             </div>
           </details>
+
+          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex flex-col gap-2 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="text-sm font-semibold text-slate-950">Listado de gastos</div>
+                <div className="mt-1 text-xs text-slate-600">Edita, elimina y revisa todos los tickets registrados.</div>
+              </div>
+            </div>
+            <div className="px-4 py-4">
+              <ExpenseList
+                expenses={expenses as any}
+                onEdit={(expense) => {
+                  setEditingExpense(expense);
+                  setIsAddOpen(true);
+                }}
+                onDelete={deleteExpense}
+              />
+            </div>
+          </div>
         </div>
 
         <div className="space-y-4">
@@ -252,6 +272,7 @@ export default function TripExpensesView({ tripId }: { tripId: string }) {
                 onSavePaymentPreference={savePaymentPreference}
                 paymentPairRules={paymentPairRules}
                 onSavePaymentPairRule={savePaymentPairRule}
+                onResetPaymentPairRules={resetPaymentPairRules}
                 strictPaymentMethods={strictPaymentMethods}
                 onChangeStrictPaymentMethods={setStrictPaymentMethods}
               />
@@ -260,24 +281,7 @@ export default function TripExpensesView({ tripId }: { tripId: string }) {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-2 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="text-sm font-semibold text-slate-950">Listado de gastos</div>
-            <div className="mt-1 text-xs text-slate-600">Edita, elimina y revisa todos los tickets registrados.</div>
-          </div>
-        </div>
-        <div className="px-4 py-4">
-          <ExpenseList
-            expenses={expenses as any}
-            onEdit={(expense) => {
-              setEditingExpense(expense);
-              setIsAddOpen(true);
-            }}
-            onDelete={deleteExpense}
-          />
-        </div>
-      </div>
+      {/* Listado movido dentro de la columna izquierda del grid */}
     </div>
   );
 }
