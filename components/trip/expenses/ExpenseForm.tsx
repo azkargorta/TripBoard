@@ -179,7 +179,7 @@ export default function ExpenseForm({
           analysisData,
         }),
         new Promise<void>((_resolve, reject) =>
-          window.setTimeout(() => reject(new Error("El guardado está tardando demasiado (timeout).")), 25000)
+          window.setTimeout(() => reject(new Error("El guardado está tardando demasiado (timeout).")), 60000)
         ),
       ]);
 

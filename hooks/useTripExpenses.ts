@@ -375,7 +375,8 @@ export function useTripExpenses(tripId: string) {
         { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) },
         "crear gasto"
       );
-      await load();
+      // No bloqueamos el flujo esperando a recargar (puede tardar por red/Supabase).
+      void load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo guardar el gasto.");
       throw err;
@@ -430,7 +431,7 @@ export function useTripExpenses(tripId: string) {
         { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) },
         "actualizar gasto"
       );
-      await load();
+      void load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo actualizar el gasto.");
       throw err;
@@ -444,7 +445,7 @@ export function useTripExpenses(tripId: string) {
     setError(null);
     try {
       await apiRequest<{ ok: true }>(`/api/trip-expenses/${expenseId}`, { method: "DELETE" }, "eliminar gasto");
-      await load();
+      void load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo eliminar el gasto.");
       throw err;
@@ -462,7 +463,7 @@ export function useTripExpenses(tripId: string) {
         { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tripId, settlement }) },
         "toggle settlement"
       );
-      await load();
+      void load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo actualizar el estado del pago.");
       throw err;
