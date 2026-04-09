@@ -47,7 +47,17 @@ export async function POST(request: Request) {
       ...permissions,
     };
 
-    const { data, error } = await supabase.from("trip_invites").insert(payload).select("*").single();
+    let { data, error } = await supabase.from("trip_invites").insert(payload).select("*").single();
+    if (error) {
+      const msg = (error.message || "").toLowerCase();
+      // Compatibilidad: algunos esquemas antiguos no tienen created_by_user_id.
+      if (msg.includes("created_by_user_id") && msg.includes("could not find")) {
+        const { created_by_user_id: _omit, ...payloadWithoutCreatedBy } = payload;
+        const retry = await supabase.from("trip_invites").insert(payloadWithoutCreatedBy).select("*").single();
+        data = retry.data;
+        error = retry.error;
+      }
+    }
     if (error) throw new Error(error.message);
 
     return NextResponse.json({ invite: data }, { status: 201 });

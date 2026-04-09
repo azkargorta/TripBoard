@@ -30,6 +30,7 @@ alter table public.trip_invites
   add column if not exists role text not null default 'viewer',
   add column if not exists status text not null default 'pending',
   add column if not exists whatsapp_message text,
+  add column if not exists created_by_user_id uuid references auth.users(id) on delete set null,
   add column if not exists accepted_by_user_id uuid references auth.users(id) on delete set null,
   add column if not exists accepted_at timestamptz,
   add column if not exists expires_at timestamptz,
