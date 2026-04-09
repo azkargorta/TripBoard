@@ -19,6 +19,7 @@ import {
   Link2,
   MessageCircle,
   Pencil,
+  RefreshCcw,
   Search,
   Sparkles,
   Trash2,
@@ -63,6 +64,7 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
   const [isLoadedUser, setIsLoadedUser] = useState(false);
   const [serverCanManageParticipants, setServerCanManageParticipants] = useState<boolean | null>(null);
+  const [serverAccessLoaded, setServerAccessLoaded] = useState(false);
 
   const [isCreating, setIsCreating] = useState(false);
   const [isInviting, setIsInviting] = useState(false);
@@ -92,10 +94,12 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
         if (cancelled) return;
         const can = Boolean(payload?.access?.canManageParticipants);
         setServerCanManageParticipants(can);
+        setServerAccessLoaded(true);
       })
       .catch(() => {
         if (cancelled) return;
         setServerCanManageParticipants(null);
+        setServerAccessLoaded(true);
       });
     return () => {
       cancelled = true;
@@ -130,7 +134,9 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
   }, [participants, currentUserId, currentUserEmail]);
 
   const canManageParticipants = Boolean(
-    serverCanManageParticipants ?? (myParticipant?.role === "owner" || myParticipant?.can_manage_participants)
+    serverAccessLoaded
+      ? serverCanManageParticipants
+      : myParticipant?.role === "owner" || myParticipant?.can_manage_participants
   );
 
   const stats = useMemo(() => {
@@ -309,7 +315,7 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{actionError}</div>
       ) : null}
 
-      {!canManageParticipants ? (
+      {serverAccessLoaded && !canManageParticipants ? (
         <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-white px-5 py-4 shadow-sm">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:gap-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-amber-800">
@@ -327,93 +333,8 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
         </div>
       ) : null}
 
-      {canManageParticipants ? (
-        <div className="sticky top-0 z-10 flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-3 shadow-sm backdrop-blur md:flex-row md:flex-wrap md:items-center md:justify-between">
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setEditingParticipant(null);
-                setInviteParticipant(null);
-                setIsInviting(false);
-                setLinkingParticipant(null);
-                setIsCreating((prev) => !prev);
-              }}
-              className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
-            >
-              <UserPlus className="h-4 w-4" aria-hidden />
-              {isCreating ? "Cerrar" : "Añadir pasajero"}
-            </button>
-            <button
-              type="button"
-              onClick={openGenericInvite}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
-            >
-              <MessageCircle className="h-4 w-4 text-emerald-600" aria-hidden />
-              {isInviting && !inviteParticipant ? "Cerrar invitación" : "Invitar por WhatsApp"}
-            </button>
-          </div>
-          <p className="text-xs text-slate-500 md:max-w-md md:text-right">
-            WhatsApp abre con un mensaje y un enlace único. La persona inicia sesión y queda vinculada al pasajero.
-          </p>
-        </div>
-      ) : null}
-
-      {canManageParticipants && isInviting ? (
-        <div className="rounded-2xl border border-emerald-100 bg-emerald-50/40 p-1 shadow-sm">
-          <InviteParticipantPanel
-            tripId={tripId}
-            participant={inviteParticipant}
-            onCreated={() => {
-              setIsInviting(false);
-              setInviteParticipant(null);
-            }}
-            onCancel={() => {
-              setIsInviting(false);
-              setInviteParticipant(null);
-            }}
-          />
-        </div>
-      ) : null}
-
-      {canManageParticipants && isCreating ? (
-        <ParticipantForm
-          tripId={tripId}
-          onSubmit={handleCreate}
-          onCancel={() => setIsCreating(false)}
-          submitLabel="Añadir participante"
-        />
-      ) : null}
-
-      {canManageParticipants && editingParticipant ? (
-        <ParticipantForm
-          tripId={tripId}
-          initialData={editingParticipant}
-          onSubmit={handleUpdate}
-          onCancel={() => setEditingParticipant(null)}
-          submitLabel="Guardar cambios"
-        />
-      ) : null}
-
-      {canManageParticipants && linkingParticipant ? (
-        <div className="rounded-2xl border border-violet-100 bg-violet-50/40 p-1 shadow-sm">
-          <ParticipantLinkProfilePanel
-            participant={linkingParticipant}
-            onSearchProfiles={searchProfiles}
-            onLinkProfile={async (profile) => {
-              setActionError(null);
-              try {
-                await linkParticipantToProfile(linkingParticipant.id, profile);
-                setLinkingParticipant(null);
-              } catch (e) {
-                setActionError(e instanceof Error ? e.message : "No se pudo vincular el usuario.");
-              }
-            }}
-          />
-        </div>
-      ) : null}
-
-      <section className="space-y-4">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
+        <section className="space-y-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <h2 className="text-lg font-bold text-slate-900">Lista de pasajeros</h2>
           <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center">
@@ -613,7 +534,116 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
             })}
           </div>
         )}
-      </section>
+        </section>
+
+        <aside className="space-y-4 lg:sticky lg:top-3 lg:self-start">
+          {canManageParticipants ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-sm font-extrabold text-slate-950">Control de pasajeros</div>
+                <button
+                  type="button"
+                  onClick={() => void refetch()}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  <RefreshCcw className="h-4 w-4" aria-hidden />
+                  Recargar
+                </button>
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingParticipant(null);
+                    setInviteParticipant(null);
+                    setIsInviting(false);
+                    setLinkingParticipant(null);
+                    setIsCreating((prev) => !prev);
+                  }}
+                  className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+                >
+                  <UserPlus className="h-4 w-4" aria-hidden />
+                  {isCreating ? "Cerrar" : "Añadir pasajero"}
+                </button>
+                <button
+                  type="button"
+                  onClick={openGenericInvite}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
+                >
+                  <MessageCircle className="h-4 w-4 text-emerald-600" aria-hidden />
+                  {isInviting && !inviteParticipant ? "Cerrar invitación" : "Invitar por WhatsApp"}
+                </button>
+              </div>
+
+              <p className="mt-3 text-xs text-slate-500">
+                Envía un enlace único por WhatsApp. La persona inicia sesión y TripBoard crea o vincula su pasajero automáticamente.
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600 shadow-sm">
+              <p className="font-semibold text-slate-900">Solo lectura</p>
+              <p className="mt-1">
+                No tienes permisos para gestionar pasajeros en este viaje.
+              </p>
+            </div>
+          )}
+
+          {canManageParticipants && isInviting ? (
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/40 p-1 shadow-sm">
+              <InviteParticipantPanel
+                tripId={tripId}
+                participant={inviteParticipant}
+                onCreated={() => {
+                  setIsInviting(false);
+                  setInviteParticipant(null);
+                }}
+                onCancel={() => {
+                  setIsInviting(false);
+                  setInviteParticipant(null);
+                }}
+              />
+            </div>
+          ) : null}
+
+          {canManageParticipants && isCreating ? (
+            <ParticipantForm
+              tripId={tripId}
+              onSubmit={handleCreate}
+              onCancel={() => setIsCreating(false)}
+              submitLabel="Añadir participante"
+            />
+          ) : null}
+
+          {canManageParticipants && editingParticipant ? (
+            <ParticipantForm
+              tripId={tripId}
+              initialData={editingParticipant}
+              onSubmit={handleUpdate}
+              onCancel={() => setEditingParticipant(null)}
+              submitLabel="Guardar cambios"
+            />
+          ) : null}
+
+          {canManageParticipants && linkingParticipant ? (
+            <div className="rounded-2xl border border-violet-100 bg-violet-50/40 p-1 shadow-sm">
+              <ParticipantLinkProfilePanel
+                participant={linkingParticipant}
+                onSearchProfiles={searchProfiles}
+                onLinkProfile={async (profile) => {
+                  setActionError(null);
+                  try {
+                    await linkParticipantToProfile(linkingParticipant.id, profile);
+                    setLinkingParticipant(null);
+                  } catch (e) {
+                    setActionError(e instanceof Error ? e.message : "No se pudo vincular el usuario.");
+                  }
+                }}
+              />
+            </div>
+          ) : null}
+        </aside>
+      </div>
     </main>
   );
 }
