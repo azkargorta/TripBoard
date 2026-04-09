@@ -191,18 +191,12 @@ export default function TripExpensesView({ tripId }: { tripId: string }) {
               type="button"
               onClick={() => {
                 const rows = (expenses || []).map((e: any) => ({
-                  id: e.id,
-                  fecha: e.expense_date || "",
-                  titulo: e.title || "",
-                  categoria: e.category || "",
-                  pagador: e.payer_name || "",
-                  importe: Number(e.amount || 0),
-                  moneda: e.currency || "",
-                  participantes: Array.isArray(e.participant_names) ? e.participant_names.join(" | ") : "",
-                  pagado_por: Array.isArray(e.paid_by_names) ? e.paid_by_names.join(" | ") : "",
-                  repartido_entre: Array.isArray(e.owed_by_names) ? e.owed_by_names.join(" | ") : "",
-                  notas: e.notes || "",
-                  archivo: e.attachment_name || "",
+                  "Nombre del gasto": e.title || "",
+                  Fecha: e.expense_date || "",
+                  Cantidad: `${Number(e.amount || 0).toFixed(2)} ${String(e.currency || "").toUpperCase()}`.trim(),
+                  "Pagado por": e.payer_name || "",
+                  "Repartir pago entre": Array.isArray(e.owed_by_names) ? e.owed_by_names.join(" | ") : "",
+                  Categoría: e.category || "",
                 }));
                 downloadCsv(`trip-${tripId}-gastos.csv`, rows);
               }}
