@@ -60,7 +60,8 @@ export default function TripWeatherCard({ tripId, destination }: Props) {
   const [customLocation, setCustomLocation] = useState("");
   const [effectiveLocation, setEffectiveLocation] = useState<string | null>(null);
 
-  const canUseGooglePlaces = useMemo(() => typeof window !== "undefined" && !!window.google?.maps?.places, []);
+  // No memorizamos: Google Places puede cargarse después
+  const canUseGooglePlaces = typeof window !== "undefined" && !!window.google?.maps?.places;
 
   useEffect(() => {
     let cancelled = false;

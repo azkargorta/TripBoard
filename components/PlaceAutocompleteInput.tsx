@@ -39,10 +39,8 @@ export default function PlaceAutocompleteInput({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const requestIdRef = useRef(0);
 
-  const canUseGoogle = useMemo(
-    () => typeof window !== "undefined" && !!window.google?.maps?.places,
-    []
-  );
+  // No memorizamos: el script de Google puede cargarse tras montar el componente
+  const canUseGoogle = typeof window !== "undefined" && !!window.google?.maps?.places;
 
   useEffect(() => {
     function handleOutside(event: MouseEvent) {
