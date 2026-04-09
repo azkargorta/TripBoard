@@ -675,6 +675,19 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   const [creatingDayRoutes, setCreatingDayRoutes] = useState(false);
   const [dayRouteMode, setDayRouteMode] = useState<RouteMode>("DRIVING");
   const [dayOptimizeOrder, setDayOptimizeOrder] = useState(false);
+  const [dayRoutePreview, setDayRoutePreview] = useState<{
+    date: string;
+    mode: RouteMode;
+    optimize: boolean;
+    from: PlaceOption;
+    to: PlaceOption;
+    middle: PlaceOption[];
+    distanceText: string | null;
+    durationText: string | null;
+    arrivalTime: string | null;
+    overviewPath: Array<{ lat: number; lng: number }>;
+  } | null>(null);
+  const [savingDayRoute, setSavingDayRoute] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
@@ -1523,22 +1536,12 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
 
     setCreatingDayRoutes(true);
     setRouteError(null);
+    setDayRoutePreview(null);
     setFocusedRouteKey(null);
     setIsRouteFormOpen(false);
     setActiveRouteKey(null);
 
     try {
-      const existingSameDay = routesState.filter(
-        (r) => (r.route_day || r.route_date) === date && r.source === "trip_routes"
-      );
-      const usedColorsSameDay = existingSameDay.map((r) => r.color || "").filter(Boolean);
-      const maxOrder = existingSameDay.reduce(
-        (m, r) => Math.max(m, typeof r.route_order === "number" ? r.route_order : 0),
-        0
-      );
-
-      // Una sola ruta con waypoints (paradas intermedias)
-      const color = pickAutoColor(usedColorsSameDay);
       const from = dayPlaces[0];
       const to = dayPlaces[dayPlaces.length - 1];
       const middle = dayPlaces.slice(1, dayPlaces.length - 1);
@@ -1578,33 +1581,17 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
         // Si falla el cálculo, guardamos igualmente (sin métricas). El usuario puede recalcular/editando si quiere.
       }
 
-      await saveRoute({
-        routeDate: date,
-        routeName: `Ruta ${date}`,
-        departureTime: form.departureTime || "",
+      setDayRoutePreview({
+        date,
         mode: dayRouteMode,
-        color,
-        notes: null,
-        originName: from.label || from.address || "Origen",
-        originAddress: from.address || from.label || "Origen",
-        originLatitude: from.latitude,
-        originLongitude: from.longitude,
-        destinationName: to.label || to.address || "Destino",
-        destinationAddress: to.address || to.label || "Destino",
-        destinationLatitude: to.latitude,
-        destinationLongitude: to.longitude,
-        stops: orderedMiddle.map((p) => ({
-          name: p.label || p.address || "Parada",
-          address: p.address || p.label || "",
-          latitude: p.latitude,
-          longitude: p.longitude,
-        })),
+        optimize: dayOptimizeOrder,
+        from,
+        to,
+        middle: orderedMiddle,
         distanceText,
         durationText,
         arrivalTime,
-        routePoints: overviewPath,
-        pathPoints: overviewPath,
-        routeOrder: maxOrder + 1,
+        overviewPath,
       });
 
       setSelectedDate(date);
@@ -1616,6 +1603,61 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
       setCreatingDayRoutes(false);
     }
   }, [dayOptimizeOrder, dayRouteMode, fitMapToData, form.departureTime, form.restStopMinutes, form.restStopsCount, form.restStopsEnabled, isLoaded, planPlaces, routesState, saveRoute, selectedDate]);
+
+  const saveDayRouteFromPreview = useCallback(async () => {
+    if (!dayRoutePreview) return;
+    const date = dayRoutePreview.date;
+    setSavingDayRoute(true);
+    setRouteError(null);
+    try {
+      const existingSameDay = routesState.filter(
+        (r) => (r.route_day || r.route_date) === date && r.source === "trip_routes"
+      );
+      const usedColorsSameDay = existingSameDay.map((r) => r.color || "").filter(Boolean);
+      const maxOrder = existingSameDay.reduce(
+        (m, r) => Math.max(m, typeof r.route_order === "number" ? r.route_order : 0),
+        0
+      );
+
+      const color = pickAutoColor(usedColorsSameDay);
+      await saveRoute({
+        routeDate: date,
+        routeName: `Ruta ${date}`,
+        departureTime: form.departureTime || "",
+        mode: dayRoutePreview.mode,
+        color,
+        notes: dayRoutePreview.optimize ? "Ruta generada automáticamente (orden optimizado)." : "Ruta generada automáticamente.",
+        originName: dayRoutePreview.from.label || dayRoutePreview.from.address || "Origen",
+        originAddress: dayRoutePreview.from.address || dayRoutePreview.from.label || "Origen",
+        originLatitude: dayRoutePreview.from.latitude,
+        originLongitude: dayRoutePreview.from.longitude,
+        destinationName: dayRoutePreview.to.label || dayRoutePreview.to.address || "Destino",
+        destinationAddress: dayRoutePreview.to.address || dayRoutePreview.to.label || "Destino",
+        destinationLatitude: dayRoutePreview.to.latitude,
+        destinationLongitude: dayRoutePreview.to.longitude,
+        stops: dayRoutePreview.middle.map((p) => ({
+          name: p.label || p.address || "Parada",
+          address: p.address || p.label || "",
+          latitude: p.latitude,
+          longitude: p.longitude,
+        })),
+        distanceText: dayRoutePreview.distanceText,
+        durationText: dayRoutePreview.durationText,
+        arrivalTime: dayRoutePreview.arrivalTime,
+        routePoints: dayRoutePreview.overviewPath,
+        pathPoints: dayRoutePreview.overviewPath,
+        routeOrder: maxOrder + 1,
+      });
+
+      setDayRoutePreview(null);
+      lastFitRef.current = "";
+      window.setTimeout(() => fitMapToData(), 250);
+    } catch {
+      // hook maneja error
+    } finally {
+      setSavingDayRoute(false);
+    }
+  }, [dayRoutePreview, fitMapToData, form.departureTime, routesState, saveRoute]);
 
   const lastFitRef = useRef<string>("");
   useEffect(() => {
@@ -1741,16 +1783,63 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                     <IconButton
                       onClick={() => void createRoutesForSelectedDay()}
                       disabled={creatingDayRoutes}
-                      title="Generar una ruta con paradas del día"
+                      title="Previsualizar ruta del día"
                       variant="secondary"
                     >
                       <MapPin className="h-4 w-4" />
-                      {creatingDayRoutes ? "Generando..." : "Ruta del día"}
+                      {creatingDayRoutes ? "Calculando..." : "Preview"}
                     </IconButton>
                   </>
                 ) : null}
               </div>
             </div>
+
+            {dayRoutePreview && selectedDate !== "all" ? (
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-950">Previsualización ruta del día</div>
+                    <div className="mt-1 text-xs text-slate-600">
+                      {dayRoutePreview.distanceText ? `📏 ${dayRoutePreview.distanceText}` : "📏 —"}
+                      {" · "}
+                      {dayRoutePreview.durationText ? `⏱️ ${dayRoutePreview.durationText}` : "⏱️ —"}
+                      {dayRoutePreview.arrivalTime ? ` · Llegada ${dayRoutePreview.arrivalTime}` : ""}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setDayRoutePreview(null)}
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      disabled={savingDayRoute}
+                      onClick={() => void saveDayRouteFromPreview()}
+                      className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+                    >
+                      {savingDayRoute ? "Guardando..." : "Guardar ruta"}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-3 space-y-2">
+                  <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800">
+                    <span className="font-semibold">Origen:</span> {dayRoutePreview.from.label}
+                  </div>
+                  {dayRoutePreview.middle.map((p, idx) => (
+                    <div key={`${p.id}-${idx}`} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800">
+                      <span className="font-semibold">Parada {idx + 1}:</span> {p.label}
+                    </div>
+                  ))}
+                  <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800">
+                    <span className="font-semibold">Destino:</span> {dayRoutePreview.to.label}
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             {historyOpen ? (
               <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
