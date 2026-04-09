@@ -951,40 +951,54 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
 
   useEffect(() => {
     if (!isLoaded || typeof window === "undefined" || !window.google?.maps) return;
+    if (!focusedRouteKey) return;
 
     const gmMaps = window.google.maps;
     const service = new gmMaps.DirectionsService();
     let cancelled = false;
+    const routeKeyFocused = focusedRouteKey;
 
     async function loadDirections() {
-      const next: Record<string, google.maps.DirectionsResult | null> = {};
+      if (!routeKeyFocused) return;
+      const [source, id] = routeKeyFocused.split(":");
+      const route =
+        routesState.find((r) => (r.source || "trip_routes") === (source || "trip_routes") && r.id === id) || null;
+      if (!route) return;
 
-      for (const route of filteredRoutes) {
-        const routeKey = `${route.source || "trip_routes"}:${route.id}`;
-        if (
-          typeof route.origin_latitude !== "number" ||
-          typeof route.origin_longitude !== "number" ||
-          typeof route.destination_latitude !== "number" ||
-          typeof route.destination_longitude !== "number"
-        ) {
-          continue;
-        }
+      const routeKey = `${route.source || "trip_routes"}:${route.id}`;
+      const points =
+        (Array.isArray(route.path_points) && route.path_points.length ? route.path_points : route.route_points) || null;
 
-        try {
-          const result = await service.route({
-            origin: { lat: route.origin_latitude, lng: route.origin_longitude },
-            destination: { lat: route.destination_latitude, lng: route.destination_longitude },
-            travelMode: gmMaps.TravelMode[normalizeTravelMode(route.travel_mode)],
-            provideRouteAlternatives: false,
-          });
-          next[routeKey] = result;
-        } catch {
-          next[routeKey] = null;
-        }
+      // Si ya hay puntos guardados, dibujamos con ellos y evitamos Directions API.
+      if (points && points.length > 1) {
+        setDirectionsMap((prev) => {
+          if (!(routeKey in prev)) return { ...prev, [routeKey]: null };
+          return prev;
+        });
+        return;
       }
 
-      if (!cancelled) {
-        setDirectionsMap(next);
+      if (
+        typeof route.origin_latitude !== "number" ||
+        typeof route.origin_longitude !== "number" ||
+        typeof route.destination_latitude !== "number" ||
+        typeof route.destination_longitude !== "number"
+      ) {
+        return;
+      }
+
+      try {
+        const result = await service.route({
+          origin: { lat: route.origin_latitude, lng: route.origin_longitude },
+          destination: { lat: route.destination_latitude, lng: route.destination_longitude },
+          travelMode: gmMaps.TravelMode[normalizeTravelMode(route.travel_mode)],
+          provideRouteAlternatives: false,
+        });
+        if (cancelled) return;
+        setDirectionsMap((prev) => ({ ...prev, [routeKey]: result }));
+      } catch {
+        if (cancelled) return;
+        setDirectionsMap((prev) => ({ ...prev, [routeKey]: null }));
       }
     }
 
@@ -993,7 +1007,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     return () => {
       cancelled = true;
     };
-  }, [isLoaded, filteredRoutes]);
+  }, [focusedRouteKey, isLoaded, routesState]);
 
   const focusedDirections = useMemo(() => {
     if (!focusedRouteKey) return null;
@@ -2833,7 +2847,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                   ))
                 : null}
 
-              {filteredRoutes.map((route) => {
+              {visibleRoutes.map((route) => {
                 const routeKey = `${route.source || "trip_routes"}:${route.id}`;
                 const points =
                   (Array.isArray(route.path_points) && route.path_points.length ? route.path_points : route.route_points) ||
