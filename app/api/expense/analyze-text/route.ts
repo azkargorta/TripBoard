@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { buildExpenseAnalyzerResult } from "@/lib/expense-analyzer";
-import { askTripAI } from "@/lib/trip-ai/providers";
+import { askTripAIWithUsage } from "@/lib/trip-ai/providers";
 import { extractFirstJsonObject } from "@/lib/ai/llmJson";
+import { enforceAiMonthlyBudgetOrThrow, trackAiUsage } from "@/lib/ai-budget";
+import { monthKeyUtc } from "@/lib/ai-usage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -14,6 +16,7 @@ export async function POST(req: Request) {
     const mimeType = typeof body?.mimeType === "string" ? body.mimeType : "";
     const provider = typeof body?.provider === "string" ? String(body.provider) : null;
     const enhance = Boolean(body?.enhance);
+    const monthKey = monthKeyUtc();
 
     if (!text.trim()) {
       return NextResponse.json({ error: "No hay texto para analizar." }, { status: 400 });
@@ -42,7 +45,15 @@ export async function POST(req: Request) {
         text.slice(0, 12000),
       ].join("\n");
       try {
-        const answer = await askTripAI(prompt, "general" as any, { provider });
+        const { supabase, userId } = await enforceAiMonthlyBudgetOrThrow({ providerId: provider });
+        const { text: answer, usage } = await askTripAIWithUsage(prompt, "general" as any, { provider });
+        await trackAiUsage({
+          supabase,
+          userId,
+          provider: (provider || process.env.AI_PROVIDER || "ollama").toLowerCase(),
+          monthKey,
+          usage,
+        });
         llmExpense = extractFirstJsonObject(answer);
       } catch (e) {
         llmError = e instanceof Error ? e.message : "Error al llamar a la IA.";

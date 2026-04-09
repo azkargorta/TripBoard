@@ -3,8 +3,10 @@ import { extractTextFromPdfWithUnpdf } from "@/lib/server/pdf-engine";
 import { extractTextFromImageBuffer } from "@/lib/server/document-ocr";
 import { extractTextWithOcrSpace, isOcrSpaceConfigured } from "@/lib/server/ocr-space";
 import { analyzeDocumentText } from "@/lib/document-analyzer";
-import { askTripAI } from "@/lib/trip-ai/providers";
+import { askTripAIWithUsage } from "@/lib/trip-ai/providers";
 import { extractFirstJsonObject } from "@/lib/ai/llmJson";
+import { enforceAiMonthlyBudgetOrThrow, trackAiUsage } from "@/lib/ai-budget";
+import { monthKeyUtc } from "@/lib/ai-usage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -53,6 +55,7 @@ export async function POST(request: Request) {
     const file = formData.get("file");
     const provider = typeof formData.get("provider") === "string" ? String(formData.get("provider")) : null;
     const enhance = String(formData.get("enhance") || "").trim() === "1" || process.env.AI_ENHANCE_ANALYSIS === "1";
+    const monthKey = monthKeyUtc();
 
     if (!(file instanceof File)) {
       return NextResponse.json({ error: "Falta el archivo" }, { status: 400 });
@@ -94,7 +97,15 @@ export async function POST(request: Request) {
       ].join("\n");
 
       try {
-        const answer = await askTripAI(prompt, "general" as any, { provider });
+        const { supabase, userId } = await enforceAiMonthlyBudgetOrThrow({ providerId: provider });
+        const { text: answer, usage } = await askTripAIWithUsage(prompt, "general" as any, { provider });
+        await trackAiUsage({
+          supabase,
+          userId,
+          provider: (provider || process.env.AI_PROVIDER || "ollama").toLowerCase(),
+          monthKey,
+          usage,
+        });
         llmDetected = extractFirstJsonObject(answer);
       } catch (e) {
         llmError = e instanceof Error ? e.message : "Error al llamar a la IA.";
