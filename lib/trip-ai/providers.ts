@@ -3,6 +3,13 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export type AiProviderId = "ollama" | "gemini";
 
+export type TripAiUsage = {
+  provider: AiProviderId;
+  model: string | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+};
+
 export async function askOllama(prompt: string, mode: TripAiMode) {
   const model = process.env.OLLAMA_MODEL || "llama3";
   const baseUrl = (process.env.OLLAMA_URL || "http://127.0.0.1:11434").replace(/\/+$/, "");
@@ -102,6 +109,56 @@ export async function askGemini(prompt: string, mode: TripAiMode) {
   }
 }
 
+export async function askGeminiWithUsage(prompt: string, mode: TripAiMode): Promise<{ text: string; usage: TripAiUsage }> {
+  const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  try {
+    const apiKey = process.env.GEMINI_API_KEY || "";
+    if (!apiKey) {
+      throw new Error("Falta GEMINI_API_KEY en el servidor.");
+    }
+
+    const temperature = mode === "optimizer" ? 0.3 : 0.5;
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({
+      model: modelName,
+      generationConfig: { temperature },
+    });
+
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
+    if (typeof text !== "string" || !text.trim()) {
+      throw new Error("Gemini no devolvió una respuesta válida.");
+    }
+
+    const meta: any = (result as any)?.response?.usageMetadata ?? (result as any)?.usageMetadata ?? null;
+    const inputTokens =
+      typeof meta?.promptTokenCount === "number"
+        ? meta.promptTokenCount
+        : typeof meta?.inputTokenCount === "number"
+          ? meta.inputTokenCount
+          : null;
+    const outputTokens =
+      typeof meta?.candidatesTokenCount === "number"
+        ? meta.candidatesTokenCount
+        : typeof meta?.outputTokenCount === "number"
+          ? meta.outputTokenCount
+          : null;
+
+    return {
+      text: text.trim(),
+      usage: {
+        provider: "gemini",
+        model: modelName,
+        inputTokens,
+        outputTokens,
+      },
+    };
+  } catch (e) {
+    const raw = e instanceof Error ? e.message : String(e);
+    throw new Error(formatGeminiUserError(raw));
+  }
+}
+
 function resolveProvider(requested?: string | null): AiProviderId {
   const env = (process.env.AI_PROVIDER || "").toLowerCase();
   const req = (requested || "").toLowerCase();
@@ -129,4 +186,26 @@ export async function askTripAI(prompt: string, mode: TripAiMode, options?: { pr
     }
   }
   return await askOllama(prompt, mode);
+}
+
+export async function askTripAIWithUsage(
+  prompt: string,
+  mode: TripAiMode,
+  options?: { provider?: string | null }
+): Promise<{ text: string; usage: TripAiUsage }> {
+  const provider = resolveProvider(options?.provider ?? null);
+  if (provider === "gemini") {
+    const res = await askGeminiWithUsage(prompt, mode);
+    return res;
+  }
+  const text = await askOllama(prompt, mode);
+  return {
+    text,
+    usage: {
+      provider: "ollama",
+      model: process.env.OLLAMA_MODEL || "llama3",
+      inputTokens: null,
+      outputTokens: null,
+    },
+  };
 }
