@@ -346,7 +346,7 @@ export default function TripAiChatView({ tripId }: { tripId: string }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/trip-ai/conversations/${id}`);
+      const res = await fetch(`/api/trip-ai/${encodeURIComponent(id)}`);
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || "No se pudo abrir la conversación.");
       setConversationId(id);
