@@ -137,9 +137,175 @@ export default function TripAiChatView({ tripId }: { tripId: string }) {
   const [itineraryDraft, setItineraryDraft] = useState<ItineraryPayload | null>(null);
   const [diffDraft, setDiffDraft] = useState<DiffPayload | null>(null);
   const [applyingDiff, setApplyingDiff] = useState(false);
+  const [diffContext, setDiffContext] = useState<{
+    activitiesById: Map<string, any>;
+    routesById: Map<string, any>;
+  } | null>(null);
+  const [diffContextLoading, setDiffContextLoading] = useState(false);
   const [executingPlan, setExecutingPlan] = useState(false);
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadDiffContext() {
+      if (!diffDraft) {
+        setDiffContext(null);
+        return;
+      }
+      setDiffContextLoading(true);
+      try {
+        const [aRes, rRes] = await Promise.all([
+          fetch(`/api/trip-activities?tripId=${encodeURIComponent(tripId)}`, { cache: "no-store" }),
+          fetch(`/api/trip-routes?tripId=${encodeURIComponent(tripId)}`, { cache: "no-store" }),
+        ]);
+        const [aPayload, rPayload] = await Promise.all([
+          aRes.json().catch(() => null),
+          rRes.json().catch(() => null),
+        ]);
+        const activities = Array.isArray(aPayload?.activities) ? aPayload.activities : [];
+        const routes = Array.isArray(rPayload?.routes) ? rPayload.routes : [];
+        const activitiesById = new Map<string, any>();
+        const routesById = new Map<string, any>();
+        for (const row of activities) if (row?.id) activitiesById.set(String(row.id), row);
+        for (const row of routes) if (row?.id) routesById.set(String(row.id), row);
+        if (!cancelled) setDiffContext({ activitiesById, routesById });
+      } catch {
+        if (!cancelled) setDiffContext(null);
+      } finally {
+        if (!cancelled) setDiffContextLoading(false);
+      }
+    }
+    void loadDiffContext();
+    return () => {
+      cancelled = true;
+    };
+  }, [diffDraft, tripId]);
+
+  function opKey(op: any, idx: number) {
+    return `${String(op?.op || "op")}-${String(op?.id || op?.fields?.title || idx)}`;
+  }
+
+  function opDisplay(op: any): {
+    kind: "activity" | "route" | "unknown";
+    title: string;
+    subtitle: string | null;
+    date: string | null;
+    tone: "good" | "warn" | "neutral";
+    details: string | null;
+    raw: any;
+  } {
+    const rawOp = typeof op?.op === "string" ? op.op.trim() : "";
+    const normalized = rawOp.toLowerCase();
+    const id = typeof op?.id === "string" ? op.id : null;
+
+    const act = id && diffContext?.activitiesById ? diffContext.activitiesById.get(id) : null;
+    const route = id && diffContext?.routesById ? diffContext.routesById.get(id) : null;
+
+    if (normalized === "update_activity") {
+      const patch = op?.patch || {};
+      const beforeTitle = String(act?.title || "").trim() || "Plan";
+      const nextTitle = typeof patch.title === "string" && patch.title.trim() ? patch.title.trim() : beforeTitle;
+      const beforeDate = typeof act?.activity_date === "string" ? act.activity_date : null;
+      const afterDate = typeof patch.activity_date === "string" ? patch.activity_date : patch.activity_date === null ? null : beforeDate;
+      const beforeTime = typeof act?.activity_time === "string" ? act.activity_time : null;
+      const afterTime = typeof patch.activity_time === "string" ? patch.activity_time : patch.activity_time === null ? null : beforeTime;
+
+      const changes: string[] = [];
+      if (nextTitle !== beforeTitle) changes.push(`Título: “${beforeTitle}” → “${nextTitle}”`);
+      if (afterDate !== beforeDate) changes.push(`Fecha: ${beforeDate || "—"} → ${afterDate || "—"}`);
+      if (afterTime !== beforeTime) changes.push(`Hora: ${beforeTime || "—"} → ${afterTime || "—"}`);
+      if (typeof patch.address === "string") changes.push("Dirección actualizada");
+      if (typeof patch.place_name === "string") changes.push("Lugar actualizado");
+      if (typeof patch.activity_kind === "string") changes.push("Tipo actualizado");
+
+      return {
+        kind: "activity",
+        title: `Actualizar plan: ${nextTitle}`,
+        subtitle: changes.length ? changes.join(" · ") : "Cambio menor",
+        date: afterDate || beforeDate,
+        tone: "neutral",
+        details: null,
+        raw: op,
+      };
+    }
+
+    if (normalized === "create_activity") {
+      const f = op?.fields || {};
+      const title = String(f?.title || "").trim() || "Nuevo plan";
+      const date = typeof f?.activity_date === "string" ? f.activity_date : null;
+      const time = typeof f?.activity_time === "string" ? f.activity_time : null;
+      const where = String(f?.place_name || f?.address || "").trim();
+      return {
+        kind: "activity",
+        title: `Añadir plan: ${title}`,
+        subtitle: [date, time, where].filter(Boolean).join(" · ") || null,
+        date,
+        tone: "good",
+        details: null,
+        raw: op,
+      };
+    }
+
+    if (normalized === "delete_activity") {
+      const title = String(act?.title || "").trim() || "Plan";
+      const date = typeof act?.activity_date === "string" ? act.activity_date : null;
+      return {
+        kind: "activity",
+        title: `Eliminar plan: ${title}`,
+        subtitle: date ? `Fecha: ${date}` : null,
+        date,
+        tone: "warn",
+        details: "Revisa bien los borrados antes de aplicar.",
+        raw: op,
+      };
+    }
+
+    if (normalized === "update_route") {
+      const patch = op?.patch || {};
+      const beforeTitle = String(route?.title || route?.route_name || route?.name || "").trim() || "Ruta";
+      const nextTitle =
+        typeof patch.title === "string" && patch.title.trim() ? patch.title.trim() : beforeTitle;
+      const beforeDay = typeof route?.route_day === "string" ? route.route_day : null;
+      const afterDay =
+        typeof patch.route_day === "string" ? patch.route_day : patch.route_day === null ? null : beforeDay;
+      const beforeTime = typeof route?.departure_time === "string" ? route.departure_time : null;
+      const afterTime =
+        typeof patch.departure_time === "string"
+          ? patch.departure_time
+          : patch.departure_time === null
+            ? null
+            : beforeTime;
+
+      const changes: string[] = [];
+      if (nextTitle !== beforeTitle) changes.push(`Título: “${beforeTitle}” → “${nextTitle}”`);
+      if (afterDay !== beforeDay) changes.push(`Día: ${beforeDay || "—"} → ${afterDay || "—"}`);
+      if (afterTime !== beforeTime) changes.push(`Salida: ${beforeTime || "—"} → ${afterTime || "—"}`);
+      if (typeof patch.travel_mode === "string") changes.push(`Modo: ${patch.travel_mode}`);
+      if (typeof patch.notes === "string") changes.push("Notas actualizadas");
+
+      return {
+        kind: "route",
+        title: `Actualizar ruta: ${nextTitle}`,
+        subtitle: changes.length ? changes.join(" · ") : null,
+        date: afterDay || beforeDay,
+        tone: "neutral",
+        details: null,
+        raw: op,
+      };
+    }
+
+    // Si la IA se sale del formato
+    return {
+      kind: "unknown",
+      title: `Operación no reconocida: ${rawOp || "unknown"}`,
+      subtitle: null,
+      date: null,
+      tone: "warn",
+      details: "La IA devolvió un formato distinto al esperado. Puedes descartarlo.",
+      raw: op,
+    };
+  }
 
   const currentSuggestions = useMemo(() => SUGGESTIONS[mode], [mode]);
 
@@ -430,7 +596,7 @@ export default function TripAiChatView({ tripId }: { tripId: string }) {
             <div>
               <div className="text-sm font-semibold text-slate-950">Cambios propuestos por la IA</div>
               <div className="mt-1 text-xs text-slate-600">
-                Revisa el “diff” antes de aplicar. Puedes descartarlo si no te convence.
+                Revisa el “diff” antes de aplicar. Está agrupado por día y muestra antes → después cuando es posible.
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -473,25 +639,83 @@ export default function TripAiChatView({ tripId }: { tripId: string }) {
             </div>
           </div>
 
-          <div className="mt-4 space-y-2">
-            {(diffDraft.operations || []).slice(0, 60).map((op, idx) => (
-              <div key={`${op.op}-${(op as any).id || idx}`} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <div className="text-xs font-extrabold uppercase tracking-[0.18em] text-slate-500">{op.op}</div>
-                {"id" in op ? (
-                  <div className="mt-1 text-xs text-slate-600">id: {(op as any).id}</div>
-                ) : null}
-                {"patch" in op ? (
-                  <pre className="mt-2 whitespace-pre-wrap text-xs text-slate-700">{JSON.stringify((op as any).patch, null, 2)}</pre>
-                ) : null}
-                {"fields" in op ? (
-                  <pre className="mt-2 whitespace-pre-wrap text-xs text-slate-700">{JSON.stringify((op as any).fields, null, 2)}</pre>
-                ) : null}
-              </div>
-            ))}
-            {(diffDraft.operations || []).length > 60 ? (
-              <div className="text-xs text-slate-500">… y más cambios (truncado).</div>
-            ) : null}
-          </div>
+          {diffContextLoading ? (
+            <div className="mt-4 text-sm text-slate-600">Preparando preview…</div>
+          ) : (
+            <div className="mt-4 space-y-3">
+              {(() => {
+                const ops = (diffDraft.operations || []).slice(0, 80).map((op) => opDisplay(op));
+                const byDate = new Map<string, ReturnType<typeof opDisplay>[]>();
+                for (const item of ops) {
+                  const key = item.date || "Sin fecha";
+                  const arr = byDate.get(key) || [];
+                  arr.push(item);
+                  byDate.set(key, arr);
+                }
+                const dates = Array.from(byDate.keys()).sort((a, b) => a.localeCompare(b));
+                return (
+                  <>
+                    {dates.map((d) => (
+                      <div key={d} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-sm font-semibold text-slate-950">{d}</div>
+                          <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+                            {byDate.get(d)?.length || 0} cambios
+                          </span>
+                        </div>
+                        <div className="mt-3 space-y-2">
+                          {(byDate.get(d) || []).map((it, idx) => {
+                            const tone =
+                              it.tone === "good"
+                                ? "border-emerald-200 bg-white"
+                                : it.tone === "warn"
+                                  ? "border-rose-200 bg-white"
+                                  : "border-slate-200 bg-white";
+                            const badge =
+                              it.tone === "good"
+                                ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                : it.tone === "warn"
+                                  ? "bg-rose-50 text-rose-800 border-rose-200"
+                                  : "bg-slate-50 text-slate-700 border-slate-200";
+                            const badgeText = it.tone === "good" ? "Añade" : it.tone === "warn" ? "Borra" : "Cambia";
+                            return (
+                              <details key={`${it.title}-${idx}`} className={`rounded-xl border ${tone} p-3`}>
+                                <summary className="flex cursor-pointer list-none flex-wrap items-start justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <div className="text-sm font-semibold text-slate-950">{it.title}</div>
+                                    {it.subtitle ? (
+                                      <div className="mt-1 text-xs text-slate-600">{it.subtitle}</div>
+                                    ) : null}
+                                    {it.details ? (
+                                      <div className="mt-1 text-xs text-rose-700">{it.details}</div>
+                                    ) : null}
+                                  </div>
+                                  <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${badge}`}>
+                                    {badgeText}
+                                  </span>
+                                </summary>
+                                <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                  <div className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">
+                                    Detalle técnico (JSON)
+                                  </div>
+                                  <pre className="mt-2 whitespace-pre-wrap text-xs text-slate-700">
+{JSON.stringify(it.raw, null, 2)}
+                                  </pre>
+                                </div>
+                              </details>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                    {(diffDraft.operations || []).length > 80 ? (
+                      <div className="text-xs text-slate-500">… y más cambios (truncado).</div>
+                    ) : null}
+                  </>
+                );
+              })()}
+            </div>
+          )}
         </section>
       ) : null}
 
