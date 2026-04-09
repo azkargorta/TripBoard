@@ -160,37 +160,48 @@ export default function ExpenseForm({
       return;
     }
 
-    await onSubmit({
-      id: editingExpense?.id,
-      title: title.trim(),
-      category,
-      payerName: payerName.trim(),
-      participantNames,
-      paidByNames,
-      owedByNames,
-      amount: numericAmount,
-      currency,
-      expenseDate,
-      notes,
-      attachment,
-      keepExistingAttachment,
-      analysisData,
-    });
+    try {
+      await Promise.race([
+        onSubmit({
+          id: editingExpense?.id,
+          title: title.trim(),
+          category,
+          payerName: payerName.trim(),
+          participantNames,
+          paidByNames,
+          owedByNames,
+          amount: numericAmount,
+          currency,
+          expenseDate,
+          notes,
+          attachment,
+          keepExistingAttachment,
+          analysisData,
+        }),
+        new Promise<void>((_resolve, reject) =>
+          window.setTimeout(() => reject(new Error("El guardado está tardando demasiado (timeout).")), 25000)
+        ),
+      ]);
 
-    if (!isEditing) {
-      setTitle("");
-      setCategory("general");
-      setPayerName("");
-      setParticipantNames([]);
-      setPaidByNames([]);
-      setOwedByNames([]);
-      setAmount("");
-      setCurrency("EUR");
-      setExpenseDate("");
-      setNotes("");
-      setAttachment(null);
-      setKeepExistingAttachment(true);
-      setAnalysisData(null);
+      if (!isEditing) {
+        setTitle("");
+        setCategory("general");
+        setPayerName("");
+        setParticipantNames([]);
+        setPaidByNames([]);
+        setOwedByNames([]);
+        setAmount("");
+        setCurrency("EUR");
+        setExpenseDate("");
+        setNotes("");
+        setAttachment(null);
+        setKeepExistingAttachment(true);
+        setAnalysisData(null);
+      }
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "No se pudo guardar el gasto.";
+      setError(msg);
     }
   }
 
