@@ -109,6 +109,7 @@ type PlaceOption = {
   longitude: number;
   activityDate?: string | null;
   kind?: string | null;
+  order?: number | null;
 };
 
 type FormPlaceState = {
@@ -213,6 +214,14 @@ function buildPlanPlaces(rows: unknown[] | undefined, prefix: string): PlaceOpti
 
       const address = asString(item.address) ?? asString(item.place_name) ?? asString(item.location_name) ?? label;
 
+      const order =
+        asNumber(item.activity_order) ??
+        asNumber(item.day_order) ??
+        asNumber(item.sort_order) ??
+        asNumber(item.order) ??
+        asNumber(item.position) ??
+        null;
+
       return {
         id: `${prefix}-${String(item.id ?? index)}`,
         label,
@@ -221,6 +230,7 @@ function buildPlanPlaces(rows: unknown[] | undefined, prefix: string): PlaceOpti
         longitude,
         activityDate: asString(item.activity_date) ?? asString(item.day_date) ?? asString(item.date) ?? null,
         kind: asString(item.activity_type) ?? asString(item.place_type) ?? asString(item.category) ?? null,
+        order,
       };
     })
     .filter(Boolean) as PlaceOption[];
@@ -661,6 +671,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   const [planKindFilter, setPlanKindFilter] = useState<Set<string>>(new Set());
   const [isRouteFormOpen, setIsRouteFormOpen] = useState(false);
   const [duplicateRouteKey, setDuplicateRouteKey] = useState<string | null>(null);
+  const [creatingDayRoutes, setCreatingDayRoutes] = useState(false);
 
   useEffect(() => {
     setRoutesState(initialRoutes);
@@ -1455,6 +1466,82 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     }
   }, [directionsMap, preview, visiblePoints, visibleRoutes]);
 
+  const createRoutesForSelectedDay = useCallback(async () => {
+    const date = selectedDate && selectedDate !== "all" ? selectedDate : "";
+    if (!date) {
+      setRouteError("Selecciona un día para generar la ruta.");
+      return;
+    }
+
+    const dayPlaces = planPlaces
+      .filter((p) => p.activityDate === date)
+      .slice()
+      .sort((a, b) => {
+        const ao = typeof a.order === "number" ? a.order : 1_000_000;
+        const bo = typeof b.order === "number" ? b.order : 1_000_000;
+        if (ao !== bo) return ao - bo;
+        return (a.label || "").localeCompare(b.label || "");
+      });
+
+    if (dayPlaces.length < 2) {
+      setRouteError("Para generar una ruta del día necesitas al menos 2 planes con coordenadas en ese día.");
+      return;
+    }
+
+    setCreatingDayRoutes(true);
+    setRouteError(null);
+    setFocusedRouteKey(null);
+    setIsRouteFormOpen(false);
+    setActiveRouteKey(null);
+
+    try {
+      const existingSameDay = routesState.filter(
+        (r) => (r.route_day || r.route_date) === date && r.source === "trip_routes"
+      );
+      const usedColorsSameDay = existingSameDay.map((r) => r.color || "").filter(Boolean);
+      const maxOrder = existingSameDay.reduce(
+        (m, r) => Math.max(m, typeof r.route_order === "number" ? r.route_order : 0),
+        0
+      );
+
+      const legCount = dayPlaces.length - 1;
+      let colorPool = usedColorsSameDay.slice();
+
+      for (let i = 0; i < legCount; i += 1) {
+        const from = dayPlaces[i];
+        const to = dayPlaces[i + 1];
+        const color = pickAutoColor(colorPool);
+        colorPool.push(color);
+
+        await saveRoute({
+          routeDate: date,
+          routeName: `Ruta ${date} · ${i + 1}/${legCount}`,
+          departureTime: "",
+          mode: "DRIVING",
+          color,
+          notes: null,
+          originName: from.label || from.address || "Origen",
+          originAddress: from.address || from.label || "Origen",
+          originLatitude: from.latitude,
+          originLongitude: from.longitude,
+          destinationName: to.label || to.address || "Destino",
+          destinationAddress: to.address || to.label || "Destino",
+          destinationLatitude: to.latitude,
+          destinationLongitude: to.longitude,
+          routeOrder: maxOrder + i + 1,
+        });
+      }
+
+      setSelectedDate(date);
+      lastFitRef.current = "";
+      window.setTimeout(() => fitMapToData(), 250);
+    } catch {
+      // `useTripRoutes` ya setea `routeError`
+    } finally {
+      setCreatingDayRoutes(false);
+    }
+  }, [fitMapToData, planPlaces, routesState, saveRoute, selectedDate]);
+
   const lastFitRef = useRef<string>("");
   useEffect(() => {
     // Evitar `fitBounds` constante (provoca movimiento/tiles). Solo cuando cambie "la foto" del mapa.
@@ -1542,6 +1629,17 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                   <Plus className="h-4 w-4" />
                   Nueva ruta
                 </IconButton>
+                {selectedDate !== "all" ? (
+                  <IconButton
+                    onClick={() => void createRoutesForSelectedDay()}
+                    disabled={creatingDayRoutes}
+                    title="Generar rutas por tramos con los planes del día"
+                    variant="secondary"
+                  >
+                    <MapPin className="h-4 w-4" />
+                    {creatingDayRoutes ? "Generando..." : "Ruta del día"}
+                  </IconButton>
+                ) : null}
               </div>
             </div>
 
