@@ -1656,8 +1656,8 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
 
   return (
     <div className="grid gap-6 lg:grid-cols-[460px_minmax(0,1fr)]">
-      <div className="space-y-6 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-hidden">
-        <section className="rounded-3xl border border-slate-200 bg-white shadow-sm lg:max-h-[calc(100vh-3rem)] lg:overflow-hidden">
+      <div className="space-y-6 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-auto lg:pr-1">
+        <section className="rounded-3xl border border-slate-200 bg-white shadow-sm lg:max-h-[calc(100vh-3rem)] lg:overflow-auto">
           <div className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 p-5 backdrop-blur">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
