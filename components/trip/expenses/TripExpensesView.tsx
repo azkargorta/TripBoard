@@ -49,20 +49,28 @@ export default function TripExpensesView({ tripId }: { tripId: string }) {
 
   const shouldShowForm = isAddOpen || !!editingExpense || !!detectedData;
 
-  function csvEscape(value: unknown) {
+  function csvEscape(value: unknown, delimiter: string) {
     const text = String(value ?? "");
+    const needsQuotes =
+      text.includes('"') || text.includes("\n") || text.includes("\r") || text.includes(delimiter);
     const escaped = text.replaceAll(`"`, `""`);
-    return `"${escaped}"`;
+    return needsQuotes ? `"${escaped}"` : escaped;
   }
 
-  function downloadCsv(filename: string, rows: Array<Record<string, unknown>>) {
+  function downloadCsv(
+    filename: string,
+    rows: Array<Record<string, unknown>>,
+    options?: { delimiter?: string }
+  ) {
+    const delimiter = options?.delimiter || ";";
     const headers = rows.length ? Object.keys(rows[0]) : [];
     const lines = [
-      headers.map(csvEscape).join(","),
-      ...rows.map((r) => headers.map((h) => csvEscape((r as any)[h])).join(",")),
-    ].join("\n");
+      headers.map((h) => csvEscape(h, delimiter)).join(delimiter),
+      ...rows.map((r) => headers.map((h) => csvEscape((r as any)[h], delimiter)).join(delimiter)),
+    ].join("\r\n");
 
-    const blob = new Blob([lines], { type: "text/csv;charset=utf-8" });
+    // BOM UTF-8 para que Excel detecte bien acentos y separador
+    const blob = new Blob(["\uFEFF", lines], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -198,7 +206,7 @@ export default function TripExpensesView({ tripId }: { tripId: string }) {
                   "Repartir pago entre": Array.isArray(e.owed_by_names) ? e.owed_by_names.join(" | ") : "",
                   Categoría: e.category || "",
                 }));
-                downloadCsv(`trip-${tripId}-gastos.csv`, rows);
+                downloadCsv(`trip-${tripId}-gastos.csv`, rows, { delimiter: ";" });
               }}
               className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-100"
             >
@@ -217,7 +225,7 @@ export default function TripExpensesView({ tripId }: { tripId: string }) {
                   estado: s.status || "pending",
                   metodo: s.payment_method || "",
                 }));
-                downloadCsv(`trip-${tripId}-pagos.csv`, rows);
+                downloadCsv(`trip-${tripId}-pagos.csv`, rows, { delimiter: ";" });
               }}
               className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-100"
             >
