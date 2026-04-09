@@ -142,6 +142,8 @@ export default function TripAiChatView({ tripId }: { tripId: string }) {
     routesById: Map<string, any>;
   } | null>(null);
   const [diffContextLoading, setDiffContextLoading] = useState(false);
+  const [diffAllowDeletes, setDiffAllowDeletes] = useState(false);
+  const [diffSelected, setDiffSelected] = useState<Set<string>>(new Set());
   const [executingPlan, setExecutingPlan] = useState(false);
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
@@ -181,6 +183,25 @@ export default function TripAiChatView({ tripId }: { tripId: string }) {
       cancelled = true;
     };
   }, [diffDraft, tripId]);
+
+  useEffect(() => {
+    // Selección por defecto: todo menos borrados
+    if (!diffDraft) {
+      setDiffSelected(new Set());
+      setDiffAllowDeletes(false);
+      return;
+    }
+    const next = new Set<string>();
+    (diffDraft.operations || []).forEach((op: any, idx: number) => {
+      const key = opKey(op, idx);
+      const rawOp = typeof op?.op === "string" ? op.op.toLowerCase() : "";
+      if (rawOp.startsWith("delete_")) return;
+      next.add(key);
+    });
+    setDiffSelected(next);
+    setDiffAllowDeletes(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [diffDraft]);
 
   function opKey(op: any, idx: number) {
     return `${String(op?.op || "op")}-${String(op?.id || op?.fields?.title || idx)}`;
@@ -609,15 +630,18 @@ export default function TripAiChatView({ tripId }: { tripId: string }) {
               </button>
               <button
                 type="button"
-                disabled={applyingDiff}
+                disabled={applyingDiff || diffSelected.size === 0}
                 onClick={async () => {
                   setApplyingDiff(true);
                   setError(null);
                   try {
+                    const filtered = (diffDraft.operations || []).filter((op: any, idx: number) =>
+                      diffSelected.has(opKey(op, idx))
+                    );
                     const res = await fetch("/api/trip-ai/apply-diff", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ tripId, diff: diffDraft }),
+                      body: JSON.stringify({ tripId, diff: { ...diffDraft, operations: filtered } }),
                     });
                     const payload = await res.json().catch(() => null);
                     if (!res.ok) throw new Error(payload?.error || "No se pudo aplicar el diff.");
@@ -639,12 +663,65 @@ export default function TripAiChatView({ tripId }: { tripId: string }) {
             </div>
           </div>
 
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="text-xs text-slate-600">
+              Seleccionados: <span className="font-semibold text-slate-900">{diffSelected.size}</span> /{" "}
+              <span className="font-semibold text-slate-900">{diffDraft.operations?.length || 0}</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={diffAllowDeletes}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setDiffAllowDeletes(checked);
+                    if (!checked) {
+                      // al desactivar, deseleccionamos cualquier delete_*
+                      const next = new Set(diffSelected);
+                      (diffDraft.operations || []).forEach((op: any, idx: number) => {
+                        const rawOp = typeof op?.op === "string" ? op.op.toLowerCase() : "";
+                        if (rawOp.startsWith("delete_")) next.delete(opKey(op, idx));
+                      });
+                      setDiffSelected(next);
+                    }
+                  }}
+                />
+                Permitir borrados
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = new Set<string>();
+                  (diffDraft.operations || []).forEach((op: any, idx: number) => {
+                    const rawOp = typeof op?.op === "string" ? op.op.toLowerCase() : "";
+                    if (rawOp.startsWith("delete_") && !diffAllowDeletes) return;
+                    next.add(opKey(op, idx));
+                  });
+                  setDiffSelected(next);
+                }}
+                className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Seleccionar todo
+              </button>
+              <button
+                type="button"
+                onClick={() => setDiffSelected(new Set())}
+                className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Deseleccionar todo
+              </button>
+            </div>
+          </div>
+
           {diffContextLoading ? (
             <div className="mt-4 text-sm text-slate-600">Preparando preview…</div>
           ) : (
             <div className="mt-4 space-y-3">
               {(() => {
-                const ops = (diffDraft.operations || []).slice(0, 80).map((op) => opDisplay(op));
+                const ops = (diffDraft.operations || [])
+                  .slice(0, 80)
+                  .map((op, idx) => ({ ...opDisplay(op), __key: opKey(op, idx), __rawOp: op, __idx: idx }));
                 const byDate = new Map<string, ReturnType<typeof opDisplay>[]>();
                 for (const item of ops) {
                   const key = item.date || "Sin fecha";
@@ -678,18 +755,51 @@ export default function TripAiChatView({ tripId }: { tripId: string }) {
                                   ? "bg-rose-50 text-rose-800 border-rose-200"
                                   : "bg-slate-50 text-slate-700 border-slate-200";
                             const badgeText = it.tone === "good" ? "Añade" : it.tone === "warn" ? "Borra" : "Cambia";
+                            const rawOp = (it as any).__rawOp;
+                            const rawOpName = typeof rawOp?.op === "string" ? rawOp.op.toLowerCase() : "";
+                            const isDelete = rawOpName.startsWith("delete_");
+                            const key = (it as any).__key as string;
+                            const selected = diffSelected.has(key);
+                            const disabled = isDelete && !diffAllowDeletes;
                             return (
-                              <details key={`${it.title}-${idx}`} className={`rounded-xl border ${tone} p-3`}>
+                              <details
+                                key={`${it.title}-${idx}`}
+                                className={`rounded-xl border ${tone} p-3 ${disabled ? "opacity-60" : ""}`}
+                              >
                                 <summary className="flex cursor-pointer list-none flex-wrap items-start justify-between gap-2">
-                                  <div className="min-w-0">
-                                    <div className="text-sm font-semibold text-slate-950">{it.title}</div>
-                                    {it.subtitle ? (
-                                      <div className="mt-1 text-xs text-slate-600">{it.subtitle}</div>
-                                    ) : null}
-                                    {it.details ? (
-                                      <div className="mt-1 text-xs text-rose-700">{it.details}</div>
-                                    ) : null}
+                                  <div className="flex min-w-0 items-start gap-2">
+                                    <input
+                                      type="checkbox"
+                                      checked={selected}
+                                      disabled={disabled}
+                                      onChange={(e) => {
+                                        const checked = e.target.checked;
+                                        setDiffSelected((prev) => {
+                                          const next = new Set(prev);
+                                          if (checked) next.add(key);
+                                          else next.delete(key);
+                                          return next;
+                                        });
+                                      }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="mt-1"
+                                      title={
+                                        disabled
+                                          ? "Activa “Permitir borrados” para seleccionar esto."
+                                          : "Aplicar este cambio"
+                                      }
+                                    />
+                                    <div className="min-w-0">
+                                      <div className="text-sm font-semibold text-slate-950">{it.title}</div>
+                                      {it.subtitle ? (
+                                        <div className="mt-1 text-xs text-slate-600">{it.subtitle}</div>
+                                      ) : null}
+                                      {it.details ? (
+                                        <div className="mt-1 text-xs text-rose-700">{it.details}</div>
+                                      ) : null}
+                                    </div>
                                   </div>
+
                                   <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${badge}`}>
                                     {badgeText}
                                   </span>
