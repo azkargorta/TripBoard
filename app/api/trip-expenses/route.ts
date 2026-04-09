@@ -51,7 +51,7 @@
      await requireTripAccess(tripId);
      const supabase = await createClient();
  
-     const [expensesRes, settlementsRes, travelers] = await Promise.all([
+    const [expensesRes, settlementsRes, tripRes, travelers] = await Promise.all([
        supabase
          .from("trip_expenses")
          .select("*")
@@ -63,16 +63,19 @@
          .select("*")
          .eq("trip_id", tripId)
          .order("created_at", { ascending: false }),
+      supabase.from("trips").select("base_currency").eq("id", tripId).maybeSingle(),
        loadRegisteredTravelersFromKnownTables(supabase, tripId),
-     ]);
- 
-     if (expensesRes.error) throw new Error(expensesRes.error.message);
-     if (settlementsRes.error) throw new Error(settlementsRes.error.message);
+    ]);
+    // Nota: `tripRes` puede venir null si no existe base_currency.
+
+    if (expensesRes.error) throw new Error(expensesRes.error.message);
+    if (settlementsRes.error) throw new Error(settlementsRes.error.message);
  
      return NextResponse.json({
        expenses: expensesRes.data || [],
        settlements: settlementsRes.data || [],
        registeredTravelers: travelers || [],
+      tripBaseCurrency: typeof tripRes?.data?.base_currency === "string" ? tripRes.data.base_currency : null,
      });
    } catch (error) {
      return NextResponse.json(

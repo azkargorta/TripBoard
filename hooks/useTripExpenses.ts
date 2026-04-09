@@ -222,6 +222,7 @@ export function useTripExpenses(tripId: string) {
   const [expenses, setExpenses] = useState<TripExpenseRecord[]>([]);
   const [settlements, setSettlements] = useState<TripSettlement[]>([]);
   const [registeredTravelers, setRegisteredTravelers] = useState<string[]>([]);
+  const [tripBaseCurrency, setTripBaseCurrency] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -247,16 +248,19 @@ export function useTripExpenses(tripId: string) {
         expenses: TripExpenseRecord[];
         settlements: TripSettlement[];
         registeredTravelers: string[];
+        tripBaseCurrency?: string | null;
       }>(`/api/trip-expenses?tripId=${encodeURIComponent(tripId)}`, { method: "GET" }, "cargar gastos");
 
       setExpenses(Array.isArray(payload.expenses) ? payload.expenses : []);
       setSettlements(Array.isArray(payload.settlements) ? payload.settlements : []);
       setRegisteredTravelers(Array.isArray(payload.registeredTravelers) ? payload.registeredTravelers : []);
+      setTripBaseCurrency(typeof payload.tripBaseCurrency === "string" ? payload.tripBaseCurrency : null);
     } catch (err) {
       console.error("Error cargando gastos:", err);
       setExpenses([]);
       setSettlements([]);
       setRegisteredTravelers([]);
+      setTripBaseCurrency(null);
       setError(
         err instanceof Error ? err.message : "No se pudieron cargar los gastos."
       );
@@ -486,6 +490,7 @@ export function useTripExpenses(tripId: string) {
     expenses,
     settlements,
     registeredTravelers,
+    tripBaseCurrency,
     participants,
     balances,
     suggestedSettlements,

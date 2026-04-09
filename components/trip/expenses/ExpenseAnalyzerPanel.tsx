@@ -18,8 +18,10 @@ export type ExpenseDetectedData = {
 };
 
 export default function ExpenseAnalyzerPanel({
+  tripBaseCurrency = "EUR",
   onUseDetectedData,
 }: {
+  tripBaseCurrency?: string;
   onUseDetectedData: (data: ExpenseDetectedData) => void;
 }) {
   const [file, setFile] = useState<File | null>(null);
@@ -66,7 +68,7 @@ export default function ExpenseAnalyzerPanel({
                 : typeof payload?.amount === "number"
                   ? payload.amount
                   : null,
-            currency: llm?.currency ?? payload?.currency ?? "EUR",
+            currency: tripBaseCurrency,
             expenseDate: llm?.expenseDate ?? payload?.expenseDate ?? null,
             merchantName: llm?.merchantName ?? payload?.merchantName ?? null,
             extractedText: payload?.extractedText || pdfText || null,
@@ -98,7 +100,7 @@ export default function ExpenseAnalyzerPanel({
         title: llm?.title ?? payload?.title ?? payload?.suggestedTitle ?? null,
         category: llm?.category ?? payload?.category ?? "general",
         amount: typeof llm?.amount === "number" ? llm.amount : typeof payload?.amount === "number" ? payload.amount : null,
-        currency: llm?.currency ?? payload?.currency ?? "EUR",
+        currency: tripBaseCurrency,
         expenseDate: llm?.expenseDate ?? payload?.expenseDate ?? null,
         merchantName: llm?.merchantName ?? payload?.merchantName ?? null,
         extractedText: payload?.extractedText || null,

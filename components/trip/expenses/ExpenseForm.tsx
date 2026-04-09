@@ -25,6 +25,7 @@ type Props = {
   saving?: boolean;
   existingParticipants: string[];
   registeredTravelers?: string[];
+  baseCurrency?: string;
   editingExpense?: ExistingExpense | null;
   detectedData?: ExpenseDetectedData | null;
   onCancelEdit?: () => void;
@@ -53,6 +54,7 @@ export default function ExpenseForm({
   saving = false,
   existingParticipants,
   registeredTravelers = [],
+  baseCurrency = "EUR",
   editingExpense = null,
   detectedData = null,
   onCancelEdit,
@@ -65,7 +67,7 @@ export default function ExpenseForm({
   const [paidByNames, setPaidByNames] = useState<string[]>([]);
   const [owedByNames, setOwedByNames] = useState<string[]>([]);
   const [amount, setAmount] = useState("");
-  const [currency, setCurrency] = useState("EUR");
+  const [currency, setCurrency] = useState(baseCurrency);
   const [expenseDate, setExpenseDate] = useState("");
   const [notes, setNotes] = useState("");
   const [attachment, setAttachment] = useState<File | null>(null);
@@ -93,7 +95,7 @@ export default function ExpenseForm({
     setPaidByNames(normalizeNameArray(editingExpense.paid_by_names));
     setOwedByNames(normalizeNameArray(editingExpense.owed_by_names));
     setAmount(editingExpense.amount != null ? String(editingExpense.amount) : "");
-    setCurrency(editingExpense.currency || "EUR");
+    setCurrency(editingExpense.currency || baseCurrency);
     setExpenseDate(editingExpense.expense_date || "");
     setNotes(editingExpense.notes || "");
     setKeepExistingAttachment(Boolean(editingExpense.attachment_name));
@@ -106,7 +108,8 @@ export default function ExpenseForm({
     if (detectedData.title) setTitle(detectedData.title);
     if (detectedData.category) setCategory(detectedData.category);
     if (detectedData.amount != null) setAmount(String(detectedData.amount));
-    if (detectedData.currency) setCurrency(detectedData.currency);
+    // Por defecto usamos la moneda base del viaje (el usuario puede cambiarla luego).
+    setCurrency(baseCurrency);
     if (detectedData.expenseDate) setExpenseDate(detectedData.expenseDate);
     if (detectedData.file) setAttachment(detectedData.file);
     // No guardamos el File dentro de analysis_data (rompe JSON / DB y no aporta valor).
@@ -149,7 +152,8 @@ export default function ExpenseForm({
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    const numericAmount = Number(amount);
+    const normalizedAmount = String(amount || "").trim().replace(/\s/g, "").replace(",", ".");
+    const numericAmount = Number(normalizedAmount);
 
     if (!title.trim()) {
       setError("Introduce el nombre del gasto.");

@@ -13,6 +13,7 @@ export default function TripExpensesView({ tripId }: { tripId: string }) {
   const {
     expenses,
     registeredTravelers,
+    tripBaseCurrency,
     participants,
     balances,
     suggestedSettlements,
@@ -143,6 +144,7 @@ export default function TripExpensesView({ tripId }: { tripId: string }) {
             </summary>
             <div className="border-t border-slate-200 px-5 py-5">
               <ExpenseAnalyzerPanel
+                tripBaseCurrency={tripBaseCurrency || "EUR"}
                 onUseDetectedData={(data) => {
                   setDetectedData(data);
                   setIsAnalyzeOpen(false);
@@ -179,6 +181,7 @@ export default function TripExpensesView({ tripId }: { tripId: string }) {
                 saving={saving}
                 existingParticipants={participants}
                 registeredTravelers={registeredTravelers}
+                baseCurrency={tripBaseCurrency || "EUR"}
                 editingExpense={editingExpense}
                 detectedData={detectedData}
                 onCancelEdit={() => {
