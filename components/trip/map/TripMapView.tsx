@@ -109,6 +109,7 @@ type PlaceOption = {
   latitude: number;
   longitude: number;
   activityDate?: string | null;
+  activityTime?: string | null;
   kind?: string | null;
   order?: number | null;
 };
@@ -230,6 +231,7 @@ function buildPlanPlaces(rows: unknown[] | undefined, prefix: string): PlaceOpti
         latitude,
         longitude,
         activityDate: asString(item.activity_date) ?? asString(item.day_date) ?? asString(item.date) ?? null,
+        activityTime: asString(item.activity_time) ?? asString(item.start_time) ?? null,
         kind: asString(item.activity_type) ?? asString(item.place_type) ?? asString(item.category) ?? null,
         order,
       };
@@ -1523,6 +1525,13 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
       .filter((p) => p.activityDate === date)
       .slice()
       .sort((a, b) => {
+        // Primero, por hora del plan (si existe)
+        const at = (a.activityTime || "").trim();
+        const bt = (b.activityTime || "").trim();
+        if (at && bt && at !== bt) return at.localeCompare(bt);
+        if (at && !bt) return -1;
+        if (!at && bt) return 1;
+
         const ao = typeof a.order === "number" ? a.order : 1_000_000;
         const bo = typeof b.order === "number" ? b.order : 1_000_000;
         if (ao !== bo) return ao - bo;
@@ -1804,6 +1813,9 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                       {" · "}
                       {dayRoutePreview.durationText ? `⏱️ ${dayRoutePreview.durationText}` : "⏱️ —"}
                       {dayRoutePreview.arrivalTime ? ` · Llegada ${dayRoutePreview.arrivalTime}` : ""}
+                    </div>
+                    <div className="mt-1 text-[11px] text-slate-500">
+                      Solo usa planes del día con coordenadas. Si tienes activado “Optimizar”, Google puede reordenar paradas.
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
