@@ -7,24 +7,13 @@ import { extractFirstJsonObject } from "@/lib/ai/llmJson";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-// 👇 COPIADO de Recursos (MISMO MOTOR)
-async function extractTextFromPdfParse(buffer: Buffer): Promise<string> {
-  try {
-    const pdfParseModule: any = await import("pdf-parse");
-    const pdfParse = pdfParseModule?.default ?? pdfParseModule;
-    const parsed = await pdfParse(buffer);
-    return String(parsed?.text || "").replace(/\s+/g, " ").trim();
-  } catch {
-    return "";
-  }
-}
-
-async function extractTextFromPdfWithUnpdfSafe(buffer: Buffer): Promise<string> {
+async function extractTextFromPdfBuffer(buffer: Buffer): Promise<string> {
   try {
     const engineModule: any = await import("@/lib/server/pdf-engine");
     const fn = engineModule?.extractTextFromPdfWithUnpdf;
     if (typeof fn !== "function") return "";
-    return await fn(buffer);
+    const text = await fn(buffer);
+    return typeof text === "string" ? text.trim() : "";
   } catch {
     return "";
   }
@@ -55,24 +44,15 @@ export async function POST(req: Request) {
     const buffer = Buffer.from(await file.arrayBuffer());
 
     let text = "";
-    let extractionMethod = "unknown";
+    let extractionMethod: "pdf-parse" | "image-ocr" | "empty" = "empty";
     let warnings: string[] = [];
 
-    // 👇 MISMA LÓGICA QUE RECURSOS
     if (
       file.type === "application/pdf" ||
       file.name.toLowerCase().endsWith(".pdf")
     ) {
-      text = await extractTextFromPdfParse(buffer);
-      extractionMethod = text ? "pdf-parse" : "pdf-parse-empty";
-
-      if (!text || text.length < 100) {
-        const unpdfText = await extractTextFromPdfWithUnpdfSafe(buffer);
-        if (unpdfText && unpdfText.length > text.length) {
-          text = unpdfText;
-          extractionMethod = "unpdf-text";
-        }
-      }
+      text = await extractTextFromPdfBuffer(buffer);
+      extractionMethod = text ? "pdf-parse" : "empty";
 
       if (!text) {
         warnings.push("No se pudo extraer texto del PDF.");
@@ -91,7 +71,7 @@ export async function POST(req: Request) {
       text,
       fileName: file.name,
       mimeType: file.type,
-      extractionMethod: extractionMethod as any,
+      extractionMethod: extractionMethod === "pdf-parse" ? "pdf-parse" : extractionMethod === "image-ocr" ? "image-ocr" : "empty",
     });
 
     let llmExpense: any = null;
@@ -123,6 +103,7 @@ export async function POST(req: Request) {
       sharedWarnings: warnings,
       llmExpense,
       llmError,
+      extractedTextLength: text.length,
     });
 
   } catch (error) {
