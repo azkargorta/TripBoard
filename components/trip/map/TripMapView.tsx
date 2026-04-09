@@ -1504,33 +1504,70 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
         0
       );
 
-      const legCount = dayPlaces.length - 1;
-      let colorPool = usedColorsSameDay.slice();
+      // Una sola ruta con waypoints (paradas intermedias)
+      const color = pickAutoColor(usedColorsSameDay);
+      const from = dayPlaces[0];
+      const to = dayPlaces[dayPlaces.length - 1];
+      const middle = dayPlaces.slice(1, dayPlaces.length - 1);
 
-      for (let i = 0; i < legCount; i += 1) {
-        const from = dayPlaces[i];
-        const to = dayPlaces[i + 1];
-        const color = pickAutoColor(colorPool);
-        colorPool.push(color);
+      // Calcular direcciones para guardar distancia/duración/trazado
+      let distanceText: string | null = null;
+      let durationText: string | null = null;
+      let arrivalTime: string | null = null;
+      let overviewPath: Array<{ lat: number; lng: number }> = [];
 
-        await saveRoute({
-          routeDate: date,
-          routeName: `Ruta ${date} · ${i + 1}/${legCount}`,
-          departureTime: "",
-          mode: "DRIVING",
-          color,
-          notes: null,
-          originName: from.label || from.address || "Origen",
-          originAddress: from.address || from.label || "Origen",
-          originLatitude: from.latitude,
-          originLongitude: from.longitude,
-          destinationName: to.label || to.address || "Destino",
-          destinationAddress: to.address || to.label || "Destino",
-          destinationLatitude: to.latitude,
-          destinationLongitude: to.longitude,
-          routeOrder: maxOrder + i + 1,
-        });
+      try {
+        if (isLoaded && typeof window !== "undefined" && window.google?.maps) {
+          const service = new window.google.maps.DirectionsService();
+          const restSeconds = form.restStopsEnabled ? (form.restStopsCount || 0) * (form.restStopMinutes || 0) * 60 : 0;
+          const result = await service.route({
+            origin: { lat: from.latitude, lng: from.longitude },
+            destination: { lat: to.latitude, lng: to.longitude },
+            travelMode: window.google.maps.TravelMode.DRIVING,
+            waypoints: middle.map((p) => ({ location: { lat: p.latitude, lng: p.longitude }, stopover: true })),
+            optimizeWaypoints: false,
+          });
+          const firstRoute = result.routes?.[0];
+          const legs = firstRoute?.legs || [];
+          const totalMeters = legs.reduce((sum, leg) => sum + (leg.distance?.value || 0), 0);
+          const totalSeconds = legs.reduce((sum, leg) => sum + (leg.duration?.value || 0), 0);
+          distanceText = metersToHuman(totalMeters);
+          durationText = secondsToHuman(totalSeconds);
+          arrivalTime = form.departureTime ? addSecondsToTime(form.departureTime, totalSeconds + restSeconds) : null;
+          overviewPath = (firstRoute?.overview_path || []).map((p) => ({ lat: p.lat(), lng: p.lng() }));
+        }
+      } catch {
+        // Si falla el cálculo, guardamos igualmente (sin métricas). El usuario puede recalcular/editando si quiere.
       }
+
+      await saveRoute({
+        routeDate: date,
+        routeName: `Ruta ${date}`,
+        departureTime: form.departureTime || "",
+        mode: "DRIVING",
+        color,
+        notes: null,
+        originName: from.label || from.address || "Origen",
+        originAddress: from.address || from.label || "Origen",
+        originLatitude: from.latitude,
+        originLongitude: from.longitude,
+        destinationName: to.label || to.address || "Destino",
+        destinationAddress: to.address || to.label || "Destino",
+        destinationLatitude: to.latitude,
+        destinationLongitude: to.longitude,
+        stops: middle.map((p) => ({
+          name: p.label || p.address || "Parada",
+          address: p.address || p.label || "",
+          latitude: p.latitude,
+          longitude: p.longitude,
+        })),
+        distanceText,
+        durationText,
+        arrivalTime,
+        routePoints: overviewPath,
+        pathPoints: overviewPath,
+        routeOrder: maxOrder + 1,
+      });
 
       setSelectedDate(date);
       lastFitRef.current = "";
@@ -1540,7 +1577,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     } finally {
       setCreatingDayRoutes(false);
     }
-  }, [fitMapToData, planPlaces, routesState, saveRoute, selectedDate]);
+  }, [fitMapToData, form.departureTime, form.restStopMinutes, form.restStopsCount, form.restStopsEnabled, isLoaded, planPlaces, routesState, saveRoute, selectedDate]);
 
   const lastFitRef = useRef<string>("");
   useEffect(() => {
