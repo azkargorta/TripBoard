@@ -2,14 +2,44 @@
  import { createClient } from "@/lib/supabase/server";
  import { requireTripAccess } from "@/lib/trip-access";
  
+async function safeInsertAudit(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  input: {
+    trip_id: string;
+    entity_type: string;
+    entity_id: string;
+    action: "create" | "update" | "delete";
+    summary?: string | null;
+    diff?: any;
+    actor_user_id?: string | null;
+    actor_email?: string | null;
+  }
+) {
+  try {
+    await supabase.from("trip_audit_log").insert({
+      trip_id: input.trip_id,
+      entity_type: input.entity_type,
+      entity_id: input.entity_id,
+      action: input.action,
+      summary: input.summary ?? null,
+      diff: input.diff ?? null,
+      actor_user_id: input.actor_user_id ?? null,
+      actor_email: input.actor_email ?? null,
+    });
+  } catch {
+    // no-op
+  }
+}
+
  export async function PATCH(request: Request, { params }: { params: { activityId: string } }) {
    try {
      const body = await request.json();
      const supabase = await createClient();
+    const { data: actor } = await supabase.auth.getUser();
  
      const { data: row, error: rowError } = await supabase
        .from("trip_activities")
-       .select("trip_id")
+      .select("*")
        .eq("id", params.activityId)
        .maybeSingle();
      if (rowError) throw new Error(rowError.message);
@@ -48,7 +78,12 @@
     );
     assign("comment", typeof body?.comment === "string" ? body.comment.trim() : body?.comment === null ? null : undefined);
  
-    const { data, error } = await supabase.from("trip_activities").update(patch).eq("id", params.activityId).select("*").single();
+    const { data, error } = await supabase
+      .from("trip_activities")
+      .update(patch)
+      .eq("id", params.activityId)
+      .select("*")
+      .single();
     if (error) {
       const msg = error.message || "No se pudo actualizar la actividad.";
       if (msg.toLowerCase().includes("column") && (msg.toLowerCase().includes("rating") || msg.toLowerCase().includes("comment"))) {
@@ -63,6 +98,17 @@
       throw new Error(msg);
     }
  
+    await safeInsertAudit(supabase, {
+      trip_id: String(row.trip_id),
+      entity_type: "activity",
+      entity_id: String(data.id),
+      action: "update",
+      summary: `Actualizó plan: ${String(data.title || "").trim() || "Sin título"}`,
+      diff: { before: row, patch, after: data },
+      actor_user_id: actor?.user?.id ?? null,
+      actor_email: actor?.user?.email ?? null,
+    });
+
      return NextResponse.json({ activity: data });
    } catch (error) {
      return NextResponse.json(
@@ -75,10 +121,11 @@
  export async function DELETE(_request: Request, { params }: { params: { activityId: string } }) {
    try {
      const supabase = await createClient();
+    const { data: actor } = await supabase.auth.getUser();
  
      const { data: row, error: rowError } = await supabase
        .from("trip_activities")
-       .select("trip_id")
+      .select("*")
        .eq("id", params.activityId)
        .maybeSingle();
      if (rowError) throw new Error(rowError.message);
@@ -92,6 +139,17 @@
      const { error } = await supabase.from("trip_activities").delete().eq("id", params.activityId);
      if (error) throw new Error(error.message);
  
+    await safeInsertAudit(supabase, {
+      trip_id: String(row.trip_id),
+      entity_type: "activity",
+      entity_id: String(row.id),
+      action: "delete",
+      summary: `Eliminó plan: ${String((row as any).title || "").trim() || "Sin título"}`,
+      diff: { before: row },
+      actor_user_id: actor?.user?.id ?? null,
+      actor_email: actor?.user?.email ?? null,
+    });
+
      return NextResponse.json({ ok: true });
    } catch (error) {
      return NextResponse.json(

@@ -10,6 +10,7 @@ import {
   EyeOff,
   Focus,
   GripVertical,
+  History,
   MapPin,
   Navigation,
   Plus,
@@ -672,6 +673,10 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   const [isRouteFormOpen, setIsRouteFormOpen] = useState(false);
   const [duplicateRouteKey, setDuplicateRouteKey] = useState<string | null>(null);
   const [creatingDayRoutes, setCreatingDayRoutes] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [history, setHistory] = useState<any[]>([]);
 
   useEffect(() => {
     setRoutesState(initialRoutes);
@@ -729,6 +734,32 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   useEffect(() => {
     if (hookRouteError) setRouteError(hookRouteError);
   }, [hookRouteError]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadHistory() {
+      if (!historyOpen) return;
+      setHistoryLoading(true);
+      setHistoryError(null);
+      try {
+        const resp = await fetch(
+          `/api/trip-audit?tripId=${encodeURIComponent(tripId)}&entityType=route&limit=40`,
+          { cache: "no-store" }
+        );
+        const payload = await resp.json().catch(() => null);
+        if (!resp.ok) throw new Error(payload?.error || "No se pudo cargar el historial.");
+        if (!cancelled) setHistory(Array.isArray(payload?.logs) ? payload.logs : []);
+      } catch (e) {
+        if (!cancelled) setHistoryError(e instanceof Error ? e.message : "No se pudo cargar el historial.");
+      } finally {
+        if (!cancelled) setHistoryLoading(false);
+      }
+    }
+    void loadHistory();
+    return () => {
+      cancelled = true;
+    };
+  }, [historyOpen, tripId]);
 
   const visibleRoutes = useMemo(() => {
     const base =
@@ -1636,6 +1667,14 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
 
               <div className="flex flex-wrap justify-end gap-2">
                 <IconButton
+                  onClick={() => setHistoryOpen((v) => !v)}
+                  title="Historial de cambios"
+                  variant="secondary"
+                >
+                  <History className="h-4 w-4" />
+                  Historial
+                </IconButton>
+                <IconButton
                   onClick={() => void reloadRoutes()}
                   disabled={loadingRoutes}
                   title="Recargar"
@@ -1679,6 +1718,50 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                 ) : null}
               </div>
             </div>
+
+            {historyOpen ? (
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-950">Historial de cambios (Rutas)</div>
+                    <div className="mt-1 text-xs text-slate-600">Quién creó/editó/eliminó rutas recientemente.</div>
+                  </div>
+                  <IconButton onClick={() => setHistoryOpen(false)} title="Cerrar" variant="ghost">
+                    Cerrar
+                  </IconButton>
+                </div>
+
+                {historyLoading ? (
+                  <div className="mt-4 text-sm text-slate-600">Cargando historial…</div>
+                ) : historyError ? (
+                  <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                    {historyError}
+                  </div>
+                ) : history.length ? (
+                  <div className="mt-4 space-y-2">
+                    {history.map((item) => (
+                      <div key={item.id} className="rounded-2xl border border-slate-200 bg-white p-3">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold text-slate-950">
+                              {item.summary || `${item.action} ${item.entity_type}`}
+                            </div>
+                            <div className="mt-1 text-xs text-slate-600">
+                              {(item.actor_email || "Alguien")} · {new Date(item.created_at).toLocaleString("es-ES")}
+                            </div>
+                          </div>
+                          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+                            {item.action}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-4 text-sm text-slate-600">Todavía no hay cambios registrados.</div>
+                )}
+              </div>
+            ) : null}
 
             <div className="mt-4 grid gap-3">
             <input

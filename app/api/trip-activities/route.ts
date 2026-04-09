@@ -2,6 +2,35 @@
  import { createClient } from "@/lib/supabase/server";
  import { requireTripAccess } from "@/lib/trip-access";
  
+async function safeInsertAudit(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  input: {
+    trip_id: string;
+    entity_type: string;
+    entity_id: string;
+    action: "create" | "update" | "delete";
+    summary?: string | null;
+    diff?: any;
+    actor_user_id?: string | null;
+    actor_email?: string | null;
+  }
+) {
+  try {
+    await supabase.from("trip_audit_log").insert({
+      trip_id: input.trip_id,
+      entity_type: input.entity_type,
+      entity_id: input.entity_id,
+      action: input.action,
+      summary: input.summary ?? null,
+      diff: input.diff ?? null,
+      actor_user_id: input.actor_user_id ?? null,
+      actor_email: input.actor_email ?? null,
+    });
+  } catch {
+    // no-op
+  }
+}
+
  export async function GET(request: Request) {
    try {
      const { searchParams } = new URL(request.url);
@@ -46,6 +75,7 @@
      }
  
      const supabase = await createClient();
+    const { data: actor } = await supabase.auth.getUser();
     const ratingRaw = body?.rating;
     const rating =
       typeof ratingRaw === "number" && Number.isFinite(ratingRaw) && ratingRaw >= 1 && ratingRaw <= 5
@@ -87,6 +117,17 @@
       throw new Error(msg);
     }
  
+    await safeInsertAudit(supabase, {
+      trip_id: tripId,
+      entity_type: "activity",
+      entity_id: String(data.id),
+      action: "create",
+      summary: `Creó plan: ${String(data.title || "").trim() || "Sin título"}`,
+      diff: { after: data },
+      actor_user_id: actor?.user?.id ?? null,
+      actor_email: actor?.user?.email ?? null,
+    });
+
      return NextResponse.json({ activity: data });
    } catch (error) {
      return NextResponse.json(

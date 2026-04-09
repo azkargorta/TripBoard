@@ -2,6 +2,35 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireTripAccess } from "@/lib/trip-access";
 
+async function safeInsertAudit(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  input: {
+    trip_id: string;
+    entity_type: string;
+    entity_id: string;
+    action: "create" | "update" | "delete";
+    summary?: string | null;
+    diff?: any;
+    actor_user_id?: string | null;
+    actor_email?: string | null;
+  }
+) {
+  try {
+    await supabase.from("trip_audit_log").insert({
+      trip_id: input.trip_id,
+      entity_type: input.entity_type,
+      entity_id: input.entity_id,
+      action: input.action,
+      summary: input.summary ?? null,
+      diff: input.diff ?? null,
+      actor_user_id: input.actor_user_id ?? null,
+      actor_email: input.actor_email ?? null,
+    });
+  } catch {
+    // no-op
+  }
+}
+
 function buildPatchPayload(body: any) {
   const payload: Record<string, unknown> = {};
   const assign = (key: string, value: unknown) => {
@@ -74,11 +103,12 @@ export async function PATCH(request: Request, { params }: { params: { routeId: s
     const body = await request.json();
     const payload = buildPatchPayload(body);
     const supabase = await createClient();
+    const { data: actor } = await supabase.auth.getUser();
 
     // Verifica acceso al viaje asociado a la ruta (y evita updates sin permiso).
     const { data: routeRow, error: routeError } = await supabase
       .from("trip_routes")
-      .select("trip_id")
+      .select("*")
       .eq("id", params.routeId)
       .maybeSingle();
     if (routeError) throw new Error(routeError.message);
@@ -90,6 +120,17 @@ export async function PATCH(request: Request, { params }: { params: { routeId: s
     const response = await patchWithFallback(supabase, params.routeId, payload);
 
     if (response.error) throw new Error(response.error.message);
+
+    await safeInsertAudit(supabase, {
+      trip_id: String(routeRow.trip_id),
+      entity_type: "route",
+      entity_id: String(response.data.id),
+      action: "update",
+      summary: `Actualizó ruta: ${String(response.data.title || response.data.route_name || response.data.name || "").trim() || "Ruta"}`,
+      diff: { before: routeRow, patch: payload, after: response.data },
+      actor_user_id: actor?.user?.id ?? null,
+      actor_email: actor?.user?.email ?? null,
+    });
 
     return NextResponse.json({ route: response.data });
   } catch (error) {
@@ -106,10 +147,11 @@ export async function DELETE(
 ) {
   try {
     const supabase = await createClient();
+    const { data: actor } = await supabase.auth.getUser();
 
     const { data: routeRow, error: routeError } = await supabase
       .from("trip_routes")
-      .select("trip_id")
+      .select("*")
       .eq("id", params.routeId)
       .maybeSingle();
     if (routeError) throw new Error(routeError.message);
@@ -120,6 +162,17 @@ export async function DELETE(
 
     const response = await supabase.from("trip_routes").delete().eq("id", params.routeId);
     if (response.error) throw new Error(response.error.message);
+
+    await safeInsertAudit(supabase, {
+      trip_id: String(routeRow.trip_id),
+      entity_type: "route",
+      entity_id: String(routeRow.id),
+      action: "delete",
+      summary: `Eliminó ruta: ${String((routeRow as any).title || (routeRow as any).route_name || (routeRow as any).name || "").trim() || "Ruta"}`,
+      diff: { before: routeRow },
+      actor_user_id: actor?.user?.id ?? null,
+      actor_email: actor?.user?.email ?? null,
+    });
 
     return NextResponse.json({ ok: true });
   } catch (error) {

@@ -6,7 +6,7 @@ import PlanActivityCard from "@/components/trip/plan/PlanActivityCard";
 import PlanLodgingCard from "@/components/trip/plan/PlanLodgingCard";
 import PlanForm, { type PlanFormValues } from "@/components/trip/plan/PlanForm";
 import { useTripActivities, type TripActivity } from "@/hooks/useTripActivities";
-import { CalendarDays, Eye, EyeOff, Filter, Plus, Search, SlidersHorizontal } from "lucide-react";
+import { CalendarDays, Clock, Eye, EyeOff, Filter, Plus, Search, SlidersHorizontal } from "lucide-react";
 
 function groupByDate(activities: TripActivity[]) {
   const groups = new Map<string, TripActivity[]>();
@@ -92,6 +92,36 @@ export default function TripPlanView({ tripId }: { tripId: string }) {
   const [kindFilter, setKindFilter] = useState<Set<string>>(new Set());
   const [showLodging, setShowLodging] = useState(true);
   const [showManual, setShowManual] = useState(true);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [history, setHistory] = useState<any[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadHistory() {
+      if (!historyOpen) return;
+      setHistoryLoading(true);
+      setHistoryError(null);
+      try {
+        const resp = await fetch(
+          `/api/trip-audit?tripId=${encodeURIComponent(tripId)}&entityType=activity&limit=40`,
+          { cache: "no-store" }
+        );
+        const payload = await resp.json().catch(() => null);
+        if (!resp.ok) throw new Error(payload?.error || "No se pudo cargar el historial.");
+        if (!cancelled) setHistory(Array.isArray(payload?.logs) ? payload.logs : []);
+      } catch (e) {
+        if (!cancelled) setHistoryError(e instanceof Error ? e.message : "No se pudo cargar el historial.");
+      } finally {
+        if (!cancelled) setHistoryLoading(false);
+      }
+    }
+    void loadHistory();
+    return () => {
+      cancelled = true;
+    };
+  }, [historyOpen, tripId]);
 
   const availableKinds = useMemo(() => {
     const s = new Set<string>();
@@ -190,15 +220,74 @@ export default function TripPlanView({ tripId }: { tripId: string }) {
           {" · "}
           Actividades manuales y alojamientos sincronizados desde Reservas.
         </p>
-        <button
-          type="button"
-          onClick={handleStartCreate}
-          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-200 sm:w-auto"
-        >
-          <Plus className="h-4 w-4" />
-          Añadir plan
-        </button>
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+          <button
+            type="button"
+            onClick={() => setHistoryOpen((v) => !v)}
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-violet-200 sm:w-auto"
+            title="Ver historial de cambios"
+          >
+            <Clock className="h-4 w-4" />
+            Historial
+          </button>
+          <button
+            type="button"
+            onClick={handleStartCreate}
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-200 sm:w-auto"
+          >
+            <Plus className="h-4 w-4" />
+            Añadir plan
+          </button>
+        </div>
       </div>
+
+      {historyOpen ? (
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold text-slate-950">Historial de cambios (Plan)</div>
+              <div className="mt-1 text-xs text-slate-600">Quién creó/editó/eliminó planes recientemente.</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setHistoryOpen(false)}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Cerrar
+            </button>
+          </div>
+
+          {historyLoading ? (
+            <div className="mt-4 text-sm text-slate-600">Cargando historial…</div>
+          ) : historyError ? (
+            <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {historyError}
+            </div>
+          ) : history.length ? (
+            <div className="mt-4 space-y-2">
+              {history.map((item) => (
+                <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-slate-950">
+                        {item.summary || `${item.action} ${item.entity_type}`}
+                      </div>
+                      <div className="mt-1 text-xs text-slate-600">
+                        {(item.actor_email || "Alguien")} · {new Date(item.created_at).toLocaleString("es-ES")}
+                      </div>
+                    </div>
+                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+                      {item.action}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-4 text-sm text-slate-600">Todavía no hay cambios registrados.</div>
+          )}
+        </div>
+      ) : null}
 
       <div className="grid gap-4 md:grid-cols-3">
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
