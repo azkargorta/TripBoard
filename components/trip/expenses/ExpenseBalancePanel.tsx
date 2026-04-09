@@ -8,7 +8,7 @@ import type {
   PaymentPreferenceRow,
   SettlementSuggestion,
 } from "@/lib/expense-balance";
-import { CheckCircle2, Clock, MessageCircle, Settings2, SlidersHorizontal } from "lucide-react";
+import { CheckCircle2, Clock, Copy, MessageCircle, Settings2, SlidersHorizontal, Users } from "lucide-react";
 
 function safeCurrency(currency?: string | null) {
   const code = (currency || "EUR").toUpperCase().trim();
@@ -74,6 +74,8 @@ export default function ExpenseBalancePanel({
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [savingPref, setSavingPref] = useState<string | null>(null);
   const [resetAllBusy, setResetAllBusy] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkCopied, setBulkCopied] = useState(false);
 
   const methods: Array<{ id: PaymentMethod; label: string; chip: string }> = [
     { id: "bizum", label: "Bizum", chip: "bg-emerald-50 text-emerald-900 border-emerald-200" },
@@ -117,6 +119,57 @@ export default function ExpenseBalancePanel({
     const paid = settlements.filter((s) => s.status === "paid");
     return [...pending, ...paid];
   }, [settlements]);
+
+  const bulkReminders = useMemo(() => {
+    const pending = orderedSettlements.filter((s) => s.status !== "paid");
+    const byDebtor = new Map<string, SettlementSuggestion[]>();
+    for (const s of pending) {
+      const key = String(s.debtor_name || "").trim();
+      if (!key) continue;
+      const list = byDebtor.get(key) || [];
+      list.push(s);
+      byDebtor.set(key, list);
+    }
+
+    const items = Array.from(byDebtor.entries())
+      .map(([debtor, list]) => {
+        const total = list.reduce((sum, s) => sum + Number(s.amount || 0), 0);
+        const currency = safeCurrency(list[0]?.currency || displayCurrency);
+
+        const lines = list
+          .slice()
+          .sort((a, b) => String(a.creditor_name || "").localeCompare(String(b.creditor_name || "")))
+          .map((s) => {
+            const method =
+              s.payment_method === "bizum"
+                ? "Bizum"
+                : s.payment_method === "transfer"
+                  ? "Transferencia"
+                  : s.payment_method === "cash"
+                    ? "Efectivo"
+                    : null;
+            const methodPart = method ? ` · Método: ${method}` : "";
+            return `- ${s.creditor_name}: ${formatMoney(Number(s.amount || 0), s.currency || currency)}${methodPart}`;
+          })
+          .join("\n");
+
+        const text =
+          `Hola ${debtor}.\n` +
+          `Según el balance del viaje, tienes pagos pendientes por un total de ${formatMoney(total, currency)}.\n\n` +
+          `Detalle:\n${lines}\n\n` +
+          `Gracias.`;
+
+        const link = `https://wa.me/?text=${encodeURIComponent(text)}`;
+        return { debtor, total, currency, text, link, count: list.length };
+      })
+      .sort((a, b) => b.total - a.total);
+
+    const allText = items
+      .map((it) => `### ${it.debtor} (${formatMoney(it.total, it.currency)})\n${it.text}`)
+      .join("\n\n");
+
+    return { items, allText };
+  }, [displayCurrency, orderedSettlements]);
 
   return (
     <div className="space-y-4">
@@ -429,10 +482,80 @@ export default function ExpenseBalancePanel({
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-base font-semibold text-slate-950">Pagos a realizar</h3>
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-            {orderedSettlements.length} movimientos
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            {bulkReminders.items.length ? (
+              <button
+                type="button"
+                onClick={() => setBulkOpen((v) => !v)}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                title="Generar avisos para todos los deudores"
+              >
+                <Users className="h-4 w-4" aria-hidden />
+                Cobrar a todos
+              </button>
+            ) : null}
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+              {orderedSettlements.length} movimientos
+            </span>
+          </div>
         </div>
+
+        {bulkOpen && bulkReminders.items.length ? (
+          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-slate-950">Avisos por WhatsApp</div>
+                <div className="mt-1 text-xs text-slate-600">
+                  Genera un mensaje por deudor con el total pendiente. Puedes copiar todo o abrir WhatsApp por persona.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(bulkReminders.allText);
+                    setBulkCopied(true);
+                    window.setTimeout(() => setBulkCopied(false), 1500);
+                  } catch {
+                    // ignore
+                  }
+                }}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                title="Copiar todos los mensajes"
+              >
+                <Copy className="h-4 w-4" aria-hidden />
+                {bulkCopied ? "Copiado" : "Copiar todo"}
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-3">
+              {bulkReminders.items.map((it) => (
+                <div key={it.debtor} className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-slate-950">{it.debtor}</div>
+                      <div className="mt-1 text-xs text-slate-600">{it.count} pagos · Total {formatMoney(it.total, it.currency)}</div>
+                    </div>
+                    <a
+                      href={it.link}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-50"
+                      title="Abrir mensaje en WhatsApp"
+                    >
+                      <MessageCircle className="h-4 w-4" aria-hidden />
+                      WhatsApp
+                    </a>
+                  </div>
+
+                  <pre className="mt-3 whitespace-pre-wrap rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+{it.text}
+                  </pre>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         {orderedSettlements.length === 0 ? (
           <div className="mt-4 rounded-2xl border border-dashed border-slate-200 px-4 py-5 text-sm text-slate-500">
