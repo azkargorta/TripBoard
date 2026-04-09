@@ -200,7 +200,7 @@ async function uploadExpenseAttachment(tripId: string, file: File) {
       upsert: true,
       contentType: file.type || undefined,
     }),
-    20000,
+    60000,
     "La subida del archivo tardó demasiado. Revisa bucket, RLS o conexión."
   );
 
@@ -338,7 +338,19 @@ export function useTripExpenses(tripId: string) {
     setError(null);
     try {
       let attachment = null as null | { path: string; name: string; type: string };
-      if (input.attachment) attachment = await uploadExpenseAttachment(tripId, input.attachment);
+      if (input.attachment) {
+        try {
+          attachment = await uploadExpenseAttachment(tripId, input.attachment);
+        } catch (e) {
+          // Guardamos el gasto igualmente; el adjunto es opcional.
+          const msg =
+            e instanceof Error
+              ? `No se pudo subir el adjunto: ${e.message}. Se guardará el gasto sin adjunto.`
+              : "No se pudo subir el adjunto. Se guardará el gasto sin adjunto.";
+          setError(msg);
+          attachment = null;
+        }
+      }
 
       const payload = {
         tripId,
@@ -382,7 +394,18 @@ export function useTripExpenses(tripId: string) {
         type: currentExpense?.attachment_type || null,
       };
 
-      if (input.attachment) attachment = await uploadExpenseAttachment(tripId, input.attachment);
+      if (input.attachment) {
+        try {
+          attachment = await uploadExpenseAttachment(tripId, input.attachment);
+        } catch (e) {
+          const msg =
+            e instanceof Error
+              ? `No se pudo subir el adjunto: ${e.message}. Se guardará el gasto sin adjunto.`
+              : "No se pudo subir el adjunto. Se guardará el gasto sin adjunto.";
+          setError(msg);
+          attachment = { path: null, name: null, type: null };
+        }
+      }
       else if (!input.keepExistingAttachment) attachment = { path: null, name: null, type: null };
 
       const payload = {
