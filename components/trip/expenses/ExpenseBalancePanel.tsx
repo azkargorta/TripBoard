@@ -47,6 +47,7 @@ type Props = {
   paymentPairRules: PaymentPairRuleRow[];
   onSavePaymentPairRule: (fromName: string, toName: string, patch: { allowed: boolean; prefer: boolean }) => Promise<void>;
   onResetPaymentPairRules: (fromName: string, toParticipantNames: string[]) => Promise<void>;
+  onResetAllPaymentRules: () => Promise<void>;
   strictPaymentMethods: boolean;
   onChangeStrictPaymentMethods: (value: boolean) => void;
 };
@@ -65,12 +66,14 @@ export default function ExpenseBalancePanel({
   paymentPairRules,
   onSavePaymentPairRule,
   onResetPaymentPairRules,
+  onResetAllPaymentRules,
   strictPaymentMethods,
   onChangeStrictPaymentMethods,
 }: Props) {
   const displayCurrency = safeCurrency(balanceCurrency);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [savingPref, setSavingPref] = useState<string | null>(null);
+  const [resetAllBusy, setResetAllBusy] = useState(false);
 
   const methods: Array<{ id: PaymentMethod; label: string; chip: string }> = [
     { id: "bizum", label: "Bizum", chip: "bg-emerald-50 text-emerald-900 border-emerald-200" },
@@ -183,14 +186,28 @@ export default function ExpenseBalancePanel({
               </div>
             </div>
 
-            <label className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-800">
-              <input
-                type="checkbox"
-                checked={strictPaymentMethods}
-                onChange={(e) => onChangeStrictPaymentMethods(e.target.checked)}
-              />
-              Modo estricto
-            </label>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                disabled={resetAllBusy}
+                onClick={() => {
+                  setResetAllBusy(true);
+                  void onResetAllPaymentRules().finally(() => setResetAllBusy(false));
+                }}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+              >
+                {resetAllBusy ? "Restableciendo…" : "Restablecer todo"}
+              </button>
+
+              <label className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-800">
+                <input
+                  type="checkbox"
+                  checked={strictPaymentMethods}
+                  onChange={(e) => onChangeStrictPaymentMethods(e.target.checked)}
+                />
+                Modo estricto
+              </label>
+            </div>
           </div>
 
           <div className="mt-4 grid gap-3">

@@ -23,6 +23,7 @@ export default function TripExpensesView({ tripId }: { tripId: string }) {
     paymentPairRules,
     savePaymentPairRule,
     resetPaymentPairRules,
+    resetAllPaymentRules,
     strictPaymentMethods,
     setStrictPaymentMethods,
     balanceCurrency,
@@ -273,6 +274,7 @@ export default function TripExpensesView({ tripId }: { tripId: string }) {
                 paymentPairRules={paymentPairRules}
                 onSavePaymentPairRule={savePaymentPairRule}
                 onResetPaymentPairRules={resetPaymentPairRules}
+                onResetAllPaymentRules={() => resetAllPaymentRules(participants)}
                 strictPaymentMethods={strictPaymentMethods}
                 onChangeStrictPaymentMethods={setStrictPaymentMethods}
               />

@@ -461,6 +461,22 @@ export function useTripExpenses(tripId: string) {
     [loadPaymentPairRules, tripId]
   );
 
+  const resetAllPaymentRules = useCallback(
+    async (names: string[]) => {
+      await apiRequest<{ ok: true }>(
+        "/api/trip-payment-rules/reset-all",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tripId, participants: names }),
+        },
+        "restablecer todo (métodos + reglas)"
+      );
+      await Promise.all([loadPaymentPreferences(), loadPaymentPairRules()]);
+    },
+    [loadPaymentPairRules, loadPaymentPreferences, tripId]
+  );
+
   const savePaymentPreference = useCallback(
     async (participantName: string, next: { send_methods: string[]; receive_methods: string[] }) => {
       await apiRequest<{ preference: any }>(
@@ -653,6 +669,7 @@ export function useTripExpenses(tripId: string) {
     paymentPairRules,
     savePaymentPairRule,
     resetPaymentPairRules,
+    resetAllPaymentRules,
     strictPaymentMethods,
     setStrictPaymentMethods: setStrictPaymentMethodsPersisted,
     balanceCurrency,
