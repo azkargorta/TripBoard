@@ -673,6 +673,8 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   const [isRouteFormOpen, setIsRouteFormOpen] = useState(false);
   const [duplicateRouteKey, setDuplicateRouteKey] = useState<string | null>(null);
   const [creatingDayRoutes, setCreatingDayRoutes] = useState(false);
+  const [dayRouteMode, setDayRouteMode] = useState<RouteMode>("DRIVING");
+  const [dayOptimizeOrder, setDayOptimizeOrder] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
@@ -1546,6 +1548,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
       let durationText: string | null = null;
       let arrivalTime: string | null = null;
       let overviewPath: Array<{ lat: number; lng: number }> = [];
+      let orderedMiddle = middle;
 
       try {
         if (isLoaded && typeof window !== "undefined" && window.google?.maps) {
@@ -1554,11 +1557,15 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
           const result = await service.route({
             origin: { lat: from.latitude, lng: from.longitude },
             destination: { lat: to.latitude, lng: to.longitude },
-            travelMode: window.google.maps.TravelMode.DRIVING,
+            travelMode: window.google.maps.TravelMode[dayRouteMode],
             waypoints: middle.map((p) => ({ location: { lat: p.latitude, lng: p.longitude }, stopover: true })),
-            optimizeWaypoints: false,
+            optimizeWaypoints: dayOptimizeOrder,
           });
           const firstRoute = result.routes?.[0];
+          const order = Array.isArray(firstRoute?.waypoint_order) ? firstRoute!.waypoint_order : null;
+          if (dayOptimizeOrder && order && order.length === middle.length) {
+            orderedMiddle = order.map((idx) => middle[idx]).filter(Boolean);
+          }
           const legs = firstRoute?.legs || [];
           const totalMeters = legs.reduce((sum, leg) => sum + (leg.distance?.value || 0), 0);
           const totalSeconds = legs.reduce((sum, leg) => sum + (leg.duration?.value || 0), 0);
@@ -1575,7 +1582,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
         routeDate: date,
         routeName: `Ruta ${date}`,
         departureTime: form.departureTime || "",
-        mode: "DRIVING",
+        mode: dayRouteMode,
         color,
         notes: null,
         originName: from.label || from.address || "Origen",
@@ -1586,7 +1593,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
         destinationAddress: to.address || to.label || "Destino",
         destinationLatitude: to.latitude,
         destinationLongitude: to.longitude,
-        stops: middle.map((p) => ({
+        stops: orderedMiddle.map((p) => ({
           name: p.label || p.address || "Parada",
           address: p.address || p.label || "",
           latitude: p.latitude,
@@ -1608,7 +1615,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     } finally {
       setCreatingDayRoutes(false);
     }
-  }, [fitMapToData, form.departureTime, form.restStopMinutes, form.restStopsCount, form.restStopsEnabled, isLoaded, planPlaces, routesState, saveRoute, selectedDate]);
+  }, [dayOptimizeOrder, dayRouteMode, fitMapToData, form.departureTime, form.restStopMinutes, form.restStopsCount, form.restStopsEnabled, isLoaded, planPlaces, routesState, saveRoute, selectedDate]);
 
   const lastFitRef = useRef<string>("");
   useEffect(() => {
@@ -1706,15 +1713,41 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                   Nueva ruta
                 </IconButton>
                 {selectedDate !== "all" ? (
-                  <IconButton
-                    onClick={() => void createRoutesForSelectedDay()}
-                    disabled={creatingDayRoutes}
-                    title="Generar rutas por tramos con los planes del día"
-                    variant="secondary"
-                  >
-                    <MapPin className="h-4 w-4" />
-                    {creatingDayRoutes ? "Generando..." : "Ruta del día"}
-                  </IconButton>
+                  <>
+                    <select
+                      value={dayRouteMode}
+                      onChange={(e) => setDayRouteMode(e.target.value as any)}
+                      className="min-h-[36px] rounded-xl border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-900 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+                      title="Modo de viaje para Ruta del día"
+                    >
+                      <option value="DRIVING">Coche</option>
+                      <option value="WALKING">Andando</option>
+                      <option value="BICYCLING">Bici</option>
+                      <option value="TRANSIT">Transporte</option>
+                    </select>
+
+                    <label
+                      className="inline-flex min-h-[36px] items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700"
+                      title="Reordena paradas para minimizar el tiempo"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={dayOptimizeOrder}
+                        onChange={(e) => setDayOptimizeOrder(e.target.checked)}
+                      />
+                      Optimizar
+                    </label>
+
+                    <IconButton
+                      onClick={() => void createRoutesForSelectedDay()}
+                      disabled={creatingDayRoutes}
+                      title="Generar una ruta con paradas del día"
+                      variant="secondary"
+                    >
+                      <MapPin className="h-4 w-4" />
+                      {creatingDayRoutes ? "Generando..." : "Ruta del día"}
+                    </IconButton>
+                  </>
                 ) : null}
               </div>
             </div>
