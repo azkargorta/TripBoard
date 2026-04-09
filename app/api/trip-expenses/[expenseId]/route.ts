@@ -2,14 +2,44 @@
  import { createClient } from "@/lib/supabase/server";
  import { requireTripAccess } from "@/lib/trip-access";
  
+async function safeInsertAudit(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  input: {
+    trip_id: string;
+    entity_type: string;
+    entity_id: string;
+    action: "create" | "update" | "delete";
+    summary?: string | null;
+    diff?: any;
+    actor_user_id?: string | null;
+    actor_email?: string | null;
+  }
+) {
+  try {
+    await supabase.from("trip_audit_log").insert({
+      trip_id: input.trip_id,
+      entity_type: input.entity_type,
+      entity_id: input.entity_id,
+      action: input.action,
+      summary: input.summary ?? null,
+      diff: input.diff ?? null,
+      actor_user_id: input.actor_user_id ?? null,
+      actor_email: input.actor_email ?? null,
+    });
+  } catch {
+    // no-op
+  }
+}
+
  export async function PATCH(request: Request, { params }: { params: { expenseId: string } }) {
    try {
      const body = await request.json();
      const supabase = await createClient();
+    const { data: actor } = await supabase.auth.getUser();
  
      const { data: row, error: rowError } = await supabase
        .from("trip_expenses")
-       .select("trip_id")
+      .select("*")
        .eq("id", params.expenseId)
        .maybeSingle();
      if (rowError) throw new Error(rowError.message);
@@ -48,6 +78,17 @@
        .single();
      if (error) throw new Error(error.message);
  
+    await safeInsertAudit(supabase, {
+      trip_id: String(row.trip_id),
+      entity_type: "expense",
+      entity_id: String(data.id),
+      action: "update",
+      summary: `Actualizó gasto: ${String(data.title || "").trim() || "Sin título"}`,
+      diff: { before: row, patch, after: data },
+      actor_user_id: actor?.user?.id ?? null,
+      actor_email: actor?.user?.email ?? null,
+    });
+
      return NextResponse.json({ expense: data });
    } catch (error) {
      return NextResponse.json(
@@ -60,10 +101,11 @@
  export async function DELETE(_request: Request, { params }: { params: { expenseId: string } }) {
    try {
      const supabase = await createClient();
+    const { data: actor } = await supabase.auth.getUser();
  
      const { data: row, error: rowError } = await supabase
        .from("trip_expenses")
-       .select("trip_id")
+      .select("*")
        .eq("id", params.expenseId)
        .maybeSingle();
      if (rowError) throw new Error(rowError.message);
@@ -77,6 +119,17 @@
      const { error } = await supabase.from("trip_expenses").delete().eq("id", params.expenseId);
      if (error) throw new Error(error.message);
  
+    await safeInsertAudit(supabase, {
+      trip_id: String(row.trip_id),
+      entity_type: "expense",
+      entity_id: String(row.id),
+      action: "delete",
+      summary: `Eliminó gasto: ${String((row as any).title || "").trim() || "Sin título"}`,
+      diff: { before: row },
+      actor_user_id: actor?.user?.id ?? null,
+      actor_email: actor?.user?.email ?? null,
+    });
+
      return NextResponse.json({ ok: true });
    } catch (error) {
      return NextResponse.json(
