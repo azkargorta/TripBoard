@@ -45,48 +45,26 @@ export async function signUpWithEmail(params: {
 
   const redirectTo = `${window.location.origin}/auth/callback`;
 
-  let data: any = null;
-  let error: any = null;
-  try {
-    const result = await withTimeout(
-      supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: redirectTo,
-          data: {
-            username,
-          },
-        },
-      }),
-      45_000,
-      "Supabase tardó demasiado en crear tu cuenta. Puede que se haya creado igualmente: intenta iniciar sesión."
-    );
-    data = result.data;
-    error = result.error;
-  } catch (e) {
-    // Si el signup tarda mucho, a veces Supabase termina creando el usuario aunque el cliente haya timeouteado.
-    // En ese caso, probamos a iniciar sesión para confirmar.
-    const raw = e instanceof Error ? e.message : String(e);
-    try {
-      const signIn = await withTimeout(
-        supabase.auth.signInWithPassword({ email, password }),
-        12_000,
-        raw
-      );
-      return signIn;
-    } catch {
-      throw new Error(raw);
-    }
+  // Registro robusto: hacemos signup server-side para evitar problemas de SMTP/timeouts en cliente.
+  const resp = await withTimeout(
+    fetch("/api/auth/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ username, email, password, redirectTo }),
+    }),
+    20_000,
+    "El servidor tardó demasiado en crear tu cuenta. Reintenta."
+  );
+
+  const payload = await resp.json().catch(() => null);
+  if (!resp.ok) {
+    const msg = payload?.error ? String(payload.error) : `Error ${resp.status}`;
+    throw new Error(msg);
   }
 
-  if (error) {
-    throw error;
-  }
-
-  // El profile lo crea el trigger server-side (ver docs/tripboard_profiles_trigger.sql).
-
-  return data;
+  // Auto-login para que la UX sea directa (ya confirmamos email en server).
+  return await signInWithEmail({ email, password });
 }
 
 /**
