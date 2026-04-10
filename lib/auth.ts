@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { createRecoveryEmailClient } from "@/lib/supabase/recovery-email-client";
 import {
   isValidEmail,
   isValidPassword,
@@ -114,7 +115,8 @@ export async function sendPasswordReset(email: string) {
   // Debe figurar en Supabase → Authentication → URL Configuration → Redirect URLs.
   const redirectTo = `${window.location.origin}/auth/recovery`;
 
-  const { error } = await supabase.auth.resetPasswordForEmail(
+  const recoveryClient = createRecoveryEmailClient();
+  const { error } = await recoveryClient.auth.resetPasswordForEmail(
     email.trim().toLowerCase(),
     {
       redirectTo,

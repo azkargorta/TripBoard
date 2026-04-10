@@ -46,16 +46,20 @@ export default function ConfirmAccountView() {
   }
 
   if (status === "error") {
-    const message = searchParams.get("message") || "No se pudo validar el enlace. Puede haber caducado o ya estar usado.";
+    const raw = searchParams.get("message") || "No se pudo validar el enlace. Puede haber caducado o ya estar usado.";
+    const isPkce = /pkce|code verifier/i.test(raw);
+    const description = isPkce
+      ? "El enlace no encaja con este navegador o ya no es válido. Vuelve a pedir recuperación de contraseña desde “Olvidé mi contraseña” y usa solo el enlace del correo más reciente (con la app actualizada funciona aunque lo abras en otro dispositivo)."
+      : raw;
     return (
       <div className="space-y-5">
-        <Card tone="error" title="No se pudo confirmar" description={message} />
+        <Card tone="error" title="No se pudo confirmar" description={description} />
         <div className="grid gap-3 sm:grid-cols-2">
           <Link
-            href="/auth/register"
+            href={isPkce ? "/auth/forgot-password" : "/auth/register"}
             className="inline-flex min-h-[44px] items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
           >
-            Crear cuenta otra vez
+            {isPkce ? "Pedir nuevo enlace" : "Crear cuenta otra vez"}
           </Link>
           <Link
             href="/auth/login"
