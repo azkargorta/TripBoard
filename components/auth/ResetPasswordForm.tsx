@@ -46,40 +46,42 @@ export default function ResetPasswordForm() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <div className="font-semibold">No se pudo actualizar</div>
+          <div className="mt-1 opacity-90">{error}</div>
         </div>
       ) : null}
 
       {success ? (
-        <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
-          {success}
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          <div className="font-semibold">Contraseña actualizada</div>
+          <div className="mt-1 opacity-90">{success}</div>
         </div>
       ) : null}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-5">
         <div>
-          <label className="mb-1 block text-sm font-medium">Nueva contraseña</label>
+          <label className="mb-2 block text-sm font-semibold text-slate-700">Nueva contraseña</label>
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-lg border px-3 py-2"
+            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm shadow-sm transition focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-200"
+            placeholder="••••••••"
             autoComplete="new-password"
           />
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium">
-            Confirmar nueva contraseña
-          </label>
+          <label className="mb-2 block text-sm font-semibold text-slate-700">Confirmar nueva contraseña</label>
           <input
             type="password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            className="w-full rounded-lg border px-3 py-2"
+            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm shadow-sm transition focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-200"
+            placeholder="••••••••"
             autoComplete="new-password"
           />
         </div>
@@ -87,7 +89,7 @@ export default function ResetPasswordForm() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-lg bg-black px-4 py-2 text-white disabled:opacity-50"
+          className="w-full rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-md transition hover:from-violet-700 hover:to-indigo-700 disabled:opacity-50"
         >
           {loading ? "Guardando..." : "Guardar nueva contraseña"}
         </button>
