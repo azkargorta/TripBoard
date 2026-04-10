@@ -36,54 +36,45 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Ese nombre de usuario ya está en uso." }, { status: 409 });
     }
 
-    // Crear usuario directamente (sin depender de SMTP/confirmación).
-    const { data, error } = await admin.auth.admin.createUser({
+    // Crear usuario usando auth.signUp para que Supabase envíe email de confirmación (si Confirm email está ON y SMTP OK).
+    const supabase = await createClient();
+    const redirectTo = typeof body?.redirectTo === "string" ? body.redirectTo : null;
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      email_confirm: true,
-      user_metadata: { username },
+      options: {
+        emailRedirectTo: redirectTo || undefined,
+        data: { username },
+      },
     });
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
-    }
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    if (!data?.user?.id) return NextResponse.json({ error: "No se pudo crear el usuario." }, { status: 500 });
 
     // Asegurar perfil (si el trigger no está instalado aún, lo garantizamos aquí).
-    if (data?.user?.id) {
-      const { error: upsertErr } = await admin.from("profiles").upsert(
-        {
-          id: data.user.id,
-          username,
-          email,
-          full_name: null,
-          avatar_url: null,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "id" }
-      );
-      if (upsertErr) {
-        // Si falla el profiles (RLS/columna inexistente), lo reportamos para que no quede “a medias”.
-        return NextResponse.json(
-          {
-            error:
-              `Usuario creado, pero no se pudo guardar el perfil (username). ` +
-              `Revisa la tabla public.profiles (columna username) y sus policies. Detalle: ${upsertErr.message}`,
-          },
-          { status: 500 }
-        );
-      }
-    }
-
-    // Crear sesión (cookies) en el servidor para que el usuario entre directo sin depender de latencias del cliente.
-    const supabase = await createClient();
-    const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
-    if (signInErr) {
+    const { error: upsertErr } = await admin.from("profiles").upsert(
+      {
+        id: data.user.id,
+        username,
+        email,
+        full_name: null,
+        avatar_url: null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "id" }
+    );
+    if (upsertErr) {
       return NextResponse.json(
-        { ok: true, warning: `Cuenta creada, pero no se pudo iniciar sesión automáticamente: ${signInErr.message}` },
-        { status: 200 }
+        {
+          error:
+            `Usuario creado, pero no se pudo guardar el perfil (username). ` +
+            `Revisa la tabla public.profiles (columna username) y sus policies. Detalle: ${upsertErr.message}`,
+        },
+        { status: 500 }
       );
     }
 
-    return NextResponse.json({ ok: true });
+    // Con confirmación por email, no iniciamos sesión automáticamente.
+    return NextResponse.json({ ok: true, needsEmailConfirmation: true });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "No se pudo crear la cuenta." },

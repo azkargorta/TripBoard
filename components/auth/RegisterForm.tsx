@@ -57,12 +57,12 @@ export default function RegisterForm() {
         password,
       });
 
-      setSuccess("Cuenta creada. Entrando…");
+      setSuccess("Cuenta creada. Revisa tu email para confirmar la cuenta antes de entrar.");
       setUsername("");
       setEmail("");
       setPassword("");
       setConfirmPassword("");
-      router.push("/dashboard");
+      router.push("/auth/login");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo crear la cuenta");
