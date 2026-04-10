@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { updateMyPassword } from "@/lib/auth";
 import { isValidPassword } from "@/lib/validators/auth";
 import { createClient } from "@/lib/supabase/client";
+import { withTimeout } from "@/lib/with-timeout";
 
 export default function ResetPasswordForm() {
   const [ready, setReady] = useState(false);
@@ -21,13 +21,13 @@ export default function ResetPasswordForm() {
     async function hydrateSessionFromHash() {
       try {
         if (typeof window === "undefined") return;
-        const supabase = createClient();
         const hash = window.location.hash || "";
         const qs = new URLSearchParams(hash.startsWith("#") ? hash.slice(1) : hash);
         const access_token = qs.get("access_token");
         const refresh_token = qs.get("refresh_token");
 
         if (access_token && refresh_token) {
+          const supabase = createClient();
           const { error: setErr } = await supabase.auth.setSession({ access_token, refresh_token });
           if (setErr) {
             setError(setErr.message);
@@ -40,25 +40,22 @@ export default function ResetPasswordForm() {
           return;
         }
 
-        let {
-          data: { session },
-          error: sesErr,
-        } = await supabase.auth.getSession();
-        if (sesErr) {
-          setError(sesErr.message);
+        const sessionRes = await withTimeout(
+          fetch("/api/auth/recovery-session", { credentials: "include" }),
+          12_000,
+          "No se pudo comprobar la sesión. Recarga la página o abre de nuevo el enlace del correo."
+        ).catch((e) => {
+          throw e instanceof Error ? e : new Error(String(e));
+        });
+
+        if (!sessionRes.ok) {
+          setError(`Error de red (${sessionRes.status}). Reintenta.`);
           setReady(true);
           return;
         }
-        if (!session) {
-          const { data: ref, error: refErr } = await supabase.auth.refreshSession();
-          if (refErr) {
-            setError(refErr.message);
-            setReady(true);
-            return;
-          }
-          session = ref.session;
-        }
-        if (!session) {
+
+        const j = (await sessionRes.json().catch(() => ({ ok: false }))) as { ok?: boolean };
+        if (!j.ok) {
           setError(
             "No hay sesión de recuperación. Vuelve a abrir el enlace del último correo (o pide uno nuevo en «Olvidé mi contraseña»)."
           );
@@ -96,7 +93,22 @@ export default function ResetPasswordForm() {
       if (!ready || !canSubmit) {
         throw new Error("Preparando sesión de recuperación… reintenta en unos segundos.");
       }
-      await updateMyPassword(password);
+
+      const res = await withTimeout(
+        fetch("/api/auth/update-password", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password }),
+        }),
+        25_000,
+        "El servidor tardó demasiado. Comprueba la conexión e inténtalo otra vez."
+      );
+
+      const payload = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) {
+        throw new Error(payload?.error || `Error ${res.status}`);
+      }
       setSuccess("Contraseña actualizada correctamente.");
 
       setTimeout(() => {
