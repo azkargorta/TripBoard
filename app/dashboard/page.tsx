@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import SignOutButton from "@/components/auth/SignOutButton";
 import CreateTripSection from "@/components/dashboard/CreateTripSection";
 import TripBoardLogo from "@/components/brand/TripBoardLogo";
+import { isPlatformAdmin } from "@/lib/platform-admin";
 
 type Trip = {
   id: string;
@@ -168,6 +169,8 @@ export default async function DashboardPage() {
     redirect("/auth/login");
   }
 
+  const isAdmin = await isPlatformAdmin(user.id, user.email);
+
   const { data: participantRows, error: participantsError } = await supabase
     .from("trip_participants")
     .select("trip_id")
@@ -221,6 +224,14 @@ export default async function DashboardPage() {
             </div>
 
             <div className="flex flex-wrap gap-3">
+              {isAdmin ? (
+                <Link
+                  href="/dashboard/admin"
+                  className="inline-flex min-h-[44px] items-center justify-center rounded-2xl border border-amber-300/40 bg-amber-400/20 px-4 py-2 text-sm font-semibold text-amber-50 transition hover:bg-amber-400/30"
+                >
+                  Administración
+                </Link>
+              ) : null}
               <Link
                 href="/"
                 className="inline-flex min-h-[44px] items-center justify-center rounded-2xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15"

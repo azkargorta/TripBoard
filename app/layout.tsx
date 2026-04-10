@@ -1,6 +1,7 @@
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import AuthListener from "@/components/auth/AuthListener";
+import AnalyticsRoot from "@/components/analytics/AnalyticsRoot";
 
 export const metadata: Metadata = {
   title: "TripBoard",
@@ -40,6 +41,7 @@ export default function RootLayout({
     <html lang="es">
       <body className="bg-slate-50 text-slate-950">
         <AuthListener />
+        <AnalyticsRoot />
         {children}
       </body>
     </html>
