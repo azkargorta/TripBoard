@@ -2,13 +2,11 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { withTimeout } from "@/lib/with-timeout";
 
 /**
- * El intercambio PKCE debe hacerse en el cliente: el code_verifier se guarda
- * en cookies vía createBrowserClient; un Route Handler a veces no lo recibe y
- * devuelve "PKCE code verifier not found in storage".
+ * Canjea ?code= vía API en servidor (cookies en la respuesta).
+ * No usa el cliente Supabase aquí: en Gmail/WebView getSession/exchange pueden colgarse.
  */
 export default function AuthCallbackClient() {
   const router = useRouter();
@@ -31,60 +29,53 @@ export default function AuthCallbackClient() {
     }
 
     const authCode = code;
+    const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
     let cancelled = false;
 
     async function run() {
-      const supabase = createClient();
-      let exErr: { message: string } | null = null;
+      let res: Response;
       try {
-        const result = await withTimeout(
-          supabase.auth.exchangeCodeForSession(authCode),
+        res = await withTimeout(
+          fetch("/api/auth/exchange-code", {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code: authCode }),
+          }),
           22_000,
           "timeout"
         );
-        exErr = result.error;
       } catch {
-        exErr = {
-          message:
-            "Tiempo agotado al validar el enlace (flujo PKCE). En Supabase → Email templates → «Confirm signup», cambia el botón a: {{ .SiteURL }}/auth/verify?token_hash={{ .TokenHash }}&type=signup",
-        };
+        if (cancelled) return;
+        const msg = encodeURIComponent(
+          "Tiempo agotado. Abre el enlace en el navegador (Chrome/Safari), no dentro de Gmail. " +
+            "Mejor: usa plantillas de correo con token_hash → /auth/verify (ver README)."
+        );
+        window.location.assign(`/auth/confirmed?status=error&message=${msg}&next=${encodeURIComponent(safeNext)}`);
+        return;
       }
 
       if (cancelled) return;
 
-      if (exErr) {
-        // React Strict Mode puede ejecutar el efecto dos veces; el segundo exchange falla.
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          if (type === "recovery" || next.startsWith("/auth/reset-password")) {
-            router.replace("/auth/reset-password");
-            router.refresh();
-            return;
-          }
-          const q = new URLSearchParams({ status: "ok", next });
-          router.replace(`/auth/confirmed?${q.toString()}`);
-          router.refresh();
-          return;
-        }
+      const payload = (await res.json().catch(() => null)) as { error?: string; ok?: boolean } | null;
 
-        const q = new URLSearchParams({
-          status: "error",
-          message: exErr.message,
-          next,
-        });
-        router.replace(`/auth/confirmed?${q.toString()}`);
+      if (!res.ok || !payload?.ok) {
+        const raw = payload?.error || `Error ${res.status}`;
+        const msg = encodeURIComponent(raw);
+        window.location.assign(
+          `/auth/confirmed?status=error&message=${msg}&next=${encodeURIComponent(safeNext)}`
+        );
         return;
       }
 
-      if (type === "recovery" || next.startsWith("/auth/reset-password")) {
-        router.replace("/auth/reset-password");
-        router.refresh();
+      if (type === "recovery" || safeNext.startsWith("/auth/reset-password")) {
+        window.location.assign("/auth/reset-password");
         return;
       }
 
-      const q = new URLSearchParams({ status: "ok", next });
-      router.replace(`/auth/confirmed?${q.toString()}`);
-      router.refresh();
+      window.location.assign(
+        `/auth/confirmed?status=ok&next=${encodeURIComponent(safeNext)}`
+      );
     }
 
     void run().catch(() => {
@@ -100,6 +91,9 @@ export default function AuthCallbackClient() {
   return (
     <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 text-center text-sm text-slate-600">
       <p>Validando enlace…</p>
+      <p className="max-w-sm text-xs text-slate-500">
+        Si tarda mucho, pulsa los tres puntos del enlace en Gmail y elige «Abrir en el navegador».
+      </p>
       {hint ? <p className="text-red-600">{hint}</p> : null}
     </div>
   );
