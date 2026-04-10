@@ -110,7 +110,9 @@ export async function signInWithGoogle(next: string = "/dashboard") {
  * Enviar email de recuperación de contraseña
  */
 export async function sendPasswordReset(email: string) {
-  const redirectTo = `${window.location.origin}/auth/reset-password`;
+  // En recovery, Supabase suele enviar un `code` que hay que intercambiar por sesión.
+  // Usamos /auth/callback para hacer el exchange y luego redirigir a la pantalla bonita.
+  const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent("/auth/reset-password")}`;
 
   const { error } = await supabase.auth.resetPasswordForEmail(
     email.trim().toLowerCase(),

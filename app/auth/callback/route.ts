@@ -5,6 +5,7 @@ export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
   const next = requestUrl.searchParams.get("next") ?? "/dashboard";
+  const type = (requestUrl.searchParams.get("type") || "").toLowerCase();
 
   if (!code) {
     const url = new URL("/auth/confirmed", requestUrl.origin);
@@ -24,6 +25,11 @@ export async function GET(request: Request) {
       url.searchParams.set("next", next);
       return NextResponse.redirect(url);
     }
+    // Recovery (reset password) debe ir a la pantalla de cambiar contraseña.
+    if (type === "recovery" || next.startsWith("/auth/reset-password")) {
+      return NextResponse.redirect(new URL("/auth/reset-password", requestUrl.origin));
+    }
+
     const url = new URL("/auth/confirmed", requestUrl.origin);
     url.searchParams.set("status", "ok");
     url.searchParams.set("next", next);
