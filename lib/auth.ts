@@ -105,16 +105,24 @@ export async function signInWithGoogle(next: string = "/dashboard") {
     next
   )}`;
 
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: "google",
-    options: {
-      redirectTo,
-    },
-  });
+  const { data, error } = await withTimeout(
+    supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo,
+        skipBrowserRedirect: true,
+      },
+    }),
+    20_000,
+    "No se pudo iniciar sesión con Google (tiempo agotado). Revisa la conexión."
+  );
 
   if (error) throw error;
+  if (!data?.url) {
+    throw new Error("No se pudo obtener la URL de inicio de sesión con Google.");
+  }
 
-  return data;
+  window.location.assign(data.url);
 }
 
 /**
