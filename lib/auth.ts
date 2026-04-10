@@ -5,7 +5,7 @@ import {
   isValidUsername,
   normalizeUsername,
 } from "@/lib/validators/auth";
-import { isUsernameAvailable, upsertProfile } from "@/lib/profile";
+import { isUsernameAvailable } from "@/lib/profile";
 import { withTimeout } from "@/lib/with-timeout";
 
 /**
@@ -84,24 +84,7 @@ export async function signUpWithEmail(params: {
     throw error;
   }
 
-  // Crear profile
-  if (data.user) {
-    try {
-      await withTimeout(
-        upsertProfile({
-        id: data.user.id,
-        username,
-        email,
-        full_name: null,
-        avatar_url: null,
-        }),
-        12_000,
-        "La cuenta se creó, pero no se pudo guardar el perfil a tiempo. Reintenta iniciar sesión."
-      );
-    } catch (profileError) {
-      console.error("Error creando profile tras signup:", profileError);
-    }
-  }
+  // El profile lo crea el trigger server-side (ver docs/tripboard_profiles_trigger.sql).
 
   return data;
 }
