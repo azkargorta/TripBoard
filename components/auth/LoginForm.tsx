@@ -17,18 +17,30 @@ export default function LoginForm() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Algunos links de recuperación aterrizan en /auth/login con tokens en el hash.
-    // Si detectamos recovery, redirigimos a la pantalla bonita de reset.
+    // PKCE: a veces el Site URL es /auth/login y llega ?code= con type=recovery.
+    const code = searchParams.get("code");
+    const typeQs = (searchParams.get("type") || "").toLowerCase();
+    if (code && typeQs === "recovery") {
+      const q = new URLSearchParams({
+        code,
+        next: "/auth/reset-password",
+        type: "recovery",
+      });
+      router.replace(`/auth/callback?${q.toString()}`);
+      router.refresh();
+      return;
+    }
+
+    // Implicit: tokens en el hash solo si es flujo recovery (evita confundir con otros magic links).
     if (typeof window === "undefined") return;
     const hash = window.location.hash || "";
     const qs = new URLSearchParams(hash.startsWith("#") ? hash.slice(1) : hash);
     const type = (qs.get("type") || "").toLowerCase();
-    const hasTokens = Boolean(qs.get("access_token")) || Boolean(qs.get("refresh_token"));
-    if (type === "recovery" || hasTokens) {
+    if (type === "recovery") {
       router.replace(`/auth/reset-password${hash}`);
       router.refresh();
     }
-  }, [router]);
+  }, [router, searchParams]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

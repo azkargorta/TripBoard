@@ -4,8 +4,8 @@ import ResetPasswordForm from "@/components/auth/ResetPasswordForm";
 export default function ResetPasswordPage() {
   return (
     <AuthShell
-      title="Nueva contraseña"
-      subtitle="Introduce tu nueva contraseña"
+      title="Restablecer contraseña"
+      subtitle="Elige una contraseña nueva para tu cuenta"
     >
       <ResetPasswordForm />
     </AuthShell>

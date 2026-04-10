@@ -105,7 +105,7 @@ export default function ResetPasswordForm() {
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
-          <label className="mb-2 block text-sm font-semibold text-slate-700">Nueva contraseña</label>
+          <label className="mb-2 block text-sm font-semibold text-slate-700">Contraseña nueva</label>
           <input
             type="password"
             value={password}
@@ -117,7 +117,7 @@ export default function ResetPasswordForm() {
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-semibold text-slate-700">Confirmar nueva contraseña</label>
+          <label className="mb-2 block text-sm font-semibold text-slate-700">Repite contraseña</label>
           <input
             type="password"
             value={confirmPassword}
@@ -133,7 +133,7 @@ export default function ResetPasswordForm() {
           disabled={loading || !ready}
           className="w-full rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-md transition hover:from-violet-700 hover:to-indigo-700 disabled:opacity-50"
         >
-          {loading ? "Guardando..." : "Guardar nueva contraseña"}
+          {loading ? "Validando..." : "Validar contraseña"}
         </button>
       </form>
     </div>

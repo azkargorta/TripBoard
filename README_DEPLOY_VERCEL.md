@@ -26,8 +26,10 @@
    - Site URL: `https://TU-DOMINIO.vercel.app`
    - Redirect URLs:
      - `https://TU-DOMINIO.vercel.app/auth/callback`
+     - `https://TU-DOMINIO.vercel.app/auth/recovery`
      - `https://TU-DOMINIO.vercel.app/auth/reset-password`
      - `http://localhost:3000/auth/callback`
+     - `http://localhost:3000/auth/recovery`
      - `http://localhost:3000/auth/reset-password`
 
 ## Qué he desactivado temporalmente

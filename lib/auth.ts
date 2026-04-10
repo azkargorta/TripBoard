@@ -110,9 +110,9 @@ export async function signInWithGoogle(next: string = "/dashboard") {
  * Enviar email de recuperación de contraseña
  */
 export async function sendPasswordReset(email: string) {
-  // Preferimos que el link aterrice directamente en la UI de reset.
-  // Si Supabase decide mandar tokens en el hash, `ResetPasswordForm` los consumirá.
-  const redirectTo = `${window.location.origin}/auth/reset-password`;
+  // Punto de entrada dedicado: normaliza ?code= → callback y #hash → reset-password.
+  // Debe figurar en Supabase → Authentication → URL Configuration → Redirect URLs.
+  const redirectTo = `${window.location.origin}/auth/recovery`;
 
   const { error } = await supabase.auth.resetPasswordForEmail(
     email.trim().toLowerCase(),
