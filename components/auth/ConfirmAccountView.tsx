@@ -47,38 +47,58 @@ export default function ConfirmAccountView() {
 
   if (status === "error") {
     const raw = searchParams.get("message") || "No se pudo validar el enlace. Puede haber caducado o ya estar usado.";
-    const isPkce = /pkce|code verifier/i.test(raw);
-    const description = isPkce
-      ? "El enlace no encaja con este navegador o ya no es válido. Vuelve a pedir recuperación de contraseña desde “Olvidé mi contraseña” y usa solo el enlace del correo más reciente."
+    const fromCallback = searchParams.get("from") === "callback";
+    const isFlowIssue =
+      fromCallback ||
+      /pkce|code verifier|flow state|invalid_grant|token has expired|verifier not found/i.test(raw);
+
+    const description = isFlowIssue
+      ? "Al abrir el enlace dentro de Gmail (o en otro navegador distinto al que usaste al registrarte), la validación suele fallar. Prueba: menú del enlace → «Abrir en Chrome» / «Abrir en Safari» y vuelve a pulsar. Si el enlace ya caducó, pide un correo nuevo."
       : raw;
+
     return (
       <div className="space-y-5">
         <Card tone="error" title="No se pudo confirmar" description={description} />
-        {isPkce ? (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-950">
-            <span className="font-semibold">Causa habitual:</span> el correo sigue usando el enlace por defecto de Supabase (flujo con{" "}
-            <code className="rounded bg-amber-100/80 px-1 font-mono">?code=</code>
-            ). En el dashboard: <strong>Authentication → Email templates → Reset password</strong>: el botón debe apuntar a{" "}
-            <code className="break-all rounded bg-amber-100/80 px-1 font-mono text-[11px]">
-              {"{{ .SiteURL }}/auth/verify?token_hash={{ .TokenHash }}&type=recovery"}
-            </code>
-            . Añadir URLs en Redirect no modifica el HTML del email. En local, añade también{" "}
-            <code className="rounded bg-amber-100/80 px-1 font-mono">http://localhost:3000/auth/verify</code> y{" "}
-            <code className="rounded bg-amber-100/80 px-1 font-mono">http://localhost:3000/auth/recovery</code>.
+        {isFlowIssue ? (
+          <div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-950">
+            <p>
+              <span className="font-semibold">Definitivo en Supabase:</span> los correos no deben usar solo{" "}
+              <code className="rounded bg-amber-100/80 px-1 font-mono">{"{{ .ConfirmationURL }}"}</code> (eso genera{" "}
+              <code className="rounded bg-amber-100/80 px-1 font-mono">?code=</code>
+              ). Sustituye el <code className="font-mono">href</code> del botón en cada plantilla:
+            </p>
+            <ul className="list-disc space-y-2 pl-5">
+              <li>
+                <strong>Confirm signup:</strong>{" "}
+                <code className="break-all rounded bg-amber-100/80 px-1 text-[11px]">
+                  {"{{ .SiteURL }}/auth/verify?token_hash={{ .TokenHash }}&type=signup"}
+                </code>
+              </li>
+              <li>
+                <strong>Reset password:</strong>{" "}
+                <code className="break-all rounded bg-amber-100/80 px-1 text-[11px]">
+                  {"{{ .SiteURL }}/auth/verify?token_hash={{ .TokenHash }}&type=recovery"}
+                </code>
+              </li>
+            </ul>
+            <p>
+              Redirect URLs debe incluir <code className="font-mono">/auth/verify</code> (y en local{" "}
+              <code className="font-mono">http://localhost:3000/auth/verify</code>).
+            </p>
           </div>
         ) : null}
         <div className="grid gap-3 sm:grid-cols-2">
-          <Link
-            href={isPkce ? "/auth/forgot-password" : "/auth/register"}
-            className="inline-flex min-h-[44px] items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-          >
-            {isPkce ? "Pedir nuevo enlace" : "Crear cuenta otra vez"}
-          </Link>
           <Link
             href="/auth/login"
             className="inline-flex min-h-[44px] items-center justify-center rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800"
           >
             Ir al login
+          </Link>
+          <Link
+            href={isFlowIssue ? "/auth/forgot-password" : "/auth/register"}
+            className="inline-flex min-h-[44px] items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+          >
+            {isFlowIssue ? "Pedir nuevo enlace (email)" : "Crear cuenta otra vez"}
           </Link>
         </div>
       </div>

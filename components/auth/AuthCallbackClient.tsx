@@ -24,6 +24,7 @@ export default function AuthCallbackClient() {
         message: "Falta el código de validación.",
         next,
       });
+      q.set("from", "callback");
       router.replace(`/auth/confirmed?${q.toString()}`);
       return;
     }
@@ -51,7 +52,9 @@ export default function AuthCallbackClient() {
           "Tiempo agotado. Abre el enlace en el navegador (Chrome/Safari), no dentro de Gmail. " +
             "Mejor: usa plantillas de correo con token_hash → /auth/verify (ver README)."
         );
-        window.location.assign(`/auth/confirmed?status=error&message=${msg}&next=${encodeURIComponent(safeNext)}`);
+        window.location.assign(
+          `/auth/confirmed?status=error&message=${msg}&next=${encodeURIComponent(safeNext)}&from=callback`
+        );
         return;
       }
 
@@ -63,7 +66,7 @@ export default function AuthCallbackClient() {
         const raw = payload?.error || `Error ${res.status}`;
         const msg = encodeURIComponent(raw);
         window.location.assign(
-          `/auth/confirmed?status=error&message=${msg}&next=${encodeURIComponent(safeNext)}`
+          `/auth/confirmed?status=error&message=${msg}&next=${encodeURIComponent(safeNext)}&from=callback`
         );
         return;
       }
