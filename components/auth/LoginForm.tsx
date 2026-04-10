@@ -49,8 +49,8 @@ export default function LoginForm() {
     try {
       setLoading(true);
       await signInWithEmail({ email, password });
-      router.push(next);
-      router.refresh();
+      const dest = next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+      window.location.assign(dest);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo iniciar sesión");
     } finally {

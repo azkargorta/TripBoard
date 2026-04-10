@@ -78,14 +78,23 @@ export async function signInWithEmail(params: {
 }) {
   const email = params.email.trim().toLowerCase();
 
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password: params.password,
-  });
+  const res = await withTimeout(
+    fetch("/api/auth/login", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password: params.password }),
+    }),
+    25_000,
+    "El servidor tardó demasiado. Reintenta."
+  );
 
-  if (error) throw error;
+  const payload = (await res.json().catch(() => null)) as { error?: string } | null;
+  if (!res.ok) {
+    throw new Error(payload?.error || `Error ${res.status}`);
+  }
 
-  return data;
+  return payload;
 }
 
 /**
