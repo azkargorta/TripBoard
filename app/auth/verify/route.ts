@@ -1,26 +1,47 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
+const OTP_TYPES = ["recovery", "signup", "email"] as const;
+type OtpType = (typeof OTP_TYPES)[number];
+
+function isOtpType(s: string): s is OtpType {
+  return (OTP_TYPES as readonly string[]).includes(s);
+}
+
 /**
- * Recuperación sin PKCE: la plantilla de email en Supabase debe enlazar aquí con
- * token_hash (ver README_DEPLOY_VERCEL.md). Así el enlace funciona en cualquier dispositivo.
+ * Validación sin PKCE vía token_hash en el correo (plantillas en Supabase).
+ * - recovery → /auth/reset-password
+ * - signup | email → cuenta confirmada (pantalla ok → login)
  */
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const token_hash = requestUrl.searchParams.get("token_hash");
-  const type = requestUrl.searchParams.get("type");
+  const typeRaw = requestUrl.searchParams.get("type");
+  const nextRaw = requestUrl.searchParams.get("next") ?? "/dashboard";
 
-  if (!token_hash || type !== "recovery") {
+  if (!token_hash || !typeRaw || !isOtpType(typeRaw)) {
     const u = new URL("/auth/confirmed", requestUrl.origin);
     u.searchParams.set("status", "error");
     u.searchParams.set(
       "message",
-      "Enlace incompleto. Si el correo es antiguo, pide otro desde «Olvidé mi contraseña»."
+      "Enlace incompleto o tipo no válido. Si el correo usa el enlace antiguo (PKCE), actualiza las plantillas en Supabase o pide un correo nuevo."
     );
     return NextResponse.redirect(u);
   }
 
-  const successUrl = new URL("/auth/reset-password", requestUrl.origin);
+  const safeNext =
+    nextRaw.startsWith("/") && !nextRaw.startsWith("//") ? nextRaw : "/dashboard";
+
+  const successUrl =
+    typeRaw === "recovery"
+      ? new URL("/auth/reset-password", requestUrl.origin)
+      : (() => {
+          const u = new URL("/auth/confirmed", requestUrl.origin);
+          u.searchParams.set("status", "ok");
+          u.searchParams.set("next", safeNext);
+          return u;
+        })();
+
   let response = NextResponse.redirect(successUrl);
 
   const supabase = createServerClient(
@@ -41,7 +62,7 @@ export async function GET(request: NextRequest) {
   );
 
   const { error } = await supabase.auth.verifyOtp({
-    type: "recovery",
+    type: typeRaw,
     token_hash,
   });
 
@@ -49,6 +70,7 @@ export async function GET(request: NextRequest) {
     const u = new URL("/auth/confirmed", requestUrl.origin);
     u.searchParams.set("status", "error");
     u.searchParams.set("message", error.message);
+    u.searchParams.set("next", safeNext);
     return NextResponse.redirect(u);
   }
 

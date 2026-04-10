@@ -42,6 +42,12 @@
 
    Sin este cambio, el correo seguirá llevando el flujo antiguo (`?code=` + PKCE) y verás errores de verificador.
 
+8. **Confirmar registro (crear cuenta):** en **Email templates** → **Confirm signup**, sustituye `{{ .ConfirmationURL }}` por un enlace con `token_hash` (evita quedarse en «Validando enlace…» en `/auth/callback`). Ejemplo:
+
+   ```html
+   <a href="{{ .SiteURL }}/auth/verify?token_hash={{ .TokenHash }}&type=signup">Confirmar cuenta</a>
+   ```
+
 ## Middleware
 - Hay `middleware.ts` en la raíz limitado a rutas `/auth/*` para refrescar cookies de Supabase (necesario tras `/auth/verify` y para que `updateUser` en reset no se quede colgado).
 

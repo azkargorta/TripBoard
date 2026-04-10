@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { withTimeout } from "@/lib/with-timeout";
 
 /**
  * El intercambio PKCE debe hacerse en el cliente: el code_verifier se guarda
@@ -34,7 +35,20 @@ export default function AuthCallbackClient() {
 
     async function run() {
       const supabase = createClient();
-      const { error: exErr } = await supabase.auth.exchangeCodeForSession(authCode);
+      let exErr: { message: string } | null = null;
+      try {
+        const result = await withTimeout(
+          supabase.auth.exchangeCodeForSession(authCode),
+          22_000,
+          "timeout"
+        );
+        exErr = result.error;
+      } catch {
+        exErr = {
+          message:
+            "Tiempo agotado al validar el enlace (flujo PKCE). En Supabase → Email templates → «Confirm signup», cambia el botón a: {{ .SiteURL }}/auth/verify?token_hash={{ .TokenHash }}&type=signup",
+        };
+      }
 
       if (cancelled) return;
 
