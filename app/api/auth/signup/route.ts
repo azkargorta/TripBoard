@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/lib/supabase-admin";
 import { isValidEmail, isValidPassword, isValidUsername, normalizeUsername } from "@/lib/validators/auth";
+import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -70,6 +71,16 @@ export async function POST(req: Request) {
           { status: 500 }
         );
       }
+    }
+
+    // Crear sesión (cookies) en el servidor para que el usuario entre directo sin depender de latencias del cliente.
+    const supabase = await createClient();
+    const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
+    if (signInErr) {
+      return NextResponse.json(
+        { ok: true, warning: `Cuenta creada, pero no se pudo iniciar sesión automáticamente: ${signInErr.message}` },
+        { status: 200 }
+      );
     }
 
     return NextResponse.json({ ok: true });

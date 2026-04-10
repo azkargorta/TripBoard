@@ -63,12 +63,8 @@ export async function signUpWithEmail(params: {
     throw new Error(msg);
   }
 
-  // Auto-login para que la UX sea directa (ya confirmamos email en server).
-  return await withTimeout(
-    signInWithEmail({ email, password }),
-    15_000,
-    "La cuenta se creó, pero tardamos demasiado en iniciar sesión automáticamente. Ve a «Inicia sesión»."
-  );
+  // La sesión se establece server-side en /api/auth/signup (cookies). No hacemos signIn en cliente.
+  return payload;
 }
 
 /**
