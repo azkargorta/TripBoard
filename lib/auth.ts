@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/client";
 import { createRecoveryEmailClient } from "@/lib/supabase/recovery-email-client";
 import {
   isValidEmail,
@@ -134,9 +135,21 @@ export async function updateMyPassword(newPassword: string) {
     throw new Error("La nueva contraseña debe tener al menos 8 caracteres");
   }
 
-  const { error } = await supabase.auth.updateUser({
-    password: newPassword,
-  });
+  const client = createClient();
+  const {
+    data: { session },
+  } = await client.auth.getSession();
+  if (!session) {
+    throw new Error(
+      "No hay sesión de recuperación en este navegador. Abre de nuevo el enlace del correo (misma pestaña tras el clic)."
+    );
+  }
+
+  const { error } = await withTimeout(
+    client.auth.updateUser({ password: newPassword }),
+    25_000,
+    "El servidor tardó demasiado. Comprueba la conexión e inténtalo otra vez."
+  );
 
   if (error) throw error;
 }

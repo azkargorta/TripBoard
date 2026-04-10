@@ -42,8 +42,8 @@
 
    Sin este cambio, el correo seguirá llevando el flujo antiguo (`?code=` + PKCE) y verás errores de verificador.
 
-## Qué he desactivado temporalmente
-- Middleware. Cuando la web cargue y login funcione, se puede reintroducir un middleware limpio.
+## Middleware
+- Hay `middleware.ts` en la raíz limitado a rutas `/auth/*` para refrescar cookies de Supabase (necesario tras `/auth/verify` y para que `updateUser` en reset no se quede colgado).
 
 ## Comprobaciones tras desplegar
 1. `/` debe abrir la home simple.

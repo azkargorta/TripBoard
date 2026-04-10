@@ -1,14 +1,14 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { updateMyPassword } from "@/lib/auth";
 import { isValidPassword } from "@/lib/validators/auth";
 import { createClient } from "@/lib/supabase/client";
 
 export default function ResetPasswordForm() {
-  const router = useRouter();
   const [ready, setReady] = useState(false);
+  /** Sesión lista para updateUser (cookies tras /auth/verify o hash implícito). */
+  const [canSubmit, setCanSubmit] = useState(false);
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -17,27 +17,56 @@ export default function ResetPasswordForm() {
   const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
-    // Si venimos desde el email, Supabase puede pasar tokens en el hash.
-    // Los consumimos para crear sesión y poder llamar a updateUser(password).
+    // Hash (flujo implícito) o cookies (flujo /auth/verify): hace falta sesión en el cliente.
     async function hydrateSessionFromHash() {
       try {
         if (typeof window === "undefined") return;
+        const supabase = createClient();
         const hash = window.location.hash || "";
         const qs = new URLSearchParams(hash.startsWith("#") ? hash.slice(1) : hash);
         const access_token = qs.get("access_token");
         const refresh_token = qs.get("refresh_token");
 
         if (access_token && refresh_token) {
-          const supabase = createClient();
           const { error: setErr } = await supabase.auth.setSession({ access_token, refresh_token });
           if (setErr) {
             setError(setErr.message);
+            setReady(true);
+            return;
           }
-          // limpiar hash para no re-procesar
           window.history.replaceState(null, "", window.location.pathname + window.location.search);
+          setCanSubmit(true);
+          setReady(true);
+          return;
         }
 
-        // Si no hay tokens, puede que ya exista sesión (por ejemplo si llegó con code+callback).
+        let {
+          data: { session },
+          error: sesErr,
+        } = await supabase.auth.getSession();
+        if (sesErr) {
+          setError(sesErr.message);
+          setReady(true);
+          return;
+        }
+        if (!session) {
+          const { data: ref, error: refErr } = await supabase.auth.refreshSession();
+          if (refErr) {
+            setError(refErr.message);
+            setReady(true);
+            return;
+          }
+          session = ref.session;
+        }
+        if (!session) {
+          setError(
+            "No hay sesión de recuperación. Vuelve a abrir el enlace del último correo (o pide uno nuevo en «Olvidé mi contraseña»)."
+          );
+          setReady(true);
+          return;
+        }
+
+        setCanSubmit(true);
         setReady(true);
       } catch (e) {
         setError(e instanceof Error ? e.message : "No se pudo preparar la sesión de recuperación.");
@@ -64,15 +93,14 @@ export default function ResetPasswordForm() {
 
     try {
       setLoading(true);
-      if (!ready) {
+      if (!ready || !canSubmit) {
         throw new Error("Preparando sesión de recuperación… reintenta en unos segundos.");
       }
       await updateMyPassword(password);
       setSuccess("Contraseña actualizada correctamente.");
 
       setTimeout(() => {
-        router.push("/auth/login");
-        router.refresh();
+        window.location.assign("/auth/login");
       }, 1200);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo actualizar la contraseña");
@@ -130,7 +158,7 @@ export default function ResetPasswordForm() {
 
         <button
           type="submit"
-          disabled={loading || !ready}
+          disabled={loading || !ready || !canSubmit}
           className="w-full rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-md transition hover:from-violet-700 hover:to-indigo-700 disabled:opacity-50"
         >
           {loading ? "Validando..." : "Validar contraseña"}
