@@ -45,20 +45,40 @@ export async function signUpWithEmail(params: {
 
   const redirectTo = `${window.location.origin}/auth/callback`;
 
-  const { data, error } = await withTimeout(
-    supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      emailRedirectTo: redirectTo,
-      data: {
-        username,
-      },
-    },
-    }),
-    20_000,
-    "Supabase tardó demasiado en crear tu cuenta. Reintenta (y revisa consola/red si persiste)."
-  );
+  let data: any = null;
+  let error: any = null;
+  try {
+    const result = await withTimeout(
+      supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: redirectTo,
+          data: {
+            username,
+          },
+        },
+      }),
+      45_000,
+      "Supabase tardó demasiado en crear tu cuenta. Puede que se haya creado igualmente: intenta iniciar sesión."
+    );
+    data = result.data;
+    error = result.error;
+  } catch (e) {
+    // Si el signup tarda mucho, a veces Supabase termina creando el usuario aunque el cliente haya timeouteado.
+    // En ese caso, probamos a iniciar sesión para confirmar.
+    const raw = e instanceof Error ? e.message : String(e);
+    try {
+      const signIn = await withTimeout(
+        supabase.auth.signInWithPassword({ email, password }),
+        12_000,
+        raw
+      );
+      return signIn;
+    } catch {
+      throw new Error(raw);
+    }
+  }
 
   if (error) {
     throw error;
