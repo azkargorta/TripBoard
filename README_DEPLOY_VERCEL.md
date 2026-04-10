@@ -31,6 +31,16 @@
      - `http://localhost:3000/auth/callback`
      - `http://localhost:3000/auth/recovery`
      - `http://localhost:3000/auth/reset-password`
+     - `https://TU-DOMINIO.vercel.app/auth/verify`
+     - `http://localhost:3000/auth/verify`
+
+7. **Recuperación de contraseña (importante):** en Supabase → **Authentication → Email templates** → **Reset password**, sustituye el enlace del botón por uno que use `token_hash` (no depende de PKCE ni del mismo navegador). Ejemplo:
+
+   ```html
+   <a href="{{ .SiteURL }}/auth/verify?token_hash={{ .TokenHash }}&type=recovery">Restablecer contraseña</a>
+   ```
+
+   Sin este cambio, el correo seguirá llevando el flujo antiguo (`?code=` + PKCE) y verás errores de verificador.
 
 ## Qué he desactivado temporalmente
 - Middleware. Cuando la web cargue y login funcione, se puede reintroducir un middleware limpio.
