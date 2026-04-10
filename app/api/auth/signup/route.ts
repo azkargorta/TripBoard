@@ -48,7 +48,7 @@ export async function POST(req: Request) {
 
     // Asegurar perfil (si el trigger no está instalado aún, lo garantizamos aquí).
     if (data?.user?.id) {
-      await admin.from("profiles").upsert(
+      const { error: upsertErr } = await admin.from("profiles").upsert(
         {
           id: data.user.id,
           username,
@@ -59,6 +59,17 @@ export async function POST(req: Request) {
         },
         { onConflict: "id" }
       );
+      if (upsertErr) {
+        // Si falla el profiles (RLS/columna inexistente), lo reportamos para que no quede “a medias”.
+        return NextResponse.json(
+          {
+            error:
+              `Usuario creado, pero no se pudo guardar el perfil (username). ` +
+              `Revisa la tabla public.profiles (columna username) y sus policies. Detalle: ${upsertErr.message}`,
+          },
+          { status: 500 }
+        );
+      }
     }
 
     return NextResponse.json({ ok: true });

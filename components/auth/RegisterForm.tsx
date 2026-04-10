@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { signUpWithEmail } from "@/lib/auth";
 import {
@@ -11,6 +12,7 @@ import {
 import GoogleButton from "./GoogleButton";
 
 export default function RegisterForm() {
+  const router = useRouter();
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -55,13 +57,13 @@ export default function RegisterForm() {
         password,
       });
 
-      setSuccess(
-        "Cuenta creada. Revisa tu email para confirmar la cuenta antes de entrar."
-      );
+      setSuccess("Cuenta creada. Entrando…");
       setUsername("");
       setEmail("");
       setPassword("");
       setConfirmPassword("");
+      router.push("/dashboard");
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo crear la cuenta");
     } finally {
