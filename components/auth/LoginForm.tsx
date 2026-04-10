@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { signInWithEmail } from "@/lib/auth";
 import GoogleButton from "./GoogleButton";
 
@@ -15,6 +15,20 @@ export default function LoginForm() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Algunos links de recuperación aterrizan en /auth/login con tokens en el hash.
+    // Si detectamos recovery, redirigimos a la pantalla bonita de reset.
+    if (typeof window === "undefined") return;
+    const hash = window.location.hash || "";
+    const qs = new URLSearchParams(hash.startsWith("#") ? hash.slice(1) : hash);
+    const type = (qs.get("type") || "").toLowerCase();
+    const hasTokens = Boolean(qs.get("access_token")) || Boolean(qs.get("refresh_token"));
+    if (type === "recovery" || hasTokens) {
+      router.replace(`/auth/reset-password${hash}`);
+      router.refresh();
+    }
+  }, [router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
