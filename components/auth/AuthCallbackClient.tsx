@@ -17,6 +17,9 @@ export default function AuthCallbackClient() {
     const code = searchParams.get("code");
     const next = searchParams.get("next") ?? "/dashboard";
     const type = (searchParams.get("type") || "").toLowerCase();
+    const flow = searchParams.get("flow") || "";
+
+    const flowQs = flow ? `&flow=${encodeURIComponent(flow)}` : "";
 
     if (!code) {
       const q = new URLSearchParams({
@@ -25,6 +28,7 @@ export default function AuthCallbackClient() {
         next,
       });
       q.set("from", "callback");
+      if (flow) q.set("flow", flow);
       router.replace(`/auth/confirmed?${q.toString()}`);
       return;
     }
@@ -53,7 +57,7 @@ export default function AuthCallbackClient() {
             "Mejor: usa plantillas de correo con token_hash → /auth/verify (ver README)."
         );
         window.location.assign(
-          `/auth/confirmed?status=error&message=${msg}&next=${encodeURIComponent(safeNext)}&from=callback`
+          `/auth/confirmed?status=error&message=${msg}&next=${encodeURIComponent(safeNext)}&from=callback${flowQs}`
         );
         return;
       }
@@ -66,7 +70,7 @@ export default function AuthCallbackClient() {
         const raw = payload?.error || `Error ${res.status}`;
         const msg = encodeURIComponent(raw);
         window.location.assign(
-          `/auth/confirmed?status=error&message=${msg}&next=${encodeURIComponent(safeNext)}&from=callback`
+          `/auth/confirmed?status=error&message=${msg}&next=${encodeURIComponent(safeNext)}&from=callback${flowQs}`
         );
         return;
       }

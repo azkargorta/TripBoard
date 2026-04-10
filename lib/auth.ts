@@ -103,7 +103,7 @@ export async function signInWithEmail(params: {
 export async function signInWithGoogle(next: string = "/dashboard") {
   const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(
     next
-  )}`;
+  )}&flow=oauth`;
 
   const { data, error } = await withTimeout(
     supabase.auth.signInWithOAuth({

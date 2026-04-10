@@ -48,24 +48,48 @@ export default function ConfirmAccountView() {
   if (status === "error") {
     const raw = searchParams.get("message") || "No se pudo validar el enlace. Puede haber caducado o ya estar usado.";
     const fromCallback = searchParams.get("from") === "callback";
+    const isGoogleOAuth = searchParams.get("flow") === "oauth";
     const isFlowIssue =
       fromCallback ||
       /pkce|code verifier|flow state|invalid_grant|token has expired|verifier not found/i.test(raw);
 
-    const description = isFlowIssue
-      ? "Al abrir el enlace dentro de Gmail (o en otro navegador distinto al que usaste al registrarte), la validación suele fallar. Prueba: menú del enlace → «Abrir en Chrome» / «Abrir en Safari» y vuelve a pulsar. Si el enlace ya caducó, pide un correo nuevo."
-      : raw;
+    const description =
+      isGoogleOAuth && fromCallback
+        ? "Has vuelto desde Google, pero no se pudo cerrar el inicio de sesión (cookies PKCE o pestaña distinta). Prueba: ventana de incógnito, entra en la web, pulsa solo «Continuar con Google» y completa el flujo sin abrir otro sitio entremedio. Desactiva bloqueadores de cookies para tu dominio."
+        : isFlowIssue
+          ? "Al abrir el enlace dentro de Gmail (o en otro navegador distinto al que usaste al registrarte), la validación suele fallar. Prueba: menú del enlace → «Abrir en Chrome» / «Abrir en Safari» y vuelve a pulsar. Si el enlace ya caducó, pide un correo nuevo."
+          : raw;
 
     return (
       <div className="space-y-5">
         <Card tone="error" title="No se pudo confirmar" description={description} />
-        {isFlowIssue ? (
+        {isFlowIssue && isGoogleOAuth ? (
+          <div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-950">
+            <p className="font-semibold">Esto no es un fallo del correo: es el retorno de Google (OAuth).</p>
+            <ul className="list-disc space-y-2 pl-5">
+              <li>
+                <strong>Supabase</strong> → Authentication → URL Configuration: debe existir{" "}
+                <code className="rounded bg-amber-100/80 px-1 font-mono">/auth/callback</code> con tu dominio exacto.
+              </li>
+              <li>
+                <strong>Google Cloud</strong> → Credenciales OAuth → «URI de redireccionamiento» debe incluir{" "}
+                <code className="break-all rounded bg-amber-100/80 px-1 text-[11px]">
+                  https://TU-PROYECTO.supabase.co/auth/v1/callback
+                </code>
+              </li>
+              <li>
+                <strong>Supabase</strong> → Authentication → Providers → Google: activado, Client ID y Secret correctos.
+              </li>
+            </ul>
+          </div>
+        ) : null}
+        {isFlowIssue && !isGoogleOAuth ? (
           <div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-950">
             <p>
-              <span className="font-semibold">Definitivo en Supabase:</span> los correos no deben usar solo{" "}
-              <code className="rounded bg-amber-100/80 px-1 font-mono">{"{{ .ConfirmationURL }}"}</code> (eso genera{" "}
+              <span className="font-semibold">Si el fallo viene de un enlace por correo:</span> no uses solo{" "}
+              <code className="rounded bg-amber-100/80 px-1 font-mono">{"{{ .ConfirmationURL }}"}</code> (genera{" "}
               <code className="rounded bg-amber-100/80 px-1 font-mono">?code=</code>
-              ). Sustituye el <code className="font-mono">href</code> del botón en cada plantilla:
+              ). Usa en cada plantilla:
             </p>
             <ul className="list-disc space-y-2 pl-5">
               <li>
@@ -82,8 +106,7 @@ export default function ConfirmAccountView() {
               </li>
             </ul>
             <p>
-              Redirect URLs debe incluir <code className="font-mono">/auth/verify</code> (y en local{" "}
-              <code className="font-mono">http://localhost:3000/auth/verify</code>).
+              Redirect URLs debe incluir <code className="font-mono">/auth/verify</code>.
             </p>
           </div>
         ) : null}
@@ -95,10 +118,10 @@ export default function ConfirmAccountView() {
             Ir al login
           </Link>
           <Link
-            href={isFlowIssue ? "/auth/forgot-password" : "/auth/register"}
+            href={isGoogleOAuth ? "/auth/login" : isFlowIssue ? "/auth/forgot-password" : "/auth/register"}
             className="inline-flex min-h-[44px] items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
           >
-            {isFlowIssue ? "Pedir nuevo enlace (email)" : "Crear cuenta otra vez"}
+            {isGoogleOAuth ? "Reintentar (volver al login)" : isFlowIssue ? "Pedir nuevo enlace (email)" : "Crear cuenta otra vez"}
           </Link>
         </div>
       </div>
