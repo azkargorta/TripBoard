@@ -6,6 +6,7 @@ import {
   normalizeUsername,
 } from "@/lib/validators/auth";
 import { isUsernameAvailable, upsertProfile } from "@/lib/profile";
+import { withTimeout } from "@/lib/with-timeout";
 
 /**
  * Registro con email + password
@@ -33,14 +34,19 @@ export async function signUpWithEmail(params: {
     throw new Error("La contraseña debe tener al menos 8 caracteres");
   }
 
-  const available = await isUsernameAvailable(username);
+  const available = await withTimeout(
+    isUsernameAvailable(username),
+    12_000,
+    "El servidor tardó demasiado en comprobar el nombre de usuario. Reintenta."
+  );
   if (!available) {
     throw new Error("Ese nombre de usuario ya está en uso");
   }
 
   const redirectTo = `${window.location.origin}/auth/callback`;
 
-  const { data, error } = await supabase.auth.signUp({
+  const { data, error } = await withTimeout(
+    supabase.auth.signUp({
     email,
     password,
     options: {
@@ -49,7 +55,10 @@ export async function signUpWithEmail(params: {
         username,
       },
     },
-  });
+    }),
+    20_000,
+    "Supabase tardó demasiado en crear tu cuenta. Reintenta (y revisa consola/red si persiste)."
+  );
 
   if (error) {
     throw error;
@@ -58,13 +67,17 @@ export async function signUpWithEmail(params: {
   // Crear profile
   if (data.user) {
     try {
-      await upsertProfile({
+      await withTimeout(
+        upsertProfile({
         id: data.user.id,
         username,
         email,
         full_name: null,
         avatar_url: null,
-      });
+        }),
+        12_000,
+        "La cuenta se creó, pero no se pudo guardar el perfil a tiempo. Reintenta iniciar sesión."
+      );
     } catch (profileError) {
       console.error("Error creando profile tras signup:", profileError);
     }
