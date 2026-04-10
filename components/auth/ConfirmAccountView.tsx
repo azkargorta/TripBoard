@@ -49,11 +49,24 @@ export default function ConfirmAccountView() {
     const raw = searchParams.get("message") || "No se pudo validar el enlace. Puede haber caducado o ya estar usado.";
     const isPkce = /pkce|code verifier/i.test(raw);
     const description = isPkce
-      ? "El enlace no encaja con este navegador o ya no es válido. Vuelve a pedir recuperación de contraseña desde “Olvidé mi contraseña” y usa solo el enlace del correo más reciente (con la app actualizada funciona aunque lo abras en otro dispositivo)."
+      ? "El enlace no encaja con este navegador o ya no es válido. Vuelve a pedir recuperación de contraseña desde “Olvidé mi contraseña” y usa solo el enlace del correo más reciente."
       : raw;
     return (
       <div className="space-y-5">
         <Card tone="error" title="No se pudo confirmar" description={description} />
+        {isPkce ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-950">
+            <span className="font-semibold">Causa habitual:</span> el correo sigue usando el enlace por defecto de Supabase (flujo con{" "}
+            <code className="rounded bg-amber-100/80 px-1 font-mono">?code=</code>
+            ). En el dashboard: <strong>Authentication → Email templates → Reset password</strong>: el botón debe apuntar a{" "}
+            <code className="break-all rounded bg-amber-100/80 px-1 font-mono text-[11px]">
+              {"{{ .SiteURL }}/auth/verify?token_hash={{ .TokenHash }}&type=recovery"}
+            </code>
+            . Añadir URLs en Redirect no modifica el HTML del email. En local, añade también{" "}
+            <code className="rounded bg-amber-100/80 px-1 font-mono">http://localhost:3000/auth/verify</code> y{" "}
+            <code className="rounded bg-amber-100/80 px-1 font-mono">http://localhost:3000/auth/recovery</code>.
+          </div>
+        ) : null}
         <div className="grid gap-3 sm:grid-cols-2">
           <Link
             href={isPkce ? "/auth/forgot-password" : "/auth/register"}
