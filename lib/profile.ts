@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { normalizeUsername } from "@/lib/validators/auth";
+import { withTimeout } from "@/lib/with-timeout";
 
 export type Profile = {
   id: string;
@@ -14,17 +15,24 @@ export type Profile = {
 export async function isUsernameAvailable(username: string) {
   const normalized = normalizeUsername(username);
 
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("id")
-    .ilike("username", normalized)
-    .maybeSingle();
+  // Preferimos chequeo server-side (service role) para evitar bloqueos por RLS/red del cliente.
+  const resp = await withTimeout(
+    fetch(`/api/auth/username-available?username=${encodeURIComponent(normalized)}`, {
+      method: "GET",
+      credentials: "include",
+      cache: "no-store",
+    }),
+    10_000,
+    "El servidor tardó demasiado en comprobar el nombre de usuario. Reintenta."
+  );
 
-  if (error && error.code !== "PGRST116") {
-    throw error;
+  const payload = await resp.json().catch(() => null);
+  if (!resp.ok) {
+    const msg = payload?.error ? String(payload.error) : `Error ${resp.status}`;
+    throw new Error(msg);
   }
 
-  return !data;
+  return Boolean(payload?.available);
 }
 
 export async function getMyProfile() {
