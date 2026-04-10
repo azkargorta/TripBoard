@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import HomeEntry from "@/components/HomeEntry";
 
 export default function HomePage() {
-  redirect("/auth/login");
+  return <HomeEntry />;
 }

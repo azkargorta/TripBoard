@@ -17,10 +17,10 @@ export default function LoginForm() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // PKCE: a veces el Site URL es /auth/login y llega ?code= con type=recovery.
+    // PKCE: Supabase suele redirigir con ?code= y a menudo sin type= en la query.
+    // Si cae en /auth/login, intercambiamos el código y vamos a reset.
     const code = searchParams.get("code");
-    const typeQs = (searchParams.get("type") || "").toLowerCase();
-    if (code && typeQs === "recovery") {
+    if (code) {
       const q = new URLSearchParams({
         code,
         next: "/auth/reset-password",
