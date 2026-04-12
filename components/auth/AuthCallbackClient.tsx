@@ -2,11 +2,13 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { withTimeout } from "@/lib/with-timeout";
 
 /**
- * Canjea ?code= vía API en servidor (cookies en la respuesta).
- * No usa el cliente Supabase aquí: en Gmail/WebView getSession/exchange pueden colgarse.
+ * Canjea ?code= en el cliente con el mismo almacén PKCE que usó signInWithOAuth.
+ * El canje solo en servidor falla si el verificador no llega igual a la API; además,
+ * con detectSessionInUrl desactivado evitamos doble canje contra el layout.
  */
 export default function AuthCallbackClient() {
   const router = useRouter();
@@ -14,18 +16,43 @@ export default function AuthCallbackClient() {
   const [hint, setHint] = useState<string | null>(null);
 
   useEffect(() => {
+    const oauthError = searchParams.get("error");
+    const oauthDesc = searchParams.get("error_description");
     const code = searchParams.get("code");
     const next = searchParams.get("next") ?? "/dashboard";
     const type = (searchParams.get("type") || "").toLowerCase();
     const flow = searchParams.get("flow") || "";
 
     const flowQs = flow ? `&flow=${encodeURIComponent(flow)}` : "";
+    const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+
+    if (oauthError || oauthDesc) {
+      const raw = oauthDesc || oauthError || "";
+      let text = raw;
+      try {
+        text = decodeURIComponent(raw.replace(/\+/g, " "));
+      } catch {
+        /* ya plano o % inválido */
+      }
+      const msg = encodeURIComponent(
+        text || "Inicio de sesión cancelado o denegado. Vuelve a intentar con Google."
+      );
+      const q = new URLSearchParams({
+        status: "error",
+        message: msg,
+        next: safeNext,
+        from: "callback",
+      });
+      if (flow) q.set("flow", flow);
+      router.replace(`/auth/confirmed?${q.toString()}`);
+      return;
+    }
 
     if (!code) {
       const q = new URLSearchParams({
         status: "error",
         message: "Falta el código de validación.",
-        next,
+        next: safeNext,
       });
       q.set("from", "callback");
       if (flow) q.set("flow", flow);
@@ -34,41 +61,37 @@ export default function AuthCallbackClient() {
     }
 
     const authCode = code;
-    const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
     let cancelled = false;
 
     async function run() {
-      let res: Response;
+      const supabase = createClient();
+      let exchangeError: string | null = null;
       try {
-        res = await withTimeout(
-          fetch("/api/auth/exchange-code", {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ code: authCode }),
-          }),
+        const { error } = await withTimeout(
+          supabase.auth.exchangeCodeForSession(authCode),
           22_000,
           "timeout"
         );
-      } catch {
-        if (cancelled) return;
-        const msg = encodeURIComponent(
-          "Tiempo agotado. Abre el enlace en el navegador (Chrome/Safari), no dentro de Gmail. " +
-            "Mejor: usa plantillas de correo con token_hash → /auth/verify (ver README)."
-        );
-        window.location.assign(
-          `/auth/confirmed?status=error&message=${msg}&next=${encodeURIComponent(safeNext)}&from=callback${flowQs}`
-        );
-        return;
+        if (error) exchangeError = error.message;
+      } catch (e) {
+        exchangeError =
+          e instanceof Error && e.message === "timeout"
+            ? "timeout"
+            : e instanceof Error
+              ? e.message
+              : String(e);
       }
 
       if (cancelled) return;
 
-      const payload = (await res.json().catch(() => null)) as { error?: string; ok?: boolean } | null;
-
-      if (!res.ok || !payload?.ok) {
-        const raw = payload?.error || `Error ${res.status}`;
-        const msg = encodeURIComponent(raw);
+      if (exchangeError) {
+        const isTimeout = exchangeError === "timeout";
+        const msg = encodeURIComponent(
+          isTimeout
+            ? "Tiempo agotado al validar. Abre el enlace en el navegador completo (Chrome/Safari), no dentro de Gmail. " +
+                "Para correos, usa enlaces con token_hash → /auth/verify (ver README)."
+            : exchangeError
+        );
         window.location.assign(
           `/auth/confirmed?status=error&message=${msg}&next=${encodeURIComponent(safeNext)}&from=callback${flowQs}`
         );
