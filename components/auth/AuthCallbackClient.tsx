@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { clearGoogleOAuthReturn } from "@/lib/google-oauth-marker";
 import { createClient } from "@/lib/supabase/client";
 import { withTimeout } from "@/lib/with-timeout";
 
@@ -21,6 +22,10 @@ export default function AuthCallbackClient({ forcedFlow }: AuthCallbackClientPro
   const [hint, setHint] = useState<string | null>(null);
 
   useEffect(() => {
+    if (forcedFlow !== "oauth") {
+      clearGoogleOAuthReturn();
+    }
+
     const oauthError = searchParams.get("error");
     const oauthDesc = searchParams.get("error_description");
     const code = searchParams.get("code");
@@ -111,6 +116,7 @@ export default function AuthCallbackClient({ forcedFlow }: AuthCallbackClientPro
       }
 
       if (forcedFlow === "oauth") {
+        clearGoogleOAuthReturn();
         window.location.assign(safeNext);
         return;
       }

@@ -8,6 +8,7 @@ import {
   normalizeUsername,
 } from "@/lib/validators/auth";
 import { isUsernameAvailable } from "@/lib/profile";
+import { markGoogleOAuthReturn } from "@/lib/google-oauth-marker";
 import { withTimeout } from "@/lib/with-timeout";
 
 /**
@@ -120,6 +121,7 @@ export async function signInWithGoogle(next: string = "/dashboard") {
     throw new Error("No se pudo obtener la URL de inicio de sesión con Google.");
   }
 
+  markGoogleOAuthReturn(next);
   window.location.assign(data.url);
 }
 
