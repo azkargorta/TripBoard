@@ -8,6 +8,7 @@ import {
   normalizeUsername,
 } from "@/lib/validators/auth";
 import { isUsernameAvailable } from "@/lib/profile";
+import { markGoogleOAuthAttempt } from "@/lib/google-oauth-attempt";
 import { withTimeout } from "@/lib/with-timeout";
 
 /**
@@ -98,11 +99,11 @@ export async function signInWithEmail(params: {
 }
 
 /**
- * Login con Google — el retorno lo gestiona GET /auth/oauth/callback (servidor).
+ * Login con Google — GET /auth/callback (misma URL que suele estar ya en Supabase Redirect URLs).
  */
 export async function signInWithGoogle(next: string = "/dashboard") {
   const safe = next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
-  const redirectTo = `${window.location.origin}/auth/oauth/callback?next=${encodeURIComponent(safe)}`;
+  const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(safe)}&intent=oauth`;
 
   const { data, error } = await withTimeout(
     supabase.auth.signInWithOAuth({
@@ -121,6 +122,7 @@ export async function signInWithGoogle(next: string = "/dashboard") {
     throw new Error("No se pudo obtener la URL de inicio de sesión con Google.");
   }
 
+  markGoogleOAuthAttempt();
   window.location.assign(data.url);
 }
 

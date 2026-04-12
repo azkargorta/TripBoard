@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { useLayoutEffect, useState } from "react";
+import { isRecentGoogleOAuthAttempt } from "@/lib/google-oauth-attempt";
 
 function Card({
   tone,
@@ -31,6 +33,11 @@ export default function ConfirmAccountView() {
   const status = (searchParams.get("status") || "").toLowerCase();
   const next = searchParams.get("next") || "/dashboard";
 
+  const [oauthAttemptUi, setOauthAttemptUi] = useState(false);
+  useLayoutEffect(() => {
+    setOauthAttemptUi(isRecentGoogleOAuthAttempt());
+  }, []);
+
   if (status === "ok") {
     return (
       <div className="space-y-5">
@@ -48,7 +55,8 @@ export default function ConfirmAccountView() {
   if (status === "error") {
     const raw = searchParams.get("message") || "No se pudo validar el enlace. Puede haber caducado o ya estar usado.";
     const fromCallback = searchParams.get("from") === "callback";
-    const isGoogleOAuth = searchParams.get("flow") === "oauth";
+    const isGoogleOAuth =
+      searchParams.get("flow") === "oauth" || (fromCallback && oauthAttemptUi);
     const isFlowIssue =
       fromCallback ||
       /pkce|code verifier|flow state|invalid_grant|token has expired|verifier not found/i.test(raw);
@@ -70,10 +78,10 @@ export default function ConfirmAccountView() {
               <li>
                 <strong>Supabase</strong> → Authentication → URL Configuration: añade{" "}
                 <code className="break-all rounded bg-amber-100/80 px-1 text-[11px] font-mono">
-                  /auth/oauth/callback
+                  /auth/callback
                 </code>{" "}
-                con tu dominio (Google OAuth). Para enlaces por correo con <code className="font-mono">?code=</code>{" "}
-                sigue valiendo <code className="font-mono">/auth/callback</code>.
+                en Redirect URLs (Google vuelve ahí). Opcional en Supabase: patrón{" "}
+                <code className="break-all text-[11px]">https://tu-dominio/**</code>.
               </li>
               <li>
                 <strong>Google Cloud</strong> → Credenciales OAuth → «URI de redireccionamiento» debe incluir{" "}

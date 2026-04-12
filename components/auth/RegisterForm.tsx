@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { signUpWithEmail } from "@/lib/auth";
+import { clearGoogleOAuthAttempt } from "@/lib/google-oauth-attempt";
 import {
   isValidEmail,
   isValidPassword,
@@ -20,6 +21,10 @@ export default function RegisterForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    clearGoogleOAuthAttempt();
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

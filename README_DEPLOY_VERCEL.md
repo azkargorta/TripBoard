@@ -25,12 +25,10 @@
 6. En Supabase > Authentication > URL Configuration:
    - Site URL: `https://TU-DOMINIO.vercel.app`
    - Redirect URLs:
-     - `https://TU-DOMINIO.vercel.app/auth/callback` (correo / PKCE si aplica)
-     - `https://TU-DOMINIO.vercel.app/auth/oauth/callback` (**Google OAuth**)
+     - `https://TU-DOMINIO.vercel.app/auth/callback` (Google OAuth y PKCE por correo si aplica)
      - `https://TU-DOMINIO.vercel.app/auth/recovery`
      - `https://TU-DOMINIO.vercel.app/auth/reset-password`
      - `http://localhost:3000/auth/callback`
-     - `http://localhost:3000/auth/oauth/callback`
      - `http://localhost:3000/auth/recovery`
      - `http://localhost:3000/auth/reset-password`
      - `https://TU-DOMINIO.vercel.app/auth/verify`
