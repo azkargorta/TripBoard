@@ -8,7 +8,7 @@ import {
   normalizeUsername,
 } from "@/lib/validators/auth";
 import { isUsernameAvailable } from "@/lib/profile";
-import { markGoogleOAuthAttempt } from "@/lib/google-oauth-attempt";
+import { clearGoogleOAuthAttempt, markGoogleOAuthAttempt } from "@/lib/google-oauth-attempt";
 import { withTimeout } from "@/lib/with-timeout";
 
 /**
@@ -103,6 +103,16 @@ export async function signInWithEmail(params: {
  */
 export async function signInWithGoogle(next: string = "/dashboard") {
   const safe = next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+
+  clearGoogleOAuthAttempt();
+
+  // Perfil normal: a veces quedan cookies PKCE/sesión a medias de intentos viejos y el canje falla; incógnito empieza limpio.
+  try {
+    await withTimeout(supabase.auth.signOut({ scope: "local" }), 8000, "timeout");
+  } catch {
+    /* sin sesión, red lenta o timeout: seguimos */
+  }
+
   const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(safe)}&intent=oauth`;
 
   const { data, error } = await withTimeout(
