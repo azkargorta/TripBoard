@@ -107,16 +107,9 @@ export async function signInWithGoogle(next: string = "/dashboard") {
   const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(safe)}&intent=oauth`;
 
   clearGoogleOAuthAttempt();
-  // Perfil normal: PKCE/sesión a medias en cookies sb-* rompe el canje; incógnito no las tiene.
+  // Limpia solo cookies sb-* viejas (PKCE/sesión a medias). No uses signOut con timeout aquí:
+  // el signOut seguiría en background y podría borrar el code_verifier que signInWithOAuth acaba de guardar.
   clearSupabaseBrowserCookies();
-  try {
-    await Promise.race([
-      supabase.auth.signOut({ scope: "local" }),
-      new Promise<void>((r) => setTimeout(r, 500)),
-    ]);
-  } catch {
-    /* */
-  }
 
   // Antes de ir a Google: la cookie debe existir ya (si no, Supabase puede volver solo con ?code=).
   markGoogleOAuthAttempt();
