@@ -56,7 +56,10 @@ export default function ConfirmAccountView() {
     const raw = searchParams.get("message") || "No se pudo validar el enlace. Puede haber caducado o ya estar usado.";
     const fromCallback = searchParams.get("from") === "callback";
     const isGoogleOAuth =
-      searchParams.get("flow") === "oauth" || (fromCallback && oauthAttemptUi);
+      searchParams.get("flow") === "oauth" ||
+      (fromCallback &&
+        (oauthAttemptUi ||
+          /invalid_grant|oauth|google|provider/i.test(raw)));
     const isFlowIssue =
       fromCallback ||
       /pkce|code verifier|flow state|invalid_grant|token has expired|verifier not found/i.test(raw);

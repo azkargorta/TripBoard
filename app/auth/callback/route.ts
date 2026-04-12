@@ -1,6 +1,7 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { OAUTH_RETURN_COOKIE } from "@/lib/google-oauth-attempt";
 
 export const runtime = "nodejs";
 
@@ -21,6 +22,10 @@ function isGoogleOAuthReturn(url: URL): boolean {
   return false;
 }
 
+function clearOauthPendingCookie(res: NextResponse): void {
+  res.cookies.set(OAUTH_RETURN_COOKIE, "", { path: "/", maxAge: 0, sameSite: "lax" });
+}
+
 function redirectConfirmedError(
   origin: string,
   message: string,
@@ -33,7 +38,9 @@ function redirectConfirmedError(
   u.searchParams.set("next", nextPath);
   u.searchParams.set("from", "callback");
   if (oauthUi) u.searchParams.set("flow", "oauth");
-  return NextResponse.redirect(u);
+  const res = NextResponse.redirect(u);
+  clearOauthPendingCookie(res);
+  return res;
 }
 
 function redirectWithSessionCookies(
@@ -44,6 +51,7 @@ function redirectWithSessionCookies(
   for (const { name, value, options } of cookieWrites) {
     res.cookies.set(name, value, options);
   }
+  clearOauthPendingCookie(res);
   return res;
 }
 
@@ -58,7 +66,10 @@ export async function GET(request: Request) {
   const type = (requestUrl.searchParams.get("type") || "").toLowerCase();
   const nextRaw = requestUrl.searchParams.get("next");
   const nextPath = safeNextPath(nextRaw, "/dashboard");
-  const googleUi = isGoogleOAuthReturn(requestUrl);
+
+  const cookieStore = await cookies();
+  const oauthCookiePending = cookieStore.get(OAUTH_RETURN_COOKIE)?.value === "1";
+  const googleUi = isGoogleOAuthReturn(requestUrl) || oauthCookiePending;
 
   const oauthErr = requestUrl.searchParams.get("error");
   const oauthDesc = requestUrl.searchParams.get("error_description");
@@ -81,7 +92,6 @@ export async function GET(request: Request) {
     );
   }
 
-  const cookieStore = await cookies();
   const cookieWrites: CookieRow[] = [];
 
   const supabase = createServerClient(
