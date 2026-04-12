@@ -2,8 +2,6 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useLayoutEffect, useState } from "react";
-import { isRecentGoogleOAuthReturn } from "@/lib/google-oauth-marker";
 
 function Card({
   tone,
@@ -33,11 +31,6 @@ export default function ConfirmAccountView() {
   const status = (searchParams.get("status") || "").toLowerCase();
   const next = searchParams.get("next") || "/dashboard";
 
-  const [oauthFromStorage, setOauthFromStorage] = useState(false);
-  useLayoutEffect(() => {
-    setOauthFromStorage(isRecentGoogleOAuthReturn());
-  }, []);
-
   if (status === "ok") {
     return (
       <div className="space-y-5">
@@ -55,8 +48,7 @@ export default function ConfirmAccountView() {
   if (status === "error") {
     const raw = searchParams.get("message") || "No se pudo validar el enlace. Puede haber caducado o ya estar usado.";
     const fromCallback = searchParams.get("from") === "callback";
-    const isGoogleOAuth =
-      searchParams.get("flow") === "oauth" || (fromCallback && oauthFromStorage);
+    const isGoogleOAuth = searchParams.get("flow") === "oauth";
     const isFlowIssue =
       fromCallback ||
       /pkce|code verifier|flow state|invalid_grant|token has expired|verifier not found/i.test(raw);

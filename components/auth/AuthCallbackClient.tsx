@@ -2,37 +2,25 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { clearGoogleOAuthReturn } from "@/lib/google-oauth-marker";
 import { createClient } from "@/lib/supabase/client";
 import { withTimeout } from "@/lib/with-timeout";
 
-type AuthCallbackClientProps = {
-  /** Ruta dedicada OAuth: Supabase suele borrar query params del redirectTo; así /auth/confirmed sabe que es Google. */
-  forcedFlow?: "oauth";
-};
-
 /**
- * Canjea ?code= en el cliente con el mismo almacén PKCE que usó signInWithOAuth.
- * El canje solo en servidor falla si el verificador no llega igual a la API; además,
- * con detectSessionInUrl desactivado evitamos doble canje contra el layout.
+ * Solo flujos que terminan en /auth/callback con ?code= (p. ej. recuperación PKCE antigua).
+ * Google OAuth usa GET /auth/oauth/callback (route handler en servidor).
  */
-export default function AuthCallbackClient({ forcedFlow }: AuthCallbackClientProps) {
+export default function AuthCallbackClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [hint, setHint] = useState<string | null>(null);
 
   useEffect(() => {
-    if (forcedFlow !== "oauth") {
-      clearGoogleOAuthReturn();
-    }
-
     const oauthError = searchParams.get("error");
     const oauthDesc = searchParams.get("error_description");
     const code = searchParams.get("code");
     const next = searchParams.get("next") ?? "/dashboard";
     const type = (searchParams.get("type") || "").toLowerCase();
-    const flow = forcedFlow || searchParams.get("flow") || "";
-
+    const flow = searchParams.get("flow") || "";
     const flowQs = flow ? `&flow=${encodeURIComponent(flow)}` : "";
     const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
 
@@ -42,11 +30,9 @@ export default function AuthCallbackClient({ forcedFlow }: AuthCallbackClientPro
       try {
         text = decodeURIComponent(raw.replace(/\+/g, " "));
       } catch {
-        /* ya plano o % inválido */
+        /* */
       }
-      const msg = encodeURIComponent(
-        text || "Inicio de sesión cancelado o denegado. Vuelve a intentar con Google."
-      );
+      const msg = encodeURIComponent(text || "Error al validar el enlace.");
       const q = new URLSearchParams({
         status: "error",
         message: msg,
@@ -61,10 +47,10 @@ export default function AuthCallbackClient({ forcedFlow }: AuthCallbackClientPro
     if (!code) {
       const q = new URLSearchParams({
         status: "error",
-        message: "Falta el código de validación.",
+        message: encodeURIComponent("Falta el código de validación."),
         next: safeNext,
+        from: "callback",
       });
-      q.set("from", "callback");
       if (flow) q.set("flow", flow);
       router.replace(`/auth/confirmed?${q.toString()}`);
       return;
@@ -98,10 +84,8 @@ export default function AuthCallbackClient({ forcedFlow }: AuthCallbackClientPro
         const isTimeout = exchangeError === "timeout";
         const msg = encodeURIComponent(
           isTimeout
-            ? flow === "oauth"
-              ? "Tiempo agotado al cerrar el inicio con Google. Prueba en una ventana de incógnito y sin bloqueadores de cookies."
-              : "Tiempo agotado al validar. Abre el enlace en el navegador completo (Chrome/Safari), no dentro de Gmail. " +
-                  "Para correos, usa enlaces con token_hash → /auth/verify (ver README)."
+            ? "Tiempo agotado. Abre el enlace en el navegador completo (Chrome/Safari), no dentro de Gmail. " +
+                "Para correos, usa token_hash → /auth/verify (ver README)."
             : exchangeError
         );
         window.location.assign(
@@ -112,12 +96,6 @@ export default function AuthCallbackClient({ forcedFlow }: AuthCallbackClientPro
 
       if (type === "recovery" || safeNext.startsWith("/auth/reset-password")) {
         window.location.assign("/auth/reset-password");
-        return;
-      }
-
-      if (forcedFlow === "oauth") {
-        clearGoogleOAuthReturn();
-        window.location.assign(safeNext);
         return;
       }
 
@@ -134,15 +112,13 @@ export default function AuthCallbackClient({ forcedFlow }: AuthCallbackClientPro
     return () => {
       cancelled = true;
     };
-  }, [router, searchParams, forcedFlow]);
+  }, [router, searchParams]);
 
   return (
     <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 text-center text-sm text-slate-600">
-      <p>{forcedFlow === "oauth" ? "Completando inicio de sesión con Google…" : "Validando enlace…"}</p>
+      <p>Validando enlace…</p>
       <p className="max-w-sm text-xs text-slate-500">
-        {forcedFlow === "oauth"
-          ? "No cierres esta pestaña hasta que termine la redirección."
-          : "Si tarda mucho, pulsa los tres puntos del enlace en Gmail y elige «Abrir en el navegador»."}
+        Si tarda mucho, abre el enlace en el navegador (no dentro de Gmail).
       </p>
       {hint ? <p className="text-red-600">{hint}</p> : null}
     </div>

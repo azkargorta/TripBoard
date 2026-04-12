@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { signInWithEmail } from "@/lib/auth";
-import { clearGoogleOAuthReturn } from "@/lib/google-oauth-marker";
 import GoogleButton from "./GoogleButton";
 
 export default function LoginForm() {
@@ -16,10 +15,6 @@ export default function LoginForm() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    clearGoogleOAuthReturn();
-  }, []);
 
   useEffect(() => {
     // PKCE: Supabase suele redirigir con ?code= y a menudo sin type= en la query.
