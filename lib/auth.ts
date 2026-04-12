@@ -101,9 +101,7 @@ export async function signInWithEmail(params: {
  * Login con Google
  */
 export async function signInWithGoogle(next: string = "/dashboard") {
-  const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(
-    next
-  )}&flow=oauth`;
+  const redirectTo = `${window.location.origin}/auth/oauth/callback?next=${encodeURIComponent(next)}`;
 
   const { data, error } = await withTimeout(
     supabase.auth.signInWithOAuth({

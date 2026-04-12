@@ -68,8 +68,12 @@ export default function ConfirmAccountView() {
             <p className="font-semibold">Esto no es un fallo del correo: es el retorno de Google (OAuth).</p>
             <ul className="list-disc space-y-2 pl-5">
               <li>
-                <strong>Supabase</strong> → Authentication → URL Configuration: debe existir{" "}
-                <code className="rounded bg-amber-100/80 px-1 font-mono">/auth/callback</code> con tu dominio exacto.
+                <strong>Supabase</strong> → Authentication → URL Configuration: añade{" "}
+                <code className="break-all rounded bg-amber-100/80 px-1 text-[11px] font-mono">
+                  /auth/oauth/callback
+                </code>{" "}
+                con tu dominio (Google OAuth). Para enlaces por correo con <code className="font-mono">?code=</code>{" "}
+                sigue valiendo <code className="font-mono">/auth/callback</code>.
               </li>
               <li>
                 <strong>Google Cloud</strong> → Credenciales OAuth → «URI de redireccionamiento» debe incluir{" "}
