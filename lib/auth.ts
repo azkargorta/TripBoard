@@ -8,6 +8,7 @@ import {
   normalizeUsername,
 } from "@/lib/validators/auth";
 import { isUsernameAvailable } from "@/lib/profile";
+import { clearSupabaseBrowserCookies } from "@/lib/clear-supabase-browser-cookies";
 import { clearGoogleOAuthAttempt, markGoogleOAuthAttempt } from "@/lib/google-oauth-attempt";
 import { withTimeout } from "@/lib/with-timeout";
 
@@ -106,6 +107,17 @@ export async function signInWithGoogle(next: string = "/dashboard") {
   const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(safe)}&intent=oauth`;
 
   clearGoogleOAuthAttempt();
+  // Perfil normal: PKCE/sesión a medias en cookies sb-* rompe el canje; incógnito no las tiene.
+  clearSupabaseBrowserCookies();
+  try {
+    await Promise.race([
+      supabase.auth.signOut({ scope: "local" }),
+      new Promise<void>((r) => setTimeout(r, 500)),
+    ]);
+  } catch {
+    /* */
+  }
+
   // Antes de ir a Google: la cookie debe existir ya (si no, Supabase puede volver solo con ?code=).
   markGoogleOAuthAttempt();
 
