@@ -103,17 +103,11 @@ export async function signInWithEmail(params: {
  */
 export async function signInWithGoogle(next: string = "/dashboard") {
   const safe = next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+  const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(safe)}&intent=oauth`;
 
   clearGoogleOAuthAttempt();
-
-  // Perfil normal: a veces quedan cookies PKCE/sesión a medias de intentos viejos y el canje falla; incógnito empieza limpio.
-  try {
-    await withTimeout(supabase.auth.signOut({ scope: "local" }), 8000, "timeout");
-  } catch {
-    /* sin sesión, red lenta o timeout: seguimos */
-  }
-
-  const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(safe)}&intent=oauth`;
+  // Antes de ir a Google: la cookie debe existir ya (si no, Supabase puede volver solo con ?code=).
+  markGoogleOAuthAttempt();
 
   const { data, error } = await withTimeout(
     supabase.auth.signInWithOAuth({
@@ -123,7 +117,7 @@ export async function signInWithGoogle(next: string = "/dashboard") {
         skipBrowserRedirect: true,
       },
     }),
-    20_000,
+    25_000,
     "No se pudo iniciar sesión con Google (tiempo agotado). Revisa la conexión."
   );
 
@@ -132,8 +126,7 @@ export async function signInWithGoogle(next: string = "/dashboard") {
     throw new Error("No se pudo obtener la URL de inicio de sesión con Google.");
   }
 
-  markGoogleOAuthAttempt();
-  window.location.assign(data.url);
+  window.location.replace(data.url);
 }
 
 /**

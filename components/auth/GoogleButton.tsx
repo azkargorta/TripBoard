@@ -35,12 +35,13 @@ export default function GoogleButton() {
   const [error, setError] = useState<string | null>(null);
 
   async function handleGoogle() {
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      setError(null);
       await signInWithGoogle(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo continuar con Google");
+    } finally {
       setLoading(false);
     }
   }
