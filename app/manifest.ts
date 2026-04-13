@@ -6,7 +6,11 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: 'TripBoard',
     description: 'Organiza tu viaje, rutas, gastos y documentos',
     start_url: '/',
+    scope: '/',
+    id: '/',
+    lang: 'es',
     display: 'standalone',
+    orientation: 'portrait-primary',
     background_color: '#ffffff',
     theme_color: '#0f172a',
     icons: [
