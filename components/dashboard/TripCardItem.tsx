@@ -67,8 +67,24 @@ export default function TripCardItem({
     }
   }
 
+  function openTrip() {
+    if (locked) return;
+    router.push(`/trip/${encodeURIComponent(trip.id)}`);
+  }
+
   return (
-    <div className={`rounded-3xl border bg-gradient-to-br p-5 ${accent} ${locked ? "opacity-80" : ""}`}>
+    <div
+      role={locked ? undefined : "link"}
+      tabIndex={locked ? -1 : 0}
+      onClick={openTrip}
+      onKeyDown={(e) => {
+        if (locked) return;
+        if (e.key === "Enter" || e.key === " ") openTrip();
+      }}
+      className={`rounded-3xl border bg-gradient-to-br p-5 ${accent} ${
+        locked ? "opacity-80" : "cursor-pointer transition hover:-translate-y-0.5 hover:shadow-lg"
+      }`}
+    >
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-2">
           <div className="inline-flex items-center rounded-full bg-white/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700">
@@ -81,9 +97,11 @@ export default function TripCardItem({
         </div>
 
         <div className="flex flex-col items-end gap-2">
-          <div className="rounded-full bg-white/75 px-3 py-1 text-xs font-semibold text-slate-700">
-            {locked ? "Premium" : "Entrar"}
-          </div>
+          {locked ? (
+            <div className="rounded-full bg-white/75 px-3 py-1 text-xs font-semibold text-slate-700">
+              Premium
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -104,20 +122,16 @@ export default function TripCardItem({
           <span className="text-xs font-semibold text-amber-950">
             Viaje guardado. Hazte Premium para acceder.
           </span>
-        ) : (
-          <Link
-            href={`/trip/${trip.id}`}
-            className="inline-flex items-center gap-2 font-semibold text-slate-700 transition hover:text-slate-900"
-          >
-            Entrar <span aria-hidden>→</span>
-          </Link>
-        )}
+        ) : null}
       </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
         <button
           type="button"
-          onClick={onDelete}
+          onClick={(e) => {
+            e.stopPropagation();
+            void onDelete();
+          }}
           disabled={deleting}
           className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-white px-4 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-50 disabled:opacity-60"
           title="Eliminar viaje"
