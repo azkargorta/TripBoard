@@ -76,3 +76,24 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   }
 }
 
+export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
+  try {
+    const { id: tripId } = await context.params;
+    if (!tripId) return NextResponse.json({ error: "Falta id" }, { status: 400 });
+
+    const guard = await requireCanManageTrip(tripId);
+    if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status });
+    const supabase = guard.supabase;
+
+    const { error } = await supabase.from("trips").delete().eq("id", tripId);
+    if (error) throw new Error(error.message);
+
+    return NextResponse.json({ ok: true }, { status: 200 });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "No se pudo eliminar el viaje." },
+      { status: 500 }
+    );
+  }
+}
+

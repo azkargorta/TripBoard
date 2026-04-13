@@ -5,6 +5,7 @@ import SignOutButton from "@/components/auth/SignOutButton";
 import CreateTripSection from "@/components/dashboard/CreateTripSection";
 import TripBoardLogo from "@/components/brand/TripBoardLogo";
 import { isPlatformAdmin } from "@/lib/platform-admin";
+import TripCardItem from "@/components/dashboard/TripCardItem";
 
 type Trip = {
   id: string;
@@ -94,55 +95,7 @@ function TripCard({
   accent: string;
   locked: boolean;
 }) {
-  const content = (
-    <>
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-2">
-          <div className="inline-flex items-center rounded-full bg-white/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700">
-            {badge}
-          </div>
-          <div>
-            <h3 className="text-2xl font-bold tracking-tight text-slate-950">{trip.name}</h3>
-            <p className="mt-1 text-sm text-slate-600">{trip.destination || "Destino pendiente"}</p>
-          </div>
-        </div>
-
-        <div className="rounded-full bg-white/75 px-3 py-1 text-xs font-semibold text-slate-700">
-          {locked ? "Premium" : "Entrar"}
-        </div>
-      </div>
-
-      <div className="mt-5 rounded-2xl bg-white/75 p-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Fechas</p>
-        <p className="mt-2 text-sm font-semibold text-slate-900">{formatRange(trip.start_date, trip.end_date)}</p>
-      </div>
-
-      <div className="mt-4 flex items-center justify-between text-sm text-slate-600">
-        <span>{trip.destination || "Viaje"}</span>
-        <span className="transition group-hover:translate-x-0.5">→</span>
-      </div>
-    </>
-  );
-
-  if (locked) {
-    return (
-      <div className={`rounded-3xl border bg-gradient-to-br p-5 opacity-80 ${accent}`}>
-        {content}
-        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-950">
-          Viaje guardado. Hazte Premium para acceder.
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <Link
-      href={`/trip/${trip.id}`}
-      className={`group block rounded-3xl border bg-gradient-to-br p-5 transition hover:-translate-y-0.5 hover:shadow-lg ${accent}`}
-    >
-      {content}
-    </Link>
-  );
+  return <TripCardItem trip={trip} badge={badge} accent={accent} locked={locked} />;
 }
 
 function TripSection({
