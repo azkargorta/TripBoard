@@ -15,11 +15,11 @@ export type LodgingReservationForSync = {
   sync_to_plan?: boolean | null;
 };
 
-async function geocodeAddress(address: string) {
+async function geocodeAddress(address: string, tripId: string) {
   const response = await fetch("/api/geocode", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ address }),
+    body: JSON.stringify({ address, tripId }),
   });
 
   const payload = await response.json().catch(() => null);
@@ -59,7 +59,7 @@ export async function syncLodgingReservationToPlan(
 
   if ((latitude == null || longitude == null) && joinedAddress) {
     try {
-      const geo = await geocodeAddress(joinedAddress);
+      const geo = await geocodeAddress(joinedAddress, reservation.trip_id);
       latitude = geo.latitude;
       longitude = geo.longitude;
       formattedAddress = geo.formattedAddress || formattedAddress;

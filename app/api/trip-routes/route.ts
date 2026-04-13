@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireTripAccess } from "@/lib/trip-access";
+import { isPremiumEnabledForTrip } from "@/lib/entitlements";
 
 async function safeInsertAudit(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -106,12 +107,8 @@ export async function POST(request: Request) {
     await requireTripAccess(tripId);
     const supabase = await createClient();
     const { data: actor } = await supabase.auth.getUser();
-    const { data: profileRow } = await supabase
-      .from("profiles")
-      .select("is_premium")
-      .eq("id", actor?.user?.id || "")
-      .maybeSingle();
-    const isPremium = Boolean((profileRow as any)?.is_premium);
+    const actorId = actor?.user?.id || "";
+    const isPremium = actorId ? await isPremiumEnabledForTrip({ supabase, userId: actorId, tripId: String(tripId) }) : false;
     const payload = buildPayload(body);
     // Free tier: rutas sin coordenadas, ni polyline/points, ni distancia/duración calculada por Google.
     if (!isPremium) {

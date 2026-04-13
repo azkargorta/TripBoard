@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireTripAccess } from "@/lib/trip-access";
+import { isPremiumEnabledForTrip } from "@/lib/entitlements";
 
 type ItineraryItem = {
   title: string;
@@ -98,15 +99,10 @@ export async function POST(req: Request) {
     const supabase = await createClient();
 
     // Premium required: IA + geocoding = coste. En plan gratis, 0 gasto.
-    const { data: profileRow, error: profileErr } = await supabase
-      .from("profiles")
-      .select("is_premium")
-      .eq("id", access.userId)
-      .maybeSingle();
-    const isPremium = !profileErr && Boolean((profileRow as any)?.is_premium);
+    const isPremium = await isPremiumEnabledForTrip({ supabase, userId: access.userId, tripId });
     if (!isPremium) {
       return NextResponse.json(
-        { error: "Necesitas Premium para usar la IA.", code: "PREMIUM_REQUIRED" },
+        { error: "Necesitas Premium (o un participante Premium en este viaje) para usar la IA.", code: "PREMIUM_REQUIRED" },
         { status: 402 }
       );
     }

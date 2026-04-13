@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireTripAccess } from "@/lib/trip-access";
+import { isPremiumEnabledForTrip } from "@/lib/entitlements";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -17,10 +18,7 @@ export async function GET(request: Request) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    const { data: profileRow } = user
-      ? await supabase.from("profiles").select("is_premium").eq("id", user.id).maybeSingle()
-      : { data: null as any };
-    const isPremium = Boolean((profileRow as any)?.is_premium);
+    const isPremium = user ? await isPremiumEnabledForTrip({ supabase, userId: user.id, tripId }) : false;
 
     let q = supabase.from("trip_places").select("*").eq("trip_id", tripId).order("created_at", { ascending: false });
     if (folderId) q = q.eq("folder_id", folderId);
@@ -65,12 +63,7 @@ export async function POST(request: Request) {
     if (access.role === "viewer") return NextResponse.json({ error: "No tienes permisos." }, { status: 403 });
 
     const supabase = await createClient();
-    const { data: profileRow } = await supabase
-      .from("profiles")
-      .select("is_premium")
-      .eq("id", access.userId)
-      .maybeSingle();
-    const isPremium = Boolean((profileRow as any)?.is_premium);
+    const isPremium = await isPremiumEnabledForTrip({ supabase, userId: access.userId, tripId: String(tripId) });
 
     const { data, error } = await supabase
       .from("trip_places")

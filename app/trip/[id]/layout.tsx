@@ -5,6 +5,7 @@ import TripBoardBrandRail from "@/components/layout/TripBoardBrandRail";
 import { createClient } from "@/lib/supabase/server";
 import { TripBoardHeaderProvider } from "@/components/layout/TripBoardHeaderContext";
 import Script from "next/script";
+import { isPremiumEnabledForTrip } from "@/lib/entitlements";
 
 type TripLayoutProps = {
   children: ReactNode;
@@ -23,13 +24,7 @@ export default async function TripLayout({
   const { data: tripMeta } = await supabase.from("trips").select("name").eq("id", params.id).maybeSingle();
   const tripName = (tripMeta?.name && String(tripMeta.name).trim()) || "Viaje";
   const googleApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
-
-  const { data: profileRow } = await supabase
-    .from("profiles")
-    .select("is_premium")
-    .eq("id", access.userId)
-    .maybeSingle();
-  const isPremium = Boolean((profileRow as any)?.is_premium);
+  const isPremium = await isPremiumEnabledForTrip({ supabase, userId: access.userId, tripId: params.id });
 
   return (
     <>

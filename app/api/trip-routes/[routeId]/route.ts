@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireTripAccess } from "@/lib/trip-access";
+import { isPremiumEnabledForTrip } from "@/lib/entitlements";
 
 async function safeInsertAudit(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -117,12 +118,10 @@ export async function PATCH(request: Request, { params }: { params: { routeId: s
     }
     await requireTripAccess(routeRow.trip_id);
 
-    const { data: profileRow } = await supabase
-      .from("profiles")
-      .select("is_premium")
-      .eq("id", actor?.user?.id || "")
-      .maybeSingle();
-    const isPremium = Boolean((profileRow as any)?.is_premium);
+    const actorId = actor?.user?.id || "";
+    const isPremium = actorId
+      ? await isPremiumEnabledForTrip({ supabase, userId: actorId, tripId: String(routeRow.trip_id) })
+      : false;
 
     if (!isPremium) {
       // Free tier: no coordenadas / no puntos de ruta. Mantiene campos manuales.

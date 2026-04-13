@@ -4,6 +4,7 @@ import { requireTripAccess } from "@/lib/trip-access";
 import TripMapView from "@/components/trip/map/TripMapView";
 import TripScreenActions from "@/components/trip/common/TripScreenActions";
 import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
+import { isPremiumEnabledForTrip } from "@/lib/entitlements";
 
 type Props = {
   params: { id: string };
@@ -56,13 +57,7 @@ export default async function TripMapPage({ params }: Props) {
 
   const access = await requireTripAccess(tripId);
   const supabase = await createClient();
-
-  const { data: profileRow } = await supabase
-    .from("profiles")
-    .select("is_premium")
-    .eq("id", access.userId)
-    .maybeSingle();
-  const isPremium = Boolean((profileRow as any)?.is_premium);
+  const isPremium = await isPremiumEnabledForTrip({ supabase, userId: access.userId, tripId });
   if (!isPremium) {
     redirect(`/trip/${tripId}/plan?upgrade=premium&reason=maps_ai_locked`);
   }

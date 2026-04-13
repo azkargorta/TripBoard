@@ -1,6 +1,7 @@
  import { NextResponse } from "next/server";
  import { requireTripAccess } from "@/lib/trip-access";
  import { createClient } from "@/lib/supabase/server";
+import { isPremiumEnabledForTrip } from "@/lib/entitlements";
  
  type LatLng = { lat: number; lng: number };
 type Money = { currencyCode: string; units: string; nanos?: number };
@@ -104,17 +105,6 @@ async function fetchTollGuruEstimate(params: {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
-    const { data: profileRow } = await supabase
-      .from("profiles")
-      .select("is_premium")
-      .eq("id", user.id)
-      .maybeSingle();
-    if (!Boolean((profileRow as any)?.is_premium)) {
-      return NextResponse.json(
-        { error: "Necesitas Premium para calcular peajes/rutas.", code: "PREMIUM_REQUIRED" },
-        { status: 402 }
-      );
-    }
 
     const key =
       process.env.GOOGLE_ROUTES_API_KEY ||
@@ -133,6 +123,14 @@ async function fetchTollGuruEstimate(params: {
      if (!tripId) return NextResponse.json({ error: "Falta tripId" }, { status: 400 });
  
      await requireTripAccess(tripId);
+
+    const isPremium = await isPremiumEnabledForTrip({ supabase, userId: user.id, tripId });
+    if (!isPremium) {
+      return NextResponse.json(
+        { error: "Necesitas Premium (o un participante Premium en este viaje) para calcular peajes/rutas.", code: "PREMIUM_REQUIRED" },
+        { status: 402 }
+      );
+    }
  
      const origin = body?.origin;
      const destination = body?.destination;

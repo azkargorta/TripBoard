@@ -6,6 +6,7 @@ import { appendMessage, createConversation, getConversation, listMessages } from
 import { detectAction, executeAction } from "@/lib/trip-ai/actions";
 import { enforceAiMonthlyBudgetOrThrow, trackAiUsage } from "@/lib/ai-budget";
 import { monthKeyUtc } from "@/lib/ai-usage";
+import { isPremiumEnabledForTrip } from "@/lib/entitlements";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -44,20 +45,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Premium required: sin premium no se consume IA (0 gasto).
-    const { data: profileRow, error: profileErr } = await supabase
-      .from("profiles")
-      .select("is_premium")
-      .eq("id", userId)
-      .maybeSingle();
-    const isPremium = !profileErr && Boolean((profileRow as any)?.is_premium);
-    if (!isPremium) {
-      return NextResponse.json(
-        { error: "Necesitas Premium para usar la IA.", code: "PREMIUM_REQUIRED" },
-        { status: 402 }
-      );
-    }
-
     const { data: participant, error: participantError } = await supabase
       .from("trip_participants")
       .select("id")
@@ -67,6 +54,15 @@ export async function POST(req: Request) {
       .maybeSingle();
     if (participantError) throw participantError;
     if (!participant) return NextResponse.json({ error: "No tienes acceso a este viaje." }, { status: 403 });
+
+    // Premium requerido (por viaje): si hay alguien premium en el viaje, se permite a todos en ese viaje.
+    const isPremium = await isPremiumEnabledForTrip({ supabase, userId, tripId });
+    if (!isPremium) {
+      return NextResponse.json(
+        { error: "Necesitas Premium (o un participante Premium en este viaje) para usar la IA.", code: "PREMIUM_REQUIRED" },
+        { status: 402 }
+      );
+    }
 
     if (!conversationId) {
       const conversation = await createConversation(tripId, mode, question.slice(0, 60));

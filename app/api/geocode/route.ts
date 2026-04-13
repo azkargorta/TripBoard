@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { requireTripAccess } from "@/lib/trip-access";
+import { isPremiumEnabledForTrip } from "@/lib/entitlements";
 
 export const runtime = "nodejs";
 
@@ -11,23 +13,38 @@ export async function POST(request: Request) {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
-    const { data: profileRow } = await supabase
-      .from("profiles")
-      .select("is_premium")
-      .eq("id", user.id)
-      .maybeSingle();
-    if (!Boolean((profileRow as any)?.is_premium)) {
-      return NextResponse.json(
-        { error: "Necesitas Premium para usar el geocodificador.", code: "PREMIUM_REQUIRED" },
-        { status: 402 }
-      );
-    }
 
     const body = await request.json();
     const address = String(body?.address || "").trim();
+    const tripId = typeof body?.tripId === "string" ? body.tripId : "";
 
     if (!address) {
       return NextResponse.json({ error: "Falta la dirección." }, { status: 400 });
+    }
+
+    // Si viene tripId, aplicamos "premium por viaje" (si hay alguien premium en el viaje, se permite a todos).
+    // Si no viene tripId, se mantiene el comportamiento anterior (premium del usuario).
+    if (tripId) {
+      await requireTripAccess(tripId);
+      const isPremium = await isPremiumEnabledForTrip({ supabase, userId: user.id, tripId });
+      if (!isPremium) {
+        return NextResponse.json(
+          { error: "Necesitas Premium (o un participante Premium en este viaje) para usar el geocodificador.", code: "PREMIUM_REQUIRED" },
+          { status: 402 }
+        );
+      }
+    } else {
+      const { data: profileRow } = await supabase
+        .from("profiles")
+        .select("is_premium")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (!Boolean((profileRow as any)?.is_premium)) {
+        return NextResponse.json(
+          { error: "Necesitas Premium para usar el geocodificador.", code: "PREMIUM_REQUIRED" },
+          { status: 402 }
+        );
+      }
     }
 
     const apiKey =

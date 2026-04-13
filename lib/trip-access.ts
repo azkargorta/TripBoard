@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { isPremiumEnabledForTrip } from "@/lib/entitlements";
 
 export type TripAccessResult = {
   userId: string;
@@ -48,6 +49,22 @@ export async function requireTripAccess(
 
   const isPremium = Boolean((profileRow as any)?.is_premium);
   if (!isPremium) {
+    // Si el viaje tiene al menos 1 usuario premium, permitimos acceso aunque el usuario sea free:
+    // ese viaje funciona "modo premium compartido".
+    const tripHasPremium = await isPremiumEnabledForTrip({
+      supabase,
+      userId: user.id,
+      tripId,
+    });
+    if (tripHasPremium) {
+      return {
+        userId: user.id,
+        participantId: participant.id,
+        tripId: participant.trip_id,
+        role: (participant.role ?? "viewer") as "owner" | "editor" | "viewer",
+      };
+    }
+
     const { data: newestTrip } = await supabase
       .from("trips")
       .select("id, created_at")

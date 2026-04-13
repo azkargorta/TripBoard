@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { listConversations } from "@/lib/trip-ai/chatStore";
+import { isPremiumEnabledForTrip } from "@/lib/entitlements";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -21,18 +22,6 @@ export async function GET(request: Request) {
     if (userError) return NextResponse.json({ error: userError.message }, { status: 401 });
     if (!user) return NextResponse.json({ error: "No hay sesión activa." }, { status: 401 });
 
-    const { data: profileRow } = await supabase
-      .from("profiles")
-      .select("is_premium")
-      .eq("id", user.id)
-      .maybeSingle();
-    if (!Boolean((profileRow as any)?.is_premium)) {
-      return NextResponse.json(
-        { error: "Necesitas Premium para usar la IA.", code: "PREMIUM_REQUIRED" },
-        { status: 402 }
-      );
-    }
-
     const { data: participant, error: participantError } = await supabase
       .from("trip_participants")
       .select("id")
@@ -42,6 +31,14 @@ export async function GET(request: Request) {
 
     if (participantError) throw participantError;
     if (!participant) return NextResponse.json({ error: "No tienes acceso a este viaje." }, { status: 403 });
+
+    const isPremium = await isPremiumEnabledForTrip({ supabase, userId: user.id, tripId });
+    if (!isPremium) {
+      return NextResponse.json(
+        { error: "Necesitas Premium (o un participante Premium en este viaje) para usar la IA.", code: "PREMIUM_REQUIRED" },
+        { status: 402 }
+      );
+    }
 
     const conversations = await listConversations(tripId);
     return NextResponse.json({ conversations });

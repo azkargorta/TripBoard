@@ -3,6 +3,7 @@ import { requireTripAccess } from "@/lib/trip-access";
 import TripPlanView from "@/components/trip/plan/TripPlanView";
 import TripScreenActions from "@/components/trip/common/TripScreenActions";
 import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
+import { isPremiumEnabledForTrip } from "@/lib/entitlements";
 
 export default async function TripPlanPage({
   params,
@@ -11,12 +12,7 @@ export default async function TripPlanPage({
 }) {
   const access = await requireTripAccess(params.id);
   const supabase = await createClient();
-  const { data: profileRow } = await supabase
-    .from("profiles")
-    .select("is_premium")
-    .eq("id", access.userId)
-    .maybeSingle();
-  const isPremium = Boolean((profileRow as any)?.is_premium);
+  const isPremium = await isPremiumEnabledForTrip({ supabase, userId: access.userId, tripId: params.id });
 
   return (
     <main className="space-y-8">
