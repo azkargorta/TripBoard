@@ -38,12 +38,12 @@ export default async function TripLayout({
         ) : null}
         <TripBoardBrandRail tripId={params.id} tripName={tripName} />
         <div
-          className="pb-24 md:pb-0"
+          className="pb-[calc(5.35rem+env(safe-area-inset-bottom,0px))] md:pb-0"
           style={{
             paddingTop: "max(env(safe-area-inset-top), 0px)",
           }}
         >
-          <div className="page-shell space-y-8 pb-16 md:space-y-10 md:pb-12">{children}</div>
+          <div className="page-shell space-y-6 pb-6 md:space-y-10 md:pb-12">{children}</div>
         </div>
         <MobileBottomNav tripId={params.id} isPremium={isPremium} />
       </TripBoardHeaderProvider>

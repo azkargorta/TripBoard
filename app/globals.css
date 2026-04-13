@@ -134,7 +134,32 @@ textarea.input {
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 40px 24px 80px;
+  /* Móvil: menos márgenes, más aire útil; escritorio: espaciado actual */
+  padding: 1.25rem 1rem 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .page-shell {
+    padding: 2.5rem 1.5rem 5rem;
+  }
+}
+
+/* iOS: evita zoom al enfocar inputs con fuente < 16px */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 1rem;
+  }
+}
+
+/* Barra scroll horizontal sin barra visible (nav móvil) */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 .page-grid {

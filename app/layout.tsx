@@ -55,13 +55,13 @@ export default async function RootLayout({
 
   return (
     <html lang="es">
-      <body className="bg-slate-50 text-slate-950">
+      <body className="touch-manipulation bg-slate-50 text-slate-950 antialiased">
         <AuthListener />
         <AnalyticsRoot />
         {isPremium !== null ? (
           <div className="sticky top-0 z-50">
             <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-violet-900">
-              <div className="mx-auto flex max-w-[1200px] items-center justify-end px-6 py-2">
+              <div className="mx-auto flex max-w-[1200px] items-center justify-end px-4 py-1.5 sm:px-6 sm:py-2">
                 <div
                   className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold ${
                     isPremium
