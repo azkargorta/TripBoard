@@ -2261,61 +2261,77 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
               </button>
             </div>
 
-            <div className="mt-4 grid gap-3">
-            <div className="grid grid-cols-[1fr_140px] gap-3">
-              <input
-                type="date"
-                value={form.routeDate}
-                onChange={(e) => setForm((prev) => ({ ...prev, routeDate: e.target.value }))}
-                className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
-              />
-              <input
-                type="time"
-                value={form.departureTime}
-                onChange={(e) => setForm((prev) => ({ ...prev, departureTime: e.target.value }))}
-                className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
-              />
-            </div>
-
-            <input
-              type="text"
-              value={form.routeName}
-              onChange={(e) => setForm((prev) => ({ ...prev, routeName: e.target.value }))}
-              placeholder="Nombre de la ruta (ej. Hotel → Museo → Restaurante)"
-              className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-900"
-            />
-
-            <div className="grid grid-cols-[1fr_1fr] gap-3">
-              <select
-                value={form.travelMode}
-                onChange={(e) => setForm((prev) => ({ ...prev, travelMode: e.target.value as RouteMode }))}
-                className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
-              >
-                <option value="DRIVING">Coche</option>
-                <option value="WALKING">Andando</option>
-                <option value="TRANSIT">Transporte público</option>
-                <option value="BICYCLING">Bicicleta</option>
-              </select>
-
-              <div className="grid grid-cols-[1fr_auto] gap-3">
-                <input
-                  type="color"
-                  value={form.color}
-                  onChange={(e) => setForm((prev) => ({ ...prev, color: e.target.value, autoColor: false }))}
-                  className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 disabled:opacity-60"
-                  title="Color de la ruta"
-                  disabled={form.autoColor}
-                />
-                <label className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-xs font-extrabold text-slate-700">
+            <div className="mt-4 flex flex-col gap-4 md:gap-3">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-3">
+                <label className="flex min-w-0 flex-col gap-2">
+                  <span className="text-xs font-extrabold uppercase tracking-[0.08em] text-slate-600">Día</span>
                   <input
-                    type="checkbox"
-                    checked={form.autoColor}
-                    onChange={(e) => setForm((prev) => ({ ...prev, autoColor: e.target.checked }))}
+                    type="date"
+                    value={form.routeDate}
+                    onChange={(e) => setForm((prev) => ({ ...prev, routeDate: e.target.value }))}
+                    className="min-h-[48px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
                   />
-                  Auto
+                </label>
+                <label className="flex min-w-0 flex-col gap-2">
+                  <span className="text-xs font-extrabold uppercase tracking-[0.08em] text-slate-600">Hora</span>
+                  <input
+                    type="time"
+                    value={form.departureTime}
+                    onChange={(e) => setForm((prev) => ({ ...prev, departureTime: e.target.value }))}
+                    className="min-h-[48px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
+                  />
                 </label>
               </div>
-            </div>
+
+              <label className="flex flex-col gap-2">
+                <span className="text-xs font-extrabold uppercase tracking-[0.08em] text-slate-600">Nombre de la ruta</span>
+                <input
+                  type="text"
+                  value={form.routeName}
+                  onChange={(e) => setForm((prev) => ({ ...prev, routeName: e.target.value }))}
+                  placeholder="Ej. Hotel → Museo → Restaurante"
+                  className="min-h-[48px] w-full rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-900"
+                />
+              </label>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-3">
+                <label className="flex min-w-0 flex-col gap-2">
+                  <span className="text-xs font-extrabold uppercase tracking-[0.08em] text-slate-600">Transporte</span>
+                  <select
+                    value={form.travelMode}
+                    onChange={(e) => setForm((prev) => ({ ...prev, travelMode: e.target.value as RouteMode }))}
+                    className="min-h-[48px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
+                  >
+                    <option value="DRIVING">Coche</option>
+                    <option value="WALKING">Andando</option>
+                    <option value="TRANSIT">Transporte público</option>
+                    <option value="BICYCLING">Bicicleta</option>
+                  </select>
+                </label>
+
+                <div className="flex min-w-0 flex-col gap-2">
+                  <span className="text-xs font-extrabold uppercase tracking-[0.08em] text-slate-600">Color</span>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
+                    <input
+                      type="color"
+                      value={form.color}
+                      onChange={(e) => setForm((prev) => ({ ...prev, color: e.target.value, autoColor: false }))}
+                      className="min-h-[48px] min-w-0 flex-1 cursor-pointer rounded-xl border border-slate-300 bg-white px-2 disabled:cursor-not-allowed disabled:opacity-60"
+                      title="Color de la ruta"
+                      disabled={form.autoColor}
+                      aria-label="Elegir color de la ruta"
+                    />
+                    <label className="inline-flex min-h-[48px] shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-xs font-extrabold text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={form.autoColor}
+                        onChange={(e) => setForm((prev) => ({ ...prev, autoColor: e.target.checked }))}
+                      />
+                      Auto
+                    </label>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="mt-5 space-y-4">
