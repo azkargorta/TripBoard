@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 type Props = {
   tripId: string;
+  isPremium: boolean;
 };
 
 const items = [
@@ -17,8 +18,14 @@ const items = [
   { key: "chat", label: "IA", icon: "🤖", href: (id: string) => `/trip/${id}/ai-chat` },
 ];
 
-export default function MobileBottomNav({ tripId }: Props) {
+export default function MobileBottomNav({ tripId, isPremium }: Props) {
   const pathname = usePathname();
+  const visibleItems = isPremium
+    ? items
+    : items.filter((item) => {
+        if (item.key === "map" || item.key === "chat") return false;
+        return true;
+      });
 
   return (
     <nav
@@ -27,7 +34,7 @@ export default function MobileBottomNav({ tripId }: Props) {
     >
       <div className="overflow-x-auto no-scrollbar">
         <div className="mx-auto flex min-w-max items-stretch px-2">
-          {items.map((item) => {
+          {visibleItems.map((item) => {
             const href = item.href(tripId);
             const active = pathname === href;
 

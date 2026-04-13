@@ -47,6 +47,7 @@ type Props = {
   initialData?: EditableActivity | null;
   onCancelEdit?: () => void;
   onSubmit: (values: PlanFormValues) => Promise<void>;
+  premiumEnabled: boolean;
 };
 
 const EMPTY_FORM: PlanFormValues = {
@@ -80,7 +81,7 @@ function fromInitial(initialData?: EditableActivity | null): PlanFormValues {
   };
 }
 
-export default function PlanForm({ saving = false, initialData, onCancelEdit, onSubmit }: Props) {
+export default function PlanForm({ saving = false, initialData, onCancelEdit, onSubmit, premiumEnabled }: Props) {
   const [form, setForm] = useState<PlanFormValues>(fromInitial(initialData));
   const [error, setError] = useState<string | null>(null);
   const isEditing = Boolean(initialData?.id);
@@ -187,27 +188,46 @@ export default function PlanForm({ saving = false, initialData, onCancelEdit, on
           />
         </label>
 
-        <PlaceAutocompleteInput
-          label="Lugar / dirección"
-          value={form.address}
-          onChange={(value) => update("address", value)}
-          onPlaceSelect={({ address, latitude, longitude }) => {
-            setForm((current) => ({
-              ...current,
-              address,
-              latitude,
-              longitude,
-              placeName: current.placeName || address,
-            }));
-          }}
-        />
+        {premiumEnabled ? (
+          <PlaceAutocompleteInput
+            label="Lugar / dirección"
+            value={form.address}
+            onChange={(value) => update("address", value)}
+            onPlaceSelect={({ address, latitude, longitude }) => {
+              setForm((current) => ({
+                ...current,
+                address,
+                latitude,
+                longitude,
+                placeName: current.placeName || address,
+              }));
+            }}
+          />
+        ) : (
+          <label className="space-y-2">
+            <span className="text-sm font-semibold text-slate-800">Dirección (manual)</span>
+            <input
+              value={form.address}
+              onChange={(e) => {
+                update("address", e.target.value);
+                update("latitude", null);
+                update("longitude", null);
+              }}
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+              placeholder="Ej. Calle Mayor 1, Madrid"
+            />
+            <p className="text-xs text-slate-500">Autocompletar y coordenadas solo en Premium.</p>
+          </label>
+        )}
 
-        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-          Coordenadas:{" "}
-          {form.latitude != null && form.longitude != null
-            ? `${form.latitude.toFixed(6)}, ${form.longitude.toFixed(6)}`
-            : "ninguna todavía"}
-        </div>
+        {premiumEnabled ? (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+            Coordenadas:{" "}
+            {form.latitude != null && form.longitude != null
+              ? `${form.latitude.toFixed(6)}, ${form.longitude.toFixed(6)}`
+              : "ninguna todavía"}
+          </div>
+        ) : null}
 
         <div className="grid gap-4 md:grid-cols-2">
           <label className="space-y-2">

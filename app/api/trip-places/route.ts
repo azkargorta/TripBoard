@@ -14,11 +14,29 @@ export async function GET(request: Request) {
 
     await requireTripAccess(tripId);
     const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const { data: profileRow } = user
+      ? await supabase.from("profiles").select("is_premium").eq("id", user.id).maybeSingle()
+      : { data: null as any };
+    const isPremium = Boolean((profileRow as any)?.is_premium);
+
     let q = supabase.from("trip_places").select("*").eq("trip_id", tripId).order("created_at", { ascending: false });
     if (folderId) q = q.eq("folder_id", folderId);
     const { data, error } = await q;
     if (error) throw error;
-    return NextResponse.json({ places: data || [] });
+    const places = (data || []).map((p: any) =>
+      isPremium
+        ? p
+        : {
+            ...p,
+            place_id: null,
+            latitude: null,
+            longitude: null,
+          }
+    );
+    return NextResponse.json({ places });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "No se pudieron cargar los lugares." },
@@ -47,16 +65,23 @@ export async function POST(request: Request) {
     if (access.role === "viewer") return NextResponse.json({ error: "No tienes permisos." }, { status: 403 });
 
     const supabase = await createClient();
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("is_premium")
+      .eq("id", access.userId)
+      .maybeSingle();
+    const isPremium = Boolean((profileRow as any)?.is_premium);
+
     const { data, error } = await supabase
       .from("trip_places")
       .insert({
         trip_id: tripId,
         folder_id: folderId ?? null,
-        place_id,
+        place_id: isPremium ? place_id : null,
         name,
         address,
-        latitude,
-        longitude,
+        latitude: isPremium ? latitude : null,
+        longitude: isPremium ? longitude : null,
         category,
         notes,
         created_by_user_id: access.userId,

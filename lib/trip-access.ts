@@ -37,6 +37,39 @@ export async function requireTripAccess(
     redirect("/dashboard");
   }
 
+  // Premium gating: en plan gratis solo se permite entrar al "viaje activo".
+  // Implementación: el último viaje creado (created_at más reciente) de los viajes donde participas.
+  // Los viajes antiguos quedan guardados pero bloqueados hasta premium.
+  const { data: profileRow } = await supabase
+    .from("profiles")
+    .select("is_premium")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const isPremium = Boolean((profileRow as any)?.is_premium);
+  if (!isPremium) {
+    const { data: newestTrip } = await supabase
+      .from("trips")
+      .select("id, created_at")
+      .in(
+        "id",
+        (
+          await supabase
+            .from("trip_participants")
+            .select("trip_id")
+            .eq("user_id", user.id)
+            .neq("status", "removed")
+        ).data?.map((r: any) => r.trip_id) ?? []
+      )
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (newestTrip?.id && String(newestTrip.id) !== String(tripId)) {
+      redirect("/dashboard?upgrade=premium&reason=trip_limit");
+    }
+  }
+
   return {
     userId: user.id,
     participantId: participant.id,

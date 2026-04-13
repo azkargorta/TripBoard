@@ -81,7 +81,13 @@ function Chip({
   );
 }
 
-export default function TripPlanView({ tripId }: { tripId: string }) {
+export default function TripPlanView({
+  tripId,
+  premiumEnabled,
+}: {
+  tripId: string;
+  premiumEnabled: boolean;
+}) {
   const { trip, activities, loading, saving, error, createActivity, updateActivity, deleteActivity } =
     useTripActivities(tripId);
 
@@ -397,6 +403,7 @@ export default function TripPlanView({ tripId }: { tripId: string }) {
           initialData={editingActivity}
           onCancelEdit={handleCancelEditOrClose}
           onSubmit={handleSubmit}
+          premiumEnabled={premiumEnabled}
           />
         </div>
       ) : null}

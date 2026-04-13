@@ -117,6 +117,26 @@ export async function PATCH(request: Request, { params }: { params: { routeId: s
     }
     await requireTripAccess(routeRow.trip_id);
 
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("is_premium")
+      .eq("id", actor?.user?.id || "")
+      .maybeSingle();
+    const isPremium = Boolean((profileRow as any)?.is_premium);
+
+    if (!isPremium) {
+      // Free tier: no coordenadas / no puntos de ruta. Mantiene campos manuales.
+      delete (payload as any).origin_latitude;
+      delete (payload as any).origin_longitude;
+      delete (payload as any).stop_latitude;
+      delete (payload as any).stop_longitude;
+      delete (payload as any).destination_latitude;
+      delete (payload as any).destination_longitude;
+      if ("path_points" in payload) (payload as any).path_points = [];
+      if ("route_points" in payload) (payload as any).route_points = [];
+      if ("distance_text" in payload) (payload as any).distance_text = null;
+    }
+
     const response = await patchWithFallback(supabase, params.routeId, payload);
 
     if (response.error) throw new Error(response.error.message);

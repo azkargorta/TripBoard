@@ -44,6 +44,20 @@ export async function POST(req: Request) {
       );
     }
 
+    // Premium required: sin premium no se consume IA (0 gasto).
+    const { data: profileRow, error: profileErr } = await supabase
+      .from("profiles")
+      .select("is_premium")
+      .eq("id", userId)
+      .maybeSingle();
+    const isPremium = !profileErr && Boolean((profileRow as any)?.is_premium);
+    if (!isPremium) {
+      return NextResponse.json(
+        { error: "Necesitas Premium para usar la IA.", code: "PREMIUM_REQUIRED" },
+        { status: 402 }
+      );
+    }
+
     const { data: participant, error: participantError } = await supabase
       .from("trip_participants")
       .select("id")

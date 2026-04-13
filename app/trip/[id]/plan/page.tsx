@@ -1,33 +1,37 @@
-"use client";
-
-import Script from "next/script";
+import { createClient } from "@/lib/supabase/server";
+import { requireTripAccess } from "@/lib/trip-access";
 import TripPlanView from "@/components/trip/plan/TripPlanView";
 import TripScreenActions from "@/components/trip/common/TripScreenActions";
 import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
 
-export default function TripPlanPage({
+export default async function TripPlanPage({
   params,
 }: {
   params: { id: string };
 }) {
+  const access = await requireTripAccess(params.id);
+  const supabase = await createClient();
+  const { data: profileRow } = await supabase
+    .from("profiles")
+    .select("is_premium")
+    .eq("id", access.userId)
+    .maybeSingle();
+  const isPremium = Boolean((profileRow as any)?.is_premium);
+
   return (
-    <>
-      <Script
-        id="google-maps-places-plan"
-        src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places`}
-        strategy="afterInteractive"
+    <main className="space-y-8">
+      <TripBoardPageHeader
+        section="Plan del viaje"
+        title="Plan"
+        description={
+          isPremium
+            ? "Añade lugares, fechas, horas y coordenadas. Todo lo guardado aquí se reutiliza en el mapa para crear rutas y organizar el viaje."
+            : "Plan gratuito: añade lugares y horarios manualmente. Sin autocompletar, sin coordenadas y sin mapa."
+        }
+        actions={<TripScreenActions tripId={params.id} />}
       />
 
-      <main className="space-y-8">
-        <TripBoardPageHeader
-          section="Plan del viaje"
-          title="Plan"
-          description="Añade lugares, fechas, horas y coordenadas. Todo lo guardado aquí se reutiliza en el mapa para crear rutas y organizar el viaje."
-          actions={<TripScreenActions tripId={params.id} />}
-        />
-
-        <TripPlanView tripId={params.id} />
-      </main>
-    </>
+      <TripPlanView tripId={params.id} premiumEnabled={isPremium} />
+    </main>
   );
 }

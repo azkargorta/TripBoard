@@ -4,12 +4,31 @@ import { askTripAIWithUsage } from "@/lib/trip-ai/providers";
 import { extractFirstJsonObject } from "@/lib/ai/llmJson";
 import { enforceAiMonthlyBudgetOrThrow, trackAiUsage } from "@/lib/ai-budget";
 import { monthKeyUtc } from "@/lib/ai-usage";
+import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function POST(req: Request) {
   try {
+    // Premium required: IA = coste.
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("is_premium")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (!Boolean((profileRow as any)?.is_premium)) {
+      return NextResponse.json(
+        { error: "Necesitas Premium para usar la IA.", code: "PREMIUM_REQUIRED" },
+        { status: 402 }
+      );
+    }
+
     const body = await req.json().catch(() => null);
     const text = typeof body?.text === "string" ? body.text : "";
     const fileName = typeof body?.fileName === "string" ? body.fileName : "documento";

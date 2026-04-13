@@ -83,12 +83,19 @@ function categorizeTrips(trips: Trip[]) {
   return { current, future, past, unscheduled };
 }
 
-function TripCard({ trip, badge, accent }: { trip: Trip; badge: string; accent: string }) {
-  return (
-    <Link
-      href={`/trip/${trip.id}`}
-      className={`group block rounded-3xl border bg-gradient-to-br p-5 transition hover:-translate-y-0.5 hover:shadow-lg ${accent}`}
-    >
+function TripCard({
+  trip,
+  badge,
+  accent,
+  locked,
+}: {
+  trip: Trip;
+  badge: string;
+  accent: string;
+  locked: boolean;
+}) {
+  const content = (
+    <>
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-2">
           <div className="inline-flex items-center rounded-full bg-white/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700">
@@ -101,7 +108,7 @@ function TripCard({ trip, badge, accent }: { trip: Trip; badge: string; accent: 
         </div>
 
         <div className="rounded-full bg-white/75 px-3 py-1 text-xs font-semibold text-slate-700">
-          Entrar
+          {locked ? "Premium" : "Entrar"}
         </div>
       </div>
 
@@ -114,6 +121,26 @@ function TripCard({ trip, badge, accent }: { trip: Trip; badge: string; accent: 
         <span>{trip.destination || "Viaje"}</span>
         <span className="transition group-hover:translate-x-0.5">→</span>
       </div>
+    </>
+  );
+
+  if (locked) {
+    return (
+      <div className={`rounded-3xl border bg-gradient-to-br p-5 opacity-80 ${accent}`}>
+        {content}
+        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-950">
+          Viaje guardado. Hazte Premium para acceder.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      href={`/trip/${trip.id}`}
+      className={`group block rounded-3xl border bg-gradient-to-br p-5 transition hover:-translate-y-0.5 hover:shadow-lg ${accent}`}
+    >
+      {content}
     </Link>
   );
 }
@@ -124,12 +151,14 @@ function TripSection({
   trips,
   badge,
   accent,
+  lockedTripIds,
 }: {
   title: string;
   subtitle: string;
   trips: Trip[];
   badge: string;
   accent: string;
+  lockedTripIds: Set<string>;
 }) {
   return (
     <section className="space-y-4">
@@ -150,7 +179,13 @@ function TripSection({
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {trips.map((trip) => (
-            <TripCard key={trip.id} trip={trip} badge={badge} accent={accent} />
+            <TripCard
+              key={trip.id}
+              trip={trip}
+              badge={badge}
+              accent={accent}
+              locked={lockedTripIds.has(String(trip.id))}
+            />
           ))}
         </div>
       )}
@@ -170,6 +205,13 @@ export default async function DashboardPage() {
   }
 
   const isAdmin = await isPlatformAdmin(user.id, user.email);
+
+  const { data: profileRow } = await supabase
+    .from("profiles")
+    .select("is_premium")
+    .eq("id", user.id)
+    .maybeSingle();
+  const isPremium = Boolean((profileRow as any)?.is_premium);
 
   const { data: participantRows, error: participantsError } = await supabase
     .from("trip_participants")
@@ -201,6 +243,13 @@ export default async function DashboardPage() {
   }
 
   const { current, future, past, unscheduled } = categorizeTrips(trips);
+  const newestTripId = trips?.[0]?.id ? String(trips[0].id) : null;
+  const lockedTripIds = new Set<string>();
+  if (!isPremium && newestTripId) {
+    for (const t of trips) {
+      if (String(t.id) !== newestTripId) lockedTripIds.add(String(t.id));
+    }
+  }
 
   return (
     <main className="page-shell space-y-8">
@@ -263,6 +312,20 @@ export default async function DashboardPage() {
         </div>
       </section>
 
+      {!isPremium ? (
+        <section className="card-soft p-6">
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Plan gratuito</p>
+            <p className="text-lg font-bold text-slate-950">
+              Tienes 1 viaje activo. Para ver viajes anteriores y usar IA/Mapa, pásate a Premium.
+            </p>
+            <p className="text-sm text-slate-600">
+              Tus viajes anteriores se guardan, pero quedan bloqueados hasta Premium.
+            </p>
+          </div>
+        </section>
+      ) : null}
+
       <section className="card-soft p-6 md:p-8">
         <div className="mb-4 flex items-center justify-between gap-4">
           <div>
@@ -270,7 +333,7 @@ export default async function DashboardPage() {
             <p className="mt-1 text-sm text-slate-600">Añádelo aquí y aparecerá automáticamente en su categoría.</p>
           </div>
         </div>
-        <CreateTripSection />
+        <CreateTripSection isPremium={isPremium} hasAnyTrip={Boolean(newestTripId)} />
       </section>
 
       {trips.length === 0 ? (
@@ -285,6 +348,7 @@ export default async function DashboardPage() {
             trips={current}
             badge="En curso"
             accent="from-emerald-100 to-teal-50 border-emerald-200"
+            lockedTripIds={lockedTripIds}
           />
           <TripSection
             title="Viajes futuros"
@@ -292,6 +356,7 @@ export default async function DashboardPage() {
             trips={future}
             badge="Próximo"
             accent="from-sky-100 to-cyan-50 border-sky-200"
+            lockedTripIds={lockedTripIds}
           />
           <TripSection
             title="Viajes pasados"
@@ -299,6 +364,7 @@ export default async function DashboardPage() {
             trips={past}
             badge="Finalizado"
             accent="from-slate-100 to-slate-50 border-slate-200"
+            lockedTripIds={lockedTripIds}
           />
           {unscheduled.length > 0 ? (
             <TripSection
@@ -307,6 +373,7 @@ export default async function DashboardPage() {
               trips={unscheduled}
               badge="Pendiente"
               accent="from-amber-100 to-orange-50 border-amber-200"
+              lockedTripIds={lockedTripIds}
             />
           ) : null}
         </div>

@@ -19,6 +19,32 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No hay sesión activa." }, { status: 401 });
     }
 
+    // Free tier: solo 1 viaje activo (el último). Para evitar gasto/carga, bloqueamos crear más viajes sin premium.
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("is_premium")
+      .eq("id", user.id)
+      .maybeSingle();
+    const isPremium = Boolean((profileRow as any)?.is_premium);
+
+    if (!isPremium) {
+      const { data: existing, error: countErr } = await supabase
+        .from("trip_participants")
+        .select("trip_id")
+        .eq("user_id", user.id)
+        .neq("status", "removed");
+      if (countErr) {
+        return NextResponse.json({ error: countErr.message }, { status: 500 });
+      }
+      const existingCount = Array.isArray(existing) ? existing.length : 0;
+      if (existingCount >= 1) {
+        return NextResponse.json(
+          { error: "El plan gratuito solo permite 1 viaje activo. Hazte Premium para crear más viajes.", code: "PREMIUM_REQUIRED" },
+          { status: 402 }
+        );
+      }
+    }
+
     const body = await req.json().catch(() => null);
     const name = typeof body?.name === "string" ? body.name.trim() : "";
     const destination = typeof body?.destination === "string" ? body.destination.trim() : "";

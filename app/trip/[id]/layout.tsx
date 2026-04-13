@@ -17,17 +17,24 @@ export default async function TripLayout({
   children,
   params,
 }: TripLayoutProps) {
-  await requireTripAccess(params.id);
+  const access = await requireTripAccess(params.id);
 
   const supabase = await createClient();
   const { data: tripMeta } = await supabase.from("trips").select("name").eq("id", params.id).maybeSingle();
   const tripName = (tripMeta?.name && String(tripMeta.name).trim()) || "Viaje";
   const googleApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
 
+  const { data: profileRow } = await supabase
+    .from("profiles")
+    .select("is_premium")
+    .eq("id", access.userId)
+    .maybeSingle();
+  const isPremium = Boolean((profileRow as any)?.is_premium);
+
   return (
     <>
       <TripBoardHeaderProvider>
-        {googleApiKey ? (
+        {isPremium && googleApiKey ? (
           <Script
             id="google-maps-places-global"
             src={`https://maps.googleapis.com/maps/api/js?key=${googleApiKey}&libraries=places`}
@@ -43,7 +50,7 @@ export default async function TripLayout({
         >
           <div className="page-shell space-y-8 pb-16 md:space-y-10 md:pb-12">{children}</div>
         </div>
-        <MobileBottomNav tripId={params.id} />
+        <MobileBottomNav tripId={params.id} isPremium={isPremium} />
       </TripBoardHeaderProvider>
     </>
   );

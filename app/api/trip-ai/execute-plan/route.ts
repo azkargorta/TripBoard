@@ -97,6 +97,20 @@ export async function POST(req: Request) {
 
     const supabase = await createClient();
 
+    // Premium required: IA + geocoding = coste. En plan gratis, 0 gasto.
+    const { data: profileRow, error: profileErr } = await supabase
+      .from("profiles")
+      .select("is_premium")
+      .eq("id", access.userId)
+      .maybeSingle();
+    const isPremium = !profileErr && Boolean((profileRow as any)?.is_premium);
+    if (!isPremium) {
+      return NextResponse.json(
+        { error: "Necesitas Premium para usar la IA.", code: "PREMIUM_REQUIRED" },
+        { status: 402 }
+      );
+    }
+
     const { data: tripRow } = await supabase.from("trips").select("destination").eq("id", tripId).single();
     const tripDestination = typeof tripRow?.destination === "string" ? tripRow.destination : null;
 

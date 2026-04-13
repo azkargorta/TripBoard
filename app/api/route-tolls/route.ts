@@ -1,5 +1,6 @@
  import { NextResponse } from "next/server";
  import { requireTripAccess } from "@/lib/trip-access";
+ import { createClient } from "@/lib/supabase/server";
  
  type LatLng = { lat: number; lng: number };
 type Money = { currencyCode: string; units: string; nanos?: number };
@@ -97,6 +98,24 @@ async function fetchTollGuruEstimate(params: {
 
  export async function POST(request: Request) {
    try {
+    // Premium required: usa Google Routes/TollGuru (coste).
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("is_premium")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (!Boolean((profileRow as any)?.is_premium)) {
+      return NextResponse.json(
+        { error: "Necesitas Premium para calcular peajes/rutas.", code: "PREMIUM_REQUIRED" },
+        { status: 402 }
+      );
+    }
+
     const key =
       process.env.GOOGLE_ROUTES_API_KEY ||
       process.env.GOOGLE_MAPS_API_KEY ||

@@ -54,8 +54,18 @@ function buildTripDates(startDate?: string | null, endDate?: string | null) {
 export default async function TripMapPage({ params }: Props) {
   const tripId = params.id;
 
-  await requireTripAccess(tripId);
+  const access = await requireTripAccess(tripId);
   const supabase = await createClient();
+
+  const { data: profileRow } = await supabase
+    .from("profiles")
+    .select("is_premium")
+    .eq("id", access.userId)
+    .maybeSingle();
+  const isPremium = Boolean((profileRow as any)?.is_premium);
+  if (!isPremium) {
+    redirect(`/trip/${tripId}/plan?upgrade=premium&reason=maps_ai_locked`);
+  }
 
   const tripResponse = await supabase
     .from("trips")

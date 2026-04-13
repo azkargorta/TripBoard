@@ -106,7 +106,26 @@ export async function POST(request: Request) {
     await requireTripAccess(tripId);
     const supabase = await createClient();
     const { data: actor } = await supabase.auth.getUser();
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("is_premium")
+      .eq("id", actor?.user?.id || "")
+      .maybeSingle();
+    const isPremium = Boolean((profileRow as any)?.is_premium);
     const payload = buildPayload(body);
+    // Free tier: rutas sin coordenadas, ni polyline/points, ni distancia/duración calculada por Google.
+    if (!isPremium) {
+      delete (payload as any).origin_latitude;
+      delete (payload as any).origin_longitude;
+      delete (payload as any).stop_latitude;
+      delete (payload as any).stop_longitude;
+      delete (payload as any).destination_latitude;
+      delete (payload as any).destination_longitude;
+      (payload as any).path_points = [];
+      (payload as any).route_points = [];
+      (payload as any).distance_text = null;
+      // duration_text + arrival_time permitidos (manual).
+    }
     const response = await insertWithFallback(supabase, payload);
 
     if (response.error) throw new Error(response.error.message);

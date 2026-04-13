@@ -50,6 +50,19 @@ export async function POST(req: Request) {
     }
 
     const supabase = await createClient();
+
+    const { data: profileRow, error: profileErr } = await supabase
+      .from("profiles")
+      .select("is_premium")
+      .eq("id", access.userId)
+      .maybeSingle();
+    const isPremium = !profileErr && Boolean((profileRow as any)?.is_premium);
+    if (!isPremium) {
+      return NextResponse.json(
+        { error: "Necesitas Premium para usar la IA.", code: "PREMIUM_REQUIRED" },
+        { status: 402 }
+      );
+    }
     const results: Array<{ ok: boolean; op: string; id?: string; error?: string }> = [];
 
     for (const opRaw of diff.operations) {

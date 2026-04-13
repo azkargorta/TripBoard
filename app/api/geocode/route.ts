@@ -1,9 +1,28 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
+    // Premium required: geocoding consume API Google.
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("is_premium")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (!Boolean((profileRow as any)?.is_premium)) {
+      return NextResponse.json(
+        { error: "Necesitas Premium para usar el geocodificador.", code: "PREMIUM_REQUIRED" },
+        { status: 402 }
+      );
+    }
+
     const body = await request.json();
     const address = String(body?.address || "").trim();
 
