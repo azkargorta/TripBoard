@@ -17,6 +17,7 @@ type RouteRow = {
   title?: string | null;
   route_name?: string | null;
   name?: string | null;
+  color?: string | null;
   route_day?: string | null;
   route_date?: string | null;
   departure_time?: string | null;
@@ -37,6 +38,14 @@ function displayPlanLabel(p: PlanItem) {
   return [title || "Plan", where].filter(Boolean).join(" · ");
 }
 
+function localDateISO() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export default function TripRoutesFreeView({ tripId }: { tripId: string }) {
   const [plans, setPlans] = useState<PlanItem[]>([]);
   const [routes, setRoutes] = useState<RouteRow[]>([]);
@@ -47,9 +56,12 @@ export default function TripRoutesFreeView({ tripId }: { tripId: string }) {
 
   const [form, setForm] = useState({
     routeName: "",
+    routeDate: localDateISO(),
     departureTime: "",
     travelMode: "DRIVING",
     durationText: "",
+    color: "#6366f1",
+    autoColor: true,
     originPlanId: "",
     destinationPlanId: "",
     originText: "",
@@ -103,6 +115,7 @@ export default function TripRoutesFreeView({ tripId }: { tripId: string }) {
               title: typeof x.title === "string" ? x.title : null,
               route_name: typeof x.route_name === "string" ? x.route_name : null,
               name: typeof x.name === "string" ? x.name : null,
+              color: typeof x.color === "string" ? x.color : null,
               route_day: typeof x.route_day === "string" ? x.route_day : null,
               route_date: typeof x.route_date === "string" ? x.route_date : null,
               departure_time: typeof x.departure_time === "string" ? x.departure_time : null,
@@ -155,9 +168,11 @@ export default function TripRoutesFreeView({ tripId }: { tripId: string }) {
           route_name: routeName,
           title: routeName,
           name: routeName,
+          route_date: form.routeDate || null,
           departure_time: form.departureTime || null,
           travel_mode: form.travelMode || "driving",
           duration_text: form.durationText || null,
+          color: form.autoColor ? null : form.color || null,
           origin_name: origin,
           origin_address: origin,
           destination_name: destination,
@@ -171,8 +186,11 @@ export default function TripRoutesFreeView({ tripId }: { tripId: string }) {
       setForm((f) => ({
         ...f,
         routeName: "",
+        routeDate: localDateISO(),
         departureTime: "",
         durationText: "",
+        color: "#6366f1",
+        autoColor: true,
         originPlanId: "",
         destinationPlanId: "",
         originText: "",
@@ -191,6 +209,7 @@ export default function TripRoutesFreeView({ tripId }: { tripId: string }) {
             title: typeof x.title === "string" ? x.title : null,
             route_name: typeof x.route_name === "string" ? x.route_name : null,
             name: typeof x.name === "string" ? x.name : null,
+            color: typeof x.color === "string" ? x.color : null,
             route_day: typeof x.route_day === "string" ? x.route_day : null,
             route_date: typeof x.route_date === "string" ? x.route_date : null,
             departure_time: typeof x.departure_time === "string" ? x.departure_time : null,
@@ -256,7 +275,7 @@ export default function TripRoutesFreeView({ tripId }: { tripId: string }) {
               Rutas (modo gratuito)
             </div>
             <div className="text-xs text-slate-600">
-              Crea rutas por nombre. Puedes indicar hora de salida, transporte y duración estimada.
+              Crea rutas por nombre. Indica día, hora, transporte, color y duración estimada.
             </div>
           </div>
           <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
@@ -276,34 +295,45 @@ export default function TripRoutesFreeView({ tripId }: { tripId: string }) {
           </div>
         ) : null}
 
-        <div className="mt-5 grid gap-4 md:grid-cols-2">
-          <label className="space-y-2">
-            <span className="text-sm font-semibold text-slate-800">Nombre de ruta</span>
+        <div className="mt-5 flex min-w-0 flex-col gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-3">
+            <label className="flex min-w-0 flex-col gap-2">
+              <span className="text-xs font-extrabold uppercase tracking-[0.08em] text-slate-600">Día</span>
+              <input
+                type="date"
+                value={form.routeDate}
+                onChange={(e) => setForm((f) => ({ ...f, routeDate: e.target.value }))}
+                className="min-h-[44px] w-full min-w-0 max-w-[min(100%,11.5rem)] rounded-xl border border-slate-300 bg-white px-2 py-2.5 text-sm font-semibold text-slate-900 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 sm:max-w-none md:px-3"
+              />
+            </label>
+            <label className="flex min-w-0 flex-col gap-2">
+              <span className="text-xs font-extrabold uppercase tracking-[0.08em] text-slate-600">Hora</span>
+              <input
+                type="time"
+                value={form.departureTime}
+                onChange={(e) => setForm((f) => ({ ...f, departureTime: e.target.value }))}
+                className="min-h-[44px] w-full min-w-0 max-w-[min(100%,9.25rem)] rounded-xl border border-slate-300 bg-white px-2 py-2.5 text-sm font-semibold text-slate-900 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 sm:max-w-none md:px-3"
+              />
+            </label>
+          </div>
+
+          <label className="flex min-w-0 flex-col gap-2">
+            <span className="text-xs font-extrabold uppercase tracking-[0.08em] text-slate-600">Nombre de la ruta</span>
             <input
               value={form.routeName}
               onChange={(e) => setForm((f) => ({ ...f, routeName: e.target.value }))}
-              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+              className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
               placeholder="Ruta del día 1"
             />
           </label>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="space-y-2">
-              <span className="text-sm font-semibold text-slate-800">Hora de salida</span>
-              <input
-                value={form.departureTime}
-                onChange={(e) => setForm((f) => ({ ...f, departureTime: e.target.value }))}
-                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
-                placeholder="10:00"
-              />
-            </label>
-
-            <label className="space-y-2">
-              <span className="text-sm font-semibold text-slate-800">Transporte</span>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-3">
+            <label className="flex min-w-0 flex-col gap-2">
+              <span className="text-xs font-extrabold uppercase tracking-[0.08em] text-slate-600">Transporte</span>
               <select
                 value={form.travelMode}
                 onChange={(e) => setForm((f) => ({ ...f, travelMode: e.target.value }))}
-                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+                className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-900 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 md:px-4"
               >
                 <option value="DRIVING">Coche</option>
                 <option value="WALKING">Andando</option>
@@ -311,14 +341,37 @@ export default function TripRoutesFreeView({ tripId }: { tripId: string }) {
                 <option value="TRANSIT">Transporte público</option>
               </select>
             </label>
+
+            <div className="flex min-w-0 flex-col gap-2">
+              <span className="text-xs font-extrabold uppercase tracking-[0.08em] text-slate-600">Color</span>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
+                <input
+                  type="color"
+                  value={form.color}
+                  onChange={(e) => setForm((f) => ({ ...f, color: e.target.value, autoColor: false }))}
+                  className="min-h-[44px] min-w-0 flex-1 cursor-pointer rounded-xl border border-slate-300 bg-white px-2 disabled:cursor-not-allowed disabled:opacity-60"
+                  title="Color de la ruta"
+                  disabled={form.autoColor}
+                  aria-label="Elegir color de la ruta"
+                />
+                <label className="inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-xs font-extrabold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={form.autoColor}
+                    onChange={(e) => setForm((f) => ({ ...f, autoColor: e.target.checked }))}
+                  />
+                  Auto
+                </label>
+              </div>
+            </div>
           </div>
 
-          <label className="space-y-2 md:col-span-2">
-            <span className="text-sm font-semibold text-slate-800">Duración estimada</span>
+          <label className="flex min-w-0 flex-col gap-2">
+            <span className="text-xs font-extrabold uppercase tracking-[0.08em] text-slate-600">Duración estimada</span>
             <input
               value={form.durationText}
               onChange={(e) => setForm((f) => ({ ...f, durationText: e.target.value }))}
-              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+              className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
               placeholder="1h 20min"
             />
           </label>

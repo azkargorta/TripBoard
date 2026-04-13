@@ -2269,7 +2269,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                     type="date"
                     value={form.routeDate}
                     onChange={(e) => setForm((prev) => ({ ...prev, routeDate: e.target.value }))}
-                    className="min-h-[48px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
+                    className="min-h-[44px] w-full min-w-0 max-w-[min(100%,11.5rem)] rounded-xl border border-slate-300 bg-white px-2 text-sm font-semibold text-slate-900 sm:max-w-none md:min-h-[48px] md:px-3"
                   />
                 </label>
                 <label className="flex min-w-0 flex-col gap-2">
@@ -2278,7 +2278,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                     type="time"
                     value={form.departureTime}
                     onChange={(e) => setForm((prev) => ({ ...prev, departureTime: e.target.value }))}
-                    className="min-h-[48px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
+                    className="min-h-[44px] w-full min-w-0 max-w-[min(100%,9.25rem)] rounded-xl border border-slate-300 bg-white px-2 text-sm font-semibold text-slate-900 sm:max-w-none md:min-h-[48px] md:px-3"
                   />
                 </label>
               </div>
