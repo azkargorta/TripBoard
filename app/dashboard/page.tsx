@@ -267,7 +267,7 @@ export default async function DashboardPage() {
               <div>
                 <h1 className="text-4xl font-extrabold tracking-tight md:text-5xl">Tus viajes</h1>
                 <p className="mt-2 max-w-2xl text-base text-white/75 md:text-lg">
-                  Tu panel principal con la misma línea visual de la portada de cada viaje.
+                  Sumérgete en tus viajes pasados, presentes y futuros,
                 </p>
               </div>
             </div>

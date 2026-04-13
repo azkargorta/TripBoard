@@ -59,24 +59,26 @@ export default async function RootLayout({
         <AuthListener />
         <AnalyticsRoot />
         {isPremium !== null ? (
-          <div className="sticky top-0 z-50 border-b border-slate-200 bg-white/70 backdrop-blur">
-            <div className="mx-auto flex max-w-[1200px] items-center justify-end px-6 py-2">
-              <div
-                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${
-                  isPremium
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-                    : "border-slate-200 bg-white text-slate-800"
-                }`}
-                title={isPremium ? "Plan Premium activo" : "Plan gratuito"}
-              >
-                <span
-                  className={`inline-flex h-2.5 w-2.5 rounded-full ${
-                    isPremium ? "bg-emerald-500" : "bg-slate-400"
+          <div className="sticky top-0 z-50">
+            <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-violet-900">
+              <div className="mx-auto flex max-w-[1200px] items-center justify-end px-6 py-2">
+                <div
+                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold ${
+                    isPremium
+                      ? "border-emerald-300/35 bg-emerald-400/15 text-emerald-50"
+                      : "border-white/20 bg-white/10 text-white"
                   }`}
-                  aria-hidden
-                />
-                <span className="uppercase tracking-[0.16em] opacity-70">Versión</span>
-                <span className="font-extrabold">{isPremium ? "Premium" : "gratuita"}</span>
+                  title={isPremium ? "Versión Premium" : "Versión gratuita"}
+                >
+                  <span
+                    className={`inline-flex h-2.5 w-2.5 rounded-full ${
+                      isPremium ? "bg-emerald-300" : "bg-white/70"
+                    }`}
+                    aria-hidden
+                  />
+                  <span className="uppercase tracking-[0.16em] opacity-70">Versión</span>
+                  <span className="font-extrabold">{isPremium ? "Premium" : "gratuita"}</span>
+                </div>
               </div>
             </div>
           </div>
