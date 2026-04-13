@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Trash2 } from "lucide-react";
 
 type Trip = {
   id: string;
@@ -83,15 +84,6 @@ export default function TripCardItem({
           <div className="rounded-full bg-white/75 px-3 py-1 text-xs font-semibold text-slate-700">
             {locked ? "Premium" : "Entrar"}
           </div>
-          <button
-            type="button"
-            onClick={onDelete}
-            disabled={deleting}
-            className="rounded-full border border-rose-200 bg-white px-3 py-1 text-[11px] font-semibold text-rose-700 transition hover:bg-rose-50 disabled:opacity-60"
-            title="Eliminar viaje"
-          >
-            {deleting ? "Eliminando…" : "Eliminar viaje"}
-          </button>
         </div>
       </div>
 
@@ -120,6 +112,19 @@ export default function TripCardItem({
             Entrar <span aria-hidden>→</span>
           </Link>
         )}
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={deleting}
+          className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-white px-4 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-50 disabled:opacity-60"
+          title="Eliminar viaje"
+        >
+          <Trash2 className="h-4 w-4" aria-hidden />
+          {deleting ? "Eliminando…" : "Eliminar viaje"}
+        </button>
       </div>
     </div>
   );
