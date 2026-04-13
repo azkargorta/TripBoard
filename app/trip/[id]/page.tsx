@@ -8,6 +8,7 @@ import TripTripBasicsEditor from "@/components/trip/home/TripTripBasicsEditor";
 import { computePersonalBalance } from "@/lib/personal-balance";
 import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
 import TripScreenActions from "@/components/trip/common/TripScreenActions";
+import { isPremiumEnabledForTrip } from "@/lib/entitlements";
 
 type TripPageProps = {
   params: {
@@ -120,6 +121,7 @@ export default async function TripPage({ params }: TripPageProps) {
   const tripId = params.id;
   const access = await requireTripAccess(tripId);
   const supabase = await createClient();
+  const isPremium = await isPremiumEnabledForTrip({ supabase, userId: access.userId, tripId });
 
   const [
     { data: trip, error: tripError },
@@ -382,7 +384,30 @@ export default async function TripPage({ params }: TripPageProps) {
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
-        <TripWeatherCard tripId={tripId} destination={currentTrip.destination} />
+        {isPremium ? (
+          <TripWeatherCard tripId={tripId} destination={currentTrip.destination} />
+        ) : (
+          <section className="card-soft p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-600">Clima</p>
+                <h3 className="mt-1 text-2xl font-bold text-slate-950">Próximos 7 días</h3>
+                <p className="mt-1 text-sm text-slate-600">
+                  Funcionalidad disponible solo con el plan Premium.
+                </p>
+              </div>
+              <Link
+                href="/account?upgrade=premium&focus=premium#premium-plans"
+                className="inline-flex min-h-[40px] items-center justify-center rounded-2xl bg-slate-950 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+              >
+                Mejorar a Premium
+              </Link>
+            </div>
+            <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+              La meteorología está deshabilitada en la versión gratuita.
+            </div>
+          </section>
+        )}
 
         <div className="space-y-6">
           <div className="card-soft p-5">

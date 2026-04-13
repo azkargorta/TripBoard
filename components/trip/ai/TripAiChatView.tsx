@@ -125,6 +125,43 @@ export default function TripAiChatView({
   tripId: string;
   isPremium?: boolean;
 }) {
+  if (!isPremium) {
+    return (
+      <main className="space-y-6">
+        <TripBoardPageHeader
+          section="Asistente IA del viaje"
+          title="Chat IA"
+          description="Esta página está reservada a usuarios Premium."
+          actions={<TripScreenActions tripId={tripId} />}
+        />
+
+        <section className="rounded-3xl border border-amber-200 bg-amber-50 p-6">
+          <div className="text-sm font-semibold text-amber-950">
+            Esta página está reservada a usuarios premium.
+          </div>
+          <div className="mt-2 text-sm text-amber-900/80">
+            Mejora a Premium para habilitar chat, memoria, acciones y optimización del viaje.
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link
+              href="/account?upgrade=premium&focus=premium#premium-plans"
+              className="inline-flex min-h-[44px] items-center justify-center rounded-2xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+            >
+              Mejorar a Premium
+            </Link>
+            <Link
+              href={`/trip/${encodeURIComponent(tripId)}`}
+              className="inline-flex min-h-[44px] items-center justify-center rounded-2xl border border-amber-200 bg-white px-4 py-2 text-sm font-semibold text-amber-950 hover:bg-amber-50"
+            >
+              Volver al viaje
+            </Link>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
   const [mode, setMode] = useState<ChatMode>("general");
   const [provider, setProvider] = useState<"auto" | "gemini" | "ollama">("auto");
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -484,32 +521,6 @@ export default function TripAiChatView({
         description="Recuerda conversaciones, ayuda con gastos, optimiza el viaje y ejecuta acciones básicas dentro de la app."
         actions={<TripScreenActions tripId={tripId} />}
       />
-
-      {!isPremium ? (
-        <section className="rounded-3xl border border-amber-200 bg-amber-50 p-5">
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5 rounded-full bg-amber-200 px-2 py-1 text-[11px] font-extrabold uppercase tracking-[0.16em] text-amber-950">
-              Aviso
-            </div>
-            <div className="min-w-0">
-              <div className="text-sm font-semibold text-amber-950">
-                Chat IA deshabilitado para la versión gratuita, mejora a la versión premium para tener todas las funcionalidades.
-              </div>
-              <div className="mt-1 text-sm text-amber-900/80">
-                Puedes seguir navegando por esta pantalla, pero el envío de mensajes y las acciones automáticas están desactivadas.
-              </div>
-              <div className="mt-3">
-                <Link
-                  href="/account?upgrade=premium&focus=premium#premium-plans"
-                  className="inline-flex items-center justify-center rounded-full bg-slate-950 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
-                >
-                  Mejorar a Premium
-                </Link>
-              </div>
-            </div>
-          </div>
-        </section>
-      ) : null}
 
       {itineraryDraft ? (
         <section className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-sky-50 p-5 shadow-sm">
