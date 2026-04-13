@@ -70,7 +70,6 @@ async function geocodeAddress(address: string): Promise<{ latitude: number | nul
   const url = new URL("https://photon.komoot.io/api/");
   url.searchParams.set("q", address);
   url.searchParams.set("limit", "1");
-  url.searchParams.set("lang", "es");
   const response = await fetch(url.toString(), { method: "GET", cache: "no-store" });
   const payload: any = await response.json().catch(() => null);
   const feature = Array.isArray(payload?.features) ? payload.features[0] : null;

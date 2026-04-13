@@ -49,7 +49,6 @@ export async function GET(request: Request) {
     const geocodeUrl = new URL("https://photon.komoot.io/api/");
     geocodeUrl.searchParams.set("q", location);
     geocodeUrl.searchParams.set("limit", "1");
-    geocodeUrl.searchParams.set("lang", "es");
 
     const geocodeResponse = await fetch(geocodeUrl.toString(), { method: "GET", cache: "no-store" });
     const geocodePayload: any = await geocodeResponse.json().catch(() => null);

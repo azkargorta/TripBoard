@@ -40,7 +40,7 @@ export async function GET(request: Request) {
     const url = new URL("https://photon.komoot.io/api/");
     url.searchParams.set("q", q);
     url.searchParams.set("limit", String(limit));
-    url.searchParams.set("lang", "es");
+    // Photon solo admite lang: default, de, en, fr (no "es"); sin parámetro usa default.
 
     const resp = await fetch(url.toString(), { method: "GET", cache: "no-store" });
     const payload = await resp.json().catch(() => null);
