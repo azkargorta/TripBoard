@@ -117,7 +117,13 @@ const SUGGESTIONS: Record<ChatMode, string[]> = {
   ],
 };
 
-export default function TripAiChatView({ tripId }: { tripId: string }) {
+export default function TripAiChatView({
+  tripId,
+  isPremium = true,
+}: {
+  tripId: string;
+  isPremium?: boolean;
+}) {
   const [mode, setMode] = useState<ChatMode>("general");
   const [provider, setProvider] = useState<"auto" | "gemini" | "ollama">("auto");
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -348,7 +354,7 @@ export default function TripAiChatView({ tripId }: { tripId: string }) {
   }, [provider]);
 
   useEffect(() => {
-    void loadConversations();
+    if (isPremium) void loadConversations();
   }, [tripId]);
 
   useEffect(() => {
@@ -364,6 +370,7 @@ export default function TripAiChatView({ tripId }: { tripId: string }) {
   }
 
   async function openConversation(id: string) {
+    if (!isPremium) return;
     setLoading(true);
     setError(null);
     try {
@@ -397,6 +404,7 @@ export default function TripAiChatView({ tripId }: { tripId: string }) {
   }
 
   async function sendMessage(customQuestion?: string) {
+    if (!isPremium) return;
     const clean = (customQuestion ?? question).trim();
     if (!clean || loading) return;
 
@@ -475,6 +483,24 @@ export default function TripAiChatView({ tripId }: { tripId: string }) {
         description="Recuerda conversaciones, ayuda con gastos, optimiza el viaje y ejecuta acciones básicas dentro de la app."
         actions={<TripScreenActions tripId={tripId} />}
       />
+
+      {!isPremium ? (
+        <section className="rounded-3xl border border-amber-200 bg-amber-50 p-5">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 rounded-full bg-amber-200 px-2 py-1 text-[11px] font-extrabold uppercase tracking-[0.16em] text-amber-950">
+              Aviso
+            </div>
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-amber-950">
+                Chat IA deshabilitado para la versión gratuita, mejora a la versión premium para tener todas las funcionalidades.
+              </div>
+              <div className="mt-1 text-sm text-amber-900/80">
+                Puedes seguir navegando por esta pantalla, pero el envío de mensajes y las acciones automáticas están desactivadas.
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       {itineraryDraft ? (
         <section className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-sky-50 p-5 shadow-sm">
@@ -837,6 +863,7 @@ export default function TripAiChatView({ tripId }: { tripId: string }) {
               <button
                 type="button"
                 onClick={newConversation}
+                disabled={!isPremium}
                 className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
               >
                 Nueva
@@ -849,6 +876,7 @@ export default function TripAiChatView({ tripId }: { tripId: string }) {
                   key={item.id}
                   type="button"
                   onClick={() => void openConversation(item.id)}
+                  disabled={!isPremium}
                   className={`w-full rounded-2xl border px-3 py-3 text-left text-sm transition ${
                     conversationId === item.id
                       ? "border-violet-300 bg-violet-50 text-violet-900"
@@ -920,7 +948,7 @@ export default function TripAiChatView({ tripId }: { tripId: string }) {
                   key={item}
                   type="button"
                   onClick={() => void sendMessage(item)}
-                  disabled={loading}
+                  disabled={loading || !isPremium}
                   className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-sm text-slate-700 transition hover:bg-slate-100 disabled:opacity-60"
                 >
                   {item}
@@ -994,6 +1022,7 @@ export default function TripAiChatView({ tripId }: { tripId: string }) {
                 onChange={(e) => setQuestion(e.target.value)}
                 rows={4}
                 placeholder="Escribe tu pregunta o acción sobre el viaje…"
+                disabled={!isPremium}
                 className="min-h-[120px] w-full resize-none rounded-2xl border-0 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400"
               />
 
@@ -1006,7 +1035,7 @@ export default function TripAiChatView({ tripId }: { tripId: string }) {
                   <button
                     type="button"
                     onClick={() => setQuestion("")}
-                    disabled={loading || !question}
+                    disabled={loading || !question || !isPremium}
                     className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
                   >
                     Limpiar
@@ -1014,7 +1043,7 @@ export default function TripAiChatView({ tripId }: { tripId: string }) {
 
                   <button
                     type="submit"
-                    disabled={loading || !question.trim()}
+                    disabled={loading || !question.trim() || !isPremium}
                     className="rounded-xl bg-slate-950 px-5 py-2 text-sm font-semibold text-white disabled:bg-slate-300"
                   >
                     Enviar

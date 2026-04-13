@@ -9,7 +9,13 @@ import ExpenseAnalyzerPanel, { type ExpenseDetectedData } from "@/components/tri
 import { useTripExpenses } from "@/hooks/useTripExpenses";
 import { ChevronDown, Clock, Download, Plus, ScanText, Wallet } from "lucide-react";
 
-export default function TripExpensesView({ tripId }: { tripId: string }) {
+export default function TripExpensesView({
+  tripId,
+  isPremium = true,
+}: {
+  tripId: string;
+  isPremium?: boolean;
+}) {
   const {
     expenses,
     registeredTravelers,
@@ -164,16 +170,18 @@ export default function TripExpensesView({ tripId }: { tripId: string }) {
           type="button"
           className={secondary}
           onClick={() => {
+            if (!isPremium) return;
             setIsAnalyzeOpen((v) => !v);
             if (!isAnalyzeOpen) setIsAddOpen(false);
           }}
+          disabled={!isPremium}
         >
           <ScanText className="h-4 w-4" aria-hidden />
           {isAnalyzeOpen ? "Cerrar análisis" : "Analizar ticket"}
         </button>
       </div>
     );
-  }, [isAnalyzeOpen, shouldShowForm]);
+  }, [isAnalyzeOpen, shouldShowForm, isPremium]);
 
   if (loading) {
     return (
@@ -214,6 +222,15 @@ export default function TripExpensesView({ tripId }: { tripId: string }) {
           {topButtons}
         </div>
       </div>
+
+      {!isPremium ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-950">
+          <div className="font-semibold">Desbloquea esta funcionalidad con el plan Premium.</div>
+          <div className="mt-1 text-amber-900/80">
+            En la versión gratuita puedes registrar y dividir gastos, pero el análisis de documentos (PDF/imagen) está deshabilitado.
+          </div>
+        </div>
+      ) : null}
 
       {exportOpen ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -340,14 +357,23 @@ export default function TripExpensesView({ tripId }: { tripId: string }) {
               <ChevronDown className="h-4 w-4 text-slate-500 transition group-open:rotate-180" aria-hidden />
             </summary>
             <div className="border-t border-slate-200 px-5 py-5">
-              <ExpenseAnalyzerPanel
-                tripBaseCurrency={tripBaseCurrency || "EUR"}
-                onUseDetectedData={(data) => {
-                  setDetectedData(data);
-                  setIsAnalyzeOpen(false);
-                  setIsAddOpen(true);
-                }}
-              />
+              {isPremium ? (
+                <ExpenseAnalyzerPanel
+                  tripBaseCurrency={tripBaseCurrency || "EUR"}
+                  onUseDetectedData={(data) => {
+                    setDetectedData(data);
+                    setIsAnalyzeOpen(false);
+                    setIsAddOpen(true);
+                  }}
+                />
+              ) : (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                  <div className="font-semibold">Desbloquea esta funcionalidad con el plan Premium.</div>
+                  <div className="mt-1 text-amber-900/80">
+                    El análisis de documentos está deshabilitado en la versión gratuita.
+                  </div>
+                </div>
+              )}
             </div>
           </details>
 
