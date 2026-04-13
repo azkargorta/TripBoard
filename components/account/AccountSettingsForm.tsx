@@ -24,6 +24,8 @@ export default function AccountSettingsForm({ initial }: Props) {
   const [pwSaving, setPwSaving] = useState(false);
 
   const planLabel = initial.isPremium ? "Premium" : "Gratis";
+  const [billingStatus, setBillingStatus] = useState<string | null>(null);
+  const [billingLoading, setBillingLoading] = useState(false);
 
   const normalized = useMemo(() => normalizeUsername(username), [username]);
   const usernameValid = isValidUsername(normalized);
@@ -121,6 +123,57 @@ export default function AccountSettingsForm({ initial }: Props) {
     }
   }
 
+  async function startCheckout(plan: "monthly" | "yearly") {
+    setBillingStatus(null);
+    setBillingLoading(true);
+    try {
+      const resp = await withTimeout(
+        fetch("/api/billing/checkout", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ plan }),
+        }),
+        20_000,
+        "Timeout iniciando el pago."
+      );
+      const payload = await resp.json().catch(() => null);
+      if (!resp.ok) throw new Error(payload?.error || `Error ${resp.status}`);
+      const url = String(payload?.url || "");
+      if (!url) throw new Error("Stripe no devolvió URL de checkout.");
+      window.location.assign(url);
+    } catch (e) {
+      setBillingStatus(e instanceof Error ? e.message : "No se pudo iniciar el pago.");
+    } finally {
+      setBillingLoading(false);
+    }
+  }
+
+  async function openPortal() {
+    setBillingStatus(null);
+    setBillingLoading(true);
+    try {
+      const resp = await withTimeout(
+        fetch("/api/billing/portal", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        }),
+        20_000,
+        "Timeout abriendo el portal."
+      );
+      const payload = await resp.json().catch(() => null);
+      if (!resp.ok) throw new Error(payload?.error || `Error ${resp.status}`);
+      const url = String(payload?.url || "");
+      if (!url) throw new Error("Stripe no devolvió URL de portal.");
+      window.location.assign(url);
+    } catch (e) {
+      setBillingStatus(e instanceof Error ? e.message : "No se pudo abrir el portal.");
+    } finally {
+      setBillingLoading(false);
+    }
+  }
+
   return (
     <div className="space-y-8">
       <section className="card-soft p-6">
@@ -135,12 +188,35 @@ export default function AccountSettingsForm({ initial }: Props) {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Link
-              href="/dashboard?upgrade=premium"
-              className="inline-flex min-h-[44px] items-center justify-center rounded-2xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
-            >
-              Pasar a Premium
-            </Link>
+            {!initial.isPremium ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => startCheckout("monthly")}
+                  disabled={billingLoading}
+                  className="inline-flex min-h-[44px] items-center justify-center rounded-2xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                >
+                  {billingLoading ? "Abriendo…" : "Premium mensual"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => startCheckout("yearly")}
+                  disabled={billingLoading}
+                  className="inline-flex min-h-[44px] items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  {billingLoading ? "Abriendo…" : "Premium anual"}
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={openPortal}
+                disabled={billingLoading}
+                className="inline-flex min-h-[44px] items-center justify-center rounded-2xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+              >
+                {billingLoading ? "Abriendo…" : "Gestionar suscripción"}
+              </button>
+            )}
             <Link
               href="/dashboard"
               className="inline-flex min-h-[44px] items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
@@ -149,6 +225,11 @@ export default function AccountSettingsForm({ initial }: Props) {
             </Link>
           </div>
         </div>
+        {billingStatus ? (
+          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+            {billingStatus}
+          </div>
+        ) : null}
       </section>
 
       <section className="card-soft p-6 space-y-4">
