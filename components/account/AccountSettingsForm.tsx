@@ -25,10 +25,8 @@ export default function AccountSettingsForm({ initial }: Props) {
   const planLabel = initial.isPremium ? "Premium" : "Gratis";
   const [billingStatus, setBillingStatus] = useState<string | null>(null);
   const [billingLoading, setBillingLoading] = useState(false);
-  const monthlyPriceLabel =
-    (process.env.NEXT_PUBLIC_PREMIUM_PRICE_MONTHLY as string | undefined) || null;
-  const yearlyPriceLabel =
-    (process.env.NEXT_PUBLIC_PREMIUM_PRICE_YEARLY as string | undefined) || null;
+  const monthlyPriceLabel = "7,99€ / mes";
+  const yearlyPriceLabel = "79,99€ / año";
 
   const normalized = useMemo(() => normalizeUsername(username), [username]);
   const usernameValid = isValidUsername(normalized);
@@ -210,12 +208,15 @@ export default function AccountSettingsForm({ initial }: Props) {
                   </div>
                   <div className="mt-4 flex items-end justify-between gap-3">
                     <div className="text-sm font-semibold text-slate-900">
-                      {monthlyPriceLabel ? monthlyPriceLabel : "Precio en checkout"}
+                      {monthlyPriceLabel}
                     </div>
                     <div className="inline-flex min-h-[40px] items-center justify-center rounded-2xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition group-hover:bg-slate-800">
                       {billingLoading ? "Abriendo…" : "Elegir"}
                     </div>
                   </div>
+                  <p className="mt-3 text-xs leading-relaxed text-slate-500">
+                    Se autorrenueva cada mes hasta que canceles. Puedes cancelar cuando quieras desde “Gestionar suscripción”.
+                  </p>
                 </button>
 
                 <button
@@ -234,13 +235,19 @@ export default function AccountSettingsForm({ initial }: Props) {
                     </p>
                   </div>
                   <div className="mt-4 flex items-end justify-between gap-3">
-                    <div className="text-sm font-semibold text-slate-900">
-                      {yearlyPriceLabel ? yearlyPriceLabel : "Precio en checkout"}
+                    <div className="space-y-1">
+                      <div className="text-sm font-semibold text-slate-900">{yearlyPriceLabel}</div>
+                      <div className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800">
+                        2 meses gratis
+                      </div>
                     </div>
                     <div className="inline-flex min-h-[40px] items-center justify-center rounded-2xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition group-hover:bg-slate-800">
                       {billingLoading ? "Abriendo…" : "Elegir"}
                     </div>
                   </div>
+                  <p className="mt-3 text-xs leading-relaxed text-slate-500">
+                    Se autorrenueva cada año hasta que canceles. Puedes cancelar cuando quieras desde “Gestionar suscripción”.
+                  </p>
                 </button>
               </div>
             ) : (
