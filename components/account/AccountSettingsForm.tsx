@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { isValidPassword, isValidUsername, normalizeUsername } from "@/lib/validators/auth";
 import { withTimeout } from "@/lib/with-timeout";
 
@@ -13,6 +14,7 @@ type Props = {
 };
 
 export default function AccountSettingsForm({ initial }: Props) {
+  const searchParams = useSearchParams();
   const [username, setUsername] = useState(initial.username);
   const [usernameStatus, setUsernameStatus] = useState<string | null>(null);
   const [usernameSaving, setUsernameSaving] = useState(false);
@@ -27,6 +29,7 @@ export default function AccountSettingsForm({ initial }: Props) {
   const [billingLoading, setBillingLoading] = useState(false);
   const monthlyPriceLabel = "7,99€ / mes";
   const yearlyPriceLabel = "79,99€ / año";
+  const [highlightPlans, setHighlightPlans] = useState(false);
 
   const normalized = useMemo(() => normalizeUsername(username), [username]);
   const usernameValid = isValidUsername(normalized);
@@ -175,9 +178,28 @@ export default function AccountSettingsForm({ initial }: Props) {
     }
   }
 
+  useEffect(() => {
+    const upgrade = searchParams?.get("upgrade");
+    const focus = searchParams?.get("focus");
+    const shouldFocus = upgrade === "premium" || focus === "premium";
+    if (!shouldFocus) return;
+
+    const el = document.getElementById("premium-plans");
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      setHighlightPlans(true);
+      window.setTimeout(() => setHighlightPlans(false), 1800);
+    }
+  }, [searchParams]);
+
   return (
     <div className="space-y-8">
-      <section className="card-soft p-6">
+      <section
+        id="premium-plans"
+        className={`card-soft p-6 transition ${
+          highlightPlans ? "ring-2 ring-violet-300/60 ring-offset-2 ring-offset-slate-50" : ""
+        }`}
+      >
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-1">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Plan</p>

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Route, Save } from "lucide-react";
+import Link from "next/link";
 
 type PlanItem = {
   id: string;
@@ -234,6 +235,14 @@ export default function TripRoutesFreeView({ tripId }: { tripId: string }) {
             <div className="mt-1 text-sm text-amber-900/80">
               En la versión gratuita puedes crear rutas “manuales” escribiendo lugares (sin autocompletar ni coordenadas)
               o eligiendo un plan ya creado.
+            </div>
+            <div className="mt-3">
+              <Link
+                href="/account?upgrade=premium&focus=premium#premium-plans"
+                className="inline-flex items-center justify-center rounded-full bg-slate-950 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
+              >
+                Mejorar a Premium
+              </Link>
             </div>
           </div>
         </div>

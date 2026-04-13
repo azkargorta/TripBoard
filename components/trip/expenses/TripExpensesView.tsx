@@ -8,6 +8,7 @@ import CurrencyConverterCard from "@/components/trip/expenses/CurrencyConverterC
 import ExpenseAnalyzerPanel, { type ExpenseDetectedData } from "@/components/trip/expenses/ExpenseAnalyzerPanel";
 import { useTripExpenses } from "@/hooks/useTripExpenses";
 import { ChevronDown, Clock, Download, Plus, ScanText, Wallet } from "lucide-react";
+import Link from "next/link";
 
 export default function TripExpensesView({
   tripId,
@@ -229,6 +230,14 @@ export default function TripExpensesView({
           <div className="mt-1 text-amber-900/80">
             En la versión gratuita puedes registrar y dividir gastos, pero el análisis de documentos (PDF/imagen) está deshabilitado.
           </div>
+          <div className="mt-3">
+            <Link
+              href="/account?upgrade=premium&focus=premium#premium-plans"
+              className="inline-flex items-center justify-center rounded-full bg-slate-950 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
+            >
+              Mejorar a Premium
+            </Link>
+          </div>
         </div>
       ) : null}
 
@@ -371,6 +380,14 @@ export default function TripExpensesView({
                   <div className="font-semibold">Desbloquea esta funcionalidad con el plan Premium.</div>
                   <div className="mt-1 text-amber-900/80">
                     El análisis de documentos está deshabilitado en la versión gratuita.
+                  </div>
+                  <div className="mt-3">
+                    <Link
+                      href="/account?upgrade=premium&focus=premium#premium-plans"
+                      className="inline-flex items-center justify-center rounded-full bg-slate-950 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
+                    >
+                      Mejorar a Premium
+                    </Link>
                   </div>
                 </div>
               )}

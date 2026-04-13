@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import TripScreenActions from "@/components/trip/common/TripScreenActions";
 import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
+import Link from "next/link";
 
 type ChatMode = "general" | "planning" | "expenses" | "optimizer" | "actions";
 
@@ -496,6 +497,14 @@ export default function TripAiChatView({
               </div>
               <div className="mt-1 text-sm text-amber-900/80">
                 Puedes seguir navegando por esta pantalla, pero el envío de mensajes y las acciones automáticas están desactivadas.
+              </div>
+              <div className="mt-3">
+                <Link
+                  href="/account?upgrade=premium&focus=premium#premium-plans"
+                  className="inline-flex items-center justify-center rounded-full bg-slate-950 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
+                >
+                  Mejorar a Premium
+                </Link>
               </div>
             </div>
           </div>
