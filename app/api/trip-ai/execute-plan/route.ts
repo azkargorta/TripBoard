@@ -66,18 +66,29 @@ function buildGeocodeQuery(opts: { placeName: string | null; address: string | n
   return parts.join(", ");
 }
 
-async function geocodeAddress(address: string, apiKey: string): Promise<{ latitude: number | null; longitude: number | null; formattedAddress?: string | null }> {
-  const url = new URL("https://maps.googleapis.com/maps/api/geocode/json");
-  url.searchParams.set("address", address);
-  url.searchParams.set("key", apiKey);
+async function geocodeAddress(address: string): Promise<{ latitude: number | null; longitude: number | null; formattedAddress?: string | null }> {
+  const url = new URL("https://photon.komoot.io/api/");
+  url.searchParams.set("q", address);
+  url.searchParams.set("limit", "1");
+  url.searchParams.set("lang", "es");
   const response = await fetch(url.toString(), { method: "GET", cache: "no-store" });
   const payload: any = await response.json().catch(() => null);
-  if (!response.ok || payload?.status !== "OK" || !payload?.results?.length) {
-    return { latitude: null, longitude: null, formattedAddress: null };
-  }
-  const first = payload.results[0];
-  const location = first?.geometry?.location;
-  return { latitude: location?.lat ?? null, longitude: location?.lng ?? null, formattedAddress: first?.formatted_address ?? null };
+  const feature = Array.isArray(payload?.features) ? payload.features[0] : null;
+  const coords = feature?.geometry?.coordinates;
+  const longitude = Array.isArray(coords) ? Number(coords[0]) : null;
+  const latitude = Array.isArray(coords) ? Number(coords[1]) : null;
+  const formattedAddress =
+    (feature?.properties && typeof feature.properties === "object"
+      ? [feature.properties.name, feature.properties.street, feature.properties.city, feature.properties.country]
+          .filter(Boolean)
+          .join(", ")
+      : "") || null;
+  if (!response.ok) return { latitude: null, longitude: null, formattedAddress: null };
+  return {
+    latitude: Number.isFinite(latitude as any) ? latitude : null,
+    longitude: Number.isFinite(longitude as any) ? longitude : null,
+    formattedAddress,
+  };
 }
 
 export async function POST(req: Request) {
@@ -110,11 +121,6 @@ export async function POST(req: Request) {
     const { data: tripRow } = await supabase.from("trips").select("destination").eq("id", tripId).single();
     const tripDestination = typeof tripRow?.destination === "string" ? tripRow.destination : null;
 
-    const apiKey =
-      process.env.GOOGLE_MAPS_API_KEY ||
-      process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ||
-      "";
-
     const geocodeCache = new Map<string, { latitude: number | null; longitude: number | null; formattedAddress?: string | null }>();
     let geocodeCount = 0;
     const GEOCODE_LIMIT = 40; // evita tiempos largos/costes excesivos
@@ -138,9 +144,9 @@ export async function POST(req: Request) {
         let normalizedAddress: string | null = address;
 
         const query = buildGeocodeQuery({ placeName: place_name, address, tripDestination });
-        if (apiKey && query && geocodeCount < GEOCODE_LIMIT) {
+        if (query && geocodeCount < GEOCODE_LIMIT) {
           const cached = geocodeCache.get(query);
-          const geo = cached ?? (await geocodeAddress(query, apiKey));
+          const geo = cached ?? (await geocodeAddress(query));
           if (!cached) geocodeCache.set(query, geo);
           geocodeCount += 1;
           latitude = geo.latitude ?? null;

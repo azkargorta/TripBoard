@@ -32,7 +32,7 @@ export default async function TripLayout({
         {isPremium && googleApiKey ? (
           <Script
             id="google-maps-places-global"
-            src={`https://maps.googleapis.com/maps/api/js?key=${googleApiKey}&libraries=places`}
+            src={`https://maps.googleapis.com/maps/api/js?key=${googleApiKey}`}
             strategy="afterInteractive"
           />
         ) : null}

@@ -60,9 +60,6 @@ export default function TripWeatherCard({ tripId, destination }: Props) {
   const [customLocation, setCustomLocation] = useState("");
   const [effectiveLocation, setEffectiveLocation] = useState<string | null>(null);
 
-  // No memorizamos: Google Places puede cargarse después
-  const canUseGooglePlaces = typeof window !== "undefined" && !!window.google?.maps?.places;
-
   useEffect(() => {
     let cancelled = false;
 
@@ -155,21 +152,15 @@ export default function TripWeatherCard({ tripId, destination }: Props) {
           ) : null}
         </div>
 
-        {canUseGooglePlaces ? (
-          <div className="mt-3">
-            <PlaceAutocompleteInput
-              value={customLocation}
-              onChange={setCustomLocation}
-              label="Buscar ubicación"
-              placeholder="Ej. Madrid, España"
-              onPlaceSelect={(p) => setEffectiveLocation(p.address)}
-            />
-          </div>
-        ) : (
-          <div className="mt-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-            Activa Google Places (Maps JavaScript API) para usar el autocompletado aquí.
-          </div>
-        )}
+        <div className="mt-3">
+          <PlaceAutocompleteInput
+            value={customLocation}
+            onChange={setCustomLocation}
+            label="Buscar ubicación"
+            placeholder="Ej. Madrid, España"
+            onPlaceSelect={(p) => setEffectiveLocation(p.address)}
+          />
+        </div>
       </div>
 
       {!destination && !effectiveLocation ? (

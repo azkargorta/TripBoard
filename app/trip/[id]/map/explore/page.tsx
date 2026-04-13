@@ -57,7 +57,7 @@ export default async function ExplorePage({ params }: { params: { id: string } }
       {apiKey ? (
         <Script
           id="google-maps-places-explore"
-          src={`https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`}
+          src={`https://maps.googleapis.com/maps/api/js?key=${apiKey}`}
           strategy="afterInteractive"
         />
       ) : null}

@@ -11,7 +11,8 @@ type AutocompletePayload = {
 type PredictionItem = {
   id: string;
   description: string;
-  placeId: string;
+  latitude: number | null;
+  longitude: number | null;
 };
 
 type Props = {
@@ -39,9 +40,6 @@ export default function PlaceAutocompleteInput({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const requestIdRef = useRef(0);
 
-  // No memorizamos: el script de Google puede cargarse tras montar el componente
-  const canUseGoogle = typeof window !== "undefined" && !!window.google?.maps?.places;
-
   useEffect(() => {
     function handleOutside(event: MouseEvent) {
       if (!rootRef.current) return;
@@ -55,8 +53,6 @@ export default function PlaceAutocompleteInput({
   }, []);
 
   useEffect(() => {
-    if (!canUseGoogle) return;
-
     const text = value.trim();
     if (text.length < 3) {
       setPredictions([]);
@@ -70,20 +66,20 @@ export default function PlaceAutocompleteInput({
       try {
         setLoading(true);
         setError(null);
-
-        const service = new window.google.maps.places.AutocompleteService();
-        const result = await service.getPlacePredictions({
-          input: text,
-          types: ["geocode"],
+        const resp = await fetch(`/api/places/search?q=${encodeURIComponent(text)}&limit=6`, {
+          method: "GET",
+          cache: "no-store",
         });
-
+        const payload = await resp.json().catch(() => null);
+        if (!resp.ok) throw new Error(payload?.error || `Error ${resp.status}`);
         if (cancelled || currentRequestId != requestIdRef.current) return;
 
-        const next = (result.predictions || []).map((prediction) => ({
-          id: prediction.place_id,
-          description: prediction.description,
-          placeId: prediction.place_id,
-        }));
+        const next = (Array.isArray(payload?.places) ? payload.places : []).map((p: any) => ({
+          id: String(p?.id || crypto.randomUUID()),
+          description: String(p?.label || p?.address || "").trim(),
+          latitude: typeof p?.latitude === "number" ? p.latitude : null,
+          longitude: typeof p?.longitude === "number" ? p.longitude : null,
+        })).filter((p: any) => p.description);
 
         setPredictions(next);
         setIsOpen(true);
@@ -103,81 +99,21 @@ export default function PlaceAutocompleteInput({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [value, canUseGoogle]);
+  }, [value]);
 
   async function resolvePrediction(prediction: PredictionItem) {
-    if (!canUseGoogle) return;
-
     try {
       setLoading(true);
       setError(null);
-
-      const place = await new Promise<google.maps.places.PlaceResult>((resolve, reject) => {
-        const container = document.createElement("div");
-        const service = new window.google.maps.places.PlacesService(container);
-
-        service.getDetails(
-          {
-            placeId: prediction.placeId,
-            fields: ["formatted_address", "geometry", "name"],
-          },
-          (result, status) => {
-            if (
-              status === window.google.maps.places.PlacesServiceStatus.OK &&
-              result
-            ) {
-              resolve(result);
-            } else {
-              reject(new Error(String(status)));
-            }
-          }
-        );
-      });
-
-      const lat = place.geometry?.location?.lat?.() ?? null;
-      const lng = place.geometry?.location?.lng?.() ?? null;
-      const address =
-        place.formatted_address || place.name || prediction.description || value;
-
+      const address = prediction.description || value;
       onChange(address);
       onPlaceSelect({
         address,
-        latitude: lat,
-        longitude: lng,
+        latitude: prediction.latitude,
+        longitude: prediction.longitude,
       });
-
       setPredictions([]);
       setIsOpen(false);
-    } catch (err) {
-      console.error("Place details error", err);
-
-      try {
-        const geocoder = new window.google.maps.Geocoder();
-        const geocodeResult = await geocoder.geocode({
-          address: prediction.description,
-        });
-        const location = geocodeResult.results?.[0]?.geometry?.location;
-
-        const lat = location?.lat?.() ?? null;
-        const lng = location?.lng?.() ?? null;
-        const address =
-          geocodeResult.results?.[0]?.formatted_address ||
-          prediction.description ||
-          value;
-
-        onChange(address);
-        onPlaceSelect({
-          address,
-          latitude: lat,
-          longitude: lng,
-        });
-
-        setPredictions([]);
-        setIsOpen(false);
-      } catch (fallbackErr) {
-        console.error("Geocode fallback error", fallbackErr);
-        setError("No se pudieron obtener las coordenadas del lugar.");
-      }
     } finally {
       setLoading(false);
     }

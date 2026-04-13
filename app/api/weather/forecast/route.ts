@@ -46,40 +46,17 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Falta la ubicación." }, { status: 400 });
     }
 
-    const apiKey =
-      process.env.GOOGLE_MAPS_API_KEY ||
-      process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ||
-      "";
+    const geocodeUrl = new URL("https://photon.komoot.io/api/");
+    geocodeUrl.searchParams.set("q", location);
+    geocodeUrl.searchParams.set("limit", "1");
+    geocodeUrl.searchParams.set("lang", "es");
 
-    if (!apiKey) {
-      return NextResponse.json({ error: "Falta GOOGLE_MAPS_API_KEY." }, { status: 500 });
-    }
-
-    const geocodeUrl = new URL("https://maps.googleapis.com/maps/api/geocode/json");
-    geocodeUrl.searchParams.set("address", location);
-    geocodeUrl.searchParams.set("key", apiKey);
-
-    const geocodeResponse = await fetch(geocodeUrl.toString(), {
-      method: "GET",
-      cache: "no-store",
-    });
-    const geocodePayload = await geocodeResponse.json();
-
-    if (!geocodeResponse.ok || geocodePayload?.status !== "OK" || !geocodePayload?.results?.length) {
-      return NextResponse.json(
-        {
-          error:
-            geocodePayload?.error_message ||
-            geocodePayload?.status ||
-            "No se pudo localizar el destino para consultar el clima.",
-        },
-        { status: 400 }
-      );
-    }
-
-    const first = geocodePayload.results[0];
-    const latitude = Number(first?.geometry?.location?.lat);
-    const longitude = Number(first?.geometry?.location?.lng);
+    const geocodeResponse = await fetch(geocodeUrl.toString(), { method: "GET", cache: "no-store" });
+    const geocodePayload: any = await geocodeResponse.json().catch(() => null);
+    const feature = Array.isArray(geocodePayload?.features) ? geocodePayload.features[0] : null;
+    const coords = feature?.geometry?.coordinates;
+    const longitude = Array.isArray(coords) ? Number(coords[0]) : NaN;
+    const latitude = Array.isArray(coords) ? Number(coords[1]) : NaN;
 
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
       return NextResponse.json(
@@ -126,7 +103,10 @@ export async function GET(request: Request) {
     });
 
     return NextResponse.json({
-      resolvedLocation: first?.formatted_address || location,
+      resolvedLocation:
+        (feature?.properties && typeof feature.properties === "object"
+          ? [feature.properties.name, feature.properties.city, feature.properties.country].filter(Boolean).join(", ")
+          : "") || location,
       latitude,
       longitude,
       days,
