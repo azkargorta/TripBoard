@@ -282,6 +282,12 @@ export default async function DashboardPage() {
                 </Link>
               ) : null}
               <Link
+                href="/account"
+                className="inline-flex min-h-[44px] items-center justify-center rounded-2xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15"
+              >
+                Cuenta
+              </Link>
+              <Link
                 href="/"
                 className="inline-flex min-h-[44px] items-center justify-center rounded-2xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15"
               >
