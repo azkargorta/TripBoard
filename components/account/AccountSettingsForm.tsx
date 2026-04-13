@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { isValidPassword, isValidUsername, normalizeUsername } from "@/lib/validators/auth";
 import { withTimeout } from "@/lib/with-timeout";
 
@@ -26,6 +25,10 @@ export default function AccountSettingsForm({ initial }: Props) {
   const planLabel = initial.isPremium ? "Premium" : "Gratis";
   const [billingStatus, setBillingStatus] = useState<string | null>(null);
   const [billingLoading, setBillingLoading] = useState(false);
+  const monthlyPriceLabel =
+    (process.env.NEXT_PUBLIC_PREMIUM_PRICE_MONTHLY as string | undefined) || null;
+  const yearlyPriceLabel =
+    (process.env.NEXT_PUBLIC_PREMIUM_PRICE_YEARLY as string | undefined) || null;
 
   const normalized = useMemo(() => normalizeUsername(username), [username]);
   const usernameValid = isValidUsername(normalized);
@@ -187,26 +190,59 @@ export default function AccountSettingsForm({ initial }: Props) {
                 : "IA, mapas/rutas y coordenadas están bloqueados en el plan gratuito."}
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="w-full sm:w-auto">
             {!initial.isPremium ? (
-              <>
+              <div className="grid gap-3 sm:grid-cols-2">
                 <button
                   type="button"
                   onClick={() => startCheckout("monthly")}
                   disabled={billingLoading}
-                  className="inline-flex min-h-[44px] items-center justify-center rounded-2xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                  className="group flex w-full flex-col justify-between rounded-3xl border border-slate-200 bg-white p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-50"
                 >
-                  {billingLoading ? "Abriendo…" : "Premium mensual"}
+                  <div className="space-y-2">
+                    <div className="inline-flex items-center gap-2">
+                      <span className="inline-flex h-2 w-2 rounded-full bg-violet-500" aria-hidden />
+                      <span className="text-sm font-semibold text-slate-950">Premium mensual</span>
+                    </div>
+                    <p className="text-sm text-slate-600">
+                      Pago recurrente. Ideal para probar sin compromiso.
+                    </p>
+                  </div>
+                  <div className="mt-4 flex items-end justify-between gap-3">
+                    <div className="text-sm font-semibold text-slate-900">
+                      {monthlyPriceLabel ? monthlyPriceLabel : "Precio en checkout"}
+                    </div>
+                    <div className="inline-flex min-h-[40px] items-center justify-center rounded-2xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition group-hover:bg-slate-800">
+                      {billingLoading ? "Abriendo…" : "Elegir"}
+                    </div>
+                  </div>
                 </button>
+
                 <button
                   type="button"
                   onClick={() => startCheckout("yearly")}
                   disabled={billingLoading}
-                  className="inline-flex min-h-[44px] items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+                  className="group flex w-full flex-col justify-between rounded-3xl border border-slate-200 bg-white p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-50"
                 >
-                  {billingLoading ? "Abriendo…" : "Premium anual"}
+                  <div className="space-y-2">
+                    <div className="inline-flex items-center gap-2">
+                      <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500" aria-hidden />
+                      <span className="text-sm font-semibold text-slate-950">Premium anual</span>
+                    </div>
+                    <p className="text-sm text-slate-600">
+                      Mejor valor. Ahorra frente al plan mensual.
+                    </p>
+                  </div>
+                  <div className="mt-4 flex items-end justify-between gap-3">
+                    <div className="text-sm font-semibold text-slate-900">
+                      {yearlyPriceLabel ? yearlyPriceLabel : "Precio en checkout"}
+                    </div>
+                    <div className="inline-flex min-h-[40px] items-center justify-center rounded-2xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition group-hover:bg-slate-800">
+                      {billingLoading ? "Abriendo…" : "Elegir"}
+                    </div>
+                  </div>
                 </button>
-              </>
+              </div>
             ) : (
               <button
                 type="button"
@@ -217,12 +253,6 @@ export default function AccountSettingsForm({ initial }: Props) {
                 {billingLoading ? "Abriendo…" : "Gestionar suscripción"}
               </button>
             )}
-            <Link
-              href="/dashboard"
-              className="inline-flex min-h-[44px] items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-            >
-              Volver al dashboard
-            </Link>
           </div>
         </div>
         {billingStatus ? (

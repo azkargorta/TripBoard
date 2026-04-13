@@ -281,20 +281,33 @@ export default async function DashboardPage() {
                   Administración
                 </Link>
               ) : null}
+              <div
+                className={`flex min-h-[44px] items-center gap-3 rounded-2xl border px-4 py-2 ${
+                  isPremium
+                    ? "border-emerald-300/30 bg-emerald-400/15 text-emerald-50"
+                    : "border-white/20 bg-white/10 text-white"
+                }`}
+                title={isPremium ? "Plan Premium activo" : "Plan gratuito"}
+              >
+                <span
+                  className={`inline-flex h-2.5 w-2.5 rounded-full ${
+                    isPremium ? "bg-emerald-300" : "bg-white/70"
+                  }`}
+                  aria-hidden
+                />
+                <div className="leading-tight">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-80">
+                    Plan
+                  </div>
+                  <div className="text-sm font-extrabold">{isPremium ? "Premium" : "Gratis"}</div>
+                </div>
+              </div>
               <Link
                 href="/account"
                 className="inline-flex min-h-[44px] items-center justify-center rounded-2xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15"
               >
                 Cuenta
               </Link>
-              <div
-                className={`inline-flex min-h-[44px] items-center justify-center rounded-2xl px-4 py-2 text-sm font-semibold ${
-                  isPremium ? "bg-emerald-400/20 text-emerald-50 border border-emerald-300/30" : "bg-white/10 text-white border border-white/20"
-                }`}
-                title={isPremium ? "Plan Premium activo" : "Plan gratuito"}
-              >
-                {isPremium ? "Premium" : "Gratis"}
-              </div>
               <Link
                 href="/"
                 className="inline-flex min-h-[44px] items-center justify-center rounded-2xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15"

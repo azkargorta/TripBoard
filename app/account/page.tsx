@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import TripBoardPremiumHero from "@/components/layout/TripBoardPremiumHero";
 import AccountSettingsForm from "@/components/account/AccountSettingsForm";
+import Link from "next/link";
 
 export default async function AccountPage() {
   const supabase = await createClient();
@@ -27,6 +28,14 @@ export default async function AccountPage() {
         eyebrow="Cuenta"
         title="Tu cuenta"
         description="Gestiona tu plan, credenciales y nombre de usuario."
+        actions={
+          <Link
+            href="/dashboard"
+            className="inline-flex min-h-[44px] items-center justify-center rounded-2xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15"
+          >
+            Volver al dashboard
+          </Link>
+        }
       />
 
       <AccountSettingsForm initial={{ username, email, isPremium }} />
