@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { withTimeout } from "@/lib/with-timeout";
 
 export type InviteStatus = "pending" | "accepted" | "expired" | "cancelled";
 
@@ -29,16 +30,15 @@ function nowIso() {
 }
 
 export async function getCurrentUser() {
-  const {
-    data: { session },
-    error,
-  } = await supabase.auth.getSession();
+  // getSession() puede no resolver en Safari/WebViews; getUser() es más estable.
+  const { data, error } = await withTimeout(
+    supabase.auth.getUser(),
+    8_000,
+    "No se pudo comprobar tu sesión (timeout). Recarga e inténtalo de nuevo."
+  );
 
-  if (error) {
-    throw error;
-  }
-
-  return session?.user ?? null;
+  if (error) throw error;
+  return data.user ?? null;
 }
 
 export async function getInviteByToken(token: string) {

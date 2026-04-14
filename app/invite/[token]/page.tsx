@@ -8,6 +8,7 @@ import {
   getInviteByToken,
   type TripInviteRecord,
 } from "@/lib/trip-invite-accept";
+import { withTimeout } from "@/lib/with-timeout";
 
 type InvitePageProps = {
   params: {
@@ -32,13 +33,21 @@ export default function InvitePage({ params }: InvitePageProps) {
         setLoadingInvite(true);
         setError(null);
 
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
+        // Importante: en Safari/WebViews, getSession() puede no resolver nunca.
+        // Cargamos la invitación igualmente y tratamos el usuario por separado con timeout.
+        const [inviteData, userId] = await Promise.all([
+          getInviteByToken(token),
+          withTimeout(
+            supabase.auth
+              .getUser()
+              .then(({ data }) => data.user?.id ?? null)
+              .catch(() => null),
+            6_000,
+            "No se pudo comprobar tu sesión a tiempo. Prueba a recargar."
+          ).catch(() => null),
+        ]);
 
-        setCurrentUserId(session?.user?.id ?? null);
-
-        const inviteData = await getInviteByToken(token);
+        setCurrentUserId(userId);
         setInvite(inviteData);
       } catch (err) {
         setError(err instanceof Error ? err.message : "No se pudo cargar la invitación");
