@@ -32,6 +32,8 @@ export default async function TripExpensesPage({
         section="Gastos del viaje"
         title="Control de gastos"
         description="Registra tickets, divide importes entre pasajeros, convierte moneda y marca pagos pendientes."
+        iconSrc="/brand/tabs/expenses.png"
+        iconAlt="Gastos"
         actions={<TripScreenActions tripId={tripId} />}
       />
 

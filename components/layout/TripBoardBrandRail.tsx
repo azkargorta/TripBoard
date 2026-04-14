@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import TripBoardLogo from "@/components/brand/TripBoardLogo";
 import { useTripBoardHeader } from "@/components/layout/TripBoardHeaderContext";
 
@@ -12,6 +13,8 @@ type Props = {
 export default function TripBoardBrandRail({ tripId, tripName }: Props) {
   const { header } = useTripBoardHeader();
   const section = header.section?.trim() || "";
+  const iconSrc = header.iconSrc?.trim() || "";
+  const iconAlt = header.iconAlt?.trim() || header.title?.trim() || header.section?.trim() || "Módulo";
 
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
@@ -21,13 +24,31 @@ export default function TripBoardBrandRail({ tripId, tripName }: Props) {
       >
         <div className="flex min-h-[44px] items-center justify-between gap-2">
           <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <TripBoardLogo
-              href="/dashboard"
-              variant="dark"
-              size="sm"
-              className="shrink-0"
-              imageClassName="h-6 w-auto max-w-none md:h-5"
-            />
+            {iconSrc ? (
+              <Link
+                href={`/trip/${tripId}`}
+                className="inline-flex shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white/70 ring-1 ring-slate-200 transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60"
+                style={{ width: 42, height: 42 }}
+                title="Ir al resumen del viaje"
+              >
+                <Image
+                  src={iconSrc}
+                  alt={iconAlt}
+                  width={42}
+                  height={42}
+                  className="h-full w-full object-contain object-center scale-[1.18]"
+                  priority
+                />
+              </Link>
+            ) : (
+              <TripBoardLogo
+                href="/dashboard"
+                variant="dark"
+                size="sm"
+                className="shrink-0"
+                imageClassName="h-6 w-auto max-w-none md:h-5"
+              />
+            )}
             <div className="min-w-0">
               <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                 <Link

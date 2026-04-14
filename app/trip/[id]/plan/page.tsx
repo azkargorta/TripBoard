@@ -25,6 +25,8 @@ export default async function TripPlanPage({
             ? "Añade lugares, fechas, horas y coordenadas. Todo lo guardado aquí se reutiliza en el mapa para crear rutas y organizar el viaje."
             : "Plan gratuito: añade lugares y horarios manualmente. Sin autocompletar, sin coordenadas y sin mapa."
         }
+        iconSrc="/brand/tabs/plan.png"
+        iconAlt="Plan"
         actions={<TripScreenActions tripId={params.id} />}
       />
 

@@ -132,6 +132,8 @@ export default function TripAiChatView({
           section="Asistente IA del viaje"
           title="Chat IA"
           description="Esta página está reservada a usuarios Premium."
+          iconSrc="/brand/tabs/ai.png"
+          iconAlt="Chat IA"
           actions={<TripScreenActions tripId={tripId} />}
         />
 
@@ -519,6 +521,8 @@ export default function TripAiChatView({
         section="Asistente IA del viaje"
         title="Chat, memoria, acciones y optimización"
         description="Recuerda conversaciones, ayuda con gastos, optimiza el viaje y ejecuta acciones básicas dentro de la app."
+        iconSrc="/brand/tabs/ai.png"
+        iconAlt="Chat IA"
         actions={<TripScreenActions tripId={tripId} />}
       />
 

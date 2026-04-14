@@ -7,6 +7,8 @@ type TripModuleHeaderProps = {
   subtitle?: string;
   description?: string;
   eyebrow?: string;
+  iconSrc?: string;
+  iconAlt?: string;
 };
 
 export default function TripModuleHeader({
@@ -15,6 +17,8 @@ export default function TripModuleHeader({
   subtitle,
   description,
   eyebrow,
+  iconSrc,
+  iconAlt,
 }: TripModuleHeaderProps) {
   const text = subtitle ?? description ?? "";
 
@@ -23,6 +27,8 @@ export default function TripModuleHeader({
       section={eyebrow ?? title}
       title={title}
       description={text || undefined}
+      iconSrc={iconSrc}
+      iconAlt={iconAlt}
       actions={<TripTabActions tripId={tripId} />}
     />
   );

@@ -22,6 +22,8 @@ export default async function ExplorePage({ params }: { params: { id: string } }
           section="Mapa explorador"
           title="Explorar y guardar"
           description="Esta página está reservada a usuarios Premium."
+          iconSrc="/brand/tabs/map.png"
+          iconAlt="Mapa"
           actions={<TripTabActions tripId={tripId} />}
         />
 
@@ -67,6 +69,8 @@ export default async function ExplorePage({ params }: { params: { id: string } }
           section="Mapa explorador"
           title="Explorar y guardar"
           description="Busca restaurantes, museos y actividades y guárdalos en carpetas dentro del viaje."
+          iconSrc="/brand/tabs/map.png"
+          iconAlt="Mapa"
           actions={<TripTabActions tripId={tripId} />}
         />
 

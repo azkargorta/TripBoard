@@ -7,6 +7,9 @@ export type TripBoardHeaderConfig = {
   section?: string;
   title?: string;
   description?: string;
+  /** Icono del módulo/página (reemplaza el logo general en el header). */
+  iconSrc?: string;
+  iconAlt?: string;
   actions?: ReactNode;
 };
 

@@ -10,7 +10,7 @@ export default function TripBoardPageHeader(props: TripBoardHeaderConfig) {
     setHeader(props);
     return () => clearHeader();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.section, props.title, props.description, props.actions]);
+  }, [props.section, props.title, props.description, props.iconSrc, props.iconAlt, props.actions]);
 
   return null;
 }

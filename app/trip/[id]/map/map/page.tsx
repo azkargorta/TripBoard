@@ -82,6 +82,8 @@ export default async function TripMapPage({ params }: Props) {
         section="Mapa del viaje"
         title={trip.name || "Viaje"}
         description="Organiza actividades sobre el mapa, crea rutas del día y visualiza lugares guardados."
+        iconSrc="/brand/tabs/map.png"
+        iconAlt="Mapa"
         actions={<TripTabActions tripId={tripId} />}
       />
 
