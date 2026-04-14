@@ -270,8 +270,8 @@ export default async function TripPage({ params }: TripPageProps) {
     },
     {
       href: `/trip/${tripId}/resources`,
-      title: "Recursos",
-      subtitle: "Tickets, reservas y docs",
+      title: "Recursos y listas",
+      subtitle: "Tickets, reservas, docs y listas",
       iconSrc: "/brand/tabs/resources.png",
       iconAlt: "Recursos",
       metric: `${resources.length} recursos`,

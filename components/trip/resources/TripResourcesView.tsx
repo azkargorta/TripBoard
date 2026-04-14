@@ -52,6 +52,7 @@ export default function TripResourcesView({ tripId, aiEnabled = false }: { tripI
   const [templateType, setTemplateType] = useState<ReservationTemplateType | null>(null);
   const [showUploadForm, setShowUploadForm] = useState(false);
   const [showAnalyzerForm, setShowAnalyzerForm] = useState(false);
+  const [showLists, setShowLists] = useState(false);
 
   const editingMode = useMemo(() => Boolean(editingReservation), [editingReservation]);
   const showLodgingForm = editingMode || templateType === "lodging";
@@ -70,7 +71,25 @@ export default function TripResourcesView({ tripId, aiEnabled = false }: { tripI
         </div>
       ) : null}
 
-      <TripListsPanel tripId={tripId} isPremium={aiEnabled} />
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h3 className="text-lg font-semibold text-slate-900">Listas</h3>
+            <p className="mt-1 text-sm text-slate-500">
+              Crea listas privadas o compartidas (compra, maleta, documentos…).
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowLists((v) => !v)}
+            className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+          >
+            {showLists ? "Cerrar listas" : "Crear/ver listas"}
+          </button>
+        </div>
+
+        {showLists ? <TripListsPanel tripId={tripId} isPremium={aiEnabled} /> : null}
+      </section>
 
       <div className="grid gap-6 xl:grid-cols-2">
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
