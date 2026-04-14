@@ -22,29 +22,19 @@ export default function AuthShell({
 
             <div className="relative z-10">
               <div className="flex items-center gap-4">
-                <div className="overflow-hidden rounded-3xl bg-white p-2 shadow-lg">
+                <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-3xl bg-white/95 p-3 shadow-lg">
                   <Image
                     src="/brand/icon.png"
                     alt="Kaviro logo"
                     width={88}
                     height={88}
-                    className="h-20 w-20 object-contain"
+                    className="h-full w-full object-contain"
                     priority
                   />
                 </div>
 
                 <div>
-                  <p
-                    className="text-3xl font-extrabold tracking-tight"
-                    style={{
-                      backgroundImage: "linear-gradient(135deg, #2563eb, #06b6d4)",
-                      WebkitBackgroundClip: "text",
-                      backgroundClip: "text",
-                      color: "transparent",
-                    }}
-                  >
-                    Kaviro
-                  </p>
+                  <p className="text-3xl font-extrabold tracking-tight text-white">Kaviro</p>
                   <p className="text-sm text-white/70">
                     Organiza tus viajes en un solo lugar
                   </p>
