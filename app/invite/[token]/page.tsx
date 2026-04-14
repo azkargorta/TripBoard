@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabase";
 import {
   acceptInviteToken,
   getInviteByToken,
@@ -28,6 +27,25 @@ export default function InvitePage({ params }: InvitePageProps) {
   const [error, setError] = useState<string | null>(null);
   const [reloadNonce, setReloadNonce] = useState(0);
 
+  async function fetchServerUserId(): Promise<string | null> {
+    let res: Response;
+    try {
+      res = await withTimeout(
+        fetch("/api/auth/me", { method: "GET", credentials: "include", cache: "no-store" }),
+        6_000,
+        "timeout"
+      );
+    } catch {
+      return null;
+    }
+
+    if (!res.ok) return null;
+
+    const payload = (await res.json().catch(() => null)) as { ok?: boolean; userId?: string | null } | null;
+    if (!payload?.ok || !payload.userId) return null;
+    return payload.userId;
+  }
+
   useEffect(() => {
     async function load() {
       try {
@@ -39,14 +57,7 @@ export default function InvitePage({ params }: InvitePageProps) {
         // Cargamos la invitación igualmente y tratamos el usuario por separado con timeout.
         const [inviteData, userId] = await Promise.all([
           getInviteByToken(token),
-          withTimeout(
-            supabase.auth
-              .getUser()
-              .then(({ data }) => data.user?.id ?? null)
-              .catch(() => null),
-            5_000,
-            "No se pudo comprobar tu sesión a tiempo. Prueba a recargar."
-          ).catch(() => null),
+          fetchServerUserId(),
         ]);
 
         setCurrentUserId(userId);
@@ -62,7 +73,7 @@ export default function InvitePage({ params }: InvitePageProps) {
   }, [token, reloadNonce]);
 
   // Tras OAuth, a veces las cookies de sesión tardan un instante en quedar visibles para el cliente.
-  // Reintentamos getUser() unas pocas veces para no forzar a “Iniciar sesión” de nuevo.
+  // Reintentamos la lectura server-side (/api/auth/me) unas pocas veces.
   useEffect(() => {
     if (!invite || currentUserId) return;
 
@@ -72,8 +83,7 @@ export default function InvitePage({ params }: InvitePageProps) {
     const id = window.setInterval(async () => {
       attempts += 1;
       try {
-        const { data } = await supabase.auth.getUser();
-        const uid = data.user?.id ?? null;
+        const uid = await fetchServerUserId();
         if (uid && !cancelled) {
           setCurrentUserId(uid);
           window.clearInterval(id);
