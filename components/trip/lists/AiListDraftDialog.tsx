@@ -75,7 +75,7 @@ export default function AiListDraftDialog({
               Añadir item
             </button>
           </div>
-          <div className="mt-2 space-y-2">
+          <div className="mt-2 max-h-[45vh] space-y-2 overflow-auto pr-1">
             {draft.items.map((it, idx) => (
               <div key={idx} className="grid gap-2 rounded-2xl border border-slate-200 bg-white p-3 sm:grid-cols-[minmax(0,1fr)_110px]">
                 <input
@@ -137,7 +137,7 @@ export default function AiListDraftDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/30 p-4 backdrop-blur sm:items-center">
-      <div className="w-full max-w-2xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl">
+      <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl">
         <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
           <div className="min-w-0">
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">IA</div>
@@ -152,7 +152,7 @@ export default function AiListDraftDialog({
           </button>
         </div>
 
-        <div className="px-5 py-4">
+        <div className="min-h-0 overflow-auto px-5 py-4">
           {error ? (
             <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
           ) : null}
