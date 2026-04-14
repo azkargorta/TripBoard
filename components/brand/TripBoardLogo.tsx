@@ -15,7 +15,7 @@ type Props = {
   imageClassName?: string;
 };
 
-const iconPx = { sm: 18, md: 22, lg: 28 };
+const iconPx = { sm: 24, md: 28, lg: 34 };
 
 export default function TripBoardLogo({
   variant = "dark",
@@ -31,7 +31,7 @@ export default function TripBoardLogo({
   const mark = (
     <span className={`inline-flex items-center gap-2 ${className}`}>
       <span
-        className={`inline-flex items-center justify-center rounded-2xl p-1.5 ${
+        className={`inline-flex items-center justify-center rounded-2xl p-1 ${
           isLight ? "bg-white/10 ring-1 ring-white/15" : "bg-slate-900/5 ring-1 ring-slate-200"
         }`}
         aria-hidden
@@ -41,7 +41,7 @@ export default function TripBoardLogo({
           width={px}
           height={px}
           alt=""
-          className="block"
+          className="block object-contain"
           priority
         />
       </span>

@@ -210,8 +210,8 @@ export default async function DashboardPage() {
         <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-cyan-900 p-6 text-white md:p-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="space-y-4">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-white/85 backdrop-blur">
-                <TripBoardLogo variant="light" size="sm" withWordmark />
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-sm font-semibold uppercase tracking-[0.18em] text-white/85 backdrop-blur">
+                <TripBoardLogo variant="light" size="md" withWordmark />
                 <span className="text-white/35" aria-hidden>
                   ·
                 </span>
