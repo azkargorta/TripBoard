@@ -26,12 +26,14 @@ export default function InvitePage({ params }: InvitePageProps) {
   const [acceptedTripId, setAcceptedTripId] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   useEffect(() => {
     async function load() {
       try {
         setLoadingInvite(true);
         setError(null);
+        setInvite(null);
 
         // Importante: en Safari/WebViews, getSession() puede no resolver nunca.
         // Cargamos la invitación igualmente y tratamos el usuario por separado con timeout.
@@ -42,7 +44,7 @@ export default function InvitePage({ params }: InvitePageProps) {
               .getUser()
               .then(({ data }) => data.user?.id ?? null)
               .catch(() => null),
-            6_000,
+            5_000,
             "No se pudo comprobar tu sesión a tiempo. Prueba a recargar."
           ).catch(() => null),
         ]);
@@ -57,7 +59,7 @@ export default function InvitePage({ params }: InvitePageProps) {
     }
 
     load();
-  }, [token]);
+  }, [token, reloadNonce]);
 
   const statusLabel = useMemo(() => {
     if (!invite) return "";
@@ -101,7 +103,19 @@ export default function InvitePage({ params }: InvitePageProps) {
     return (
       <div className="mx-auto max-w-2xl p-6">
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">
-          No se encontró la invitación.
+          {error ? error : "No se encontró la invitación."}
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setReloadNonce((n) => n + 1)}
+            className="rounded-lg border bg-white px-4 py-2 text-sm"
+          >
+            Reintentar
+          </button>
+          <Link href="/auth/login" className="rounded-lg border bg-white px-4 py-2 text-sm">
+            Ir al login
+          </Link>
         </div>
       </div>
     );
