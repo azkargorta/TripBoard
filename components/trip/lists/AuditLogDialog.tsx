@@ -24,6 +24,12 @@ function formatWhen(value: string) {
   }
 }
 
+function displayActor(row: AuditRow) {
+  if (row.actor_email && row.actor_email.trim()) return row.actor_email.trim();
+  if (row.actor_user_id && row.actor_user_id.trim()) return row.actor_user_id.trim();
+  return "Sistema";
+}
+
 export default function AuditLogDialog({
   open,
   onClose,
@@ -91,7 +97,7 @@ export default function AuditLogDialog({
                     {r.summary || `${r.action} ${r.entity_type}`}
                   </div>
                   <div className="mt-1 text-xs text-slate-500">
-                    {formatWhen(r.created_at)} · {r.actor_email || r.actor_user_id || "Sistema"}
+                    {formatWhen(r.created_at)}
                   </div>
                 </div>
                 <span
@@ -106,16 +112,9 @@ export default function AuditLogDialog({
                   {r.action === "create" ? "Creó" : r.action === "delete" ? "Borró" : "Editó"}
                 </span>
               </div>
-              {r.diff ? (
-                <details className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <summary className="cursor-pointer text-xs font-semibold text-slate-700">
-                    Ver diff (JSON)
-                  </summary>
-                  <pre className="mt-2 whitespace-pre-wrap text-xs text-slate-700">
-{JSON.stringify(r.diff, null, 2)}
-                  </pre>
-                </details>
-              ) : null}
+              <div className="mt-2 text-xs text-slate-500">
+                Hecho por <span className="font-semibold text-slate-700">{displayActor(r)}</span>
+              </div>
             </div>
           ))}
         </div>
