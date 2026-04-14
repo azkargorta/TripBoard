@@ -16,6 +16,7 @@ type Props = {
 };
 
 const iconPx = { sm: 24, md: 28, lg: 34 };
+const boxPx = { sm: 34, md: 40, lg: 48 };
 
 export default function TripBoardLogo({
   variant = "dark",
@@ -26,14 +27,16 @@ export default function TripBoardLogo({
   imageClassName = "",
 }: Props) {
   const px = iconPx[size];
+  const box = boxPx[size];
   const isLight = variant === "light";
 
   const mark = (
     <span className={`inline-flex items-center gap-2 ${className}`}>
       <span
-        className={`inline-flex items-center justify-center rounded-2xl p-1 ${
+        className={`inline-flex items-center justify-center overflow-hidden rounded-2xl ${
           isLight ? "bg-white/10 ring-1 ring-white/15" : "bg-slate-900/5 ring-1 ring-slate-200"
         }`}
+        style={{ width: box, height: box }}
         aria-hidden
       >
         <Image
@@ -41,7 +44,7 @@ export default function TripBoardLogo({
           width={px}
           height={px}
           alt=""
-          className="block object-contain"
+          className="h-full w-full object-contain scale-[1.18]"
           priority
         />
       </span>
