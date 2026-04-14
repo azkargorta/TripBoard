@@ -245,7 +245,8 @@ export default async function TripPage({ params }: TripPageProps) {
       href: `/trip/${tripId}/map`,
       title: "Mapa",
       subtitle: "Rutas, trayectos y paradas",
-      emoji: "🗺️",
+      iconSrc: "/brand/tabs/map.png",
+      iconAlt: "Mapa",
       metric: `${routes.length} rutas`,
       accent: "from-emerald-100 to-teal-50 border-emerald-200",
     },
@@ -371,8 +372,14 @@ export default async function TripPage({ params }: TripPageProps) {
               <div>
                 <div className="text-3xl">
                   {"iconSrc" in item && item.iconSrc ? (
-                    <span className="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl bg-white/70 ring-1 ring-slate-200">
-                      <Image src={item.iconSrc} alt={item.iconAlt || item.title} width={40} height={40} className="h-full w-full object-contain scale-[1.08]" />
+                    <span className="inline-flex h-[54px] w-[54px] items-center justify-center overflow-hidden rounded-2xl bg-white/70 ring-1 ring-slate-200">
+                      <Image
+                        src={item.iconSrc}
+                        alt={item.iconAlt || item.title}
+                        width={54}
+                        height={54}
+                        className="h-full w-full object-contain scale-[1.06]"
+                      />
                     </span>
                   ) : (
                     (item as any).emoji
