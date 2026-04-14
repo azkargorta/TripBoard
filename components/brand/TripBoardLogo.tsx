@@ -15,39 +15,55 @@ type Props = {
   imageClassName?: string;
 };
 
-const sizePx = { sm: 96, md: 140, lg: 200 };
+const iconPx = { sm: 18, md: 22, lg: 28 };
 
 export default function TripBoardLogo({
-  variant: _variant,
+  variant = "dark",
   size = "md",
-  withWordmark: _withWordmark,
+  withWordmark = true,
   href,
   className = "",
   imageClassName = "",
 }: Props) {
-  const px = sizePx[size];
+  const px = iconPx[size];
+  const isLight = variant === "light";
 
   const mark = (
     <span className={`inline-flex items-center gap-2 ${className}`}>
-      <Image
-        src="/brand/icon.png"
-        width={32}
-        height={32}
-        alt="Kaviro"
-        className="h-8 w-8 shrink-0"
-        priority
-      />
       <span
-        className={`select-none text-base font-black tracking-tight text-slate-950 ${imageClassName}`.trim()}
-        style={{
-          backgroundImage: "linear-gradient(135deg, #2563eb, #06b6d4)",
-          WebkitBackgroundClip: "text",
-          backgroundClip: "text",
-          color: "transparent",
-        }}
+        className={`inline-flex items-center justify-center rounded-2xl p-1.5 ${
+          isLight ? "bg-white/10 ring-1 ring-white/15" : "bg-slate-900/5 ring-1 ring-slate-200"
+        }`}
+        aria-hidden
       >
-        Kaviro
+        <Image
+          src="/brand/icon.png"
+          width={px}
+          height={px}
+          alt=""
+          className="block"
+          priority
+        />
       </span>
+      {withWordmark ? (
+        <span
+          className={`select-none font-black tracking-tight ${
+            isLight ? "text-white" : "text-slate-950"
+          } ${size === "sm" ? "text-[12px] tracking-[0.14em] uppercase" : "text-base"} ${imageClassName}`.trim()}
+          style={
+            isLight
+              ? undefined
+              : {
+                  backgroundImage: "linear-gradient(135deg, #2563eb, #06b6d4)",
+                  WebkitBackgroundClip: "text",
+                  backgroundClip: "text",
+                  color: "transparent",
+                }
+          }
+        >
+          Kaviro
+        </span>
+      ) : null}
     </span>
   );
 
