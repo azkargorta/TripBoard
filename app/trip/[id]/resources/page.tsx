@@ -1,5 +1,3 @@
-"use client";
-
 import TripResourcesView from "@/components/trip/resources/TripResourcesView";
 import TripScreenActions from "@/components/trip/common/TripScreenActions";
 import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
