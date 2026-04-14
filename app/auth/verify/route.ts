@@ -16,8 +16,22 @@ function isOtpType(s: string): s is OtpType {
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const token_hash = requestUrl.searchParams.get("token_hash");
+  const code = requestUrl.searchParams.get("code");
   const typeRaw = requestUrl.searchParams.get("type");
   const nextRaw = requestUrl.searchParams.get("next") ?? "/dashboard";
+
+  // Compat: si la plantilla de Supabase usa el enlace antiguo ({{ .ConfirmationURL }})
+  // acabamos aquí con ?code=. Ese flujo depende de PKCE (mismo navegador). Lo reenviamos
+  // a /auth/callback para canjear el código en servidor y evitar cuelgues en WebViews.
+  if (!token_hash && code) {
+    const safeNext =
+      nextRaw.startsWith("/") && !nextRaw.startsWith("//") ? nextRaw : "/dashboard";
+    const u = new URL("/auth/callback", requestUrl.origin);
+    u.searchParams.set("code", code);
+    if (typeRaw) u.searchParams.set("type", typeRaw);
+    u.searchParams.set("next", safeNext);
+    return NextResponse.redirect(u);
+  }
 
   if (!token_hash || !typeRaw || !isOtpType(typeRaw)) {
     const u = new URL("/auth/confirmed", requestUrl.origin);
