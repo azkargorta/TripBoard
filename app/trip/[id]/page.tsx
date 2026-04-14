@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireTripAccess } from "@/lib/trip-access";
@@ -235,7 +236,8 @@ export default async function TripPage({ params }: TripPageProps) {
       href: `/trip/${tripId}/plan`,
       title: "Plan",
       subtitle: "Agenda, visitas y horarios",
-      emoji: "🗓️",
+      iconSrc: "/brand/tabs/plan.png",
+      iconAlt: "Plan",
       metric: `${activities.length} actividades`,
       accent: "from-sky-100 to-cyan-50 border-sky-200",
     },
@@ -367,7 +369,15 @@ export default async function TripPage({ params }: TripPageProps) {
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-3xl">{item.emoji}</div>
+                <div className="text-3xl">
+                  {"iconSrc" in item && item.iconSrc ? (
+                    <span className="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl bg-white/70 ring-1 ring-slate-200">
+                      <Image src={item.iconSrc} alt={item.iconAlt || item.title} width={40} height={40} className="h-full w-full object-contain scale-[1.08]" />
+                    </span>
+                  ) : (
+                    (item as any).emoji
+                  )}
+                </div>
                 <h2 className="mt-4 text-xl font-bold text-slate-950">{item.title}</h2>
                 <p className="mt-1 text-sm text-slate-600">{item.subtitle}</p>
               </div>
