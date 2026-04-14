@@ -284,107 +284,120 @@ export default function TripListsPanel({ tripId, isPremium = false, onGenerateWi
                 {itemsApi.error ? (
                   <div className="px-4 py-3 text-sm text-red-700">{itemsApi.error}</div>
                 ) : null}
-                {itemsApi.loading ? (
-                  <div className="px-4 py-4 text-sm text-slate-500">Cargando…</div>
-                ) : (
-                  <div className="divide-y divide-slate-100">
-                    {itemsApi.items.length === 0 ? (
-                      <div className="px-4 py-4 text-sm text-slate-500">Esta lista está vacía.</div>
-                    ) : (
-                      itemsApi.items.map((it) => (
-                        <div key={it.id} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
-                          <div className="flex min-w-0 items-start gap-3">
-                            <input
-                              type="checkbox"
-                              checked={it.is_done}
-                              onChange={(e) => void itemsApi.updateItem(it.id, { is_done: e.target.checked })}
-                              className="mt-1"
-                            />
-                            <div className="min-w-0">
+                <div className="flex max-h-[55vh] min-h-0 flex-col">
+                  {itemsApi.loading ? (
+                    <div className="px-4 py-4 text-sm text-slate-500">Cargando…</div>
+                  ) : (
+                    <div className="min-h-0 overflow-auto divide-y divide-slate-100">
+                      {itemsApi.items.length === 0 ? (
+                        <div className="px-4 py-4 text-sm text-slate-500">Esta lista está vacía.</div>
+                      ) : (
+                        itemsApi.items.map((it) => (
+                          <div
+                            key={it.id}
+                            className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-start sm:justify-between"
+                          >
+                            <div className="flex min-w-0 items-start gap-3">
                               <input
-                                value={it.text}
-                                onChange={(e) => void itemsApi.updateItem(it.id, { text: e.target.value })}
-                                className={`w-full rounded-lg border border-transparent bg-transparent px-2 py-1 text-sm font-semibold outline-none focus:border-slate-200 focus:bg-white ${
-                                  it.is_done ? "line-through text-slate-400" : "text-slate-900"
-                                }`}
+                                type="checkbox"
+                                checked={it.is_done}
+                                onChange={(e) => void itemsApi.updateItem(it.id, { is_done: e.target.checked })}
+                                className="mt-1"
                               />
-                              <div className="mt-1 grid gap-2 sm:grid-cols-2">
+                              <div className="min-w-0">
                                 <input
-                                  value={it.qty ?? ""}
-                                  onChange={(e) => void itemsApi.updateItem(it.id, { qty: e.target.value ? Number(e.target.value) : null })}
-                                  type="number"
-                                  step="0.5"
-                                  className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700"
-                                  placeholder="Cantidad"
+                                  value={it.text}
+                                  onChange={(e) => void itemsApi.updateItem(it.id, { text: e.target.value })}
+                                  className={`w-full rounded-lg border border-transparent bg-transparent px-2 py-1 text-sm font-semibold outline-none focus:border-slate-200 focus:bg-white ${
+                                    it.is_done ? "line-through text-slate-400" : "text-slate-900"
+                                  }`}
                                 />
-                                <input
-                                  value={it.note ?? ""}
-                                  onChange={(e) => void itemsApi.updateItem(it.id, { note: e.target.value || null })}
-                                  className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700"
-                                  placeholder="Nota"
-                                />
+                                <div className="mt-1 grid gap-2 sm:grid-cols-2">
+                                  <input
+                                    value={it.qty ?? ""}
+                                    onChange={(e) =>
+                                      void itemsApi.updateItem(it.id, {
+                                        qty: e.target.value ? Number(e.target.value) : null,
+                                      })
+                                    }
+                                    type="number"
+                                    step="0.5"
+                                    className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700"
+                                    placeholder="Cantidad"
+                                  />
+                                  <input
+                                    value={it.note ?? ""}
+                                    onChange={(e) => void itemsApi.updateItem(it.id, { note: e.target.value || null })}
+                                    className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700"
+                                    placeholder="Nota"
+                                  />
+                                </div>
                               </div>
                             </div>
+                            <div className="flex shrink-0 items-center justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAuditTarget({
+                                    entityType: "list_item",
+                                    entityId: it.id,
+                                    title: `Item: ${it.text}`,
+                                  });
+                                  setAuditOpen(true);
+                                }}
+                                className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                title="Ver historial del item"
+                              >
+                                Historial
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void itemsApi.deleteItem(it.id)}
+                                className="rounded-xl border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
+                              >
+                                Borrar
+                              </button>
+                            </div>
                           </div>
-                          <div className="flex shrink-0 items-center justify-end gap-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setAuditTarget({ entityType: "list_item", entityId: it.id, title: `Item: ${it.text}` });
-                                setAuditOpen(true);
-                              }}
-                              className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                              title="Ver historial del item"
-                            >
-                              Historial
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void itemsApi.deleteItem(it.id)}
-                              className="rounded-xl border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
-                            >
-                              Borrar
-                            </button>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                )}
+                        ))
+                      )}
+                    </div>
+                  )}
 
-                <div className="border-t border-slate-200 bg-slate-50 px-4 py-4">
-                  <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_140px]">
-                    <input
-                      value={newItemText}
-                      onChange={(e) => setNewItemText(e.target.value)}
-                      placeholder="Añadir elemento…"
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-                    />
-                    <div className="flex gap-2">
+                  <div className="border-t border-slate-200 bg-slate-50 px-4 py-4">
+                    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_140px]">
                       <input
-                        value={newItemQty}
-                        onChange={(e) => setNewItemQty(e.target.value)}
-                        placeholder="Cantidad"
-                        type="number"
-                        step="0.5"
+                        value={newItemText}
+                        onChange={(e) => setNewItemText(e.target.value)}
+                        placeholder="Añadir elemento…"
                         className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
                       />
-                      <button
-                        type="button"
-                        onClick={handleAddItem}
-                        disabled={itemsApi.saving || !newItemText.trim()}
-                        className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                      >
-                        Añadir
-                      </button>
+                      <div className="flex gap-2">
+                        <input
+                          value={newItemQty}
+                          onChange={(e) => setNewItemQty(e.target.value)}
+                          placeholder="Cantidad"
+                          type="number"
+                          step="0.5"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleAddItem}
+                          disabled={itemsApi.saving || !newItemText.trim()}
+                          className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                        >
+                          Añadir
+                        </button>
+                      </div>
                     </div>
+                    <input
+                      value={newItemNote}
+                      onChange={(e) => setNewItemNote(e.target.value)}
+                      placeholder="Nota (opcional)…"
+                      className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                    />
                   </div>
-                  <input
-                    value={newItemNote}
-                    onChange={(e) => setNewItemNote(e.target.value)}
-                    placeholder="Nota (opcional)…"
-                    className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-                  />
                 </div>
               </div>
 
