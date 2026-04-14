@@ -277,7 +277,7 @@ export function useTripRoutes(tripId: string, reload?: () => Promise<void>) {
       return apiResult.route;
     } catch (error) {
       const message = isLockAbortError(error)
-        ? "El navegador ha abortado un lock de almacenamiento al guardar (suele pasar con varias pestañas abiertas o sesión inestable). Prueba a recargar la página y cerrar otras pestañas de TripBoard, y vuelve a guardar."
+        ? "El navegador ha abortado un lock de almacenamiento al guardar (suele pasar con varias pestañas abiertas o sesión inestable). Prueba a recargar la página y cerrar otras pestañas de Kaviro, y vuelve a guardar."
         : error instanceof Error && error.message.startsWith("Timeout")
           ? "La petición se ha quedado colgada al guardar. Revisa tu conexión/VPN, recarga la página y vuelve a intentarlo."
           : error instanceof Error
@@ -329,7 +329,7 @@ export function useTripRoutes(tripId: string, reload?: () => Promise<void>) {
       void reload?.();
     } catch (error) {
       const message = isLockAbortError(error)
-        ? "El navegador ha abortado un lock de almacenamiento al eliminar. Prueba a recargar la página y cerrar otras pestañas de TripBoard, y vuelve a intentarlo."
+        ? "El navegador ha abortado un lock de almacenamiento al eliminar. Prueba a recargar la página y cerrar otras pestañas de Kaviro, y vuelve a intentarlo."
         : error instanceof Error && error.message.startsWith("Timeout")
           ? "La petición a Supabase se ha quedado colgada al eliminar. Revisa tu conexión/VPN y vuelve a intentarlo."
           : error instanceof Error
@@ -362,7 +362,7 @@ export function useTripRoutes(tripId: string, reload?: () => Promise<void>) {
       void reload?.();
     } catch (error) {
       const message = isLockAbortError(error)
-        ? "El navegador ha abortado un lock de almacenamiento al reordenar. Prueba a recargar la página y cerrar otras pestañas de TripBoard."
+        ? "El navegador ha abortado un lock de almacenamiento al reordenar. Prueba a recargar la página y cerrar otras pestañas de Kaviro."
         : error instanceof Error && error.message.startsWith("Timeout")
           ? "La petición a Supabase se ha quedado colgada al reordenar. Revisa tu conexión/VPN y vuelve a intentarlo."
           : error instanceof Error

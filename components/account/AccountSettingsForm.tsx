@@ -197,7 +197,7 @@ export default function AccountSettingsForm({ initial }: Props) {
       <section
         id="premium-plans"
         className={`card-soft p-6 transition ${
-          highlightPlans ? "ring-2 ring-violet-300/60 ring-offset-2 ring-offset-slate-50" : ""
+          highlightPlans ? "ring-2 ring-cyan-300/60 ring-offset-2 ring-offset-slate-50" : ""
         }`}
       >
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -221,7 +221,7 @@ export default function AccountSettingsForm({ initial }: Props) {
                 >
                   <div className="space-y-2">
                     <div className="inline-flex items-center gap-2">
-                      <span className="inline-flex h-2 w-2 rounded-full bg-violet-500" aria-hidden />
+                      <span className="inline-flex h-2 w-2 rounded-full bg-cyan-500" aria-hidden />
                       <span className="text-sm font-semibold text-slate-950">Premium mensual</span>
                     </div>
                     <p className="text-sm text-slate-600">
@@ -315,7 +315,7 @@ export default function AccountSettingsForm({ initial }: Props) {
             <input
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
               placeholder="tu_username"
             />
             <p className={`text-xs ${usernameValid ? "text-slate-500" : "text-amber-700"}`}>
@@ -334,7 +334,7 @@ export default function AccountSettingsForm({ initial }: Props) {
           type="button"
           onClick={saveUsername}
           disabled={usernameSaving}
-          className="inline-flex min-h-[44px] items-center justify-center rounded-2xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
+          className="inline-flex min-h-[44px] items-center justify-center rounded-2xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {usernameSaving ? "Guardando…" : "Guardar username"}
         </button>
@@ -356,7 +356,7 @@ export default function AccountSettingsForm({ initial }: Props) {
               type="password"
               value={pw1}
               onChange={(e) => setPw1(e.target.value)}
-              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
               autoComplete="new-password"
             />
           </label>
@@ -366,7 +366,7 @@ export default function AccountSettingsForm({ initial }: Props) {
               type="password"
               value={pw2}
               onChange={(e) => setPw2(e.target.value)}
-              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
               autoComplete="new-password"
             />
           </label>

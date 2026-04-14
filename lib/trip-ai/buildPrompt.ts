@@ -79,7 +79,7 @@ export function buildTripPrompt(context: string, question: string, mode: TripAiM
   };
 
   return [
-    "Eres un asistente experto de viajes dentro de TripBoard.",
+    "Eres un asistente experto de viajes dentro de Kaviro.",
     "Responde siempre en español.",
     "Debes usar prioritariamente el contexto real del viaje proporcionado.",
     "Si falta información, dilo claramente.",

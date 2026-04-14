@@ -37,12 +37,12 @@ export default function InstallPrompt() {
     <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-center gap-4">
         <img
-          src="/install/tripboard-install.png"
-          alt="TripBoard"
+          src="/icons/icon-192.png"
+          alt="Kaviro"
           className="h-16 w-16 rounded-2xl object-cover"
         />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-slate-900">Instala TripBoard</p>
+          <p className="text-sm font-semibold text-slate-900">Instala Kaviro</p>
           <p className="mt-1 text-sm text-slate-600">
             Añade la app a tu móvil para abrirla como una aplicación de verdad.
           </p>

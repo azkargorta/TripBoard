@@ -47,7 +47,7 @@ export default function MobileBottomNav({ tripId, isPremium }: Props) {
                   prefetch
                   className={`flex min-w-[72px] flex-col items-center justify-center gap-0.5 rounded-xl px-2 py-2.5 text-[10px] font-semibold leading-tight transition ${
                     active
-                      ? "bg-violet-100 text-violet-800 shadow-sm"
+                      ? "bg-cyan-100 text-cyan-900 shadow-sm"
                       : "text-slate-500 active:bg-slate-100"
                   }`}
                 >

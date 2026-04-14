@@ -5,7 +5,7 @@ export default function RegisterPage() {
   return (
     <AuthShell
       title="Crear cuenta"
-      subtitle="Empieza a organizar viajes y gastos en TripBoard"
+      subtitle="Empieza a organizar viajes y gastos en Kaviro"
     >
       <RegisterForm />
     </AuthShell>

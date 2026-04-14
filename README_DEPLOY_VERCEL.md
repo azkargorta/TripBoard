@@ -1,4 +1,4 @@
-# TripBoard - despliegue limpio en Vercel
+# Kaviro - despliegue limpio en Vercel
 
 ## Qué se ha limpiado
 - Se ha eliminado `node_modules/`

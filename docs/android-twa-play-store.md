@@ -1,6 +1,6 @@
 # Android (Google Play) con TWA — coste mínimo
 
-Estrategia: **Trusted Web Activity (TWA)**. La “app” de Play abre tu sitio en **Chrome a pantalla completa**; sigues desplegando solo TripBoard (Next.js). No hay cuotas recurrentes a terceros: solo la **cuota única de registro** de Google Play (consulta el precio actual en [Google Play Console](https://play.google.com/console)).
+Estrategia: **Trusted Web Activity (TWA)**. La “app” de Play abre tu sitio en **Chrome a pantalla completa**; sigues desplegando solo Kaviro (Next.js). No hay cuotas recurrentes a terceros: solo la **cuota única de registro** de Google Play (consulta el precio actual en [Google Play Console](https://play.google.com/console)).
 
 ## Requisitos previos
 
@@ -22,10 +22,10 @@ npm install -g @bubblewrap/cli
 
 ## 2. Crear el proyecto Android (TWA)
 
-En una carpeta **fuera** del repo (p. ej. `~/apps/tripboard-android`):
+En una carpeta **fuera** del repo (p. ej. `~/apps/kaviro-android`):
 
 ```bash
-mkdir -p ~/apps/tripboard-android && cd ~/apps/tripboard-android
+mkdir -p ~/apps/kaviro-android && cd ~/apps/kaviro-android
 bubblewrap init --manifest=https://TU_DOMINIO/manifest.webmanifest
 ```
 

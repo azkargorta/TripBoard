@@ -41,8 +41,8 @@ export default function InviteParticipantPanel({
 
     const personLabel = displayName.trim() || "Te";
     const text = participant
-      ? `Hola ${personLabel}. Te paso tu enlace para unirte al viaje en TripBoard y vincular tu usuario: ${inviteUrl}`
-      : `¡Hola! Te invito a unirte a mi viaje en TripBoard. Usa este enlace: ${inviteUrl}`;
+      ? `Hola ${personLabel}. Te paso tu enlace para unirte al viaje en Kaviro y vincular tu usuario: ${inviteUrl}`
+      : `¡Hola! Te invito a unirte a mi viaje en Kaviro. Usa este enlace: ${inviteUrl}`;
 
     return `https://wa.me/${cleanedPhone}?text=${encodeURIComponent(text)}`;
   }, [phone, inviteUrl, displayName, participant]);

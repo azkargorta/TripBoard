@@ -105,7 +105,7 @@ export function useTripActivities(tripId: string) {
       console.error(err);
       const msg =
         isLockAbortError(err)
-          ? "El navegador ha abortado un lock de almacenamiento al cargar el plan. Prueba a recargar la página y cerrar otras pestañas de TripBoard."
+          ? "El navegador ha abortado un lock de almacenamiento al cargar el plan. Prueba a recargar la página y cerrar otras pestañas de Kaviro."
           : err instanceof Error && err.message.startsWith("Timeout")
             ? "La carga del plan se ha quedado colgada (timeout). Revisa tu conexión/VPN y recarga la página."
             : err instanceof Error

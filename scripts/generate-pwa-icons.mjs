@@ -1,5 +1,5 @@
 /**
- * Genera PNG 192/512 desde public/brand/icon.png (PWA / TWA / Play).
+ * Genera PNG 192/512 y apple-touch-icon (180) desde public/brand/icon.png.
  * Uso: npm run icons:generate
  */
 import { readFile } from "node:fs/promises";
@@ -15,5 +15,11 @@ const srcPng = await readFile(srcPngPath);
 for (const size of [192, 512]) {
   const out = join(root, "public", "icons", `icon-${size}.png`);
   await sharp(srcPng).resize(size, size).png().toFile(out);
+  console.log("Wrote", out);
+}
+
+{
+  const out = join(root, "public", "icons", "apple-touch-icon.png");
+  await sharp(srcPng).resize(180, 180).png().toFile(out);
   console.log("Wrote", out);
 }

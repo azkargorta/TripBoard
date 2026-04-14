@@ -25,7 +25,7 @@ export default function TripBoardPremiumHero({
 }: Props) {
   return (
     <section className={`card-soft overflow-hidden ${className}`.trim()}>
-      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-violet-900 px-6 py-8 text-white md:px-8 md:py-10">
+      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-cyan-900 px-6 py-8 text-white md:px-8 md:py-10">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-3">
             <div className="inline-flex max-w-full flex-wrap items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-white/80">

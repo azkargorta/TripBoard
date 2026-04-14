@@ -104,7 +104,7 @@ export default function InvitePage({ params }: InvitePageProps) {
         <div className="mb-4">
           <h1 className="text-2xl font-bold">Invitación al viaje</h1>
           <p className="mt-2 text-sm text-gray-600">
-            Estás entrando con un enlace de invitación de TripBoard.
+            Estás entrando con un enlace de invitación de Kaviro.
           </p>
         </div>
 

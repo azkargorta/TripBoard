@@ -230,7 +230,7 @@ export default function TripPlanView({
           <button
             type="button"
             onClick={() => setHistoryOpen((v) => !v)}
-            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-violet-200 sm:w-auto"
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-cyan-200 sm:w-auto"
             title="Ver historial de cambios"
           >
             <Clock className="h-4 w-4" />
@@ -239,7 +239,7 @@ export default function TripPlanView({
           <button
             type="button"
             onClick={handleStartCreate}
-            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-200 sm:w-auto"
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-200 sm:w-auto"
           >
             <Plus className="h-4 w-4" />
             Añadir plan
@@ -304,9 +304,9 @@ export default function TripPlanView({
           <p className="text-sm text-slate-500">Planes manuales</p>
           <p className="mt-2 text-3xl font-bold text-slate-950">{manualCount}</p>
         </div>
-        <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4 shadow-sm">
-          <p className="text-sm text-violet-600">Alojamientos</p>
-          <p className="mt-2 text-3xl font-bold text-violet-900">{lodgingCount}</p>
+        <div className="rounded-2xl border border-cyan-200 bg-cyan-50 p-4 shadow-sm">
+          <p className="text-sm text-cyan-700">Alojamientos</p>
+          <p className="mt-2 text-3xl font-bold text-cyan-950">{lodgingCount}</p>
         </div>
       </div>
 
@@ -320,7 +320,7 @@ export default function TripPlanView({
             <button
               type="button"
               onClick={() => setShowManual((v) => !v)}
-              className={`inline-flex min-h-[36px] items-center gap-2 rounded-xl border px-3 text-xs font-extrabold transition focus:outline-none focus:ring-2 focus:ring-violet-200 ${
+              className={`inline-flex min-h-[36px] items-center gap-2 rounded-xl border px-3 text-xs font-extrabold transition focus:outline-none focus:ring-2 focus:ring-cyan-200 ${
                 showManual ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
               }`}
               title="Mostrar/ocultar planes manuales"
@@ -331,8 +331,8 @@ export default function TripPlanView({
             <button
               type="button"
               onClick={() => setShowLodging((v) => !v)}
-              className={`inline-flex min-h-[36px] items-center gap-2 rounded-xl border px-3 text-xs font-extrabold transition focus:outline-none focus:ring-2 focus:ring-violet-200 ${
-                showLodging ? "border-violet-200 bg-violet-50 text-violet-900" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+              className={`inline-flex min-h-[36px] items-center gap-2 rounded-xl border px-3 text-xs font-extrabold transition focus:outline-none focus:ring-2 focus:ring-cyan-200 ${
+                showLodging ? "border-cyan-200 bg-cyan-50 text-cyan-950" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
               }`}
               title="Mostrar/ocultar alojamientos"
             >
