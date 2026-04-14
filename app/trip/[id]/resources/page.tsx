@@ -3,13 +3,22 @@
 import TripResourcesView from "@/components/trip/resources/TripResourcesView";
 import TripScreenActions from "@/components/trip/common/TripScreenActions";
 import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
+import { requireTripAccess } from "@/lib/trip-access";
+import { createClient } from "@/lib/supabase/server";
+import { isPremiumEnabledForTrip } from "@/lib/entitlements";
 
-export default function TripResourcesPage({
+export default async function TripResourcesPage({
   params,
 }: {
   params: { id: string };
 }) {
   const tripId = params.id;
+
+  // Nota: esta página NO está gated por premium, pero usamos el flag para habilitar IA si el viaje lo permite.
+  // (Si no, el endpoint IA también lo rechazará.)
+  const access = await requireTripAccess(tripId);
+  const supabase = await createClient();
+  const aiEnabled = await isPremiumEnabledForTrip({ supabase, userId: access.userId, tripId });
 
   return (
     <main className="space-y-6">
@@ -22,7 +31,7 @@ export default function TripResourcesPage({
         actions={<TripScreenActions tripId={tripId} />}
       />
 
-      <TripResourcesView tripId={tripId} />
+      <TripResourcesView tripId={tripId} aiEnabled={aiEnabled} />
     </main>
   );
 }

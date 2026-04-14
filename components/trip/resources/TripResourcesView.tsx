@@ -10,6 +10,7 @@ import DocumentAnalyzerPanel from "@/components/trip/resources/DocumentAnalyzerP
 import ResourceUploadForm from "@/components/trip/resources/ResourceUploadForm";
 import ResourceList from "@/components/trip/resources/ResourceList";
 import ReservationList from "@/components/trip/resources/ReservationList";
+import TripListsPanel from "@/components/trip/lists/TripListsPanel";
 import ReservationTemplateSelector, {
   type ReservationTemplateType,
 } from "@/components/trip/resources/ReservationTemplateSelector";
@@ -31,7 +32,7 @@ function templateFromDetected(data: DetectedDocumentData): ReservationTemplateTy
   return "activity";
 }
 
-export default function TripResourcesView({ tripId }: { tripId: string }) {
+export default function TripResourcesView({ tripId, aiEnabled = false }: { tripId: string; aiEnabled?: boolean }) {
   const {
     resources,
     reservations,
@@ -68,6 +69,8 @@ export default function TripResourcesView({ tripId }: { tripId: string }) {
           {error}
         </div>
       ) : null}
+
+      <TripListsPanel tripId={tripId} isPremium={aiEnabled} />
 
       <div className="grid gap-6 xl:grid-cols-2">
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
