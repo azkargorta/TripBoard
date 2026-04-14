@@ -13,19 +13,19 @@ export default function AuthShell({
   children,
 }: AuthShellProps) {
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-violet-100">
+    <main className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-cyan-100">
       <div className="mx-auto flex min-h-screen max-w-7xl items-start justify-center px-4 py-8 md:px-6 md:py-10">
         <div className="grid w-full max-w-6xl overflow-hidden rounded-[32px] border border-slate-200 bg-white/80 shadow-2xl backdrop-blur md:grid-cols-[1.05fr_0.95fr]">
 
-          <section className="relative hidden overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-violet-900 p-10 text-white md:flex md:flex-col md:justify-between">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.14),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(168,85,247,0.22),transparent_30%)]" />
+          <section className="relative hidden overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-900 p-10 text-white md:flex md:flex-col md:justify-between">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.14),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(34,211,238,0.22),transparent_30%)]" />
 
             <div className="relative z-10">
               <div className="flex items-center gap-4">
                 <div className="overflow-hidden rounded-3xl bg-white p-2 shadow-lg">
                   <Image
-                    src="/logo.png"
-                    alt="TripBoard logo"
+                    src="/brand/icon.png"
+                    alt="Kaviro logo"
                     width={88}
                     height={88}
                     className="h-20 w-20 object-contain"
@@ -34,7 +34,17 @@ export default function AuthShell({
                 </div>
 
                 <div>
-                  <p className="text-3xl font-extrabold tracking-tight">TripBoard</p>
+                  <p
+                    className="text-3xl font-extrabold tracking-tight"
+                    style={{
+                      backgroundImage: "linear-gradient(135deg, #2563eb, #06b6d4)",
+                      WebkitBackgroundClip: "text",
+                      backgroundClip: "text",
+                      color: "transparent",
+                    }}
+                  >
+                    Kaviro
+                  </p>
                   <p className="text-sm text-white/70">
                     Organiza tus viajes en un solo lugar
                   </p>
@@ -53,7 +63,7 @@ export default function AuthShell({
                 </h1>
 
                 <p className="mt-4 text-base leading-7 text-white/75">
-                  Gestiona itinerarios, gastos, mapa, recursos, OCR y chat desde tu panel de TripBoard.
+                  Gestiona itinerarios, gastos, mapa, recursos, OCR y chat desde tu panel de Kaviro.
                 </p>
               </div>
             </div>

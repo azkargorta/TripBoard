@@ -5,14 +5,14 @@ import AnalyticsRoot from "@/components/analytics/AnalyticsRoot";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
-  title: "TripBoard",
+  title: "Kaviro",
   description: "Organiza viajes, gastos y rutas",
-  applicationName: "TripBoard",
+  applicationName: "Kaviro",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "TripBoard",
+    title: "Kaviro",
   },
   formatDetection: {
     telephone: false,
@@ -60,7 +60,7 @@ export default async function RootLayout({
         <AnalyticsRoot />
         {isPremium !== null ? (
           <div className="sticky top-0 z-50">
-            <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-violet-900">
+            <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-cyan-900">
               <div className="mx-auto flex max-w-[1200px] items-center justify-end px-4 py-1.5 sm:px-6 sm:py-2">
                 <div
                   className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold ${

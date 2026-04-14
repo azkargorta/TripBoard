@@ -30,19 +30,30 @@ export default function TripBoardLogo({
   const mark = (
     <span className={`inline-flex items-center gap-2 ${className}`}>
       <Image
-        src="/logo.png"
-        width={px}
-        height={Math.round(px * 0.32)}
-        alt="TripBoard"
-        className={`h-auto w-auto max-w-[180px] ${imageClassName}`.trim()}
+        src="/brand/icon.png"
+        width={32}
+        height={32}
+        alt="Kaviro"
+        className="h-8 w-8 shrink-0"
         priority
       />
+      <span
+        className={`select-none text-base font-black tracking-tight text-slate-950 ${imageClassName}`.trim()}
+        style={{
+          backgroundImage: "linear-gradient(135deg, #2563eb, #06b6d4)",
+          WebkitBackgroundClip: "text",
+          backgroundClip: "text",
+          color: "transparent",
+        }}
+      >
+        Kaviro
+      </span>
     </span>
   );
 
   if (href) {
     return (
-      <Link href={href} className="inline-flex shrink-0 items-center rounded-lg outline-none ring-violet-300/0 transition hover:opacity-90 focus-visible:ring-2">
+      <Link href={href} className="inline-flex shrink-0 items-center rounded-lg outline-none ring-cyan-300/0 transition hover:opacity-90 focus-visible:ring-2">
         {mark}
       </Link>
     );

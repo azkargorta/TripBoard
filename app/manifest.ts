@@ -2,8 +2,8 @@ import { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'TripBoard',
-    short_name: 'TripBoard',
+    name: 'Kaviro',
+    short_name: 'Kaviro',
     description: 'Organiza tu viaje, rutas, gastos y documentos',
     start_url: '/',
     scope: '/',
