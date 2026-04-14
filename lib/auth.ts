@@ -112,7 +112,7 @@ export async function signInWithGoogle(next: string = "/dashboard") {
   clearSupabaseBrowserCookies();
 
   // Antes de ir a Google: la cookie debe existir ya (si no, Supabase puede volver solo con ?code=).
-  markGoogleOAuthAttempt();
+  markGoogleOAuthAttempt(safe);
 
   const { data, error } = await withTimeout(
     supabase.auth.signInWithOAuth({

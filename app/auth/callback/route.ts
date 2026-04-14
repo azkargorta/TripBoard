@@ -1,7 +1,7 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { OAUTH_RETURN_COOKIE } from "@/lib/google-oauth-attempt";
+import { OAUTH_NEXT_COOKIE, OAUTH_RETURN_COOKIE } from "@/lib/google-oauth-attempt";
 
 export const runtime = "nodejs";
 
@@ -24,6 +24,7 @@ function isGoogleOAuthReturn(url: URL): boolean {
 
 function clearOauthPendingCookie(res: NextResponse): void {
   res.cookies.set(OAUTH_RETURN_COOKIE, "", { path: "/", maxAge: 0, sameSite: "lax" });
+  res.cookies.set(OAUTH_NEXT_COOKIE, "", { path: "/", maxAge: 0, sameSite: "lax" });
 }
 
 function redirectConfirmedError(
@@ -64,10 +65,29 @@ export async function GET(request: Request) {
   const origin = requestUrl.origin;
   const code = requestUrl.searchParams.get("code");
   const type = (requestUrl.searchParams.get("type") || "").toLowerCase();
-  const nextRaw = requestUrl.searchParams.get("next");
-  const nextPath = safeNextPath(nextRaw, "/dashboard");
-
+  const nextParam = requestUrl.searchParams.get("next");
   const cookieStore = await cookies();
+  const oauthNextEncoded = cookieStore.get(OAUTH_NEXT_COOKIE)?.value || "";
+  let oauthNextFromCookie: string | null = null;
+  if (oauthNextEncoded) {
+    try {
+      const decoded = decodeURIComponent(oauthNextEncoded);
+      oauthNextFromCookie = decoded;
+    } catch {
+      oauthNextFromCookie = null;
+    }
+  }
+
+  // Si Supabase devuelve a /auth/callback sin `next` (o lo normaliza a `/dashboard`),
+  // recuperamos el destino real desde cookie (seteada antes de ir a Google).
+  const chosenNext =
+    (!nextParam && oauthNextFromCookie) ||
+    (nextParam === "/dashboard" && oauthNextFromCookie && oauthNextFromCookie !== "/dashboard")
+      ? oauthNextFromCookie
+      : nextParam;
+
+  const nextPath = safeNextPath(chosenNext, "/dashboard");
+
   const oauthCookiePending = cookieStore.get(OAUTH_RETURN_COOKIE)?.value === "1";
   const googleUi = isGoogleOAuthReturn(requestUrl) || oauthCookiePending;
 

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { signUpWithEmail } from "@/lib/auth";
 import { clearGoogleOAuthAttempt } from "@/lib/google-oauth-attempt";
@@ -14,6 +14,10 @@ import GoogleButton from "./GoogleButton";
 
 export default function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const next = searchParams.get("next");
+  const loginHref = next ? `/auth/login?next=${encodeURIComponent(next)}` : "/auth/login";
+
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -159,7 +163,7 @@ export default function RegisterForm() {
 
       <p className="text-sm text-slate-600">
         ¿Ya tienes cuenta?{" "}
-        <Link href="/auth/login" className="font-medium underline">
+        <Link href={loginHref} className="font-medium underline">
           Inicia sesión
         </Link>
       </p>

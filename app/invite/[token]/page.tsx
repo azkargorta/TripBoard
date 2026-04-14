@@ -61,6 +61,38 @@ export default function InvitePage({ params }: InvitePageProps) {
     load();
   }, [token, reloadNonce]);
 
+  // Tras OAuth, a veces las cookies de sesión tardan un instante en quedar visibles para el cliente.
+  // Reintentamos getUser() unas pocas veces para no forzar a “Iniciar sesión” de nuevo.
+  useEffect(() => {
+    if (!invite || currentUserId) return;
+
+    let cancelled = false;
+    let attempts = 0;
+
+    const id = window.setInterval(async () => {
+      attempts += 1;
+      try {
+        const { data } = await supabase.auth.getUser();
+        const uid = data.user?.id ?? null;
+        if (uid && !cancelled) {
+          setCurrentUserId(uid);
+          window.clearInterval(id);
+        }
+      } catch {
+        /* */
+      }
+
+      if (attempts >= 14) {
+        window.clearInterval(id);
+      }
+    }, 450);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [invite, currentUserId, token]);
+
   const statusLabel = useMemo(() => {
     if (!invite) return "";
     if (invite.status === "accepted") return "Aceptada";
