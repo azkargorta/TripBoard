@@ -378,7 +378,7 @@ export default async function TripPage({ params }: TripPageProps) {
                         alt={item.iconAlt || item.title}
                         width={54}
                         height={54}
-                        className="h-full w-full object-contain scale-[1.06]"
+                        className="h-full w-full object-contain object-center scale-[1.18]"
                       />
                     </span>
                   ) : (
