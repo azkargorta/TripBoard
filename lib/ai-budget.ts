@@ -19,7 +19,7 @@ export async function enforceAiMonthlyBudgetOrThrow(params: {
   if (userError) throw new Error(userError.message);
   if (!user) throw new Error("No hay sesión activa.");
 
-  const requestedProvider = (params.providerId || process.env.AI_PROVIDER || "ollama").toLowerCase();
+  const requestedProvider = (params.providerId || process.env.AI_PROVIDER || "gemini").toLowerCase();
   const usesGemini = requestedProvider === "gemini";
 
   const monthKey = monthKeyUtc();

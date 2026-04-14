@@ -160,10 +160,10 @@ export async function askGeminiWithUsage(prompt: string, mode: TripAiMode): Prom
 }
 
 function resolveProvider(requested?: string | null): AiProviderId {
-  const env = (process.env.AI_PROVIDER || "").toLowerCase();
-  const req = (requested || "").toLowerCase();
-  const pick = (req || env) as AiProviderId;
-  return pick === "gemini" ? "gemini" : "ollama";
+  // Requisito del proyecto: usar SIEMPRE Gemini.
+  // Ignoramos provider solicitado y AI_PROVIDER para evitar llamadas a Ollama (no disponible en Vercel).
+  void requested;
+  return "gemini";
 }
 
 function isServerlessProduction() {
@@ -177,12 +177,7 @@ export async function askTripAI(prompt: string, mode: TripAiMode, options?: { pr
       return await askGemini(prompt, mode);
     } catch (e) {
       const detail = e instanceof Error ? e.message : "error desconocido";
-      // En Vercel/producción no existe Ollama en localhost: el fallback rompía todo el endpoint (500).
-      if (isServerlessProduction()) {
-        throw new Error(detail.startsWith("Cuota de Gemini") ? detail : `Gemini no disponible: ${detail}`);
-      }
-      const fallback = await askOllama(prompt, mode);
-      return `${fallback}\n\n(Nota: Gemini falló y usé Ollama como fallback: ${detail})`;
+      throw new Error(detail.startsWith("Cuota de Gemini") ? detail : `Gemini no disponible: ${detail}`);
     }
   }
   return await askOllama(prompt, mode);

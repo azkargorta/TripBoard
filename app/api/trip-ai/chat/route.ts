@@ -107,7 +107,7 @@ export async function POST(req: Request) {
 
     const { text: answer, usage } = await askTripAIWithUsage(prompt, mode, { provider });
 
-    await trackAiUsage({ supabase, userId, provider: (provider || process.env.AI_PROVIDER || "ollama").toLowerCase(), monthKey, usage });
+    await trackAiUsage({ supabase, userId, provider: (provider || process.env.AI_PROVIDER || "gemini").toLowerCase(), monthKey, usage });
 
     await appendMessage({
       conversationId,

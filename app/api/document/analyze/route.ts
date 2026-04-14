@@ -121,7 +121,7 @@ export async function POST(request: Request) {
         await trackAiUsage({
           supabase,
           userId,
-          provider: (provider || process.env.AI_PROVIDER || "ollama").toLowerCase(),
+          provider: (provider || process.env.AI_PROVIDER || "gemini").toLowerCase(),
           monthKey,
           usage,
         });
