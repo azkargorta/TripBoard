@@ -1,6 +1,8 @@
 "use client";
 
+import type React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 
 type Props = {
@@ -8,10 +10,20 @@ type Props = {
   isPremium: boolean;
 };
 
-const items = [
+const items: Array<{ key: string; label: string; icon: React.ReactNode; href: (id: string) => string }> = [
   { key: "overview", label: "Inicio", icon: "🏠", href: (id: string) => `/trip/${id}` },
-  { key: "plan", label: "Plan", icon: "🗓️", href: (id: string) => `/trip/${id}/plan` },
-  { key: "map", label: "Mapa", icon: "🗺️", href: (id: string) => `/trip/${id}/map` },
+  {
+    key: "plan",
+    label: "Plan",
+    icon: <Image src="/brand/tabs/plan.png" alt="" width={22} height={22} className="h-[22px] w-[22px] object-contain" />,
+    href: (id: string) => `/trip/${id}/plan`,
+  },
+  {
+    key: "map",
+    label: "Mapa",
+    icon: <Image src="/brand/tabs/map.png" alt="" width={22} height={22} className="h-[22px] w-[22px] object-contain" />,
+    href: (id: string) => `/trip/${id}/map`,
+  },
   { key: "expenses", label: "Gastos", icon: "💰", href: (id: string) => `/trip/${id}/expenses` },
   { key: "participants", label: "Gente", icon: "👥", href: (id: string) => `/trip/${id}/participants` },
   { key: "resources", label: "Docs", icon: "📎", href: (id: string) => `/trip/${id}/resources` },

@@ -15,9 +15,9 @@ type Props = {
   imageClassName?: string;
 };
 
-// 4/3 del tamaño anterior (aprox.)
-const iconPx = { sm: 32, md: 37, lg: 45 };
-const boxPx = { sm: 45, md: 53, lg: 64 };
+// Un poco más grande que 4/3 (según feedback visual)
+const iconPx = { sm: 36, md: 42, lg: 52 };
+const boxPx = { sm: 52, md: 62, lg: 76 };
 
 export default function TripBoardLogo({
   variant = "dark",
