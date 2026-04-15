@@ -604,58 +604,70 @@ export default async function TripPage({ params }: TripPageProps) {
       </section>
 
       <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="card-soft p-6">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h3 className="text-xl font-bold text-slate-950">Resumen rápido</h3>
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-              Vista general
+        <details className="card-soft overflow-hidden md:open" open>
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-6 md:cursor-default">
+            <div className="flex items-center gap-3">
+              <h3 className="text-xl font-bold text-slate-950">Resumen rápido</h3>
+              <span className="hidden rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 md:inline-flex">
+                Vista general
+              </span>
+            </div>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 md:hidden">
+              Ver
             </span>
+          </summary>
+          <div className="px-6 pb-6">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="rounded-2xl border border-slate-200 p-4">
+                <p className="text-sm text-slate-500">Plan</p>
+                <p className="mt-2 text-3xl font-bold text-slate-950">{activities.length}</p>
+                <p className="mt-1 text-sm text-slate-600">elementos en agenda</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 p-4">
+                <p className="text-sm text-slate-500">Mapa</p>
+                <p className="mt-2 text-3xl font-bold text-slate-950">{routes.length}</p>
+                <p className="mt-1 text-sm text-slate-600">rutas creadas</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 p-4">
+                <p className="text-sm text-slate-500">Recursos</p>
+                <p className="mt-2 text-3xl font-bold text-slate-950">{resources.length}</p>
+                <p className="mt-1 text-sm text-slate-600">archivos y reservas</p>
+              </div>
+            </div>
           </div>
+        </details>
 
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            <div className="rounded-2xl border border-slate-200 p-4">
-              <p className="text-sm text-slate-500">Plan</p>
-              <p className="mt-2 text-3xl font-bold text-slate-950">{activities.length}</p>
-              <p className="mt-1 text-sm text-slate-600">elementos en agenda</p>
+        <details className="card-soft overflow-hidden md:open" open>
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-6 md:cursor-default">
+            <div className="flex items-center gap-3">
+              <h3 className="text-xl font-bold text-slate-950">Alertas del viaje</h3>
+              <span className="hidden rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800 md:inline-flex">
+                Revisión rápida
+              </span>
             </div>
-            <div className="rounded-2xl border border-slate-200 p-4">
-              <p className="text-sm text-slate-500">Mapa</p>
-              <p className="mt-2 text-3xl font-bold text-slate-950">{routes.length}</p>
-              <p className="mt-1 text-sm text-slate-600">rutas creadas</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 p-4">
-              <p className="text-sm text-slate-500">Recursos</p>
-              <p className="mt-2 text-3xl font-bold text-slate-950">{resources.length}</p>
-              <p className="mt-1 text-sm text-slate-600">archivos y reservas</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="card-soft p-6">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h3 className="text-xl font-bold text-slate-950">Alertas del viaje</h3>
-            <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">
-              Revisión rápida
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 md:hidden">
+              Ver
             </span>
+          </summary>
+          <div className="px-6 pb-6">
+            {alerts.length > 0 ? (
+              <div className="space-y-3">
+                {alerts.map((alert) => (
+                  <div
+                    key={alert}
+                    className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+                  >
+                    {alert}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-900">
+                Todo va bien: el viaje ya tiene información clave en plan, mapa, gastos y recursos.
+              </div>
+            )}
           </div>
-
-          {alerts.length > 0 ? (
-            <div className="space-y-3">
-              {alerts.map((alert) => (
-                <div
-                  key={alert}
-                  className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
-                >
-                  {alert}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-900">
-              Todo va bien: el viaje ya tiene información clave en plan, mapa, gastos y recursos.
-            </div>
-          )}
-        </div>
+        </details>
       </section>
     </main>
   );
