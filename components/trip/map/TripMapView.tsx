@@ -2826,6 +2826,17 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                 zoom={6}
                 onLoad={(map) => {
                   mapRef.current = map;
+                  // Evita "tiles negros" al cargar/redimensionar contenedor (sidebar/layout).
+                  window.setTimeout(() => {
+                    try {
+                      const gm = window.google?.maps as unknown as { event?: { trigger?: (m: unknown, e: string) => void } } | undefined;
+                      gm?.event?.trigger?.(map, "resize");
+                    } catch {
+                      /* */
+                    }
+                    lastFitRef.current = "";
+                    fitMapToData();
+                  }, 120);
                 }}
                 options={{
                   streetViewControl: false,
