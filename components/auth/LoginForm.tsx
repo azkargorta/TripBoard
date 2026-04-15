@@ -4,8 +4,6 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { signInWithEmail } from "@/lib/auth";
-import { clearGoogleOAuthAttempt } from "@/lib/google-oauth-attempt";
-import GoogleButton from "./GoogleButton";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -16,10 +14,6 @@ export default function LoginForm() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    clearGoogleOAuthAttempt();
-  }, []);
 
   useEffect(() => {
     // PKCE: Supabase suele redirigir con ?code= y a menudo sin type= en la query.
@@ -65,23 +59,6 @@ export default function LoginForm() {
 
   return (
     <div className="space-y-6">
-      {/* GOOGLE LOGIN */}
-      <div className="rounded-xl border border-slate-200 bg-slate-50 p-2">
-        <GoogleButton />
-      </div>
-
-      {/* DIVIDER */}
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-slate-200" />
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-white px-3 text-slate-400 tracking-wide">
-            o continúa con email
-          </span>
-        </div>
-      </div>
-
       {/* ERROR */}
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

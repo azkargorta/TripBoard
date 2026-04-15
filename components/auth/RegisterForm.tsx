@@ -4,13 +4,11 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { signUpWithEmail } from "@/lib/auth";
-import { clearGoogleOAuthAttempt } from "@/lib/google-oauth-attempt";
 import {
   isValidEmail,
   isValidPassword,
   isValidUsername,
 } from "@/lib/validators/auth";
-import GoogleButton from "./GoogleButton";
 
 export default function RegisterForm() {
   const router = useRouter();
@@ -25,10 +23,6 @@ export default function RegisterForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-
-  useEffect(() => {
-    clearGoogleOAuthAttempt();
-  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -82,17 +76,6 @@ export default function RegisterForm() {
 
   return (
     <div className="space-y-5">
-      <GoogleButton />
-
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t" />
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-white px-2 text-slate-500">o continúa con email</span>
-        </div>
-      </div>
-
       {error ? (
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {error}
