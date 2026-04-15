@@ -120,7 +120,7 @@ export default function TripCardItem({
         <span>{trip.destination || "Viaje"}</span>
         {locked ? (
           <span className="text-xs font-semibold text-amber-950">
-            Viaje guardado. Hazte Premium para acceder.
+            Funciones premium bloqueadas. Hazte Premium para desbloquear.
           </span>
         ) : null}
       </div>

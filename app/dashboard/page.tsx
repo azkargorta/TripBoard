@@ -7,8 +7,6 @@ import TripBoardLogo from "@/components/brand/TripBoardLogo";
 import { isPlatformAdmin } from "@/lib/platform-admin";
 import TripCardItem from "@/components/dashboard/TripCardItem";
 
-const FREE_TRIP_LIMIT = 3;
-
 type Trip = {
   id: string;
   name: string;
@@ -199,13 +197,7 @@ export default async function DashboardPage() {
 
   const { current, future, past, unscheduled } = categorizeTrips(trips);
   const lockedTripIds = new Set<string>();
-  if (!isPremium && trips.length > FREE_TRIP_LIMIT) {
-    const unlockedIds = new Set(trips.slice(0, FREE_TRIP_LIMIT).map((t) => String(t.id)));
-    for (const t of trips) {
-      const id = String(t.id);
-      if (!unlockedIds.has(id)) lockedTripIds.add(id);
-    }
-  }
+  // Nota: en plan gratuito se permite abrir/ver todos los viajes; solo se limita la creación (API/UI).
 
   return (
     <main className="page-shell space-y-8">
@@ -273,10 +265,10 @@ export default async function DashboardPage() {
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Plan gratuito</p>
             <p className="text-lg font-bold text-slate-950">
-              Tienes 1 viaje activo. Para ver viajes anteriores y usar IA/Mapa, pásate a Premium.
+              Puedes crear hasta 3 viajes. Para usar IA/Mapa, pásate a Premium.
             </p>
             <p className="text-sm text-slate-600">
-              Tus viajes anteriores se guardan, pero quedan bloqueados hasta Premium.
+              Tus viajes se guardan y puedes acceder a todos, pero las funciones premium seguirán bloqueadas.
             </p>
           </div>
         </section>
