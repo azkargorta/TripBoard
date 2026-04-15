@@ -1009,6 +1009,72 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     };
   }, [focusedRouteKey, isLoaded, routesState]);
 
+  /**
+   * En vista por día (selectedDate !== "all"), el usuario espera ver las rutas sin tener que "enfocar" una.
+   * Para no disparar costes, calculamos Directions solo para las rutas visibles del día y con límite.
+   */
+  useEffect(() => {
+    if (!isLoaded || typeof window === "undefined" || !window.google?.maps) return;
+    if (selectedDate === "all") return;
+
+    const gmMaps = window.google.maps;
+    const service = new gmMaps.DirectionsService();
+    let cancelled = false;
+
+    const candidates = visibleRoutes
+      .map((route) => {
+        const routeKey = `${route.source || "trip_routes"}:${route.id}`;
+        const points =
+          (Array.isArray(route.path_points) && route.path_points.length
+            ? route.path_points
+            : route.route_points) || null;
+        const hasLatLng =
+          typeof route.origin_latitude === "number" &&
+          typeof route.origin_longitude === "number" &&
+          typeof route.destination_latitude === "number" &&
+          typeof route.destination_longitude === "number";
+
+        return { route, routeKey, points, hasLatLng };
+      })
+      .filter(({ routeKey, points, hasLatLng }) => {
+        // Si ya está en cache (incluso null), no repetir.
+        if (routeKey in directionsMap) return false;
+        // Si hay puntos guardados, no hace falta Directions API.
+        if (points && points.length > 1) return false;
+        return hasLatLng;
+      });
+
+    // Límite defensivo por vista (evita coste/latencia al abrir la pantalla).
+    const MAX_DIRECTIONS_PER_VIEW = 4;
+    const toFetch = candidates.slice(0, MAX_DIRECTIONS_PER_VIEW);
+    if (!toFetch.length) return;
+
+    async function run() {
+      for (const { route, routeKey } of toFetch) {
+        if (cancelled) return;
+        try {
+          const result = await service.route({
+            origin: { lat: route.origin_latitude as number, lng: route.origin_longitude as number },
+            destination: { lat: route.destination_latitude as number, lng: route.destination_longitude as number },
+            travelMode: gmMaps.TravelMode[normalizeTravelMode(route.travel_mode)],
+            provideRouteAlternatives: false,
+          });
+          if (cancelled) return;
+          setDirectionsMap((prev) => ({ ...prev, [routeKey]: result }));
+        } catch {
+          if (cancelled) return;
+          setDirectionsMap((prev) => ({ ...prev, [routeKey]: null }));
+        }
+      }
+    }
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded, selectedDate, visibleRoutes]);
+
   const focusedDirections = useMemo(() => {
     if (!focusedRouteKey) return null;
     return directionsMap[focusedRouteKey] || null;
@@ -2880,8 +2946,8 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                   (Array.isArray(route.path_points) && route.path_points.length ? route.path_points : route.route_points) ||
                   null;
 
-                // En vista "Todos los días" o múltiples rutas: dibujar con puntos guardados para evitar saturar Directions API.
-                if (selectedDate === "all" && points && points.length > 1) {
+                // Si hay puntos guardados, dibujar con ellos para evitar saturar Directions API.
+                if (points && points.length > 1) {
                   return (
                     <PolylineF
                       key={routeKey}
