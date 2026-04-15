@@ -6,6 +6,7 @@ import CreateTripSection from "@/components/dashboard/CreateTripSection";
 import TripBoardLogo from "@/components/brand/TripBoardLogo";
 import { isPlatformAdmin } from "@/lib/platform-admin";
 import TripCardItem from "@/components/dashboard/TripCardItem";
+import OnboardingNudge from "@/components/dashboard/OnboardingNudge";
 
 type Trip = {
   id: string;
@@ -201,6 +202,7 @@ export default async function DashboardPage() {
 
   return (
     <main className="page-shell space-y-8">
+      <OnboardingNudge hasTrips={trips.length > 0} />
       <section className="card-soft overflow-hidden">
         <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-cyan-900 p-6 text-white md:p-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -274,7 +276,7 @@ export default async function DashboardPage() {
         </section>
       ) : null}
 
-      <section className="card-soft p-6 md:p-8">
+      <section id="create-trip" className="card-soft p-6 md:p-8">
         <div className="mb-4 flex items-center justify-between gap-4">
           <div>
             <h2 className="text-2xl font-bold text-slate-950">Crear nuevo viaje</h2>
@@ -285,9 +287,41 @@ export default async function DashboardPage() {
       </section>
 
       {trips.length === 0 ? (
-        <div className="card-soft p-6 text-slate-600">
-          Todavía no tienes viajes creados. Crea tu primer viaje arriba.
-        </div>
+        <section className="card-soft p-6 md:p-8">
+          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Primeros pasos
+              </p>
+              <h2 className="text-2xl font-extrabold tracking-tight text-slate-950">
+                Crea tu primer viaje y empieza a organizarlo
+              </h2>
+              <p className="text-sm text-slate-600">
+                Consejo: solo el nombre es obligatorio. Lo demás puedes rellenarlo más tarde.
+              </p>
+            </div>
+            <a
+              href="#create-trip"
+              className="inline-flex min-h-[44px] items-center justify-center rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+            >
+              Ir a crear viaje
+            </a>
+          </div>
+          <div className="mt-6 grid gap-3 md:grid-cols-3">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm font-semibold text-slate-950">1) Crea el viaje</p>
+              <p className="mt-1 text-sm text-slate-600">Nombre + destino opcional.</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm font-semibold text-slate-950">2) Invita a tu grupo</p>
+              <p className="mt-1 text-sm text-slate-600">Comparte el enlace y listo.</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm font-semibold text-slate-950">3) Añade gastos y plan</p>
+              <p className="mt-1 text-sm text-slate-600">Todo en el mismo panel.</p>
+            </div>
+          </div>
+        </section>
       ) : (
         <div className="space-y-8">
           <TripSection
