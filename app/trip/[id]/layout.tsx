@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { TripBoardHeaderProvider } from "@/components/layout/TripBoardHeaderContext";
 import Script from "next/script";
 import { isPremiumEnabledForTrip } from "@/lib/entitlements";
+import DesktopTripNav from "@/components/layout/DesktopTripNav";
 
 type TripLayoutProps = {
   children: ReactNode;
@@ -37,6 +38,7 @@ export default async function TripLayout({
           />
         ) : null}
         <TripBoardBrandRail tripId={params.id} tripName={tripName} />
+        <DesktopTripNav tripId={params.id} isPremium={isPremium} />
         <div
           className="pb-[calc(5.35rem+env(safe-area-inset-bottom,0px))] md:pb-0"
           style={{
