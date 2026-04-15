@@ -7,6 +7,7 @@ import TripHomeActions from "@/components/trip/home/TripHomeActions";
 import TripWeatherCard from "@/components/trip/home/TripWeatherCard";
 import TripTripBasicsEditor from "@/components/trip/home/TripTripBasicsEditor";
 import { computePersonalBalance } from "@/lib/personal-balance";
+import { buildSettlementSuggestions, type SettlementSuggestion } from "@/lib/expense-balance";
 import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
 import TripScreenActions from "@/components/trip/common/TripScreenActions";
 import { isPremiumEnabledForTrip } from "@/lib/entitlements";
@@ -170,7 +171,7 @@ export default async function TripPage({ params }: TripPageProps) {
     supabase
       .from("trip_expenses")
       .select(
-        "id, amount, currency, payer_name, participant_names, paid_by_names, owed_by_names, paid_by_participant_id, split_between"
+        "id, amount, amount_in_base, currency, payer_name, participant_names, paid_by_names, owed_by_names, paid_by_participant_id, split_between"
       )
       .eq("trip_id", tripId),
     supabase.from("trip_resources").select("id").eq("trip_id", tripId),
@@ -221,6 +222,43 @@ export default async function TripPage({ params }: TripPageProps) {
     expenses,
     participants,
   });
+
+  const baseCurrency = (currentTrip.base_currency || "EUR").toUpperCase();
+  const expensesForSettlements = expenses
+    .map((e) => {
+      const currency = (e.currency || baseCurrency).toUpperCase();
+      const amount =
+        typeof e.amount_in_base !== "undefined" && e.amount_in_base !== null
+          ? e.amount_in_base
+          : currency === baseCurrency
+            ? e.amount
+            : null;
+      if (amount === null) return null;
+      return {
+        id: String(e.id),
+        title: null,
+        payer_name: e.payer_name || null,
+        participant_names: e.participant_names,
+        paid_by_names: e.paid_by_names,
+        owed_by_names: e.owed_by_names,
+        amount,
+        currency: baseCurrency,
+      };
+    })
+    .filter(Boolean) as Array<{
+    id: string;
+    title: string | null;
+    payer_name: string | null;
+    participant_names: unknown;
+    paid_by_names: unknown;
+    owed_by_names: unknown;
+    amount: number | string | null;
+    currency: string | null;
+  }>;
+
+  const pendingSettlements = buildSettlementSuggestions(expensesForSettlements, baseCurrency)
+    .filter((s) => s.status !== "paid")
+    .slice(0, 4) as SettlementSuggestion[];
 
   const nextCheckIn =
     activities
@@ -328,7 +366,7 @@ export default async function TripPage({ params }: TripPageProps) {
         }}
       />
 
-      {nextCheckIn || Math.abs(ownBalance.net) >= 0.01 ? (
+      {nextCheckIn || Math.abs(ownBalance.net) >= 0.01 || pendingSettlements.length ? (
         <section className="card-soft p-6 md:p-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0">
@@ -397,6 +435,42 @@ export default async function TripPage({ params }: TripPageProps) {
               </div>
             </div>
           </div>
+
+          {pendingSettlements.length ? (
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="text-sm font-semibold text-slate-950">Pendientes (quién debe a quién)</div>
+              <div className="mt-2 space-y-2">
+                {pendingSettlements.map((s) => {
+                  const msg = `Hola. Según el balance del viaje, ${s.debtor_name} debe pagar ${s.amount.toFixed(2)} ${s.currency} a ${s.creditor_name}. Estado: pendiente.`;
+                  const href = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+                  return (
+                    <div
+                      key={s.source_balance_key}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2"
+                    >
+                      <div className="min-w-0 text-sm font-semibold text-slate-900">
+                        <span className="truncate">{s.debtor_name}</span>{" "}
+                        <span className="text-slate-500">→</span>{" "}
+                        <span className="truncate">{s.creditor_name}</span>{" "}
+                        <span className="ml-2 text-slate-700">
+                          {s.amount.toFixed(2)} {s.currency}
+                        </span>
+                      </div>
+                      <a
+                        href={href}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex min-h-[36px] items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
+                        title="Enviar recordatorio por WhatsApp"
+                      >
+                        WhatsApp
+                      </a>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
         </section>
       ) : null}
 
