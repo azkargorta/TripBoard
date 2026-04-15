@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Compass, Home, LayoutDashboard } from "lucide-react";
+import TripShareButton from "@/components/trip/common/TripShareButton";
 
 type Props = {
   tripId: string;
@@ -24,6 +25,7 @@ export default function TripScreenActions({
 
   return (
     <div className="flex flex-wrap gap-2">
+      <TripShareButton tripId={tripId} />
       <Link
         href={`/trip/${tripId}/map/explore`}
         className={btn}
