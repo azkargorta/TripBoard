@@ -40,7 +40,7 @@ export default async function TripLayout({
         <TripBoardBrandRail tripId={params.id} tripName={tripName} />
         <DesktopTripNav tripId={params.id} isPremium={isPremium} />
         <div
-          className="pb-[calc(5.35rem+env(safe-area-inset-bottom,0px))] md:pb-0"
+          className="pb-[calc(5.35rem+env(safe-area-inset-bottom,0px))] md:pb-0 md:pt-[64px]"
           style={{
             paddingTop: "max(env(safe-area-inset-top), 0px)",
           }}

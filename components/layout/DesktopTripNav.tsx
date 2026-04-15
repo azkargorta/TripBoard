@@ -24,9 +24,9 @@ const items: Array<{
       <Image
         src="/brand/tabs/plan.png"
         alt=""
-        width={18}
-        height={18}
-        className="h-[18px] w-[18px] object-contain"
+        width={22}
+        height={22}
+        className="h-[22px] w-[22px] object-contain"
       />
     ),
     href: (id: string) => `/trip/${id}/plan`,
@@ -38,9 +38,9 @@ const items: Array<{
       <Image
         src="/brand/tabs/map.png"
         alt=""
-        width={18}
-        height={18}
-        className="h-[18px] w-[18px] object-contain"
+        width={22}
+        height={22}
+        className="h-[22px] w-[22px] object-contain"
       />
     ),
     href: (id: string) => `/trip/${id}/map`,
@@ -66,7 +66,7 @@ export default function DesktopTripNav({ tripId, isPremium }: Props) {
 
   return (
     <nav
-      className="sticky top-[56px] z-40 hidden border-b border-slate-200 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/75 md:block"
+      className="fixed inset-x-0 top-[56px] z-40 hidden border-b border-slate-200 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/75 md:block"
       aria-label="Navegación del viaje"
     >
       <div className="page-shell max-w-[1200px] !py-2">
