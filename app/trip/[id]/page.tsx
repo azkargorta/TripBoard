@@ -11,6 +11,7 @@ import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
 import TripScreenActions from "@/components/trip/common/TripScreenActions";
 import { isPremiumEnabledForTrip } from "@/lib/entitlements";
 import TripFirstRunPanel from "@/components/trip/home/TripFirstRunPanel";
+import { Bell, CalendarDays, Wallet } from "lucide-react";
 
 type TripPageProps = {
   params: {
@@ -119,6 +120,12 @@ function parseActivityMoment(activity: ActivityRow) {
   return Number.isNaN(value.getTime()) ? null : value;
 }
 
+function isLodging(activity: ActivityRow) {
+  const kind = String(activity.activity_kind || "").trim().toLowerCase();
+  const type = String(activity.activity_type || "").trim().toLowerCase();
+  return kind === "lodging" || type === "lodging";
+}
+
 export default async function TripPage({ params }: TripPageProps) {
   const tripId = params.id;
   const access = await requireTripAccess(tripId);
@@ -215,6 +222,16 @@ export default async function TripPage({ params }: TripPageProps) {
     participants,
   });
 
+  const nextCheckIn =
+    activities
+      .filter((a) => isLodging(a))
+      .map((activity) => ({ activity, when: parseActivityMoment(activity) }))
+      .filter((item): item is { activity: ActivityRow; when: Date } => !!item.when)
+      .find((item) => {
+        const delta = item.when.getTime() - now.getTime();
+        return delta >= 0 && delta <= 24 * 60 * 60 * 1000;
+      })?.activity ?? null;
+
   const totalSpent = expenses.reduce(
     (sum, expense) => sum + amountValue(expense.amount_in_base ?? expense.amount),
     0
@@ -310,6 +327,78 @@ export default async function TripPage({ params }: TripPageProps) {
           resources: resources.length,
         }}
       />
+
+      {nextCheckIn || Math.abs(ownBalance.net) >= 0.01 ? (
+        <section className="card-soft p-6 md:p-8">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                <Bell className="h-4 w-4" aria-hidden />
+                Recordatorios
+              </div>
+              <div className="mt-2 text-sm text-slate-600">
+                Alertas rápidas dentro de Kaviro (check-ins y pagos del split).
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href={`/trip/${tripId}/plan`}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
+              >
+                <CalendarDays className="h-4 w-4" aria-hidden />
+                Ver plan
+              </Link>
+              <Link
+                href={`/trip/${tripId}/expenses`}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
+              >
+                <Wallet className="h-4 w-4" aria-hidden />
+                Ver gastos
+              </Link>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-2">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="text-sm font-semibold text-slate-950">Check-in en 24h</div>
+              {nextCheckIn ? (
+                <div className="mt-2 text-sm text-slate-700">
+                  <div className="font-bold text-slate-950">{nextCheckIn.title || "Alojamiento"}</div>
+                  <div className="mt-1 text-xs text-slate-600">
+                    {nextCheckIn.activity_date ? formatDate(nextCheckIn.activity_date) : "Sin fecha"}
+                    {nextCheckIn.activity_time ? ` · ${nextCheckIn.activity_time.slice(0, 5)}` : ""}
+                    {nextCheckIn.place_name || nextCheckIn.address ? ` · ${nextCheckIn.place_name || nextCheckIn.address}` : ""}
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-2 text-sm text-slate-600">No hay check-ins en las próximas 24 horas.</div>
+              )}
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="text-sm font-semibold text-slate-950">Pagos del split</div>
+              <div className="mt-2 text-sm text-slate-700">
+                {ownBalance.net <= -0.01 ? (
+                  <span>
+                    Te falta por pagar aproximadamente{" "}
+                    <span className="font-bold text-rose-700">{Math.abs(ownBalance.net).toFixed(2)} {currentTrip.base_currency || "EUR"}</span>.
+                  </span>
+                ) : ownBalance.net >= 0.01 ? (
+                  <span>
+                    Te deben aproximadamente{" "}
+                    <span className="font-bold text-emerald-700">{ownBalance.net.toFixed(2)} {currentTrip.base_currency || "EUR"}</span>.
+                  </span>
+                ) : (
+                  <span>No parece que tengas pagos pendientes ahora mismo.</span>
+                )}
+              </div>
+              <div className="mt-2 text-xs text-slate-500">
+                Basado en los gastos añadidos. Para “quién debe a quién”, revisa Balances y pagos.
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <section className="card-soft p-6 md:p-8">
         <div className="grid gap-6 md:grid-cols-[1.8fr_1fr]">
