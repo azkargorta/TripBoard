@@ -7,6 +7,7 @@ import PlanLodgingCard from "@/components/trip/plan/PlanLodgingCard";
 import PlanForm, { type PlanFormValues } from "@/components/trip/plan/PlanForm";
 import { useTripActivities, type TripActivity } from "@/hooks/useTripActivities";
 import { CalendarDays, Clock, Eye, EyeOff, Filter, Plus, Search, SlidersHorizontal } from "lucide-react";
+import TripPlanCalendar from "@/components/trip/plan/TripPlanCalendar";
 
 function groupByDate(activities: TripActivity[]) {
   const groups = new Map<string, TripActivity[]>();
@@ -98,6 +99,8 @@ export default function TripPlanView({
   const [kindFilter, setKindFilter] = useState<Set<string>>(new Set());
   const [showLodging, setShowLodging] = useState(true);
   const [showManual, setShowManual] = useState(true);
+  const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
@@ -159,7 +162,12 @@ export default function TripPlanView({
       });
   }, [activities, kindFilter, query, showLodging, showManual]);
 
-  const grouped = useMemo(() => groupByDate(filtered), [filtered]);
+  const filteredWithCalendarDate = useMemo(() => {
+    if (!selectedDate) return filtered;
+    return filtered.filter((a) => (a.activity_date || "") === selectedDate);
+  }, [filtered, selectedDate]);
+
+  const grouped = useMemo(() => groupByDate(filteredWithCalendarDate), [filteredWithCalendarDate]);
   const lodgingCount = useMemo(
     () => activities.filter((item) => isLodgingActivity(item)).length,
     [activities]
@@ -317,6 +325,28 @@ export default function TripPlanView({
             Filtros
           </div>
           <div className="flex flex-wrap gap-2">
+            <div className="mr-2 inline-flex overflow-hidden rounded-xl border border-slate-200 bg-white">
+              <button
+                type="button"
+                onClick={() => setViewMode("list")}
+                className={`inline-flex min-h-[36px] items-center gap-2 px-3 text-xs font-extrabold transition ${
+                  viewMode === "list" ? "bg-slate-950 text-white" : "text-slate-700 hover:bg-slate-50"
+                }`}
+                title="Vista de lista"
+              >
+                Lista
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("calendar")}
+                className={`inline-flex min-h-[36px] items-center gap-2 px-3 text-xs font-extrabold transition ${
+                  viewMode === "calendar" ? "bg-slate-950 text-white" : "text-slate-700 hover:bg-slate-50"
+                }`}
+                title="Vista calendario"
+              >
+                Calendario
+              </button>
+            </div>
             <button
               type="button"
               onClick={() => setShowManual((v) => !v)}
@@ -408,9 +438,19 @@ export default function TripPlanView({
         </div>
       ) : null}
 
+      {viewMode === "calendar" ? (
+        <TripPlanCalendar
+          activities={filtered}
+          selectedDate={selectedDate}
+          onSelectDate={(d) => {
+            setSelectedDate(d);
+          }}
+        />
+      ) : null}
+
       {grouped.length === 0 ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-          Todavía no hay actividades en el plan.
+          {selectedDate ? "No hay actividades para este día." : "Todavía no hay actividades en el plan."}
         </div>
       ) : null}
 
