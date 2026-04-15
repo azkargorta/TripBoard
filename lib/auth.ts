@@ -9,7 +9,6 @@ import {
 } from "@/lib/validators/auth";
 import { isUsernameAvailable } from "@/lib/profile";
 import { clearSupabaseBrowserCookies } from "@/lib/clear-supabase-browser-cookies";
-import { clearGoogleOAuthAttempt, markGoogleOAuthAttempt } from "@/lib/google-oauth-attempt";
 import { withTimeout } from "@/lib/with-timeout";
 
 /**
@@ -97,41 +96,6 @@ export async function signInWithEmail(params: {
   }
 
   return payload;
-}
-
-/**
- * Login con Google — GET /auth/callback (misma URL que suele estar ya en Supabase Redirect URLs).
- */
-export async function signInWithGoogle(next: string = "/dashboard") {
-  const safe = next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
-  const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(safe)}&intent=oauth`;
-
-  clearGoogleOAuthAttempt();
-  // Limpia solo cookies sb-* viejas (PKCE/sesión a medias). No uses signOut con timeout aquí:
-  // el signOut seguiría en background y podría borrar el code_verifier que signInWithOAuth acaba de guardar.
-  clearSupabaseBrowserCookies();
-
-  // Antes de ir a Google: la cookie debe existir ya (si no, Supabase puede volver solo con ?code=).
-  markGoogleOAuthAttempt(safe);
-
-  const { data, error } = await withTimeout(
-    supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo,
-        skipBrowserRedirect: true,
-      },
-    }),
-    25_000,
-    "No se pudo iniciar sesión con Google (tiempo agotado). Revisa la conexión."
-  );
-
-  if (error) throw error;
-  if (!data?.url) {
-    throw new Error("No se pudo obtener la URL de inicio de sesión con Google.");
-  }
-
-  window.location.replace(data.url);
 }
 
 /**
