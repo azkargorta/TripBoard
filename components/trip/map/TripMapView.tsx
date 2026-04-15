@@ -1072,8 +1072,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoaded, selectedDate, visibleRoutes]);
+  }, [directionsMap, isLoaded, selectedDate, visibleRoutes]);
 
   const focusedDirections = useMemo(() => {
     if (!focusedRouteKey) return null;
@@ -2887,7 +2886,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
           ) : (
             <div className="relative">
               <GoogleMap
-                mapContainerStyle={{ width: "100%", height: "min(720px, calc(100vh - 180px))" }}
+                mapContainerStyle={{ width: "100%", height: "min(720px, 70vh)" }}
                 center={DEFAULT_CENTER}
                 zoom={6}
                 onLoad={(map) => {
@@ -2903,6 +2902,19 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                     lastFitRef.current = "";
                     fitMapToData();
                   }, 120);
+                }}
+                onTilesLoaded={() => {
+                  // A veces GoogleMap carga tiles antes de medir bien el contenedor; forzamos repaint.
+                  const map = mapRef.current;
+                  if (!map) return;
+                  window.setTimeout(() => {
+                    try {
+                      const gm = window.google?.maps as unknown as { event?: { trigger?: (m: unknown, e: string) => void } } | undefined;
+                      gm?.event?.trigger?.(map, "resize");
+                    } catch {
+                      /* */
+                    }
+                  }, 0);
                 }}
                 options={{
                   streetViewControl: false,
@@ -2962,7 +2974,33 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                 }
 
                 const directions = directionsMap[routeKey];
-                if (!directions) return null;
+                if (!directions) {
+                  // Fallback: si Directions falla, al menos dibujamos una línea simple origen→destino
+                  // para que el usuario "vea" la ruta y entienda el problema (posible ahorro/coste/API).
+                  if (
+                    typeof route.origin_latitude === "number" &&
+                    typeof route.origin_longitude === "number" &&
+                    typeof route.destination_latitude === "number" &&
+                    typeof route.destination_longitude === "number"
+                  ) {
+                    return (
+                      <PolylineF
+                        key={`${routeKey}:fallback`}
+                        path={[
+                          { lat: route.origin_latitude, lng: route.origin_longitude },
+                          { lat: route.destination_latitude, lng: route.destination_longitude },
+                        ]}
+                        options={{
+                          strokeColor: route.color || "#4f46e5",
+                          strokeOpacity: 0.75,
+                          strokeWeight: 4,
+                          geodesic: true,
+                        }}
+                      />
+                    );
+                  }
+                  return null;
+                }
                 return (
                   <DirectionsRenderer
                     key={routeKey}
