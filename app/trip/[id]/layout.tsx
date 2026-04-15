@@ -45,7 +45,7 @@ export default async function TripLayout({
           }}
         >
           <div className="page-shell pb-6 md:pb-12">
-            <div className="md:grid md:grid-cols-[200px_1fr] md:gap-6">
+            <div className="md:grid md:grid-cols-[120px_1fr] md:gap-4">
               <DesktopTripSidebar tripId={params.id} isPremium={isPremium} />
               <div className="space-y-6 md:space-y-10">{children}</div>
             </div>

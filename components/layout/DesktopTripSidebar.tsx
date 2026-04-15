@@ -63,7 +63,7 @@ export default function DesktopTripSidebar({ tripId, isPremium }: Props) {
   return (
     <aside className="hidden md:block">
       <div className="sticky top-24">
-        <div className="rounded-3xl border border-slate-200 bg-white/85 p-2 backdrop-blur supports-[backdrop-filter]:bg-white/70">
+        <div className="rounded-3xl border border-slate-200 bg-white/85 p-1.5 backdrop-blur supports-[backdrop-filter]:bg-white/70">
           <nav aria-label="Navegación del viaje (escritorio)" className="space-y-1">
             {visibleItems.map((item) => {
               const href = item.href(tripId);
@@ -73,16 +73,17 @@ export default function DesktopTripSidebar({ tripId, isPremium }: Props) {
                   key={item.key}
                   href={href}
                   prefetch
-                  className={`flex min-h-[40px] items-center gap-3 rounded-2xl px-2.5 py-2 text-[13px] font-semibold transition ${
+                  title={item.label}
+                  className={`flex min-h-[56px] flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold transition ${
                     active
                       ? "bg-cyan-100 text-cyan-950"
                       : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
                   }`}
                 >
-                  <span className="shrink-0 text-xl leading-none" aria-hidden>
+                  <span className="shrink-0 text-[1.35rem] leading-none" aria-hidden>
                     {item.icon}
                   </span>
-                  <span className="truncate">{item.label}</span>
+                  <span className="w-full truncate text-center">{item.label}</span>
                 </Link>
               );
             })}
