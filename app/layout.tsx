@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next";
 import AuthListener from "@/components/auth/AuthListener";
 import AnalyticsRoot from "@/components/analytics/AnalyticsRoot";
 import { createClient } from "@/lib/supabase/server";
+import { ToastProvider } from "@/components/ui/toast";
 
 export const metadata: Metadata = {
   title: "Kaviro",
@@ -56,34 +57,36 @@ export default async function RootLayout({
   return (
     <html lang="es">
       <body className="touch-manipulation bg-slate-50 text-slate-950 antialiased">
-        <AuthListener />
-        <AnalyticsRoot />
-        {isPremium !== null ? (
-          <div className="sticky top-0 z-50">
-            <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-cyan-900">
-              <div className="mx-auto flex max-w-[1200px] items-center justify-end px-4 py-1.5 sm:px-6 sm:py-2">
-                <div
-                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold ${
-                    isPremium
-                      ? "border-emerald-300/35 bg-emerald-400/15 text-emerald-50"
-                      : "border-white/20 bg-white/10 text-white"
-                  }`}
-                  title={isPremium ? "Versión Premium" : "Versión gratuita"}
-                >
-                  <span
-                    className={`inline-flex h-2.5 w-2.5 rounded-full ${
-                      isPremium ? "bg-emerald-300" : "bg-white/70"
+        <ToastProvider>
+          <AuthListener />
+          <AnalyticsRoot />
+          {isPremium !== null ? (
+            <div className="sticky top-0 z-50">
+              <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-cyan-900">
+                <div className="mx-auto flex max-w-[1200px] items-center justify-end px-4 py-1.5 sm:px-6 sm:py-2">
+                  <div
+                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold ${
+                      isPremium
+                        ? "border-emerald-300/35 bg-emerald-400/15 text-emerald-50"
+                        : "border-white/20 bg-white/10 text-white"
                     }`}
-                    aria-hidden
-                  />
-                  <span className="uppercase tracking-[0.16em] opacity-70">Versión</span>
-                  <span className="font-extrabold">{isPremium ? "Premium" : "gratuita"}</span>
+                    title={isPremium ? "Versión Premium" : "Versión gratuita"}
+                  >
+                    <span
+                      className={`inline-flex h-2.5 w-2.5 rounded-full ${
+                        isPremium ? "bg-emerald-300" : "bg-white/70"
+                      }`}
+                      aria-hidden
+                    />
+                    <span className="uppercase tracking-[0.16em] opacity-70">Versión</span>
+                    <span className="font-extrabold">{isPremium ? "Premium" : "gratuita"}</span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        ) : null}
-        {children}
+          ) : null}
+          {children}
+        </ToastProvider>
       </body>
     </html>
   );

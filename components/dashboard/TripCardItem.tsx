@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
+import { useToast } from "@/components/ui/toast";
 
 type Trip = {
   id: string;
@@ -41,6 +42,7 @@ export default function TripCardItem({
   locked: boolean;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,9 +61,12 @@ export default function TripCardItem({
       });
       const payload = await resp.json().catch(() => null);
       if (!resp.ok) throw new Error(payload?.error || `Error ${resp.status}`);
+      toast.success("Viaje eliminado", `Se eliminó "${trip.name}".`);
       router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo eliminar el viaje.");
+      const msg = e instanceof Error ? e.message : "No se pudo eliminar el viaje.";
+      setError(msg);
+      toast.error("No se pudo eliminar", msg);
     } finally {
       setDeleting(false);
     }

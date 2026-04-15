@@ -3,6 +3,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import { useTripInvites } from "@/hooks/useTripInvites";
 import type { TripRole, TripParticipant } from "@/hooks/useTripParticipants";
+import { useToast } from "@/components/ui/toast";
 
 type InviteParticipantPanelProps = {
   tripId: string;
@@ -18,6 +19,7 @@ export default function InviteParticipantPanel({
   onCancel,
 }: InviteParticipantPanelProps) {
   const { createInvite, buildInviteUrl, loading, error } = useTripInvites();
+  const toast = useToast();
 
   const [displayName, setDisplayName] = useState(participant?.display_name ?? "");
   const [phone, setPhone] = useState(participant?.phone ?? "");
@@ -64,8 +66,13 @@ export default function InviteParticipantPanel({
 
   async function copyLink() {
     if (!inviteUrl) return;
-    await navigator.clipboard.writeText(inviteUrl);
-    setCopied(true);
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      setCopied(true);
+      toast.success("Enlace copiado", "Ya puedes pegarlo donde quieras.");
+    } catch {
+      toast.error("No se pudo copiar", "Tu navegador bloqueó el portapapeles. Copia el enlace manualmente.");
+    }
   }
 
   return (

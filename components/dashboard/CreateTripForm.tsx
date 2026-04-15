@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { useToast } from "@/components/ui/toast";
 
 function withTimeout<T>(promiseLike: PromiseLike<T>, ms = 25000, label = "operación"): Promise<T> {
   return Promise.race([
@@ -14,6 +15,7 @@ function withTimeout<T>(promiseLike: PromiseLike<T>, ms = 25000, label = "operac
 
 export default function CreateTripForm() {
   const router = useRouter();
+  const toast = useToast();
 
   const [name, setName] = useState("");
   const [destination, setDestination] = useState("");
@@ -107,12 +109,13 @@ export default function CreateTripForm() {
       setBaseCurrency("EUR");
 
       setStep("done");
+      toast.success("Viaje creado", "Te llevamos al resumen del viaje.");
       router.push(`/trip/${newTripId}`);
       router.refresh();
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "No se pudo crear el viaje."
-      );
+      const msg = err instanceof Error ? err.message : "No se pudo crear el viaje.";
+      setError(msg);
+      toast.error("No se pudo crear el viaje", msg);
     } finally {
       setLoading(false);
       setStep("idle");
