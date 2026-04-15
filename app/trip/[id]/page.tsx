@@ -10,6 +10,7 @@ import { computePersonalBalance } from "@/lib/personal-balance";
 import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
 import TripScreenActions from "@/components/trip/common/TripScreenActions";
 import { isPremiumEnabledForTrip } from "@/lib/entitlements";
+import TripFirstRunPanel from "@/components/trip/home/TripFirstRunPanel";
 
 type TripPageProps = {
   params: {
@@ -295,6 +296,19 @@ export default async function TripPage({ params }: TripPageProps) {
         title={currentTrip.name}
         description={`${currentTrip.destination || "Destino pendiente"} · ${formatDateRange(currentTrip.start_date, currentTrip.end_date)}`}
         actions={<TripScreenActions tripId={tripId} showSummary={false} homeLabel="Mis viajes" />}
+      />
+
+      <TripFirstRunPanel
+        tripId={tripId}
+        tripName={currentTrip.name}
+        canEditTrip={canEditTrip}
+        counts={{
+          participants: participants.length,
+          activities: activities.length,
+          routes: routes.length,
+          expenses: expenses.length,
+          resources: resources.length,
+        }}
       />
 
       <section className="card-soft p-6 md:p-8">
