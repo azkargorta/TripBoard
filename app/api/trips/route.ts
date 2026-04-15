@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
+const FREE_TRIP_LIMIT = 3;
+
 export async function POST(req: Request) {
   try {
     const supabase = await createClient();
@@ -19,7 +21,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No hay sesión activa." }, { status: 401 });
     }
 
-    // Free tier: solo 1 viaje activo (el último). Para evitar gasto/carga, bloqueamos crear más viajes sin premium.
+    // Free tier: límite de viajes activos. Para evitar gasto/carga, bloqueamos crear más viajes sin premium.
     const { data: profileRow } = await supabase
       .from("profiles")
       .select("is_premium")
@@ -37,9 +39,12 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: countErr.message }, { status: 500 });
       }
       const existingCount = Array.isArray(existing) ? existing.length : 0;
-      if (existingCount >= 1) {
+      if (existingCount >= FREE_TRIP_LIMIT) {
         return NextResponse.json(
-          { error: "El plan gratuito solo permite 1 viaje activo. Hazte Premium para crear más viajes.", code: "PREMIUM_REQUIRED" },
+          {
+            error: `El plan gratuito permite hasta ${FREE_TRIP_LIMIT} viajes activos. Hazte Premium para crear más viajes.`,
+            code: "PREMIUM_REQUIRED",
+          },
           { status: 402 }
         );
       }

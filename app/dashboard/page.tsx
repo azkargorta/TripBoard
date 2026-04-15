@@ -7,6 +7,8 @@ import TripBoardLogo from "@/components/brand/TripBoardLogo";
 import { isPlatformAdmin } from "@/lib/platform-admin";
 import TripCardItem from "@/components/dashboard/TripCardItem";
 
+const FREE_TRIP_LIMIT = 3;
+
 type Trip = {
   id: string;
   name: string;
@@ -196,11 +198,12 @@ export default async function DashboardPage() {
   }
 
   const { current, future, past, unscheduled } = categorizeTrips(trips);
-  const newestTripId = trips?.[0]?.id ? String(trips[0].id) : null;
   const lockedTripIds = new Set<string>();
-  if (!isPremium && newestTripId) {
+  if (!isPremium && trips.length > FREE_TRIP_LIMIT) {
+    const unlockedIds = new Set(trips.slice(0, FREE_TRIP_LIMIT).map((t) => String(t.id)));
     for (const t of trips) {
-      if (String(t.id) !== newestTripId) lockedTripIds.add(String(t.id));
+      const id = String(t.id);
+      if (!unlockedIds.has(id)) lockedTripIds.add(id);
     }
   }
 
@@ -286,7 +289,7 @@ export default async function DashboardPage() {
             <p className="mt-1 text-sm text-slate-600">Añádelo aquí y aparecerá automáticamente en su categoría.</p>
           </div>
         </div>
-        <CreateTripSection isPremium={isPremium} hasAnyTrip={Boolean(newestTripId)} />
+              <CreateTripSection isPremium={isPremium} tripCount={trips.length} />
       </section>
 
       {trips.length === 0 ? (

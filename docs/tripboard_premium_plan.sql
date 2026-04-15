@@ -2,7 +2,7 @@
 --
 -- Objetivo:
 -- - `profiles.is_premium` controla el acceso a IA, Maps/autocomplete, geocoding, etc.
--- - Sin premium: 1 viaje activo (en la app se aplica como "solo el último viaje creado").
+-- - Sin premium: hasta 3 viajes activos (en la app se aplica como "los 3 últimos viajes creados").
 --
 -- Nota: RLS de profiles depende de tu proyecto; aquí solo añadimos la columna.
 

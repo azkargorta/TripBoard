@@ -6,20 +6,21 @@ import Link from "next/link";
 
 export default function CreateTripSection({
   isPremium,
-  hasAnyTrip,
+  tripCount,
 }: {
   isPremium: boolean;
-  hasAnyTrip: boolean;
+  tripCount: number;
 }) {
   const [showForm, setShowForm] = useState(false);
-  const locked = !isPremium && hasAnyTrip;
+  const FREE_TRIP_LIMIT = 3;
+  const locked = !isPremium && tripCount >= FREE_TRIP_LIMIT;
 
   return (
     <div className="space-y-4">
       {locked ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
           <div>
-            El plan gratuito solo permite <strong>1 viaje activo</strong>. Hazte Premium para crear más viajes.
+            El plan gratuito permite hasta <strong>{FREE_TRIP_LIMIT} viajes activos</strong>. Hazte Premium para crear más viajes.
           </div>
           <div className="mt-2">
             <Link
