@@ -5,7 +5,7 @@ export default function LoginPage() {
   return (
     <AuthShell
       title="Iniciar sesión"
-      subtitle="Accede a tu cuenta de TripBoard"
+      subtitle="Accede a tu cuenta de Kaviro"
     >
       <LoginForm />
     </AuthShell>

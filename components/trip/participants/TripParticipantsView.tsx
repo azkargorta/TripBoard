@@ -579,7 +579,7 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
               </div>
 
               <p className="mt-3 text-xs text-slate-500">
-                Envía un enlace único por WhatsApp. La persona inicia sesión y TripBoard crea o vincula su pasajero automáticamente.
+                Envía un enlace único por WhatsApp. La persona inicia sesión y Kaviro crea o vincula su pasajero automáticamente.
               </p>
             </div>
           ) : (

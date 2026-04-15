@@ -235,7 +235,7 @@ export default function ExpenseBalancePanel({
               <div className="text-sm font-semibold text-slate-950">Métodos de pago por viajero</div>
               <div className="mt-1 text-xs text-slate-600">
                 Define cómo puede <span className="font-semibold">pagar</span> y <span className="font-semibold">recibir</span> cada persona.
-                Si el modo estricto está activo, TripBoard solo propondrá pagos posibles.
+                Si el modo estricto está activo, Kaviro solo propondrá pagos posibles.
               </div>
             </div>
 
