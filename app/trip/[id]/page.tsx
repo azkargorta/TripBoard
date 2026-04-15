@@ -379,7 +379,59 @@ export default async function TripPage({ params }: TripPageProps) {
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {/* Accesos rápidos: plegable en móvil, siempre visible en desktop */}
+      <section className="md:hidden">
+        <details className="card-soft overflow-hidden" open>
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-5">
+            <div>
+              <h2 className="text-lg font-extrabold tracking-tight text-slate-950">Accesos rápidos</h2>
+              <p className="mt-1 text-sm text-slate-600">Plan, gastos, mapa, participantes y más.</p>
+            </div>
+            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+              Abrir
+            </span>
+          </summary>
+          <div className="px-5 pb-5">
+            <div className="grid gap-3">
+              {moduleCards.map((item) => (
+                <Link
+                  key={item.title}
+                  href={item.href}
+                  className={`group rounded-2xl border bg-gradient-to-br p-4 transition active:scale-[0.99] ${item.accent}`}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      {"iconSrc" in item && item.iconSrc ? (
+                        <span className="mt-0.5 inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl bg-white/70 ring-1 ring-slate-200">
+                          <Image
+                            src={item.iconSrc}
+                            alt={item.iconAlt || item.title}
+                            width={40}
+                            height={40}
+                            className="h-full w-full object-contain object-center scale-[1.18]"
+                          />
+                        </span>
+                      ) : (
+                        <span className="text-2xl" aria-hidden>
+                          {(item as any).emoji}
+                        </span>
+                      )}
+                      <div>
+                        <p className="text-sm font-bold text-slate-950">{item.title}</p>
+                        <p className="mt-0.5 text-sm text-slate-600">{item.subtitle}</p>
+                        <p className="mt-2 text-xs font-semibold text-slate-700">{item.metric}</p>
+                      </div>
+                    </div>
+                    <span className="text-sm font-semibold text-slate-500">→</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <section className="hidden gap-4 md:grid md:grid-cols-2 xl:grid-cols-3">
         {moduleCards.map((item) => (
           <Link
             key={item.title}
@@ -445,94 +497,109 @@ export default async function TripPage({ params }: TripPageProps) {
         )}
 
         <div className="space-y-6">
-          <div className="card-soft p-5">
-            <div className="mb-3 flex items-center justify-between gap-3">
+          {/* En móvil, plegamos los bloques largos */}
+          <details className="card-soft overflow-hidden md:open" open>
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-5 md:cursor-default">
               <h3 className="text-xl font-bold text-slate-950">Hoy toca</h3>
-              {activeToday ? (
-                <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
-                  Hoy estás de viaje
-                </span>
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 md:hidden">
+                Ver
+              </span>
+            </summary>
+            <div className="px-5 pb-5">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                {activeToday ? (
+                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
+                    Hoy estás de viaje
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                    Aún no toca hoy
+                  </span>
+                )}
+              </div>
+ 
+              {activeToday && todayActivities.length > 0 ? (
+                <div className="space-y-3">
+                  {todayActivities.slice(0, 4).map((activity) => (
+                    <div key={activity.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-slate-900">{activity.title}</p>
+                          <p className="mt-1 text-sm text-slate-600">
+                            {activity.place_name || activity.address || "Ubicación pendiente"}
+                          </p>
+                        </div>
+                        <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
+                          {activity.activity_time ? activity.activity_time.slice(0, 5) : "Sin hora"}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               ) : (
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                  Aún no toca hoy
-                </span>
+                <div className="rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-600">
+                  {activeToday
+                    ? "No hay actividades planificadas para hoy."
+                    : "Este bloque se activará cuando el viaje coincida con la fecha actual."}
+                </div>
               )}
             </div>
+          </details>
 
-            {activeToday && todayActivities.length > 0 ? (
-              <div className="space-y-3">
-                {todayActivities.slice(0, 4).map((activity) => (
-                  <div key={activity.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-semibold text-slate-900">{activity.title}</p>
-                        <p className="mt-1 text-sm text-slate-600">
-                          {activity.place_name || activity.address || "Ubicación pendiente"}
-                        </p>
-                      </div>
-                      <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
-                        {activity.activity_time ? activity.activity_time.slice(0, 5) : "Sin hora"}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-600">
-                {activeToday
-                  ? "No hay actividades planificadas para hoy."
-                  : "Este bloque se activará cuando el viaje coincida con la fecha actual."}
-              </div>
-            )}
-          </div>
-
-          <div className="card-soft p-5">
-            <div className="flex items-center justify-between gap-3">
+          <details className="card-soft overflow-hidden md:open" open>
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-5 md:cursor-default">
               <h3 className="text-xl font-bold text-slate-950">Tu balance</h3>
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-                {currentParticipant?.display_name || currentProfile?.full_name || currentProfile?.username || "Tu usuario"}
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 md:hidden">
+                Ver
               </span>
-            </div>
-            <p className="mt-2 text-sm text-slate-500">
-              Balance enlazado por {ownBalance.matchedBy === "mixed" ? "nombres e IDs" : ownBalance.matchedBy === "names" ? "nombres" : ownBalance.matchedBy === "ids" ? "IDs de participante" : "sin coincidencia"}.
-            </p>
+            </summary>
+            <div className="px-5 pb-5">
+              <div className="flex items-center justify-between gap-3">
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                  {currentParticipant?.display_name || currentProfile?.full_name || currentProfile?.username || "Tu usuario"}
+                </span>
+              </div>
+              <p className="mt-2 text-sm text-slate-500">
+                Balance enlazado por {ownBalance.matchedBy === "mixed" ? "nombres e IDs" : ownBalance.matchedBy === "names" ? "nombres" : ownBalance.matchedBy === "ids" ? "IDs de participante" : "sin coincidencia"}.
+              </p>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Has pagado</p>
-                <p className="mt-2 text-xl font-bold text-slate-950">
-                  {ownBalance.paid.toFixed(2)} {currentTrip.base_currency || "EUR"}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Te corresponde</p>
-                <p className="mt-2 text-xl font-bold text-slate-950">
-                  {ownBalance.owed.toFixed(2)} {currentTrip.base_currency || "EUR"}
-                </p>
-              </div>
-              <div
-                className={`rounded-2xl border p-4 ${
-                  ownBalance.net >= 0 ? "border-emerald-200 bg-emerald-50" : "border-rose-200 bg-rose-50"
-                }`}
-              >
-                <p
-                  className={`text-xs font-semibold uppercase tracking-[0.16em] ${
-                    ownBalance.net >= 0 ? "text-emerald-700" : "text-rose-700"
+              <div className="mt-4 grid gap-3 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Has pagado</p>
+                  <p className="mt-2 text-xl font-bold text-slate-950">
+                    {ownBalance.paid.toFixed(2)} {currentTrip.base_currency || "EUR"}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Te corresponde</p>
+                  <p className="mt-2 text-xl font-bold text-slate-950">
+                    {ownBalance.owed.toFixed(2)} {currentTrip.base_currency || "EUR"}
+                  </p>
+                </div>
+                <div
+                  className={`rounded-2xl border p-4 ${
+                    ownBalance.net >= 0 ? "border-emerald-200 bg-emerald-50" : "border-rose-200 bg-rose-50"
                   }`}
                 >
-                  Balance neto
-                </p>
-                <p
-                  className={`mt-2 text-xl font-bold ${
-                    ownBalance.net >= 0 ? "text-emerald-900" : "text-rose-900"
-                  }`}
-                >
-                  {ownBalance.net >= 0 ? "+" : ""}
-                  {ownBalance.net.toFixed(2)} {currentTrip.base_currency || "EUR"}
-                </p>
+                  <p
+                    className={`text-xs font-semibold uppercase tracking-[0.16em] ${
+                      ownBalance.net >= 0 ? "text-emerald-700" : "text-rose-700"
+                    }`}
+                  >
+                    Balance neto
+                  </p>
+                  <p
+                    className={`mt-2 text-xl font-bold ${
+                      ownBalance.net >= 0 ? "text-emerald-900" : "text-rose-900"
+                    }`}
+                  >
+                    {ownBalance.net >= 0 ? "+" : ""}
+                    {ownBalance.net.toFixed(2)} {currentTrip.base_currency || "EUR"}
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
+          </details>
         </div>
       </section>
 
