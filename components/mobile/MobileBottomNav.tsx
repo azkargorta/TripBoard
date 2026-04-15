@@ -24,20 +24,35 @@ const items: Array<{ key: string; label: string; icon: React.ReactNode; href: (i
     icon: <Image src="/brand/tabs/map.png" alt="" width={22} height={22} className="h-[22px] w-[22px] object-contain" />,
     href: (id: string) => `/trip/${id}/map`,
   },
-  { key: "expenses", label: "Gastos", icon: "💰", href: (id: string) => `/trip/${id}/expenses` },
-  { key: "participants", label: "Gente", icon: "👥", href: (id: string) => `/trip/${id}/participants` },
-  { key: "resources", label: "Docs", icon: "📎", href: (id: string) => `/trip/${id}/resources` },
-  { key: "chat", label: "IA", icon: "🤖", href: (id: string) => `/trip/${id}/ai-chat` },
+  {
+    key: "expenses",
+    label: "Gastos",
+    icon: <Image src="/brand/tabs/expenses.png" alt="" width={22} height={22} className="h-[22px] w-[22px] object-contain" />,
+    href: (id: string) => `/trip/${id}/expenses`,
+  },
+  {
+    key: "participants",
+    label: "Gente",
+    icon: <Image src="/brand/tabs/participants.png" alt="" width={22} height={22} className="h-[22px] w-[22px] object-contain" />,
+    href: (id: string) => `/trip/${id}/participants`,
+  },
+  {
+    key: "resources",
+    label: "Docs",
+    icon: <Image src="/brand/tabs/documents.png" alt="" width={22} height={22} className="h-[22px] w-[22px] object-contain" />,
+    href: (id: string) => `/trip/${id}/resources`,
+  },
+  {
+    key: "chat",
+    label: "IA",
+    icon: <Image src="/brand/tabs/ai.png" alt="" width={22} height={22} className="h-[22px] w-[22px] object-contain" />,
+    href: (id: string) => `/trip/${id}/ai-chat`,
+  },
 ];
 
 export default function MobileBottomNav({ tripId, isPremium }: Props) {
   const pathname = usePathname();
-  const visibleItems = isPremium
-    ? items
-    : items.filter((item) => {
-        if (item.key === "map" || item.key === "chat") return false;
-        return true;
-      });
+  const visibleItems = items;
 
   return (
     <nav
