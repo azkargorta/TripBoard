@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { headers } from "next/headers";
 
 type Props = { params: { token: string } };
 
@@ -41,9 +42,12 @@ function groupByDay(activities: Activity[]) {
 
 export default async function SharePage({ params }: Props) {
   const token = params.token;
-  const res = await fetch(`https://kaviro-trip.vercel.app/api/trip-shares/${token}`, { cache: "no-store" }).catch(
-    () => null
-  );
+  const h = await headers();
+  const host = h.get("x-forwarded-host") || h.get("host") || "";
+  const proto = h.get("x-forwarded-proto") || "https";
+  const origin = host ? `${proto}://${host}` : "";
+
+  const res = await fetch(`${origin}/api/trip-shares/${token}`, { cache: "no-store" }).catch(() => null);
 
   if (!res) notFound();
   if (res.status === 404) notFound();
@@ -67,12 +71,20 @@ export default async function SharePage({ params }: Props) {
                 {(trip.destination || "Destino pendiente") + " · " + `${formatDate(trip.start_date)} — ${formatDate(trip.end_date)}`}
               </p>
             </div>
-            <Link
-              href="/auth/login"
-              className="inline-flex min-h-[40px] items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-            >
-              Abrir en Kaviro
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href={`/share/${encodeURIComponent(token)}/pdf`}
+                className="inline-flex min-h-[40px] items-center justify-center rounded-2xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+              >
+                Exportar PDF
+              </Link>
+              <Link
+                href="/auth/login"
+                className="inline-flex min-h-[40px] items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+              >
+                Abrir en Kaviro
+              </Link>
+            </div>
           </div>
         </div>
       </header>
