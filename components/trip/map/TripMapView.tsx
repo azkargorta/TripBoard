@@ -563,7 +563,8 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   const mapEntities = useMemo(() => {
     const markers: Array<{ key: string; lat: number; lng: number; title: string; emoji: string; bg: string; subtitle?: string }> =
       [];
-    if (showPlanMarkers) {
+    // Cuando una ruta está enfocada, ocultamos el resto del mapa para destacar solo esa ruta.
+    if (showPlanMarkers && !focusedRouteKey) {
       for (const p of allPlanPlaces) {
         const k = normalizeKind(p.kind) || "visit";
         if (planKindFilter.size && !planKindFilter.has(k)) continue;
@@ -611,7 +612,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     }
 
     return { markers, lines };
-  }, [allPlanPlaces, customByKey, planKindFilter, showPlanMarkers, visibleRoutes]);
+  }, [allPlanPlaces, customByKey, focusedRouteKey, planKindFilter, showPlanMarkers, visibleRoutes]);
 
   const bounds = useMemo(() => {
     const latlngs: Array<[number, number]> = [];
@@ -769,15 +770,18 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   }
 
   async function removeRoute(route: TripMapRoute) {
-    if (route.source !== "trip_routes") {
-      setError("No se puede borrar una ruta legacy.");
-      return;
-    }
     setError(null);
     try {
-      await deleteRoute(route.id);
-      setInfo("Ruta eliminada.");
-      if (focusedRouteKey === `trip_routes:${route.id}`) setFocusedRouteKey(null);
+      if (route.source === "trip_routes") {
+        await deleteRoute(route.id);
+      } else {
+        const resp = await fetch(`/api/legacy-routes/${encodeURIComponent(route.id)}`, { method: "DELETE" });
+        const payload = await resp.json().catch(() => null);
+        if (!resp.ok) throw new Error(payload?.error || "No se pudo eliminar la ruta legacy.");
+        await reloadRoutes();
+      }
+      setInfo(route.source === "trip_routes" ? "Ruta eliminada." : "Ruta legacy eliminada.");
+      if (focusedRouteKey === `${route.source || "trip_routes"}:${route.id}`) setFocusedRouteKey(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo borrar la ruta.");
     }
