@@ -60,9 +60,7 @@ function isActivePath(pathname: string, href: string, key: string) {
 
 export default function DesktopTripNav({ tripId, isPremium }: Props) {
   const pathname = usePathname();
-  const visibleItems = isPremium
-    ? items
-    : items.filter((item) => item.key !== "map" && item.key !== "chat");
+  const visibleItems = isPremium ? items : items.filter((item) => item.key !== "chat");
 
   return (
     <nav
