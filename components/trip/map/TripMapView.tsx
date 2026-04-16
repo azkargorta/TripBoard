@@ -3,10 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MapContainer, Marker, Popup, Polyline, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
-import { MapPin, Plus, RefreshCw, Save, Trash2 } from "lucide-react";
+import { CalendarDays, Clock, Copy, GripVertical, MapPin, Plus, RefreshCw, Save, Trash2 } from "lucide-react";
 import PlaceAutocompleteInput from "@/components/PlaceAutocompleteInput";
 import { useTripRoutes, type RoutePoint, type SaveRouteInput } from "@/hooks/useTripRoutes";
 import { useTripActivityKinds } from "@/hooks/useTripActivityKinds";
+import DuplicateRouteDialog from "@/components/trip/map/DuplicateRouteDialog";
+import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 type UnknownRow = Record<string, unknown>;
 type RouteMode = "DRIVING";
@@ -15,6 +19,25 @@ type AutocompletePayload = {
   address: string;
   latitude: number | null;
   longitude: number | null;
+};
+
+type ChecklistItem = {
+  id: string;
+  text: string;
+  done: boolean;
+};
+
+type RouteFormState = {
+  editingRouteId: string | null;
+  routeDate: string;
+  routeName: string;
+  departureTime: string;
+  stopEnabled: boolean;
+  restStopsEnabled: boolean;
+  restStopsCount: number;
+  restStopMinutes: number;
+  noteText: string;
+  checklist: ChecklistItem[];
 };
 
 export type TripMapRoute = {
@@ -278,6 +301,69 @@ function todayISO() {
   return `${y}-${m}-${day}`;
 }
 
+function randomId() {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+}
+
+function parseRouteNotes(notes: unknown): any | null {
+  if (typeof notes !== "string" || !notes.trim()) return null;
+  try {
+    return JSON.parse(notes);
+  } catch {
+    // fallback: antiguamente era texto plano
+    return { noteText: String(notes) };
+  }
+}
+
+function buildRouteNotes(form: RouteFormState, previousNotes: string | null) {
+  const prev = parseRouteNotes(previousNotes) || {};
+  const noteText = String(form.noteText || "").trim();
+  const checklist = Array.isArray(form.checklist)
+    ? form.checklist
+        .filter((x) => x && typeof x.text === "string")
+        .map((x) => ({ id: String(x.id || randomId()), text: String(x.text || ""), done: !!x.done }))
+    : [];
+
+  const restStops =
+    form.restStopsEnabled && form.restStopsCount > 0
+      ? { enabled: true, count: Math.max(0, Math.floor(form.restStopsCount || 0)), minutesEach: Math.max(0, Math.floor(form.restStopMinutes || 0)) }
+      : { enabled: false, count: 0, minutesEach: 0 };
+
+  return JSON.stringify({
+    ...prev,
+    noteText,
+    checklist,
+    restStops,
+  });
+}
+
+function defaultRouteForm(date: string): RouteFormState {
+  return {
+    editingRouteId: null,
+    routeDate: date || todayISO(),
+    routeName: "",
+    departureTime: "",
+    stopEnabled: false,
+    restStopsEnabled: false,
+    restStopsCount: 1,
+    restStopMinutes: 15,
+    noteText: "",
+    checklist: [],
+  };
+}
+
+function SortHandle() {
+  return (
+    <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600">
+      <GripVertical className="h-4 w-4" aria-hidden />
+    </span>
+  );
+}
+
 export default function TripMapView({ tripId, tripDates = [], planSources, routeSources, points, routes }: Props) {
   const allPlanPlaces = useMemo(() => {
     const fromSources =
@@ -322,10 +408,19 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   const [planKindFilter, setPlanKindFilter] = useState<Set<string>>(new Set());
   const { kinds: customKinds, warning: customKindsWarning } = useTripActivityKinds(tripId);
 
-  // Formulario crear ruta
-  const [routeName, setRouteName] = useState("");
-  const [routeDate, setRouteDate] = useState<string>(todayISO());
-  const [departureTime, setDepartureTime] = useState("");
+  const [routesState, setRoutesState] = useState<TripMapRoute[]>(allRoutes);
+  const [routeQuery, setRouteQuery] = useState("");
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [history, setHistory] = useState<any[]>([]);
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
+  const [duplicateRoute, setDuplicateRoute] = useState<TripMapRoute | null>(null);
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+
+  // Formulario crear/editar ruta
+  const [form, setForm] = useState<RouteFormState>(() => defaultRouteForm(todayISO()));
   const [mode] = useState<RouteMode>("DRIVING");
 
   const [origin, setOrigin] = useState<{ address: string; latitude: number | null; longitude: number | null }>({
@@ -354,7 +449,18 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
 
   const reloadRoutes = useCallback(async () => {
     try {
-      await fetch(`/api/trip-routes?tripId=${encodeURIComponent(tripId)}`, { cache: "no-store" });
+      const resp = await fetch(`/api/trip-routes?tripId=${encodeURIComponent(tripId)}`, { cache: "no-store" });
+      const payload = await resp.json().catch(() => null);
+      if (resp.ok && Array.isArray(payload?.routes)) {
+        const nextTripRoutes = normalizeRoutes(payload.routes as any[], "trip_routes");
+        setRoutesState((prev) => {
+          const legacy = prev.filter((r) => r.source === "legacy_routes");
+          const byKey = new Map<string, TripMapRoute>();
+          legacy.forEach((r) => byKey.set(`legacy_routes:${r.id}`, r));
+          nextTripRoutes.forEach((r) => byKey.set(`trip_routes:${r.id}`, r));
+          return Array.from(byKey.values());
+        });
+      }
     } catch {
       // noop
     }
@@ -413,11 +519,45 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     setDestination({ address: p.address || p.title, latitude: p.latitude, longitude: p.longitude });
   }, [applyPlan, destinationPlanId]);
 
+  useEffect(() => {
+    setRoutesState(allRoutes);
+  }, [allRoutes]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadHistory() {
+      if (!historyOpen) return;
+      setHistoryLoading(true);
+      setHistoryError(null);
+      try {
+        const resp = await fetch(
+          `/api/trip-audit?tripId=${encodeURIComponent(tripId)}&entityType=route&limit=40`,
+          { cache: "no-store" }
+        );
+        const payload = await resp.json().catch(() => null);
+        if (!resp.ok) throw new Error(payload?.error || "No se pudo cargar el historial.");
+        if (!cancelled) setHistory(Array.isArray(payload?.logs) ? payload.logs : []);
+      } catch (e) {
+        if (!cancelled) setHistoryError(e instanceof Error ? e.message : "No se pudo cargar el historial.");
+      } finally {
+        if (!cancelled) setHistoryLoading(false);
+      }
+    }
+    void loadHistory();
+    return () => {
+      cancelled = true;
+    };
+  }, [historyOpen, tripId]);
+
   const visibleRoutes = useMemo(() => {
-    const base = selectedDate === "all" ? allRoutes : allRoutes.filter((r) => (r.route_day || r.route_date) === selectedDate);
-    if (!focusedRouteKey) return base;
-    return base.filter((r) => `${r.source || "trip_routes"}:${r.id}` === focusedRouteKey);
-  }, [allRoutes, focusedRouteKey, selectedDate]);
+    const base = selectedDate === "all" ? routesState : routesState.filter((r) => (r.route_day || r.route_date) === selectedDate);
+    const q = routeQuery.trim().toLowerCase();
+    const filtered = q
+      ? base.filter((r) => String(r.title || r.route_name || "").toLowerCase().includes(q))
+      : base;
+    if (!focusedRouteKey) return filtered;
+    return filtered.filter((r) => `${r.source || "trip_routes"}:${r.id}` === focusedRouteKey);
+  }, [focusedRouteKey, routeQuery, routesState, selectedDate]);
 
   const mapEntities = useMemo(() => {
     const markers: Array<{ key: string; lat: number; lng: number; title: string; emoji: string; bg: string; subtitle?: string }> =
@@ -496,12 +636,57 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     []
   );
 
-  async function createRoute() {
+  function beginEditRoute(route: TripMapRoute) {
+    if (!route) return;
+    setFocusedRouteKey(`${route.source || "trip_routes"}:${route.id}`);
+    const notes = parseRouteNotes(route.notes);
+    const restStops = notes?.restStops;
+    const noteText = typeof notes?.noteText === "string" ? notes.noteText : "";
+    const checklist = Array.isArray(notes?.checklist)
+      ? (notes.checklist as any[]).map((x) => ({
+          id: String(x?.id || randomId()),
+          text: typeof x?.text === "string" ? x.text : "",
+          done: !!x?.done,
+        }))
+      : [];
+
+    setForm((prev) => ({
+      ...prev,
+      editingRouteId: route.source === "trip_routes" ? route.id : null,
+      routeDate: (route.route_day || route.route_date || prev.routeDate || todayISO()) as string,
+      routeName: String(route.route_name || route.title || "Ruta"),
+      departureTime: route.departure_time || "",
+      stopEnabled: typeof route.stop_latitude === "number" && typeof route.stop_longitude === "number",
+      restStopsEnabled: !!restStops?.enabled,
+      restStopsCount: typeof restStops?.count === "number" ? restStops.count : 1,
+      restStopMinutes: typeof restStops?.minutesEach === "number" ? restStops.minutesEach : 15,
+      noteText,
+      checklist,
+    }));
+
+    setOrigin({
+      address: route.origin_address || route.origin_name || "",
+      latitude: route.origin_latitude ?? null,
+      longitude: route.origin_longitude ?? null,
+    });
+    setStop({
+      address: route.stop_address || route.stop_name || "",
+      latitude: route.stop_latitude ?? null,
+      longitude: route.stop_longitude ?? null,
+    });
+    setDestination({
+      address: route.destination_address || route.destination_name || "",
+      latitude: route.destination_latitude ?? null,
+      longitude: route.destination_longitude ?? null,
+    });
+  }
+
+  async function createOrUpdateRoute() {
     setError(null);
     setInfo(null);
 
-    const name = routeName.trim() || "Ruta";
-    if (!routeDate) {
+    const name = form.routeName.trim() || "Ruta";
+    if (!form.routeDate) {
       setError("Selecciona un día.");
       return;
     }
@@ -521,7 +706,9 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
       const originPt: RoutePoint = { lat: origin.latitude, lng: origin.longitude };
       const destPt: RoutePoint = { lat: destination.latitude, lng: destination.longitude };
       const stopPt =
-        typeof stop.latitude === "number" && typeof stop.longitude === "number" ? ({ lat: stop.latitude, lng: stop.longitude } satisfies RoutePoint) : null;
+        form.stopEnabled && typeof stop.latitude === "number" && typeof stop.longitude === "number"
+          ? ({ lat: stop.latitude, lng: stop.longitude } satisfies RoutePoint)
+          : null;
 
       let routePoints: RoutePoint[] = [originPt, ...(stopPt ? [stopPt] : []), destPt];
       let distanceText: string | null = null;
@@ -539,9 +726,9 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
       }
 
       const input: SaveRouteInput = {
-        routeDate,
+        routeDate: form.routeDate,
         routeName: name,
-        departureTime,
+        departureTime: form.departureTime,
         mode,
         originName: origin.address || "Origen",
         originAddress: origin.address || "Origen",
@@ -559,12 +746,12 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
         durationText,
         routePoints,
         pathPoints: routePoints,
+        notes: buildRouteNotes(form, form.editingRouteId ? routesState.find((r) => r.id === form.editingRouteId && r.source === "trip_routes")?.notes ?? null : null),
       };
 
-      await saveRoute(input);
-      setInfo("Ruta guardada.");
-      setRouteName("");
-      setDepartureTime("");
+      await saveRoute(input, form.editingRouteId || undefined);
+      setInfo(form.editingRouteId ? "Ruta actualizada." : "Ruta guardada.");
+      setForm(defaultRouteForm(form.routeDate));
       setOrigin({ address: "", latitude: null, longitude: null });
       setStop({ address: "", latitude: null, longitude: null });
       setDestination({ address: "", latitude: null, longitude: null });
@@ -594,14 +781,131 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   }
 
   const routesForList = useMemo(() => {
-    const base = selectedDate === "all" ? allRoutes : allRoutes.filter((r) => (r.route_day || r.route_date) === selectedDate);
+    const base = selectedDate === "all" ? routesState : routesState.filter((r) => (r.route_day || r.route_date) === selectedDate);
     return base.slice().sort((a, b) => {
       const oa = a.route_order ?? Number.POSITIVE_INFINITY;
       const ob = b.route_order ?? Number.POSITIVE_INFINITY;
       if (oa !== ob) return oa - ob;
       return String(a.departure_time || "").localeCompare(String(b.departure_time || ""));
     });
-  }, [allRoutes, selectedDate]);
+  }, [routesState, selectedDate]);
+
+  const filteredRouteKeys = useMemo(() => routesForList.map((r) => `${r.source || "trip_routes"}:${r.id}`), [routesForList]);
+
+  const handleDragEnd = useCallback(
+    async (event: DragEndEvent) => {
+      if (selectedDate === "all") return;
+      const { active, over } = event;
+      if (!over) return;
+      if (active.id === over.id) return;
+
+      const ids = filteredRouteKeys;
+      const oldIndex = ids.indexOf(String(active.id));
+      const newIndex = ids.indexOf(String(over.id));
+      if (oldIndex < 0 || newIndex < 0) return;
+
+      const next = arrayMove(ids, oldIndex, newIndex);
+
+      // Optimista UI
+      setRoutesState((prev) => {
+        const byKey: Map<string, TripMapRoute> = new Map(
+          prev.map((r) => [`${r.source || "trip_routes"}:${r.id}`, r] as [string, TripMapRoute])
+        );
+        next.forEach((key, index) => {
+          const r = byKey.get(key);
+          if (r && r.source === "trip_routes") byKey.set(key, { ...r, route_order: index + 1 });
+        });
+        return Array.from(byKey.values());
+      });
+
+      // Persistir solo rutas editables (trip_routes)
+      const updates = next
+        .map((key, index) => {
+          const [source, id] = String(key).split(":");
+          return { source, id, order: index + 1 };
+        })
+        .filter((u) => u.source === "trip_routes" && !!u.id);
+
+      await Promise.all(
+        updates.map((u) =>
+          fetch(`/api/trip-routes/${encodeURIComponent(u.id)}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ route_order: u.order }),
+          })
+        )
+      );
+    },
+    [filteredRouteKeys, selectedDate]
+  );
+
+  function SortableRouteRow({ route }: { route: TripMapRoute }) {
+    const key = `${route.source || "trip_routes"}:${route.id}`;
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: key });
+    const style: React.CSSProperties = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+      opacity: isDragging ? 0.7 : 1,
+    };
+
+    const active = focusedRouteKey === key;
+    const title = String(route.title || route.route_name || "Ruta");
+    const subtitle = [route.departure_time ? `Salida ${route.departure_time}` : "", route.distance_text || "", route.duration_text || ""]
+      .filter(Boolean)
+      .join(" · ");
+
+    return (
+      <div ref={setNodeRef} style={style} className={`rounded-2xl border p-3 ${active ? "border-violet-300 bg-violet-50" : "border-slate-200 bg-white"}`}>
+        <div className="flex items-start gap-3">
+          <div className="shrink-0" {...attributes} {...listeners} title="Arrastrar para reordenar">
+            <SortHandle />
+          </div>
+          <button
+            type="button"
+            onClick={() => setFocusedRouteKey((prev) => (prev === key ? null : key))}
+            className="min-w-0 flex-1 text-left"
+            title="Enfocar/mostrar en el mapa"
+          >
+            <div className="text-sm font-semibold text-slate-950 line-clamp-1">{title}</div>
+            {subtitle ? <div className="mt-1 text-xs text-slate-600 line-clamp-2">{subtitle}</div> : null}
+          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            {route.source === "trip_routes" ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => beginEditRoute(route)}
+                  className="inline-flex min-h-[34px] items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  title="Editar ruta"
+                >
+                  Editar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDuplicateRoute(route);
+                    setDuplicateOpen(true);
+                  }}
+                  className="inline-flex min-h-[34px] items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  title="Duplicar ruta"
+                >
+                  <Copy className="h-4 w-4" aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void removeRoute(route)}
+                  className="inline-flex min-h-[34px] items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-800 hover:bg-rose-100"
+                  title="Eliminar ruta"
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden />
+                </button>
+              </>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="grid gap-6 lg:grid-cols-[380px_minmax(0,1fr)]">
@@ -709,8 +1013,8 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                 <label className="text-xs font-semibold text-slate-700">
                   Nombre
                   <input
-                    value={routeName}
-                    onChange={(e) => setRouteName(e.target.value)}
+                    value={form.routeName}
+                    onChange={(e) => setForm((prev) => ({ ...prev, routeName: e.target.value }))}
                     className="mt-2 min-h-[42px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
                     placeholder="Ruta día 1"
                   />
@@ -721,8 +1025,8 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                     Día
                     <input
                       type="date"
-                      value={routeDate}
-                      onChange={(e) => setRouteDate(e.target.value)}
+                      value={form.routeDate}
+                      onChange={(e) => setForm((prev) => ({ ...prev, routeDate: e.target.value }))}
                       className="mt-2 min-h-[42px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
                     />
                   </label>
@@ -730,8 +1034,8 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                     Hora
                     <input
                       type="time"
-                      value={departureTime}
-                      onChange={(e) => setDepartureTime(e.target.value)}
+                      value={form.departureTime}
+                      onChange={(e) => setForm((prev) => ({ ...prev, departureTime: e.target.value }))}
                       className="mt-2 min-h-[42px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
                     />
                   </label>
@@ -763,10 +1067,19 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
 
                 <div className="rounded-2xl border border-slate-200 bg-white p-3">
                   <div className="text-xs font-extrabold text-slate-900">Parada (opcional)</div>
+                  <label className="mt-2 inline-flex items-center gap-2 text-xs font-semibold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={form.stopEnabled}
+                      onChange={(e) => setForm((prev) => ({ ...prev, stopEnabled: e.target.checked }))}
+                    />
+                    Activar parada
+                  </label>
                   <select
                     value={stopPlanId}
                     onChange={(e) => setStopPlanId(e.target.value)}
                     className="mt-2 min-h-[40px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm"
+                    disabled={!form.stopEnabled}
                   >
                     <option value="">Elegir plan…</option>
                     {planOptions.map((p) => (
@@ -809,14 +1122,110 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                   </div>
                 </div>
 
+                <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                  <div className="text-xs font-extrabold text-slate-900">Notas y checklist</div>
+                  <textarea
+                    value={form.noteText}
+                    onChange={(e) => setForm((prev) => ({ ...prev, noteText: e.target.value }))}
+                    rows={3}
+                    placeholder="Notas para esta ruta…"
+                    className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+                  />
+
+                  <div className="mt-3">
+                    <div className="text-xs font-semibold text-slate-700">Checklist</div>
+                    {form.checklist.length ? (
+                      <div className="mt-2 space-y-2">
+                        {form.checklist.map((item) => (
+                          <div key={item.id} className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={item.done}
+                              onChange={(e) =>
+                                setForm((prev) => ({
+                                  ...prev,
+                                  checklist: prev.checklist.map((x) => (x.id === item.id ? { ...x, done: e.target.checked } : x)),
+                                }))
+                              }
+                            />
+                            <input
+                              value={item.text}
+                              onChange={(e) =>
+                                setForm((prev) => ({
+                                  ...prev,
+                                  checklist: prev.checklist.map((x) => (x.id === item.id ? { ...x, text: e.target.value } : x)),
+                                }))
+                              }
+                              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+                              placeholder="Elemento…"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setForm((prev) => ({ ...prev, checklist: prev.checklist.filter((x) => x.id !== item.id) }))}
+                              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                            >
+                              Quitar
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="mt-2 text-xs text-slate-500">Aún no hay checklist.</div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setForm((prev) => ({ ...prev, checklist: [...prev.checklist, { id: randomId(), text: "", done: false }] }))}
+                      className="mt-2 inline-flex min-h-[36px] items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      Añadir item
+                    </button>
+                  </div>
+
+                  <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={form.restStopsEnabled}
+                        onChange={(e) => setForm((prev) => ({ ...prev, restStopsEnabled: e.target.checked }))}
+                      />
+                      Paradas de descanso (informativo)
+                    </label>
+                    {form.restStopsEnabled ? (
+                      <div className="mt-3 grid grid-cols-2 gap-3">
+                        <label className="text-xs font-semibold text-slate-700">
+                          Nº paradas
+                          <input
+                            type="number"
+                            min={0}
+                            value={form.restStopsCount}
+                            onChange={(e) => setForm((prev) => ({ ...prev, restStopsCount: Number(e.target.value || 0) }))}
+                            className="mt-2 min-h-[40px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
+                          />
+                        </label>
+                        <label className="text-xs font-semibold text-slate-700">
+                          Minutos cada una
+                          <input
+                            type="number"
+                            min={0}
+                            value={form.restStopMinutes}
+                            onChange={(e) => setForm((prev) => ({ ...prev, restStopMinutes: Number(e.target.value || 0) }))}
+                            className="mt-2 min-h-[40px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
+                          />
+                        </label>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
                 <button
                   type="button"
                   disabled={saving || savingRoute}
-                  onClick={() => void createRoute()}
+                  onClick={() => void createOrUpdateRoute()}
                   className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
                 >
                   <Save className="h-4 w-4" aria-hidden />
-                  {saving || savingRoute ? "Guardando…" : "Guardar ruta"}
+                  {saving || savingRoute ? "Guardando…" : form.editingRouteId ? "Guardar cambios" : "Guardar ruta"}
                 </button>
               </div>
             </div>
@@ -837,43 +1246,87 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
             </button>
           </div>
 
+          <div className="mt-3 grid gap-2">
+            <label className="text-xs font-semibold text-slate-700">
+              Buscar ruta
+              <input
+                value={routeQuery}
+                onChange={(e) => setRouteQuery(e.target.value)}
+                className="mt-2 min-h-[40px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
+                placeholder="Filtrar por nombre…"
+              />
+            </label>
+            {selectedDate !== "all" ? <div className="text-[11px] text-slate-500">Puedes reordenar rutas de este día arrastrando.</div> : null}
+          </div>
+
           <div className="mt-3 space-y-2">
-            {routesForList.map((r) => {
-              const key = `${r.source || "trip_routes"}:${r.id}`;
-              const active = focusedRouteKey === key;
-              const title = String(r.title || r.route_name || "Ruta");
-              const subtitle = [r.departure_time ? `Salida ${r.departure_time}` : "", r.distance_text || "", r.duration_text || ""]
-                .filter(Boolean)
-                .join(" · ");
-              return (
-                <div
-                  key={key}
-                  className={`rounded-2xl border p-3 ${active ? "border-violet-300 bg-violet-50" : "border-slate-200 bg-white"}`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setFocusedRouteKey((prev) => (prev === key ? null : key))}
-                      className="min-w-0 text-left"
-                      title="Enfocar/mostrar en el mapa"
-                    >
-                      <div className="text-sm font-semibold text-slate-950 line-clamp-1">{title}</div>
-                      {subtitle ? <div className="mt-1 text-xs text-slate-600 line-clamp-2">{subtitle}</div> : null}
-                    </button>
-                    {r.source === "trip_routes" ? (
-                      <button
-                        type="button"
-                        onClick={() => void removeRoute(r)}
-                        className="inline-flex min-h-[34px] items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-800 hover:bg-rose-100"
-                        title="Eliminar ruta"
-                      >
-                        <Trash2 className="h-4 w-4" aria-hidden />
-                      </button>
-                    ) : null}
+            {selectedDate !== "all" ? (
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={filteredRouteKeys} strategy={verticalListSortingStrategy}>
+                  <div className="space-y-2">
+                    {routesForList.map((r) => (
+                      <SortableRouteRow key={`${r.source || "trip_routes"}:${r.id}`} route={r} />
+                    ))}
                   </div>
-                </div>
-              );
-            })}
+                </SortableContext>
+              </DndContext>
+            ) : (
+              <div className="space-y-2">
+                {routesForList.map((r) => {
+                  const key = `${r.source || "trip_routes"}:${r.id}`;
+                  const active = focusedRouteKey === key;
+                  const title = String(r.title || r.route_name || "Ruta");
+                  const subtitle = [r.departure_time ? `Salida ${r.departure_time}` : "", r.distance_text || "", r.duration_text || ""]
+                    .filter(Boolean)
+                    .join(" · ");
+                  return (
+                    <div key={key} className={`rounded-2xl border p-3 ${active ? "border-violet-300 bg-violet-50" : "border-slate-200 bg-white"}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setFocusedRouteKey((prev) => (prev === key ? null : key))}
+                          className="min-w-0 text-left"
+                          title="Enfocar/mostrar en el mapa"
+                        >
+                          <div className="text-sm font-semibold text-slate-950 line-clamp-1">{title}</div>
+                          {subtitle ? <div className="mt-1 text-xs text-slate-600 line-clamp-2">{subtitle}</div> : null}
+                        </button>
+                        {r.source === "trip_routes" ? (
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => beginEditRoute(r)}
+                              className="inline-flex min-h-[34px] items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                            >
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDuplicateRoute(r);
+                                setDuplicateOpen(true);
+                              }}
+                              className="inline-flex min-h-[34px] items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                              title="Duplicar ruta"
+                            >
+                              <Copy className="h-4 w-4" aria-hidden />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void removeRoute(r)}
+                              className="inline-flex min-h-[34px] items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-800 hover:bg-rose-100"
+                              title="Eliminar ruta"
+                            >
+                              <Trash2 className="h-4 w-4" aria-hidden />
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </section>
       </aside>
@@ -908,6 +1361,16 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
           </MapContainer>
         </div>
       </section>
+
+      <DuplicateRouteDialog
+        open={duplicateOpen}
+        route={duplicateRoute as any}
+        tripId={tripId}
+        tripDates={Array.isArray(tripDates) ? tripDates : []}
+        defaultDate={selectedDate !== "all" ? selectedDate : undefined}
+        onClose={() => setDuplicateOpen(false)}
+        onDuplicated={() => void reloadRoutes()}
+      />
     </div>
   );
 }
