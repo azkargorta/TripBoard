@@ -1030,6 +1030,12 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                       onClick={() => {
                         setIsRouteFormOpen(true);
                         setForm(defaultRouteForm(selectedDate !== "all" ? selectedDate : todayISO()));
+                        setOrigin({ address: "", latitude: null, longitude: null });
+                        setStop({ address: "", latitude: null, longitude: null });
+                        setDestination({ address: "", latitude: null, longitude: null });
+                        setOriginPlanId("");
+                        setStopPlanId("");
+                        setDestinationPlanId("");
                       }}
                       className="inline-flex min-h-[34px] items-center justify-center gap-2 rounded-xl bg-slate-950 px-3 text-xs font-semibold text-white hover:bg-slate-800"
                     >
