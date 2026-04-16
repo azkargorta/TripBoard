@@ -25,6 +25,8 @@ type Message = {
 type ItineraryPayload = {
   version: 1;
   title?: string;
+  /** Opcional: cómo calcular rutas entre paradas (driving | walking | cycling). */
+  travelMode?: "driving" | "walking" | "cycling";
   days: Array<{
     day: number;
     date: string | null;
@@ -475,6 +477,13 @@ export default function TripAiChatView({
                 tripId,
                 question: clean,
                 provider: provider === "auto" ? null : provider,
+                conversation: [
+                  ...messages
+                    .filter((m) => m.role === "user" || m.role === "assistant")
+                    .filter((m) => m.id !== "welcome")
+                    .map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
+                  { role: "user" as const, content: clean },
+                ].slice(-16),
               }
             : {
                 tripId,
@@ -524,6 +533,10 @@ export default function TripAiChatView({
 
       if (data?.actionExecuted && data?.actionResult) {
         setInfo(String(data.actionResult));
+      }
+
+      if (mode === "day_planner" && typeof data?.dayPlannerHint === "string" && data.dayPlannerHint) {
+        setInfo(String(data.dayPlannerHint));
       }
 
       await loadConversations();
@@ -668,7 +681,15 @@ export default function TripAiChatView({
                     });
                     const payload = await res.json().catch(() => null);
                     if (!res.ok) throw new Error(payload?.error || "No se pudo ejecutar el plan.");
-                    setInfo(`Plan ejecutado. He creado ${payload?.created ?? "varias"} actividades en el Plan.`);
+                    const nAct = typeof payload?.created === "number" ? payload.created : null;
+                    const nRoutes = typeof payload?.routesCreated === "number" ? payload.routesCreated : null;
+                    const note = typeof payload?.routesNote === "string" ? payload.routesNote : "";
+                    const actMsg = nAct != null ? `${nAct} actividades` : "varias actividades";
+                    const routeMsg =
+                      nRoutes != null && nRoutes > 0 ? ` y ${nRoutes} rutas en el mapa` : nRoutes === 0 ? "" : "";
+                    setInfo(
+                      [`Plan ejecutado: ${actMsg}${routeMsg}.`, note].filter(Boolean).join(" ")
+                    );
                     setItineraryDraft(null);
                     setExpandedDay(null);
                   } catch (e) {

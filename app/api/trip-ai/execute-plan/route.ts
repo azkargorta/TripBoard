@@ -21,7 +21,18 @@ type ItineraryDay = {
 type ItineraryPayload = {
   version: 1;
   title?: string;
+  /** Perfil OSRM / modo de desplazamiento entre paradas (opcional; por defecto driving). */
+  travelMode?: "driving" | "walking" | "cycling";
   days: ItineraryDay[];
+};
+
+type SlotMeta = {
+  route_day: string | null;
+  title: string;
+  place_name: string | null;
+  addressLabel: string | null;
+  latitude: number | null;
+  longitude: number | null;
 };
 
 function normalizeTime(input: string | null | undefined) {
@@ -90,6 +101,46 @@ async function geocodeAddress(address: string): Promise<{ latitude: number | nul
   };
 }
 
+function itineraryProfile(itinerary: ItineraryPayload): "driving" | "walking" | "cycling" {
+  const m = itinerary.travelMode;
+  if (m === "walking" || m === "cycling" || m === "driving") return m;
+  return "driving";
+}
+
+function dbTravelMode(profile: "driving" | "walking" | "cycling") {
+  if (profile === "walking") return { travel_mode: "WALKING" as const, mode: "walking" as const };
+  if (profile === "cycling") return { travel_mode: "BICYCLING" as const, mode: "cycling" as const };
+  return { travel_mode: "DRIVING" as const, mode: "driving" as const };
+}
+
+async function fetchOsrmRoute(params: {
+  requestOrigin: string;
+  origin: { lat: number; lng: number };
+  destination: { lat: number; lng: number };
+  profile: "driving" | "walking" | "cycling";
+}) {
+  const url = new URL("/api/osrm/route", params.requestOrigin);
+  const resp = await fetch(url.toString(), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      origin: params.origin,
+      destination: params.destination,
+      profile: params.profile,
+    }),
+    cache: "no-store",
+  });
+  const payload = await resp.json().catch(() => null);
+  if (!resp.ok) {
+    return { points: [] as { lat: number; lng: number }[], distanceMeters: null as number | null, durationSeconds: null as number | null };
+  }
+  return {
+    points: Array.isArray(payload?.points) ? payload.points : [],
+    distanceMeters: typeof payload?.distanceMeters === "number" ? payload.distanceMeters : null,
+    durationSeconds: typeof payload?.durationSeconds === "number" ? payload.durationSeconds : null,
+  };
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => null);
@@ -125,6 +176,8 @@ export async function POST(req: Request) {
     const GEOCODE_LIMIT = 40; // evita tiempos largos/costes excesivos
 
     const rows: Record<string, unknown>[] = [];
+    const slotMeta: SlotMeta[] = [];
+
     for (const day of itinerary.days) {
       const date = typeof day?.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(day.date) ? day.date : null;
       const items = Array.isArray(day?.items) ? day.items : [];
@@ -168,6 +221,15 @@ export async function POST(req: Request) {
           source: "ai",
           created_by_user_id: access.userId,
         });
+
+        slotMeta.push({
+          route_day: date,
+          title,
+          place_name,
+          addressLabel: normalizedAddress,
+          latitude,
+          longitude,
+        });
       }
     }
 
@@ -175,10 +237,108 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No hay items válidos para crear." }, { status: 400 });
     }
 
-    const { error } = await supabase.from("trip_activities").insert(rows);
+    const { data: insertedRows, error } = await supabase.from("trip_activities").insert(rows).select("id");
     if (error) throw new Error(error.message);
 
-    return NextResponse.json({ ok: true, created: rows.length });
+    const created = rows.length;
+    let routesCreated = 0;
+
+    if (!access.can_manage_map) {
+      return NextResponse.json({
+        ok: true,
+        created,
+        routesCreated: 0,
+        routesNote:
+          "Actividades creadas. Para generar también las rutas en el mapa necesitas permiso de gestión del mapa en este viaje.",
+      });
+    }
+
+    if (!Array.isArray(insertedRows) || insertedRows.length !== rows.length) {
+      return NextResponse.json({
+        ok: true,
+        created,
+        routesCreated: 0,
+        routesNote: "Actividades creadas, pero no se pudieron calcular rutas (respuesta de inserción incompleta).",
+      });
+    }
+
+    const requestOrigin = new URL(req.url).origin;
+    const profile = itineraryProfile(itinerary);
+    const { travel_mode, mode } = dbTravelMode(profile);
+    let routeCalls = 0;
+    const ROUTE_CALL_LIMIT = 80;
+
+    for (let i = 0; i < slotMeta.length - 1; i++) {
+      const a = slotMeta[i];
+      const b = slotMeta[i + 1];
+      if (a.route_day !== b.route_day) continue;
+      if (a.latitude == null || a.longitude == null || b.latitude == null || b.longitude == null) continue;
+      if (routeCalls >= ROUTE_CALL_LIMIT) break;
+
+      const route = await fetchOsrmRoute({
+        requestOrigin,
+        origin: { lat: a.latitude, lng: a.longitude },
+        destination: { lat: b.latitude, lng: b.longitude },
+        profile,
+      });
+      routeCalls += 1;
+
+      const title = `${a.title} → ${b.title}`;
+      const routeDay = a.route_day;
+
+      const payload: Record<string, unknown> = {
+        trip_id: tripId,
+        title,
+        route_name: title,
+        name: title,
+        route_day: routeDay,
+        route_date: routeDay,
+        departure_time: null,
+        travel_mode,
+        mode,
+        notes: null,
+        color: null,
+        origin_name: a.title,
+        origin_address: a.addressLabel,
+        origin_latitude: a.latitude,
+        origin_longitude: a.longitude,
+        destination_name: b.title,
+        destination_address: b.addressLabel,
+        destination_latitude: b.latitude,
+        destination_longitude: b.longitude,
+        stop_name: null,
+        stop_address: null,
+        stop_latitude: null,
+        stop_longitude: null,
+        path_points: route.points,
+        route_points: route.points,
+        distance_text:
+          typeof route.distanceMeters === "number" ? `${(route.distanceMeters / 1000).toFixed(1)} km` : null,
+        duration_text:
+          typeof route.durationSeconds === "number" ? `${Math.max(1, Math.round(route.durationSeconds / 60))} min` : null,
+        arrival_time: null,
+        created_by_user_id: access.userId,
+      };
+
+      const ins = await supabase.from("trip_routes").insert(payload).select("id").single();
+      if (ins.error) {
+        console.error("[execute-plan] trip_routes insert:", ins.error.message);
+        continue;
+      }
+      routesCreated += 1;
+    }
+
+    return NextResponse.json({
+      ok: true,
+      created,
+      routesCreated,
+      ...(routesCreated === 0 && access.can_manage_map
+        ? {
+            routesNote:
+              "No se generaron rutas: hace falta geolocalizar al menos dos paradas seguidas el mismo día, o el cálculo OSRM falló.",
+          }
+        : {}),
+    });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "No se pudo ejecutar el plan." },
@@ -186,4 +346,3 @@ export async function POST(req: Request) {
     );
   }
 }
-

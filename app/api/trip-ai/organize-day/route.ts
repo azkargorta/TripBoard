@@ -30,22 +30,141 @@ type DayPlanPayload = {
   items: DayPlanItem[];
 };
 
+type ChatTurn = { role: "user" | "assistant"; content: string };
+
+function padHhMm(value: string | null | undefined): string | null {
+  if (!value || typeof value !== "string") return null;
+  const m = value.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  const hh = Math.max(0, Math.min(23, Number(m[1])));
+  const mm = Math.max(0, Math.min(59, Number(m[2])));
+  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+}
+
+function normalizeParsedDayPlan(parsed: unknown): DayPlanPayload | null {
+  if (!parsed || typeof parsed !== "object") return null;
+  const p = parsed as Record<string, unknown>;
+  if (p.version !== 1) return null;
+  if (typeof p.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(p.date.trim())) return null;
+  if (!Array.isArray(p.items) || p.items.length === 0) return null;
+
+  let travelMode: DayPlanPayload["travelMode"] = "walking";
+  const tm = p.travelMode;
+  if (tm === "driving" || tm === "walking" || tm === "cycling") travelMode = tm;
+  else if (typeof tm === "string") {
+    const s = tm.toLowerCase();
+    if (s.includes("cycl") || s.includes("bici") || s.includes("bike")) travelMode = "cycling";
+    else if (s.includes("drive") || s.includes("coche") || s.includes("car")) travelMode = "driving";
+  }
+
+  const items: DayPlanItem[] = [];
+  for (const raw of p.items) {
+    if (!raw || typeof raw !== "object") continue;
+    const it = raw as Record<string, unknown>;
+    const title = typeof it.title === "string" ? it.title.trim() : "";
+    if (!title) continue;
+    const ks = typeof it.kind === "string" ? it.kind.toLowerCase() : "visit";
+    const kind: DayPlanItem["kind"] =
+      ks === "restaurant" ? "restaurant" : ks === "museum" ? "museum" : ks === "activity" ? "activity" : "visit";
+    const query = typeof it.query === "string" ? it.query.trim() || null : null;
+    const startTime = padHhMm(typeof it.startTime === "string" ? it.startTime : null);
+    let durationMinutes =
+      typeof it.durationMinutes === "number" && Number.isFinite(it.durationMinutes)
+        ? Math.round(it.durationMinutes)
+        : 45;
+    durationMinutes = Math.max(15, Math.min(480, durationMinutes));
+    const ticketRequired = Boolean(it.ticketRequired);
+    const notes = typeof it.notes === "string" ? it.notes.trim() || null : null;
+    items.push({ title, kind, query, startTime, durationMinutes, ticketRequired, notes });
+  }
+  if (!items.length) return null;
+
+  const cityHint = typeof p.cityHint === "string" ? p.cityHint.trim() || null : null;
+  const dayStart = padHhMm(typeof p.dayStart === "string" ? p.dayStart : null);
+  const dayEnd = padHhMm(typeof p.dayEnd === "string" ? p.dayEnd : null);
+
+  return {
+    version: 1,
+    date: p.date.trim(),
+    cityHint,
+    travelMode,
+    dayStart,
+    dayEnd,
+    items,
+  };
+}
+
+function tryParseDayPlanJson(raw: string): DayPlanPayload | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  try {
+    return normalizeParsedDayPlan(JSON.parse(trimmed));
+  } catch {
+    return null;
+  }
+}
+
+/** Busca el primer objeto JSON equilibrado que empieza en `openBrace`. */
+function parseBalancedJsonFrom(text: string, openBrace: number): unknown | null {
+  if (text[openBrace] !== "{") return null;
+  let depth = 0;
+  for (let i = openBrace; i < text.length; i++) {
+    const c = text[i];
+    if (c === "{") depth++;
+    else if (c === "}") {
+      depth--;
+      if (depth === 0) {
+        const chunk = text.slice(openBrace, i + 1);
+        try {
+          return JSON.parse(chunk);
+        } catch {
+          return null;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function extractDayPlanFromLooseText(text: string): DayPlanPayload | null {
+  let idx = 0;
+  while (idx < text.length) {
+    const v = text.indexOf('"version"', idx);
+    if (v === -1) break;
+    const open = text.lastIndexOf("{", v);
+    if (open === -1 || open > v) {
+      idx = v + 1;
+      continue;
+    }
+    const parsed = parseBalancedJsonFrom(text, open);
+    const plan = parsed ? normalizeParsedDayPlan(parsed) : null;
+    if (plan) return plan;
+    idx = v + 1;
+  }
+  return null;
+}
+
 function extractDayPlan(text: string): DayPlanPayload | null {
   const start = "TRIPBOARD_DAYPLAN_JSON_START";
   const end = "TRIPBOARD_DAYPLAN_JSON_END";
   const iStart = text.indexOf(start);
   const iEnd = text.indexOf(end);
-  if (iStart === -1 || iEnd === -1 || iEnd <= iStart) return null;
-  const raw = text.slice(iStart + start.length, iEnd).trim();
-  try {
-    const parsed = JSON.parse(raw);
-    if (!parsed || parsed.version !== 1) return null;
-    if (typeof parsed.date !== "string") return null;
-    if (!Array.isArray(parsed.items)) return null;
-    return parsed as DayPlanPayload;
-  } catch {
-    return null;
+  if (iStart !== -1 && iEnd !== -1 && iEnd > iStart) {
+    const raw = text.slice(iStart + start.length, iEnd).trim();
+    const fromMarkers = tryParseDayPlanJson(raw);
+    if (fromMarkers) return fromMarkers;
   }
+
+  const fenceRe = /```(?:json)?\s*([\s\S]*?)\s*```/gi;
+  let m: RegExpExecArray | null;
+  while ((m = fenceRe.exec(text)) !== null) {
+    const inner = m[1]?.trim() ?? "";
+    if (!inner.includes('"version"') || !inner.includes('"items"')) continue;
+    const plan = tryParseDayPlanJson(inner);
+    if (plan) return plan;
+  }
+
+  return extractDayPlanFromLooseText(text);
 }
 
 function asProfile(mode: DayPlanPayload["travelMode"]) {
@@ -184,6 +303,21 @@ export async function POST(req: Request) {
     const provider = typeof body?.provider === "string" ? body.provider : null;
     const origin = new URL(req.url).origin;
 
+    const rawConv = body?.conversation;
+    const conversation: ChatTurn[] = Array.isArray(rawConv)
+      ? rawConv
+          .map((row: unknown) => {
+            if (!row || typeof row !== "object") return null;
+            const r = row as Record<string, unknown>;
+            const role = r.role === "user" || r.role === "assistant" ? r.role : null;
+            const content = typeof r.content === "string" ? r.content : "";
+            if (!role || !content.trim()) return null;
+            return { role, content: content.slice(0, 4000) };
+          })
+          .filter(Boolean) as ChatTurn[]
+      : [];
+    const conversationSlice = conversation.slice(-16);
+
     if (!tripId) return NextResponse.json({ error: "Falta tripId" }, { status: 400 });
     if (!question) return NextResponse.json({ error: "Pregunta vacía" }, { status: 400 });
 
@@ -210,17 +344,36 @@ export async function POST(req: Request) {
     }
 
     const context = await buildTripContext(tripId);
+    const historyBlock =
+      conversationSlice.length > 0
+        ? [
+            "HISTORIAL RECIENTE (este hilo; el último mensaje USER es la petición actual):",
+            conversationSlice.map((t) => `${t.role.toUpperCase()}: ${t.content}`).join("\n\n---\n\n"),
+            "",
+          ].join("\n")
+        : "";
+
     const prompt = [
       "Eres un asistente experto de viajes dentro de Kaviro.",
       "Responde siempre en español.",
       "Tu tarea es organizar UN día completo con tiempos y desplazamientos aproximados.",
-      "Primero pregunta lo mínimo si faltan datos (fecha, transporte, horario, preferencias).",
-      "Cuando tengas datos suficientes, devuelve un JSON DayPlan entre marcadores TRIPBOARD_DAYPLAN_JSON_START/END siguiendo el esquema version 1.",
       "",
+      "REGLAS CRÍTICAS PARA EL JSON DEL DÍA:",
+      "- Si el usuario (o el historial) ya ha dado la FECHA del día (YYYY-MM-DD), horario aproximado de inicio y fin, cómo moverse y qué le apetece hacer, DEBES generar EN ESTA MISMA RESPUESTA el plan en JSON con los marcadores literales TRIPBOARD_DAYPLAN_JSON_START y TRIPBOARD_DAYPLAN_JSON_END (sin envolverlos en ``` markdown).",
+      "- No pidas más confirmaciones si ya tienes fecha + ventana horaria + preferencia de transporte + intereses.",
+      "- Si el usuario da reglas mixtas (p. ej. andar si el tramo es corto y bici si es largo), elige travelMode \"cycling\" o \"walking\" según lo que predomine en el día y explica la regla en el texto humano antes del JSON.",
+      "- travelMode debe ser exactamente uno de: driving | walking | cycling.",
+      "- El JSON debe ser válido (comillas dobles, sin comentarios). Incluye al menos 4 items con query geocodable (nombre + ciudad).",
+      "- Si aún faltan datos imprescindibles (sobre todo la fecha en YYYY-MM-DD), haz solo preguntas breves y NO incluyas el bloque JSON todavía.",
+      "",
+      "Primero pregunta lo mínimo solo si faltan datos (fecha, transporte, horario, preferencias).",
+      "Cuando tengas datos suficientes, devuelve el JSON DayPlan entre TRIPBOARD_DAYPLAN_JSON_START y TRIPBOARD_DAYPLAN_JSON_END (version 1, con date, travelMode, dayStart, dayEnd, items).",
+      "",
+      historyBlock,
       "CONTEXTO DEL VIAJE:",
       context,
       "",
-      "PETICIÓN DEL USUARIO:",
+      "PETICIÓN / ÚLTIMO MENSAJE DEL USUARIO:",
       question,
       "",
       "RESPUESTA:",
@@ -237,7 +390,13 @@ export async function POST(req: Request) {
 
     const plan = extractDayPlan(answer);
     if (!plan) {
-      return NextResponse.json({ answer, plan: null, diff: null });
+      const multiTurn = conversationSlice.length >= 2;
+      const detailedAnswer = question.length > 40 || /\d{1,2}:\d{2}/.test(question);
+      const dayPlannerHint =
+        multiTurn && detailedAnswer
+          ? "No se pudo leer el plan en la respuesta de la IA (faltan los marcadores TRIPBOARD_DAYPLAN_JSON_START/END o el JSON es inválido). Prueba a escribir: «Genera ya el día con los marcadores TRIPBOARD_DAYPLAN_JSON» o divide tus respuestas en líneas (hora inicio, transporte, intereses, hora fin)."
+          : null;
+      return NextResponse.json({ answer, plan: null, diff: null, dayPlannerHint });
     }
 
     // Enrichment mínimo: geocode + restaurante real cercano + rutas OSRM entre items con coords.

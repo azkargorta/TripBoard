@@ -118,6 +118,8 @@ export function buildTripPrompt(context: string, question: string, mode: TripAiM
         "- Si un sitio necesita entrada, marca `ticketRequired=true` y en `notes` indica 'Necesita entrada'.",
         "- No inventes coordenadas ni URLs en el JSON.",
         "- En el texto humano, explica el porqué del orden y pregunta correcciones.",
+        "- Si el usuario ya respondió con fecha (YYYY-MM-DD), horarios y transporte, emite el bloque TRIPBOARD_DAYPLAN_JSON en la misma respuesta (marcadores literales, sin envolver en ```).",
+        "- Reglas mixtas andar/bici: elige travelMode cycling o walking según predomine y explícalo en el texto.",
       ].join("\n"),
   };
 
