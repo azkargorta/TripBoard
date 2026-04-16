@@ -10,6 +10,36 @@ import { CalendarDays, Clock, Eye, EyeOff, Filter, Plus, Search, SlidersHorizont
 import TripPlanCalendar from "@/components/trip/plan/TripPlanCalendar";
 import { useTripActivityKinds } from "@/hooks/useTripActivityKinds";
 
+const COMMON_KIND_ICONS: Array<{ emoji: string; label: string }> = [
+  { emoji: "📍", label: "Visita" },
+  { emoji: "🏛️", label: "Museo" },
+  { emoji: "🍽️", label: "Comida" },
+  { emoji: "☕", label: "Cafetería" },
+  { emoji: "🏖️", label: "Playa" },
+  { emoji: "⛰️", label: "Montaña" },
+  { emoji: "🥾", label: "Senderismo" },
+  { emoji: "🛍️", label: "Compras" },
+  { emoji: "🎭", label: "Espectáculo" },
+  { emoji: "🎟️", label: "Actividad" },
+  { emoji: "🎉", label: "Evento" },
+  { emoji: "🌿", label: "Naturaleza" },
+  { emoji: "🏟️", label: "Deporte" },
+  { emoji: "🍷", label: "Vinos" },
+  { emoji: "🍺", label: "Cervezas" },
+  { emoji: "🌙", label: "Noche" },
+  { emoji: "🏨", label: "Alojamiento" },
+  { emoji: "🚆", label: "Transporte" },
+  { emoji: "🚗", label: "Coche" },
+  { emoji: "✈️", label: "Vuelo" },
+  { emoji: "🚌", label: "Bus" },
+  { emoji: "⛴️", label: "Ferry" },
+  { emoji: "📸", label: "Fotos" },
+  { emoji: "🧭", label: "Explorar" },
+  { emoji: "🧘", label: "Relax" },
+  { emoji: "🧺", label: "Picnic" },
+  { emoji: "🧑‍🍳", label: "Cocina" },
+];
+
 function groupByDate(activities: TripActivity[]) {
   const groups = new Map<string, TripActivity[]>();
 
@@ -126,6 +156,8 @@ export default function TripPlanView({
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [kindsOpen, setKindsOpen] = useState(false);
   const [newKind, setNewKind] = useState({ label: "", key: "", emoji: "", color: "#64748b" });
+  const [iconPickerOpen, setIconPickerOpen] = useState(false);
+  const [editIconPickerId, setEditIconPickerId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
@@ -527,12 +559,43 @@ export default function TripPlanView({
                 </label>
                 <label className="space-y-1">
                   <span className="text-xs font-semibold text-slate-700">Emoji</span>
-                  <input
-                    value={newKind.emoji}
-                    onChange={(e) => setNewKind((s) => ({ ...s, emoji: e.target.value }))}
-                    className="min-h-[42px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
-                    placeholder="🏖️"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      value={newKind.emoji}
+                      onChange={(e) => setNewKind((s) => ({ ...s, emoji: e.target.value }))}
+                      className="min-h-[42px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
+                      placeholder="🏖️"
+                      title="Puedes escribir un emoji o elegir uno de la lista"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setIconPickerOpen((v) => !v)}
+                      className="inline-flex min-h-[42px] shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
+                      title="Elegir icono"
+                    >
+                      {iconPickerOpen ? "Cerrar" : "Iconos"}
+                    </button>
+                  </div>
+                  {iconPickerOpen ? (
+                    <div className="mt-2 grid grid-cols-7 gap-2 rounded-2xl border border-slate-200 bg-white p-3">
+                      {COMMON_KIND_ICONS.map((item) => (
+                        <button
+                          key={item.emoji}
+                          type="button"
+                          onClick={() => {
+                            setNewKind((s) => ({ ...s, emoji: item.emoji }));
+                            setIconPickerOpen(false);
+                          }}
+                          className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border text-lg transition hover:bg-slate-50 ${
+                            newKind.emoji === item.emoji ? "border-violet-300 bg-violet-50" : "border-slate-200 bg-white"
+                          }`}
+                          title={item.label}
+                        >
+                          {item.emoji}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                 </label>
                 <label className="space-y-1">
                   <span className="text-xs font-semibold text-slate-700">Color</span>
@@ -598,6 +661,15 @@ export default function TripPlanView({
                         />
                         <button
                           type="button"
+                          onClick={() => setEditIconPickerId((prev) => (prev === k.id ? null : k.id))}
+                          className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-extrabold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                          disabled={customKindsSaving}
+                          title="Elegir icono"
+                        >
+                          Iconos
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => void deleteKind(k.id)}
                           className="inline-flex min-h-[40px] items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-extrabold text-rose-800 hover:bg-rose-100 disabled:opacity-60"
                           disabled={customKindsSaving}
@@ -607,6 +679,27 @@ export default function TripPlanView({
                         </button>
                       </div>
                     </div>
+                    {editIconPickerId === k.id ? (
+                      <div className="mt-3 grid grid-cols-10 gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                        {COMMON_KIND_ICONS.map((item) => (
+                          <button
+                            key={item.emoji}
+                            type="button"
+                            onClick={() => {
+                              void updateKind(k.id, { emoji: item.emoji });
+                              setEditIconPickerId(null);
+                            }}
+                            className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border text-lg transition hover:bg-white ${
+                              (k.emoji || "") === item.emoji ? "border-violet-300 bg-violet-50" : "border-slate-200 bg-white"
+                            }`}
+                            title={item.label}
+                            disabled={customKindsSaving}
+                          >
+                            {item.emoji}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 ))
               ) : (
