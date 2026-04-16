@@ -4,8 +4,6 @@ import { requireTripAccess } from "@/lib/trip-access";
 import TripMapView from "@/components/trip/map/TripMapView";
 import TripScreenActions from "@/components/trip/common/TripScreenActions";
 import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
-import { isPremiumEnabledForTrip } from "@/lib/entitlements";
-import TripRoutesFreeView from "@/components/trip/map/TripRoutesFreeView";
 
 type Props = {
   params: { id: string };
@@ -56,9 +54,8 @@ function buildTripDates(startDate?: string | null, endDate?: string | null) {
 export default async function TripMapPage({ params }: Props) {
   const tripId = params.id;
 
-  const access = await requireTripAccess(tripId);
+  await requireTripAccess(tripId);
   const supabase = await createClient();
-  const isPremium = await isPremiumEnabledForTrip({ supabase, userId: access.userId, tripId });
 
   const tripResponse = await supabase
     .from("trips")
@@ -90,29 +87,25 @@ export default async function TripMapPage({ params }: Props) {
         actions={<TripScreenActions tripId={tripId} />}
       />
 
-      {isPremium ? (
-        <TripMapView
-          tripId={tripId}
-          trip={{
-            id: trip.id,
-            name: trip.name || "Viaje",
-            destination: trip.destination || null,
-            start_date: trip.start_date || null,
-            end_date: trip.end_date || null,
-          }}
-          tripDates={buildTripDates(trip.start_date, trip.end_date)}
-          planSources={{
-            tripActivities: tripActivities.data,
-            legacyActivities: legacyActivities.data,
-          }}
-          routeSources={{
-            tripRoutes: tripRoutes.data,
-            legacyRoutes: legacyRoutes.data,
-          }}
-        />
-      ) : (
-        <TripRoutesFreeView tripId={tripId} />
-      )}
+      <TripMapView
+        tripId={tripId}
+        trip={{
+          id: trip.id,
+          name: trip.name || "Viaje",
+          destination: trip.destination || null,
+          start_date: trip.start_date || null,
+          end_date: trip.end_date || null,
+        }}
+        tripDates={buildTripDates(trip.start_date, trip.end_date)}
+        planSources={{
+          tripActivities: tripActivities.data,
+          legacyActivities: legacyActivities.data,
+        }}
+        routeSources={{
+          tripRoutes: tripRoutes.data,
+          legacyRoutes: legacyRoutes.data,
+        }}
+      />
     </main>
   );
 }

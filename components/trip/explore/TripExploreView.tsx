@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
+import L from "leaflet";
 import PlaceAutocompleteInput from "@/components/PlaceAutocompleteInput";
 import { FolderPlus, MapPin, Plus, RefreshCcw, Save, Trash2 } from "lucide-react";
 
@@ -101,11 +103,44 @@ function planKindMeta(kind: string | null | undefined) {
   };
 }
 
-export default function TripExploreView({ tripId, hasGoogleMapsKey }: { tripId: string; hasGoogleMapsKey: boolean }) {
-  const mapRef = useRef<HTMLDivElement | null>(null);
-  const mapInstanceRef = useRef<google.maps.Map | null>(null);
-  const markersRef = useRef<Map<string, google.maps.Marker>>(new Map());
-  const lastFitKeyRef = useRef<string>("");
+function emojiIcon(emoji: string, bg: string) {
+  return L.divIcon({
+    className: "",
+    html: `<div style="
+      width: 34px; height: 34px;
+      display:flex; align-items:center; justify-content:center;
+      border-radius: 999px;
+      background:${bg};
+      border: 2px solid #ffffff;
+      box-shadow: 0 10px 22px rgba(15,23,42,.18);
+      font-size: 16px;
+      line-height: 1;
+    ">${emoji}</div>`,
+    iconSize: [34, 34],
+    iconAnchor: [17, 34],
+    popupAnchor: [0, -28],
+  });
+}
+
+function FitToBounds({ pointsKey, bounds }: { pointsKey: string; bounds: L.LatLngBounds | null }) {
+  const map = useMap();
+  const lastKeyRef = useRef<string>("");
+
+  useEffect(() => {
+    if (!bounds) return;
+    if (pointsKey && pointsKey === lastKeyRef.current) return;
+    lastKeyRef.current = pointsKey;
+    try {
+      map.fitBounds(bounds, { padding: [40, 40] });
+    } catch {
+      // noop
+    }
+  }, [bounds, map, pointsKey]);
+
+  return null;
+}
+
+export default function TripExploreView({ tripId }: { tripId: string }) {
 
   const [folders, setFolders] = useState<Folder[]>([]);
   const [places, setPlaces] = useState<PlaceRow[]>([]);
@@ -121,7 +156,6 @@ export default function TripExploreView({ tripId, hasGoogleMapsKey }: { tripId: 
   const [pendingFolderId, setPendingFolderId] = useState<string | "none">("none");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const canUseGoogle = useMemo(() => typeof window !== "undefined" && !!window.google?.maps, []);
 
   async function loadAll() {
     setError(null);
@@ -158,20 +192,6 @@ export default function TripExploreView({ tripId, hasGoogleMapsKey }: { tripId: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tripId]);
 
-  useEffect(() => {
-    if (!canUseGoogle) return;
-    if (!mapRef.current) return;
-    if (mapInstanceRef.current) return;
-
-    mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
-      center: { lat: 40.4168, lng: -3.7038 },
-      zoom: 4,
-      mapTypeControl: false,
-      streetViewControl: false,
-      fullscreenControl: false,
-    });
-  }, [canUseGoogle]);
-
   const visiblePlaces = useMemo(() => {
     if (selectedFolderId === "all") return places;
     return places.filter((p) => p.folder_id === selectedFolderId);
@@ -202,120 +222,59 @@ export default function TripExploreView({ tripId, hasGoogleMapsKey }: { tripId: 
     return plans.filter((p) => visiblePlanKinds[(p.activity_kind || "visit").toLowerCase()] !== false);
   }, [plans, visiblePlanKinds]);
 
-  useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map) return;
-    if (!window.google?.maps) return;
-
-    // clear old markers
-    for (const marker of markersRef.current.values()) {
-      marker.setMap(null);
-    }
-    markersRef.current.clear();
-
-    const bounds = new window.google.maps.LatLngBounds();
-    let boundsCount = 0;
+  const mapPoints = useMemo(() => {
+    const out: Array<{ key: string; lat: number; lng: number; title: string; emoji: string; bg: string; subtitle?: string }> =
+      [];
 
     for (const a of visiblePlans) {
       if (typeof a.latitude !== "number" || typeof a.longitude !== "number") continue;
       const meta = planKindMeta(a.activity_kind);
-      const marker = new window.google.maps.Marker({
-        map,
-        position: { lat: a.latitude, lng: a.longitude },
+      out.push({
+        key: `plan:${a.id}`,
+        lat: a.latitude,
+        lng: a.longitude,
         title: a.title || a.place_name || "Plan",
-        label: { text: meta.emoji, fontSize: "16px" },
-        icon: {
-          path: window.google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
-          fillColor: meta.pin.fill,
-          fillOpacity: 1,
-          strokeColor: meta.pin.stroke,
-          strokeOpacity: 1,
-          strokeWeight: 2,
-          scale: 6,
-          labelOrigin: new window.google.maps.Point(0, -2),
-        },
+        emoji: meta.emoji,
+        bg: meta.pin.fill,
+        subtitle: a.address || undefined,
       });
-      markersRef.current.set(`plan:${a.id}`, marker);
-      bounds.extend({ lat: a.latitude, lng: a.longitude });
-      boundsCount += 1;
     }
 
     for (const p of visiblePlaces) {
       if (typeof p.latitude !== "number" || typeof p.longitude !== "number") continue;
-      const emoji = categoryEmoji(p.category);
-      const marker = new window.google.maps.Marker({
-        map,
-        position: { lat: p.latitude, lng: p.longitude },
-        title: p.name,
-        label: {
-          text: emoji,
-          fontSize: "16px",
-        },
-        icon: {
-          path: window.google.maps.SymbolPath.CIRCLE,
-          fillColor: "#0f172a",
-          fillOpacity: 0.9,
-          strokeColor: "#ffffff",
-          strokeOpacity: 1,
-          strokeWeight: 2,
-          scale: 9,
-          labelOrigin: new window.google.maps.Point(0, 1),
-        },
+      out.push({
+        key: `place:${p.id}`,
+        lat: p.latitude,
+        lng: p.longitude,
+        title: p.name || "Lugar",
+        emoji: categoryEmoji(p.category),
+        bg: "#0f172a",
+        subtitle: p.address || undefined,
       });
-      markersRef.current.set(p.id, marker);
-      bounds.extend({ lat: p.latitude, lng: p.longitude });
-      boundsCount += 1;
     }
 
     if (pending && typeof pending.latitude === "number" && typeof pending.longitude === "number") {
-      const marker = new window.google.maps.Marker({
-        map,
-        position: { lat: pending.latitude, lng: pending.longitude },
-        title: pending.name,
-        label: { text: "✨", fontSize: "16px" },
-        icon: {
-          path: window.google.maps.SymbolPath.CIRCLE,
-          fillColor: "#a855f7",
-          fillOpacity: 1,
-          strokeColor: "#ffffff",
-          strokeOpacity: 1,
-          strokeWeight: 2,
-          scale: 10,
-          labelOrigin: new window.google.maps.Point(0, 1),
-        },
+      out.push({
+        key: "pending",
+        lat: pending.latitude,
+        lng: pending.longitude,
+        title: pending.name || pending.address || "Selección",
+        emoji: "✨",
+        bg: "#a855f7",
+        subtitle: pending.address || undefined,
       });
-      markersRef.current.set("__pending__", marker);
-      map.panTo({ lat: pending.latitude, lng: pending.longitude });
-      map.setZoom(Math.max(map.getZoom() || 10, 12));
-      bounds.extend({ lat: pending.latitude, lng: pending.longitude });
-      boundsCount += 1;
     }
 
-    const keyParts: string[] = [
-      `f:${selectedFolderId}`,
-      `k:${Object.entries(visiblePlanKinds)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([k, v]) => `${k}:${v === false ? 0 : 1}`)
-        .join(",")}`,
-      `p:${visiblePlans.map((x) => x.id).join(",")}`,
-      `s:${visiblePlaces.map((x) => x.id).join(",")}`,
-      pending ? "__pending__" : "",
-    ];
-    const fitKey = keyParts.join("|");
+    return out;
+  }, [pending, visiblePlaces, visiblePlans]);
 
-    // Ajusta el mapa a las chinchetas visibles al entrar o al cambiar filtros.
-    if (boundsCount >= 1 && fitKey !== lastFitKeyRef.current) {
-      lastFitKeyRef.current = fitKey;
-      // fitBounds a veces necesita ejecutarse tras el paint.
-      window.setTimeout(() => {
-        try {
-          map.fitBounds(bounds, 56);
-        } catch {
-          // noop
-        }
-      }, 0);
-    }
-  }, [visiblePlaces, visiblePlans, pending, selectedFolderId, visiblePlanKinds]);
+  const bounds = useMemo(() => {
+    if (!mapPoints.length) return null;
+    const b = L.latLngBounds(mapPoints.map((p) => [p.lat, p.lng] as [number, number]));
+    return b.isValid() ? b : null;
+  }, [mapPoints]);
+
+  const pointsKey = useMemo(() => mapPoints.map((p) => p.key).join("|"), [mapPoints]);
 
   async function createFolder() {
     const name = folderName.trim();
@@ -461,10 +420,8 @@ export default function TripExploreView({ tripId, hasGoogleMapsKey }: { tripId: 
                         <button
                           type="button"
                           onClick={() => {
-                            if (!mapInstanceRef.current) return;
                             if (typeof p.latitude !== "number" || typeof p.longitude !== "number") return;
-                            mapInstanceRef.current.panTo({ lat: p.latitude, lng: p.longitude });
-                            mapInstanceRef.current.setZoom(14);
+                            // El mapa se ajusta automáticamente con fitBounds.
                           }}
                           className="shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
                           title="Centrar en el mapa"
@@ -635,10 +592,8 @@ export default function TripExploreView({ tripId, hasGoogleMapsKey }: { tripId: 
                     <button
                       type="button"
                       onClick={() => {
-                        if (!mapInstanceRef.current) return;
                         if (typeof p.latitude !== "number" || typeof p.longitude !== "number") return;
-                        mapInstanceRef.current.panTo({ lat: p.latitude, lng: p.longitude });
-                        mapInstanceRef.current.setZoom(14);
+                        // El mapa se ajusta automáticamente con fitBounds.
                       }}
                       className="shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
                     >
@@ -657,14 +612,23 @@ export default function TripExploreView({ tripId, hasGoogleMapsKey }: { tripId: 
       </aside>
 
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div ref={mapRef} className="h-[520px] w-full" />
-        {!canUseGoogle ? (
-          <div className="border-t border-slate-200 px-4 py-3 text-sm text-slate-600">
-            {hasGoogleMapsKey
-              ? "Cargando Google Maps… (si no carga, revisa que tu key tenga Maps JavaScript API activada)."
-              : "No se puede cargar el mapa: falta `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` en `.env.local`."}
-          </div>
-        ) : null}
+        <div className="h-[520px] w-full">
+          <MapContainer center={[40.4168, -3.7038]} zoom={4} style={{ height: "100%", width: "100%" }} scrollWheelZoom>
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+            <FitToBounds pointsKey={pointsKey} bounds={bounds} />
+            {mapPoints.map((p) => (
+              <Marker key={p.key} position={[p.lat, p.lng]} icon={emojiIcon(p.emoji, p.bg)}>
+                <Popup>
+                  <div className="text-sm font-semibold text-slate-900">{p.title}</div>
+                  {p.subtitle ? <div className="mt-1 text-xs text-slate-600">{p.subtitle}</div> : null}
+                </Popup>
+              </Marker>
+            ))}
+          </MapContainer>
+        </div>
       </section>
     </div>
   );

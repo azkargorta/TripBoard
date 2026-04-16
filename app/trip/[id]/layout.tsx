@@ -4,7 +4,6 @@ import MobileBottomNav from "@/components/mobile/MobileBottomNav";
 import TripBoardBrandRail from "@/components/layout/TripBoardBrandRail";
 import { createClient } from "@/lib/supabase/server";
 import { TripBoardHeaderProvider } from "@/components/layout/TripBoardHeaderContext";
-import Script from "next/script";
 import { isPremiumEnabledForTrip } from "@/lib/entitlements";
 import DesktopTripSidebar from "@/components/layout/DesktopTripSidebar";
 
@@ -24,19 +23,11 @@ export default async function TripLayout({
   const supabase = await createClient();
   const { data: tripMeta } = await supabase.from("trips").select("name").eq("id", params.id).maybeSingle();
   const tripName = (tripMeta?.name && String(tripMeta.name).trim()) || "Viaje";
-  const googleApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
   const isPremium = await isPremiumEnabledForTrip({ supabase, userId: access.userId, tripId: params.id });
 
   return (
     <>
       <TripBoardHeaderProvider>
-        {isPremium && googleApiKey ? (
-          <Script
-            id="google-maps-places-global"
-            src={`https://maps.googleapis.com/maps/api/js?key=${googleApiKey}`}
-            strategy="afterInteractive"
-          />
-        ) : null}
         <TripBoardBrandRail tripId={params.id} tripName={tripName} />
         <div
           className="pb-[calc(5.35rem+env(safe-area-inset-bottom,0px))] md:pb-0"

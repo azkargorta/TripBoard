@@ -1,10 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useJsApiLoader } from "@react-google-maps/api";
+import { useEffect, useState } from "react";
 import type { DetectedDocumentData } from "@/lib/document-analyzer";
-
-const MAP_LIBRARIES: ("places")[] = ["places"];
+import PlaceAutocompleteInput from "@/components/PlaceAutocompleteInput";
 
 export type LodgingReservationFormData = {
   providerName: string;
@@ -103,14 +101,6 @@ function buildFormFromInitial(initialData?: LodgingReservationEditableData | nul
   };
 }
 
-function extractComponent(
-  components: google.maps.GeocoderAddressComponent[] | undefined,
-  type: string
-) {
-  return components?.find((component) => component.types.includes(type))?.long_name || null;
-}
-
-
 function normalizePaymentStatus(value: unknown): "paid" | "pending" {
   return value === "paid" ? "paid" : "pending";
 }
@@ -125,15 +115,6 @@ export default function LodgingReservationForm({
 }: Props) {
   const [form, setForm] = useState<LodgingReservationFormData>(buildFormFromInitial(initialData));
   const [error, setError] = useState<string | null>(null);
-  const [placesReady, setPlacesReady] = useState(false);
-  const inputRef = useRef<HTMLInputElement | null>(null);
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
-
-  const { isLoaded, loadError } = useJsApiLoader({
-    id: "tripboard-lodging-autocomplete",
-    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
-    libraries: MAP_LIBRARIES,
-  });
 
   useEffect(() => {
     setForm(buildFormFromInitial(initialData));
@@ -164,49 +145,6 @@ export default function LodgingReservationForm({
     }));
   }, [detectedData, isEditing]);
 
-  useEffect(() => {
-    if (!isLoaded || !inputRef.current || !window.google?.maps?.places) return;
-    if (autocompleteRef.current) return;
-
-    const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, {
-      fields: ["formatted_address", "geometry", "name", "address_components"],
-      types: ["establishment", "geocode"],
-    });
-
-    autocomplete.addListener("place_changed", () => {
-      const place = autocomplete.getPlace();
-      const address = place?.formatted_address || place?.name || inputRef.current?.value || "";
-
-      const latitude =
-        typeof place?.geometry?.location?.lat === "function" ? place.geometry.location.lat() : null;
-      const longitude =
-        typeof place?.geometry?.location?.lng === "function" ? place.geometry.location.lng() : null;
-
-      const city =
-        extractComponent(place?.address_components, "locality") ||
-        extractComponent(place?.address_components, "postal_town");
-      const country = extractComponent(place?.address_components, "country");
-
-      setForm((current) => ({
-        ...current,
-        address,
-        latitude,
-        longitude,
-        city: city || current.city,
-        country: country || current.country,
-      }));
-    });
-
-    autocompleteRef.current = autocomplete;
-    setPlacesReady(true);
-
-    return () => {
-      if (autocompleteRef.current && window.google?.maps?.event) {
-        window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
-      }
-    };
-  }, [isLoaded]);
-
   function update<K extends keyof LodgingReservationFormData>(key: K, value: LodgingReservationFormData[K]) {
     setForm((current) => ({ ...current, [key]: value }));
   }
@@ -230,12 +168,12 @@ export default function LodgingReservationForm({
     }
 
     if (!form.address.trim()) {
-      setError("Selecciona el alojamiento en el autocompletar para guardar bien la ubicación.");
+      setError("Selecciona el alojamiento con el buscador para guardar bien la ubicación.");
       return;
     }
 
     if (form.latitude == null || form.longitude == null) {
-      setError("Selecciona una sugerencia real del autocompletar para guardar las coordenadas del alojamiento.");
+      setError("Selecciona una sugerencia real del buscador para guardar las coordenadas del alojamiento.");
       return;
     }
 
@@ -303,31 +241,22 @@ export default function LodgingReservationForm({
 
         <div className="space-y-2">
           <label className="block text-sm font-semibold text-slate-800">Lugar / dirección del alojamiento</label>
-          <input
-            ref={inputRef}
+          <PlaceAutocompleteInput
             value={form.address}
-            onChange={(e) => handleAddressChange(e.target.value)}
+            onChange={handleAddressChange}
+            onPlaceSelect={(payload) => {
+              setForm((current) => ({
+                ...current,
+                address: payload.address,
+                latitude: payload.latitude,
+                longitude: payload.longitude,
+              }));
+            }}
             placeholder="Busca y selecciona el alojamiento"
-            autoComplete="off"
-            className="w-full rounded-xl border border-slate-300 px-4 py-3"
           />
-          {loadError ? (
-            <p className="text-xs text-red-600">
-              No se ha podido cargar Google Places en este formulario.
-            </p>
-          ) : !isLoaded ? (
-            <p className="text-xs text-slate-500">
-              Cargando autocompletar de Google Places...
-            </p>
-          ) : placesReady ? (
-            <p className="text-xs text-slate-500">
-              Escribe la dirección y selecciona una opción del desplegable para guardar las coordenadas.
-            </p>
-          ) : (
-            <p className="text-xs text-slate-500">
-              Google Places está cargado, esperando inicializar el autocompletar...
-            </p>
-          )}
+          <p className="text-xs text-slate-500">
+            Escribe la dirección y selecciona una opción del desplegable para guardar las coordenadas.
+          </p>
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
