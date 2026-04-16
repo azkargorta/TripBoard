@@ -18,6 +18,27 @@ function tourStorageKey(tripId: string) {
   return `tripboard_trip_tabs_tour_v1:${tripId}`;
 }
 
+/** Primera vez que se muestra la ayuda detallada de esta pantalla (independiente del recorrido por pestañas). */
+function pageHelpSeenKey(tripId: string, pageId: string) {
+  return `tripboard_trip_page_help_seen_v2:${tripId}:${pageId}`;
+}
+
+function readPageHelpSeen(tripId: string, pageId: string) {
+  try {
+    return window.localStorage.getItem(pageHelpSeenKey(tripId, pageId)) === "1";
+  } catch {
+    return true;
+  }
+}
+
+function markPageHelpSeen(tripId: string, pageId: string) {
+  try {
+    window.localStorage.setItem(pageHelpSeenKey(tripId, pageId), "1");
+  } catch {
+    /* */
+  }
+}
+
 function getTripPageHelpId(pathname: string | null): string | null {
   if (!pathname) return null;
   const parts = pathname.split("/").filter(Boolean);
@@ -117,161 +138,237 @@ const HELP: Record<string, HelpEntry> = {
   home: {
     title: "Inicio del viaje",
     intro:
-      "Aquí ves el resumen del viaje: fechas, destino, accesos rápidos a cada módulo y el estado general del grupo.",
+      "Pantalla de control del viaje: ves de un vistazo el destino, las fechas, el estado del plan y atajos a cada módulo.",
     blocks: [
       {
-        heading: "Qué puedes hacer",
+        heading: "Qué puedes hacer en esta página",
         bullets: [
-          "Revisar y editar datos básicos del viaje (si tienes permiso).",
-          "Saltar a Plan, Mapa, Gastos, Gente, Docs o IA desde las tarjetas o el menú inferior.",
-          "Ver avisos y primeros pasos sugeridos cuando el viaje está vacío.",
+          "Consultar y, si tienes permiso, editar datos básicos del viaje (nombre, destino, fechas, etc.).",
+          "Ir al Plan, Mapa, Gastos, Gente, Docs o IA desde las tarjetas de accesos rápidos o desde el menú inferior.",
+          "Leer avisos y recordatorios (clima, datos pendientes, participantes) cuando el viaje aún está incompleto.",
+          "Seguir el bloque «Primeros pasos» si el viaje es nuevo: enlaces directos a las tareas más habituales.",
+        ],
+      },
+      {
+        heading: "Ventajas",
+        bullets: [
+          "Todo el grupo comparte la misma fuente de verdad: menos mensajes sueltos y menos confusiones.",
+          "Ahorras tiempo: no hace falta abrir cada módulo para saber si falta algo importante.",
+          "Sirve de “tablero” antes y durante el viaje: vuelves aquí para orientarte y repartir tareas.",
         ],
       },
       {
         heading: "En el móvil",
         bullets: [
-          "El menú inferior reúne las mismas secciones: desliza si no ves todas las pestañas.",
-          "Parte del detalle puede estar colapsado; ábrelo para ver fechas, notas o enlaces.",
-          "El botón «?» vuelve a mostrar esta ayuda cuando la necesites.",
+          "El menú inferior agrupa las mismas pestañas; desliza horizontalmente si no ves todas.",
+          "Parte del contenido puede ir colapsado para ganar espacio; ábrelo para ver fechas, notas o enlaces.",
+          "El icono «?» arriba a la derecha vuelve a abrir esta ayuda cuando quieras.",
         ],
       },
     ],
   },
   plan: {
     title: "Plan del viaje",
-    intro: "Organiza días, actividades y horarios. Es la agenda compartida del grupo.",
+    intro:
+      "Aquí construyes la agenda: lugares, fechas, horas y coordenadas que luego alimentan el mapa y el resto del viaje.",
     blocks: [
       {
-        heading: "Qué puedes hacer",
+        heading: "Qué puedes hacer en esta página",
         bullets: [
-          "Añadir o editar actividades por día.",
-          "Ordenar el día y ver qué toca en cada momento.",
-          "Preparar el viaje antes de pasar al mapa o a los gastos.",
+          "Añadir, editar y ordenar actividades por día (visitas, comidas, traslados, tiempo libre).",
+          "Definir horarios y detalles para que el día sea legible de principio a fin.",
+          "Guardar información que después puedes reutilizar al trazar rutas o al consultar con la IA.",
+          "Revisar el plan como lista temporal: qué toca antes y qué después, sin depender de chats sueltos.",
+        ],
+      },
+      {
+        heading: "Ventajas",
+        bullets: [
+          "Un solo plan compartido: todo el mundo ve la misma versión del día.",
+          "Menos improvisación last minute: el grupo llega al destino con expectativas alineadas.",
+          "Encaja con Mapa y Gastos: lo que planificas aquí da contexto al resto de herramientas.",
         ],
       },
       {
         heading: "En el móvil",
         bullets: [
-          "Suele mostrarse un día a la vez: desplázate verticalmente dentro del día.",
-          "Si añades muchas visitas, usa el resumen del día para no perderte.",
+          "Suele mostrarse un día a la vez: desplázate dentro del día para ver todas las actividades.",
+          "Si hay muchas visitas, usa el resumen del día o el título de cada bloque para ubicarte rápido.",
         ],
       },
     ],
   },
   map: {
     title: "Mapa",
-    intro: "Visualiza el destino, rutas, paradas y vistas como Explorar o Plan en mapa.",
+    intro:
+      "Visualiza el destino, rutas, paradas y notas en el mapa; puedes abrir vistas como Explorar o ver el plan georreferenciado.",
     blocks: [
       {
-        heading: "Qué puedes hacer",
+        heading: "Qué puedes hacer en esta página",
         bullets: [
-          "Ver rutas y puntos relacionados con el viaje.",
-          "Abrir subpantallas (explorar, gastos en mapa, etc.) según lo que necesites.",
-          "Volver al resumen del viaje desde los accesos del header cuando haga falta.",
+          "Ver en el mapa rutas, puntos y tramos ligados a este viaje.",
+          "Abrir subpantallas según lo que necesites (por ejemplo explorar el entorno o ver gastos en contexto geográfico).",
+          "Comprobar distancias y orden geográfico de las paradas respecto al plan del día.",
+          "Volver al resumen del viaje o a otras secciones desde los accesos del header cuando haga falta.",
+        ],
+      },
+      {
+        heading: "Ventajas",
+        bullets: [
+          "Entiendes de un vistazo si el día es realista (tiempos de desplazamiento, lejanía de puntos).",
+          "Evitas discusiones del tipo “¿esto queda lejos?”: la respuesta está en el mapa.",
+          "Complementa el Plan: lo que escribiste en agenda cobra sentido sobre el terreno.",
         ],
       },
       {
         heading: "En el móvil",
         bullets: [
-          "El mapa ocupa mucho: zoom con gestos; los paneles suelen ser deslizables.",
-          "Si el teclado o la barra inferior tapa contenido, cierra paneles o desplázate.",
+          "Usa pellizco para zoom y arrastre para moverte; los paneles suelen poder cerrarse o deslizarse.",
+          "Si la barra inferior o el teclado tapan contenido, cierra paneles auxiliares o desplázate dentro del mapa.",
         ],
       },
     ],
   },
   expenses: {
     title: "Gastos",
-    intro: "Registra gastos compartidos, quién pagó y cómo saldar cuentas entre el grupo.",
+    intro:
+      "Lleva la contabilidad del viaje: quién paga, cómo se reparte y cuánto debe cada uno al resto del grupo.",
     blocks: [
       {
-        heading: "Qué puedes hacer",
+        heading: "Qué puedes hacer en esta página",
         bullets: [
-          "Añadir gastos con importe, moneda y participantes implicados.",
-          "Ver balances y quién debe a quién.",
-          "Mantener el split al día para evitar discusiones al final del viaje.",
+          "Registrar gastos con importe, moneda y quién participó en cada pago o consumo.",
+          "Ver balances y resúmenes de quién debe a quién para saldar al final del viaje.",
+          "Ajustar repartos cuando alguien adelanta dinero o paga por varios.",
+          "Consultar el histórico para recordar un gasto concreto o revisar el total por categoría.",
+        ],
+      },
+      {
+        heading: "Ventajas",
+        bullets: [
+          "Transparencia total: nadie tiene que llevar la cuenta en un Excel aparte.",
+          "Menos fricción social: las cifras hablan y el reparto es justo y revisable.",
+          "Útil en viajes largos o con mucha gente: el saldo se mantiene claro día a día.",
         ],
       },
       {
         heading: "En el móvil",
         bullets: [
-          "Las tablas y listas largas se leen mejor en vertical; desplázate por secciones.",
-          "Revisa el resumen arriba antes de bajar al detalle de cada gasto.",
+          "Empieza por el resumen superior; el detalle de cada gasto suele ir debajo en lista o tabla.",
+          "Desplázate en vertical: en pantallas estrechas es más cómodo leer bloque a bloque.",
         ],
       },
     ],
   },
   participants: {
     title: "Gente",
-    intro: "Participantes del viaje, permisos y cómo encaja cada persona en gastos y plan.",
+    intro: "Define quién viaja, cómo se llama en la app y qué puede hacer cada persona respecto al viaje.",
     blocks: [
       {
-        heading: "Qué puedes hacer",
+        heading: "Qué puedes hacer en esta página",
         bullets: [
-          "Invitar o gestionar quién forma parte del viaje.",
-          "Alinear nombres con los que usas en gastos para que los balances cuadren.",
+          "Añadir o revisar participantes y roles (quién organiza, quién solo consulta, etc., según permisos).",
+          "Invitar o gestionar accesos para que el grupo entre al mismo viaje.",
+          "Alinear nombres con los que usarás en Gastos para que los balances te reconozcan bien.",
+        ],
+      },
+      {
+        heading: "Ventajas",
+        bullets: [
+          "Menos errores en repartos y menciones: todos aparecen como en la vida real.",
+          "Quien se une tarde entra en un contexto ya definido: no hay “versiones paralelas” del grupo.",
+          "Facilita la coordinación: sabes a quién pedir cada cosa.",
         ],
       },
       {
         heading: "En el móvil",
-        bullets: ["Las fichas de persona pueden estar en lista: toca para expandir si hay más datos."],
+        bullets: [
+          "Las personas suelen mostrarse en lista; toca una fila si hay más datos o acciones.",
+        ],
       },
     ],
   },
   resources: {
     title: "Docs y recursos",
-    intro: "Reservas, billetes, PDFs y enlaces útiles centralizados para todo el grupo.",
+    intro: "Centraliza billetes, reservas, PDFs y enlaces para que nadie busque en el buzón a última hora.",
     blocks: [
       {
-        heading: "Qué puedes hacer",
+        heading: "Qué puedes hacer en esta página",
         bullets: [
-          "Subir o enlazar documentos importantes.",
-          "Encontrar rápido lo que hace falta en aeropuerto o alojamiento.",
+          "Subir archivos o pegar enlaces a reservas, seguros, entradas o guías.",
+          "Organizar la documentación del viaje en un solo sitio visible para quien tenga acceso.",
+          "Recuperar rápido un PDF o enlace en aeropuerto, hotel o punto de encuentro.",
+        ],
+      },
+      {
+        heading: "Ventajas",
+        bullets: [
+          "Menos estrés: no dependes de reenviar el mismo correo diez veces.",
+          "Historial compartido: si alguien pierde el móvil, el grupo sigue teniendo copia en la nube del viaje.",
+          "Complementa el Plan: lo administrativo vive aquí, lo horario en Plan.",
         ],
       },
       {
         heading: "En el móvil",
         bullets: [
-          "Las descargas o vistas previas dependen del navegador; guarda enlaces críticos en favoritos si quieres.",
+          "Los enlaces y archivos se abren con el navegador o apps del sistema; guarda lo crítico donde te sea cómodo.",
         ],
       },
     ],
   },
   ai: {
     title: "Asistente IA",
-    intro: "Chatea con contexto del viaje: ideas, planificación y respuestas según el modo de chat.",
+    intro:
+      "Un chat que conoce el contexto de este viaje: puede proponer ideas, ordenar un día o responder dudas según el modo que elijas.",
     blocks: [
       {
-        heading: "Qué puedes hacer",
+        heading: "Qué puedes hacer en esta página",
         bullets: [
-          "Elegir conversación o empezar una nueva (según tu plan).",
-          "Cambiar el tipo de chat para orientar mejor a la IA antes de escribir.",
-          "Usar sugerencias rápidas cuando no sepas por dónde empezar.",
+          "Escribir preguntas o pedidos en lenguaje natural (itinerarios, alternativas, qué ver en una zona, etc.).",
+          "Elegir o cambiar el tipo de chat para que la IA se enfoque en preguntar, preparar u otras tareas.",
+          "Gestionar conversaciones: retomar un hilo o empezar uno nuevo cuando el tema cambie (según tu plan).",
+          "Usar sugerencias rápidas como atajos cuando no sepas cómo formular la primera pregunta.",
+        ],
+      },
+      {
+        heading: "Ventajas",
+        bullets: [
+          "Ahorra tiempo de búsqueda: resume opciones usando los datos que ya tienes en el viaje.",
+          "Sirve de “segunda opinión” creativa sin sustituir tu criterio ni las reservas reales.",
+          "Encaja con Plan y Mapa: puedes pasar de la idea al calendario o al mapa con menos saltos mentales.",
         ],
       },
       {
         heading: "En el móvil",
         bullets: [
-          "El historial y los ajustes suelen estar en columnas: en pantalla pequeña, primero el chat y luego el panel lateral.",
-          "Abre «Mostrar tipos» en el panel si necesitas cambiar de modo sin perder el hilo.",
+          "En pantallas pequeñas el chat suele ir primero; el panel lateral guarda conversaciones y «Mostrar tipos».",
+          "Si el teclado tapa el campo de texto, cierra paneles o desplázate para ver la última respuesta.",
         ],
       },
     ],
   },
   settings: {
     title: "Ajustes del viaje",
-    intro: "Opciones específicas de este viaje (nombre, permisos avanzados, etc., según lo que tenga la app).",
+    intro: "Configura opciones que afectan a todo el viaje: nombre visible, permisos y otros ajustes según lo que permita la app.",
     blocks: [
       {
-        heading: "Qué puedes hacer",
+        heading: "Qué puedes hacer en esta página",
         bullets: [
-          "Revisar configuración que afecta a todo el grupo.",
-          "Volver al inicio del viaje si solo querías consultar datos generales.",
+          "Revisar y cambiar ajustes del viaje que aplican a todo el grupo (según tu rol).",
+          "Comprobar preferencias antes de compartir el viaje o invitar a más gente.",
+        ],
+      },
+      {
+        heading: "Ventajas",
+        bullets: [
+          "Control centralizado: evitas cambiar el mismo dato en varios sitios.",
+          "Quien administra el viaje puede dejarlo fino sin tocar el plan día a día.",
         ],
       },
       {
         heading: "En el móvil",
         bullets: [
-          "Los formularios largos siguen el scroll vertical; guarda antes de salir si hay botón de guardar.",
+          "Los formularios largos siguen el scroll vertical; confirma o guarda antes de salir si hay botón explícito.",
         ],
       },
     ],
@@ -295,6 +392,20 @@ function markTourSeen(tripId: string) {
 }
 
 function PageHelpVisualHeader({ pageId }: { pageId: string }) {
+  if (pageId === "settings") {
+    return (
+      <div className="mb-5 flex flex-col items-center text-center">
+        <div className="flex h-20 w-20 items-center justify-center rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 shadow-inner">
+          <span className="text-[2.5rem] leading-none" aria-hidden>
+            ⚙️
+          </span>
+        </div>
+        <p className="mt-3 text-xs font-extrabold uppercase tracking-[0.14em] text-cyan-800/90">Estás en</p>
+        <p className="text-lg font-bold text-slate-950">Ajustes</p>
+      </div>
+    );
+  }
+
   const step = TAB_TOUR.find((s) => s.id === pageId);
   if (!step) return null;
   return (
@@ -336,12 +447,20 @@ export default function TripPageHelp() {
   const [tourOpen, setTourOpen] = useState(false);
   const [tourStep, setTourStep] = useState(0);
   const [pageHelpOpen, setPageHelpOpen] = useState(false);
+  /** Se incrementa al terminar el recorrido por pestañas para disparar la ayuda detallada de la pantalla actual. */
+  const [tourPulse, setTourPulse] = useState(0);
 
   const finishTour = useCallback(() => {
     if (tripId) markTourSeen(tripId);
     setTourOpen(false);
     setTourStep(0);
+    setTourPulse((p) => p + 1);
   }, [tripId]);
+
+  const closePageHelp = useCallback(() => {
+    if (tripId && pageId) markPageHelpSeen(tripId, pageId);
+    setPageHelpOpen(false);
+  }, [tripId, pageId]);
 
   /** Primera vez en el viaje: recorrido visual por las 7 pestañas principales. */
   useEffect(() => {
@@ -380,19 +499,34 @@ export default function TripPageHelp() {
     };
   }, [tripId, pageId, pathname]);
 
+  /** Primera vez en cada pantalla: ayuda detallada (tras el recorrido global, si aplica). */
+  useEffect(() => {
+    if (!tripId || !pageId || !entry) return;
+    if (readPageHelpSeen(tripId, pageId)) return;
+    if (tourOpen) return;
+    const tourBlocksFirst = TAB_TOUR_PAGE_IDS.has(pageId) && !readTourSeen(tripId);
+    if (tourBlocksFirst) return;
+
+    const t = window.setTimeout(() => {
+      if (readPageHelpSeen(tripId, pageId)) return;
+      setPageHelpOpen(true);
+    }, 400);
+    return () => window.clearTimeout(t);
+  }, [tripId, pageId, entry, tourOpen, tourPulse, pathname]);
+
   useEffect(() => {
     if (!tourOpen && !pageHelpOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       if (pageHelpOpen) {
-        setPageHelpOpen(false);
+        closePageHelp();
         return;
       }
       if (tourOpen) finishTour();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [tourOpen, pageHelpOpen, finishTour]);
+  }, [tourOpen, pageHelpOpen, finishTour, closePageHelp]);
 
   const openManual = useCallback(() => {
     setPageHelpOpen(true);
@@ -408,16 +542,17 @@ export default function TripPageHelp() {
       <button
         type="button"
         onClick={openManual}
-        className="inline-flex min-h-[40px] min-w-[40px] shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60 md:min-h-0 md:min-w-0 md:h-9 md:w-9"
+        disabled={tourOpen}
+        className="inline-flex min-h-[40px] min-w-[40px] shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60 disabled:pointer-events-none disabled:opacity-40 md:min-h-0 md:min-w-0 md:h-9 md:w-9"
         aria-label={`Ayuda: ${entry.title}`}
-        title="Ayuda de esta página"
+        title={tourOpen ? "Cierra el recorrido para usar la ayuda" : "Ayuda de esta página"}
       >
         <HelpCircle className="h-[1.15rem] w-[1.15rem]" strokeWidth={2.25} aria-hidden />
       </button>
 
       {tourOpen && tourStepData ? (
         <div
-          className="fixed inset-0 z-[60] flex items-end justify-center p-0 sm:items-center sm:p-4"
+          className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto overscroll-contain px-3 py-[max(10px,env(safe-area-inset-top))] pb-[max(12px,env(safe-area-inset-bottom))] sm:p-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby="trip-tab-tour-title"
@@ -429,8 +564,7 @@ export default function TripPageHelp() {
             onClick={finishTour}
           />
           <div
-            className="relative flex max-h-[min(92vh,760px)] w-full max-w-md flex-col overflow-hidden rounded-t-[28px] border border-slate-200 bg-white shadow-[0_-16px_48px_rgba(15,23,42,0.15)] sm:max-h-[88vh] sm:rounded-[28px] sm:shadow-2xl"
-            style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+            className="pointer-events-auto relative my-auto flex min-h-0 w-full max-w-md max-h-[min(92dvh,calc(100svh-1.5rem))] flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-2xl sm:max-h-[min(90dvh,calc(100svh-2rem))]"
           >
             <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-cyan-900 px-5 pb-4 pt-4 text-white sm:pt-5">
               <div className="flex items-start justify-between gap-2">
@@ -500,7 +634,7 @@ export default function TripPageHelp() {
               </div>
             </div>
 
-            <div className="border-t border-slate-100 px-5 pt-3">
+            <div className="shrink-0 border-t border-slate-100 px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <button
                   type="button"
@@ -546,7 +680,7 @@ export default function TripPageHelp() {
 
       {pageHelpOpen ? (
         <div
-          className="fixed inset-0 z-[60] flex items-end justify-center p-0 sm:items-center sm:p-4"
+          className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto overscroll-contain px-3 py-[max(10px,env(safe-area-inset-top))] pb-[max(12px,env(safe-area-inset-bottom))] sm:p-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby="trip-page-help-title"
@@ -555,19 +689,18 @@ export default function TripPageHelp() {
             type="button"
             className="absolute inset-0 bg-slate-900/45 backdrop-blur-[2px]"
             aria-label="Cerrar ayuda"
-            onClick={() => setPageHelpOpen(false)}
+            onClick={closePageHelp}
           />
           <div
-            className="relative flex max-h-[min(90vh,720px)] w-full max-w-lg flex-col rounded-t-[28px] border border-slate-200 bg-white shadow-[0_-12px_40px_rgba(15,23,42,0.12)] sm:max-h-[85vh] sm:rounded-[24px] sm:shadow-xl"
-            style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+            className="pointer-events-auto relative my-auto flex min-h-0 w-full max-w-lg max-h-[min(92dvh,calc(100svh-1.5rem))] flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-2xl sm:max-h-[min(90dvh,calc(100svh-2rem))]"
           >
-            <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 pb-3 pt-4 sm:pt-5">
+            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-5 pb-3 pt-4 sm:pt-5">
               <h2 id="trip-page-help-title" className="pr-2 text-lg font-bold leading-snug text-slate-950">
                 {entry.title}
               </h2>
               <button
                 type="button"
-                onClick={() => setPageHelpOpen(false)}
+                onClick={closePageHelp}
                 className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:bg-slate-50"
                 aria-label="Cerrar"
               >
@@ -590,13 +723,13 @@ export default function TripPageHelp() {
                 ))}
               </div>
             </div>
-            <div className="border-t border-slate-100 px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:pb-4">
+            <div className="shrink-0 border-t border-slate-100 px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:pb-4">
               <button
                 type="button"
-                onClick={() => setPageHelpOpen(false)}
+                onClick={closePageHelp}
                 className="flex min-h-[48px] w-full items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
               >
-                Cerrar
+                Entendido
               </button>
             </div>
           </div>
