@@ -8,6 +8,7 @@ import PlanForm, { type PlanFormValues } from "@/components/trip/plan/PlanForm";
 import { useTripActivities, type TripActivity } from "@/hooks/useTripActivities";
 import { CalendarDays, Clock, Eye, EyeOff, Filter, Plus, Search, SlidersHorizontal } from "lucide-react";
 import TripPlanCalendar from "@/components/trip/plan/TripPlanCalendar";
+import { useTripActivityKinds } from "@/hooks/useTripActivityKinds";
 
 function groupByDate(activities: TripActivity[]) {
   const groups = new Map<string, TripActivity[]>();
@@ -40,8 +41,17 @@ function effectiveKind(a: TripActivity) {
   return normalizeKind(a.activity_kind) || "visit";
 }
 
-function kindMeta(kindRaw: unknown) {
+function kindMeta(kindRaw: unknown, custom?: Map<string, { label: string; emoji?: string | null; color?: string | null }>) {
   const kind = normalizeKind(kindRaw);
+  const fromCustom = custom?.get(kind) || null;
+  if (fromCustom) {
+    return {
+      key: kind,
+      label: fromCustom.label || kind,
+      glyph: fromCustom.emoji || "•",
+      color: fromCustom.color || "#64748b",
+    };
+  }
   if (kind === "museum") return { key: "museum", label: "Museo", glyph: "M", color: "#f59e0b" };
   if (kind === "restaurant") return { key: "restaurant", label: "Comida", glyph: "🍴", color: "#f97316" };
   if (kind === "transport") return { key: "transport", label: "Transporte", glyph: "✈", color: "#0ea5e9" };
@@ -91,6 +101,16 @@ export default function TripPlanView({
 }) {
   const { trip, activities, loading, saving, error, createActivity, updateActivity, deleteActivity } =
     useTripActivities(tripId);
+  const {
+    kinds: customKinds,
+    loading: customKindsLoading,
+    saving: customKindsSaving,
+    error: customKindsError,
+    warning: customKindsWarning,
+    createKind,
+    updateKind,
+    deleteKind,
+  } = useTripActivityKinds(tripId);
 
   const [editingActivity, setEditingActivity] = useState<TripActivity | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -101,6 +121,8 @@ export default function TripPlanView({
   const [showManual, setShowManual] = useState(true);
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [kindsOpen, setKindsOpen] = useState(false);
+  const [newKind, setNewKind] = useState({ label: "", key: "", emoji: "", color: "#64748b" });
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
@@ -140,6 +162,32 @@ export default function TripPlanView({
     }
     return Array.from(s.values()).sort();
   }, [activities]);
+
+  const customByKey = useMemo(() => {
+    const map = new Map<string, { label: string; emoji?: string | null; color?: string | null }>();
+    for (const k of customKinds || []) {
+      const key = normalizeKind(k.kind_key);
+      if (!key) continue;
+      map.set(key, { label: k.label, emoji: k.emoji ?? null, color: k.color ?? null });
+    }
+    return map;
+  }, [customKinds]);
+
+  const kindsForSelect = useMemo(() => {
+    // Para el PlanForm: lista de tipos (key/label) desde catálogo + tipos ya usados
+    const merged = new Map<string, { key: string; label: string }>();
+    for (const k of customKinds || []) {
+      const key = normalizeKind(k.kind_key);
+      if (!key) continue;
+      merged.set(key, { key, label: k.label || key });
+    }
+    for (const k of availableKinds) {
+      const key = normalizeKind(k);
+      if (!key) continue;
+      if (!merged.has(key)) merged.set(key, { key, label: key });
+    }
+    return Array.from(merged.values()).sort((a, b) => a.label.localeCompare(b.label));
+  }, [availableKinds, customKinds]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -403,7 +451,7 @@ export default function TripPlanView({
 
             {availableKinds.map((k) => {
               const active = kindFilter.has(k);
-              const meta = kindMeta(k);
+              const meta = kindMeta(k, customByKey);
               return (
                 <Chip
                   key={k}
@@ -426,6 +474,148 @@ export default function TripPlanView({
         </div>
       </div>
 
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-extrabold text-slate-950">Tipos personalizados</div>
+            <div className="mt-1 text-xs text-slate-600">
+              Crea categorías reutilizables (label/emoji/color) para Plan y Mapa.
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setKindsOpen((v) => !v)}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            {kindsOpen ? "Cerrar" : "Gestionar"}
+          </button>
+        </div>
+
+        {customKindsWarning ? (
+          <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            {customKindsWarning}
+          </div>
+        ) : null}
+        {customKindsError ? (
+          <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+            {customKindsError}
+          </div>
+        ) : null}
+
+        {kindsOpen ? (
+          <div className="mt-4 grid gap-4">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-600">Nuevo tipo</div>
+              <div className="mt-3 grid gap-3 md:grid-cols-4">
+                <label className="space-y-1 md:col-span-2">
+                  <span className="text-xs font-semibold text-slate-700">Nombre</span>
+                  <input
+                    value={newKind.label}
+                    onChange={(e) =>
+                      setNewKind((s) => ({
+                        ...s,
+                        label: e.target.value,
+                        key: s.key || normalizeKind(e.target.value).replace(/\s+/g, "_"),
+                      }))
+                    }
+                    className="min-h-[42px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
+                    placeholder="Ej. Playa"
+                  />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-xs font-semibold text-slate-700">Emoji</span>
+                  <input
+                    value={newKind.emoji}
+                    onChange={(e) => setNewKind((s) => ({ ...s, emoji: e.target.value }))}
+                    className="min-h-[42px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
+                    placeholder="🏖️"
+                  />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-xs font-semibold text-slate-700">Color</span>
+                  <input
+                    type="color"
+                    value={newKind.color || "#64748b"}
+                    onChange={(e) => setNewKind((s) => ({ ...s, color: e.target.value }))}
+                    className="min-h-[42px] w-full rounded-xl border border-slate-300 bg-white px-2"
+                    aria-label="Color del tipo"
+                  />
+                </label>
+              </div>
+              <div className="mt-3 flex justify-end">
+                <button
+                  type="button"
+                  disabled={customKindsSaving || !newKind.label.trim()}
+                  onClick={() =>
+                    void createKind({
+                      kind_key: newKind.key || newKind.label,
+                      label: newKind.label,
+                      emoji: newKind.emoji.trim() || null,
+                      color: newKind.color || null,
+                    }).then(() => setNewKind({ label: "", key: "", emoji: "", color: "#64748b" }))
+                  }
+                  className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-xs font-extrabold text-white disabled:opacity-60"
+                >
+                  {customKindsSaving ? "Guardando…" : "Crear tipo"}
+                </button>
+              </div>
+            </div>
+
+            <div className="grid gap-3">
+              <div className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-600">Tipos existentes</div>
+              {customKindsLoading ? (
+                <div className="text-sm text-slate-600">Cargando tipos…</div>
+              ) : customKinds.length ? (
+                customKinds.map((k) => (
+                  <div key={k.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-slate-950">
+                          {(k.emoji ? `${k.emoji} ` : "") + k.label}
+                        </div>
+                        <div className="mt-1 text-xs text-slate-600">Clave: {k.kind_key}</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={k.color || "#64748b"}
+                          onChange={(e) => void updateKind(k.id, { color: e.target.value })}
+                          className="h-10 w-12 cursor-pointer rounded-xl border border-slate-200 bg-white px-2"
+                          title="Cambiar color"
+                          aria-label="Cambiar color"
+                          disabled={customKindsSaving}
+                        />
+                        <input
+                          value={k.emoji || ""}
+                          onChange={(e) => void updateKind(k.id, { emoji: e.target.value.trim() || null })}
+                          className="h-10 w-14 rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold"
+                          placeholder="😀"
+                          title="Emoji"
+                          disabled={customKindsSaving}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void deleteKind(k.id)}
+                          className="inline-flex min-h-[40px] items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-extrabold text-rose-800 hover:bg-rose-100 disabled:opacity-60"
+                          disabled={customKindsSaving}
+                          title="Eliminar tipo"
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-4 text-sm text-slate-600">
+                  Todavía no has creado tipos personalizados.
+                </div>
+              )}
+            </div>
+          </div>
+        ) : null}
+      </div>
+
       {showForm ? (
         <div ref={formAnchorRef} className="scroll-mt-24">
           <PlanForm
@@ -434,7 +624,7 @@ export default function TripPlanView({
           onCancelEdit={handleCancelEditOrClose}
           onSubmit={handleSubmit}
           premiumEnabled={premiumEnabled}
-          availableKinds={availableKinds}
+          availableKinds={kindsForSelect}
           />
         </div>
       ) : null}
@@ -472,7 +662,7 @@ export default function TripPlanView({
             <div className="space-y-3 border-l border-slate-200 pl-4">
               {items.map((activity) => {
                 const isLodging = isLodgingActivity(activity);
-                const meta = kindMeta(isLodging ? "lodging" : activity.activity_kind);
+                const meta = kindMeta(isLodging ? "lodging" : activity.activity_kind, customByKey);
                 return (
                   <div key={activity.id} className="relative">
                     <span

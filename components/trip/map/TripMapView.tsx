@@ -6,6 +6,7 @@ import L from "leaflet";
 import { MapPin, Plus, RefreshCw, Save, Trash2 } from "lucide-react";
 import PlaceAutocompleteInput from "@/components/PlaceAutocompleteInput";
 import { useTripRoutes, type RoutePoint, type SaveRouteInput } from "@/hooks/useTripRoutes";
+import { useTripActivityKinds } from "@/hooks/useTripActivityKinds";
 
 type UnknownRow = Record<string, unknown>;
 type RouteMode = "DRIVING";
@@ -255,6 +256,20 @@ function kindLabel(kindRaw: string) {
   return kindRaw.trim().slice(0, 1).toUpperCase() + kindRaw.trim().slice(1);
 }
 
+function kindMarkerEmoji(kindRaw: string, custom?: Map<string, { label: string; emoji?: string | null; color?: string | null }>) {
+  const k = normalizeKind(kindRaw);
+  const meta = custom?.get(k) || null;
+  if (meta?.emoji) return meta.emoji;
+  return placeEmoji(k);
+}
+
+function kindMarkerColor(kindRaw: string, custom?: Map<string, { label: string; emoji?: string | null; color?: string | null }>) {
+  const k = normalizeKind(kindRaw);
+  const meta = custom?.get(k) || null;
+  if (meta?.color) return meta.color;
+  return "#0f172a";
+}
+
 function todayISO() {
   const d = new Date();
   const y = d.getFullYear();
@@ -305,6 +320,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   const [focusedRouteKey, setFocusedRouteKey] = useState<string | null>(null);
   const [showPlanMarkers, setShowPlanMarkers] = useState(true);
   const [planKindFilter, setPlanKindFilter] = useState<Set<string>>(new Set());
+  const { kinds: customKinds, warning: customKindsWarning } = useTripActivityKinds(tripId);
 
   // Formulario crear ruta
   const [routeName, setRouteName] = useState("");
@@ -362,8 +378,22 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
       const k = normalizeKind(p.kind) || "visit";
       s.add(k);
     }
+    for (const k of customKinds || []) {
+      const kk = normalizeKind(k.kind_key);
+      if (kk) s.add(kk);
+    }
     return Array.from(s.values()).sort((a, b) => a.localeCompare(b));
-  }, [allPlanPlaces]);
+  }, [allPlanPlaces, customKinds]);
+
+  const customByKey = useMemo(() => {
+    const map = new Map<string, { label: string; emoji?: string | null; color?: string | null }>();
+    for (const k of customKinds || []) {
+      const kk = normalizeKind(k.kind_key);
+      if (!kk) continue;
+      map.set(kk, { label: k.label, emoji: k.emoji ?? null, color: k.color ?? null });
+    }
+    return map;
+  }, [customKinds]);
 
   const applyPlan = useCallback((planId: string) => planOptions.find((p) => p.id === planId) || null, [planOptions]);
 
@@ -402,8 +432,8 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
           lng: p.longitude,
           title: p.title,
           subtitle: p.address,
-          emoji: placeEmoji(p.kind),
-          bg: "#0f172a",
+          emoji: kindMarkerEmoji(k, customByKey),
+          bg: kindMarkerColor(k, customByKey),
         });
       }
     }
@@ -440,7 +470,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     }
 
     return { markers, lines };
-  }, [allPlanPlaces, planKindFilter, showPlanMarkers, visibleRoutes]);
+  }, [allPlanPlaces, customByKey, planKindFilter, showPlanMarkers, visibleRoutes]);
 
   const bounds = useMemo(() => {
     const latlngs: Array<[number, number]> = [];
@@ -618,6 +648,9 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
 
             <div className="rounded-2xl border border-slate-200 bg-white p-3">
               <div className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-600">Tipos de plan</div>
+              {customKindsWarning ? (
+                <div className="mt-2 text-[11px] text-amber-700">{customKindsWarning}</div>
+              ) : null}
               <div className="mt-2 flex flex-wrap gap-2">
                 <button
                   type="button"
@@ -633,6 +666,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                 </button>
                 {availablePlanKinds.map((k) => {
                   const active = planKindFilter.has(k);
+                  const label = customByKey.get(k)?.label || kindLabel(k);
                   return (
                     <button
                       key={k}
@@ -652,7 +686,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                       }`}
                       title={`Mostrar/ocultar: ${kindLabel(k)}`}
                     >
-                      {kindLabel(k)}
+                      {label}
                     </button>
                   );
                 })}

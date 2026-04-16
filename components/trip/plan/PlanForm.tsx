@@ -49,7 +49,7 @@ type Props = {
   onCancelEdit?: () => void;
   onSubmit: (values: PlanFormValues) => Promise<void>;
   premiumEnabled: boolean;
-  availableKinds?: string[];
+  availableKinds?: Array<{ key: string; label: string }>;
 };
 
 const EMPTY_FORM: PlanFormValues = {
@@ -245,18 +245,23 @@ export default function PlanForm({
                     "transport",
                     "activity",
                     "lodging",
-                    ...availableKinds.filter((k) => {
-                      const nk = normalizeKind(k);
-                      return nk && !["visit", "museum", "restaurant", "transport", "activity", "lodging"].includes(nk);
-                    }),
+                    ...availableKinds
+                      .map((k) => k.key)
+                      .filter((k) => {
+                        const nk = normalizeKind(k);
+                        return nk && !["visit", "museum", "restaurant", "transport", "activity", "lodging"].includes(nk);
+                      }),
                   ]
                     .map((k) => String(k))
                     .filter(Boolean)
-                    .map((k) => (
-                      <option key={k} value={k}>
-                        {toLabel(k)}
-                      </option>
-                    ))}
+                    .map((k) => {
+                      const custom = availableKinds.find((x) => normalizeKind(x.key) === normalizeKind(k));
+                      return (
+                        <option key={k} value={k}>
+                          {custom?.label || toLabel(k)}
+                        </option>
+                      );
+                    })}
                 </select>
               ) : (
                 <input
