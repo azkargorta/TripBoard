@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useParams, usePathname } from "next/navigation";
 import { ChevronLeft, ChevronRight, HelpCircle, X } from "lucide-react";
+import TripBoardLogo from "@/components/brand/TripBoardLogo";
 
 type HelpBlock = { heading: string; bullets: string[] };
 
@@ -84,7 +85,7 @@ const TAB_TOUR: TourStep[] = [
     body: "La agenda por días: actividades, horarios y visitas. Es la referencia compartida de qué hace el grupo y cuándo.",
     mobileTip: "Suele organizarse por día; desplázate dentro de cada día para ver todas las actividades.",
     href: (id) => `/trip/${id}/plan`,
-    visual: { type: "image", src: "/brand/tabs/plan.png", alt: "" },
+    visual: { type: "image", src: "/brand/tabs/plan.png", alt: "Plan" },
   },
   {
     id: "map",
@@ -93,7 +94,7 @@ const TAB_TOUR: TourStep[] = [
     body: "Geografía del viaje: rutas, paradas y vistas como explorar el entorno o ver el plan sobre el mapa.",
     mobileTip: "Gestos de pellizco para zoom; los paneles laterales o inferiores se pueden deslizar o cerrar.",
     href: (id) => `/trip/${id}/map`,
-    visual: { type: "image", src: "/brand/tabs/map.png", alt: "" },
+    visual: { type: "image", src: "/brand/tabs/map.png", alt: "Mapa" },
   },
   {
     id: "expenses",
@@ -102,7 +103,7 @@ const TAB_TOUR: TourStep[] = [
     body: "Quién pagó qué, cómo repartirlo y balances para saldar cuentas sin líos al final del viaje.",
     mobileTip: "Mira primero el resumen arriba; el detalle de cada gasto va debajo en lista o tabla.",
     href: (id) => `/trip/${id}/expenses`,
-    visual: { type: "image", src: "/brand/tabs/expenses.png", alt: "" },
+    visual: { type: "image", src: "/brand/tabs/expenses.png", alt: "Gastos" },
   },
   {
     id: "participants",
@@ -111,7 +112,7 @@ const TAB_TOUR: TourStep[] = [
     body: "Participantes, invitaciones y permisos. Cuanto mejor definido esté el grupo, mejor cuadran plan y gastos.",
     mobileTip: "Usa el mismo nombre en gastos que en participantes para que los balances te reconozcan bien.",
     href: (id) => `/trip/${id}/participants`,
-    visual: { type: "image", src: "/brand/tabs/participants.png", alt: "" },
+    visual: { type: "image", src: "/brand/tabs/participants.png", alt: "Participantes" },
   },
   {
     id: "resources",
@@ -120,7 +121,7 @@ const TAB_TOUR: TourStep[] = [
     body: "Billetes, reservas, PDFs y enlaces en un solo sitio para que nadie pierda el correo de confirmación.",
     mobileTip: "En móvil, enlaces y archivos se abren con el navegador; guarda lo crítico donde te sea cómodo.",
     href: (id) => `/trip/${id}/resources`,
-    visual: { type: "image", src: "/brand/tabs/documents.png", alt: "" },
+    visual: { type: "image", src: "/brand/tabs/resources.png", alt: "Recursos y listas" },
   },
   {
     id: "ai",
@@ -129,7 +130,7 @@ const TAB_TOUR: TourStep[] = [
     body: "Asistente con contexto de este viaje: ideas, organizar un día, dudas y sugerencias según el tipo de chat.",
     mobileTip: "En pantalla pequeña el chat va primero; en el panel lateral tienes conversaciones y «Mostrar tipos».",
     href: (id) => `/trip/${id}/ai-chat`,
-    visual: { type: "image", src: "/brand/tabs/ai.png", alt: "" },
+    visual: { type: "image", src: "/brand/tabs/ai.png", alt: "Chat IA" },
   },
 ];
 
@@ -392,6 +393,42 @@ function markTourSeen(tripId: string) {
   }
 }
 
+function HelpVisualBadge({
+  visual,
+  size = "md",
+}: {
+  visual: TourStep["visual"];
+  size?: "md" | "lg";
+}) {
+  const frameClass =
+    size === "lg"
+      ? "h-[5.5rem] w-[5.5rem] rounded-[1.75rem]"
+      : "h-20 w-20 rounded-3xl";
+  const imageSize = size === "lg" ? 72 : 56;
+  const imageScale = size === "lg" ? "scale-[1.18]" : "scale-[1.15]";
+  const emojiClass = size === "lg" ? "text-[3.25rem]" : "text-[2.75rem]";
+
+  return (
+    <div
+      className={`flex ${frameClass} items-center justify-center overflow-hidden border border-slate-200 bg-white/70 ring-1 ring-slate-200 shadow-sm`}
+    >
+      {visual.type === "emoji" ? (
+        <span className={`${emojiClass} leading-none`} aria-hidden>
+          {visual.value}
+        </span>
+      ) : (
+        <Image
+          src={visual.src}
+          alt={visual.alt}
+          width={imageSize}
+          height={imageSize}
+          className={`h-full w-full object-contain object-center ${imageScale}`}
+        />
+      )}
+    </div>
+  );
+}
+
 function PageHelpVisualHeader({ pageId }: { pageId: string }) {
   if (pageId === "settings") {
     return (
@@ -411,15 +448,7 @@ function PageHelpVisualHeader({ pageId }: { pageId: string }) {
   if (!step) return null;
   return (
     <div className="mb-5 flex flex-col items-center text-center">
-      <div className="flex h-20 w-20 items-center justify-center rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-50 to-cyan-50/80 shadow-inner">
-        {step.visual.type === "emoji" ? (
-          <span className="text-[2.75rem] leading-none" aria-hidden>
-            {step.visual.value}
-          </span>
-        ) : (
-          <Image src={step.visual.src} alt={step.visual.alt} width={56} height={56} className="object-contain" />
-        )}
-      </div>
+      <HelpVisualBadge visual={step.visual} />
       <p className="mt-3 text-xs font-extrabold uppercase tracking-[0.14em] text-cyan-800/90">Estás en</p>
       <p className="text-lg font-bold text-slate-950">{step.title}</p>
     </div>
@@ -576,6 +605,7 @@ export default function TripPageHelp() {
                     <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-cyan-900 px-5 pb-4 pt-4 text-white sm:pt-5">
                       <div className="flex items-start justify-between gap-2">
                         <div>
+                          <TripBoardLogo variant="light" size="sm" withWordmark className="mb-3" imageClassName="!text-[11px]" />
                           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/75">Recorrido del viaje</p>
                           <h2 id="trip-tab-tour-title" className="mt-1 text-lg font-extrabold leading-tight">
                             Qué hay en cada pestaña
@@ -609,21 +639,7 @@ export default function TripPageHelp() {
 
                     <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6">
                       <div className="flex flex-col items-center text-center">
-                        <div className="flex h-[5.5rem] w-[5.5rem] items-center justify-center rounded-[1.75rem] border border-slate-200 bg-gradient-to-br from-white to-cyan-50 shadow-sm">
-                          {tourStepData.visual.type === "emoji" ? (
-                            <span className="text-[3.25rem] leading-none" aria-hidden>
-                              {tourStepData.visual.value}
-                            </span>
-                          ) : (
-                            <Image
-                              src={tourStepData.visual.src}
-                              alt={tourStepData.visual.alt}
-                              width={72}
-                              height={72}
-                              className="object-contain"
-                            />
-                          )}
-                        </div>
+                        <HelpVisualBadge visual={tourStepData.visual} size="lg" />
                         <p className="mt-4 text-xs font-bold uppercase tracking-[0.14em] text-cyan-800">{tourStepData.lead}</p>
                         <h3 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-950">{tourStepData.title}</h3>
                         <p className="mt-3 max-w-sm text-sm leading-relaxed text-slate-600">{tourStepData.body}</p>
@@ -700,9 +716,12 @@ export default function TripPageHelp() {
                   />
                   <div className="pointer-events-auto relative my-auto flex min-h-0 w-full max-w-lg max-h-[min(92dvh,calc(100svh-1.5rem))] flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-2xl sm:max-h-[min(90dvh,calc(100svh-2rem))]">
                     <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-5 pb-3 pt-4 sm:pt-5">
-                      <h2 id="trip-page-help-title" className="pr-2 text-lg font-bold leading-snug text-slate-950">
-                        {entry.title}
-                      </h2>
+                      <div className="min-w-0 pr-2">
+                        <TripBoardLogo size="sm" withWordmark className="mb-3" imageClassName="!text-[11px]" />
+                        <h2 id="trip-page-help-title" className="text-lg font-bold leading-snug text-slate-950">
+                          {entry.title}
+                        </h2>
+                      </div>
                       <button
                         type="button"
                         onClick={closePageHelp}
