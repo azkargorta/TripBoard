@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Image from "next/image";
+import Link from "next/link";
 
 type AuthShellProps = {
   title: string;
@@ -62,6 +63,20 @@ export default function AuthShell({
           <section className="flex items-start justify-center p-5 sm:p-8 md:p-10">
             <div className="w-full max-w-xl">
               <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-xl sm:p-8">
+                <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+                  <Link
+                    href="/"
+                    className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                  >
+                    Volver a inicio
+                  </Link>
+                  <Link
+                    href="/pricing"
+                    className="inline-flex items-center justify-center rounded-full bg-slate-950 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800"
+                  >
+                    Ver precios
+                  </Link>
+                </div>
                 <div className="mb-8 text-center">
                   <h3 className="text-4xl font-extrabold tracking-tight text-slate-950">
                     {title}
