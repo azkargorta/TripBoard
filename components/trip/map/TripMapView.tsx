@@ -32,6 +32,8 @@ type RouteFormState = {
   routeDate: string;
   routeName: string;
   departureTime: string;
+  color: string;
+  autoColor: boolean;
   stopEnabled: boolean;
   restStopsEnabled: boolean;
   restStopsCount: number;
@@ -47,6 +49,7 @@ type RoutePreview = {
   durationText: string | null;
   durationSeconds: number | null;
   arrivalTime: string | null;
+  color: string;
   label: string;
 };
 
@@ -115,6 +118,7 @@ type Props = {
 };
 
 const DEFAULT_CENTER: [number, number] = [40.4168, -3.7038];
+const ROUTE_COLOR_PALETTE = ["#6366f1", "#8b5cf6", "#ec4899", "#ef4444", "#f97316", "#eab308", "#10b981", "#14b8a6", "#06b6d4", "#3b82f6"];
 
 function emojiIcon(emoji: string, bg: string) {
   return L.divIcon({
@@ -371,6 +375,8 @@ function defaultRouteForm(date: string): RouteFormState {
     routeDate: date || todayISO(),
     routeName: "",
     departureTime: "",
+    color: ROUTE_COLOR_PALETTE[0],
+    autoColor: true,
     stopEnabled: false,
     restStopsEnabled: false,
     restStopsCount: 1,
@@ -479,12 +485,25 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
       name: form.routeName.trim() || "Ruta",
       date: form.routeDate,
       departureTime: form.departureTime,
+      color: form.color,
+      autoColor: form.autoColor,
       stopEnabled: form.stopEnabled,
       origin: [origin.address, origin.latitude, origin.longitude],
       stop: form.stopEnabled ? [stop.address, stop.latitude, stop.longitude] : null,
       destination: [destination.address, destination.latitude, destination.longitude],
     });
-  }, [destination.address, destination.latitude, destination.longitude, form.departureTime, form.routeDate, form.routeName, form.stopEnabled, origin.address, origin.latitude, origin.longitude, stop.address, stop.latitude, stop.longitude]);
+  }, [destination.address, destination.latitude, destination.longitude, form.autoColor, form.color, form.departureTime, form.routeDate, form.routeName, form.stopEnabled, origin.address, origin.latitude, origin.longitude, stop.address, stop.latitude, stop.longitude]);
+
+  const effectiveRouteColor = useMemo(() => {
+    if (!form.autoColor) return form.color || ROUTE_COLOR_PALETTE[0];
+    const used = new Set(
+      routesState
+        .filter((r) => r.source === "trip_routes" && r.id !== form.editingRouteId)
+        .map((r) => String(r.color || "").trim().toLowerCase())
+        .filter(Boolean)
+    );
+    return ROUTE_COLOR_PALETTE.find((color) => !used.has(color.toLowerCase())) || ROUTE_COLOR_PALETTE[0];
+  }, [form.autoColor, form.color, form.editingRouteId, routesState]);
 
   const reloadRoutes = useCallback(async () => {
     try {
@@ -623,7 +642,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
       lines.push({
         key: "route-preview",
         points: routePreview.points,
-        color: "#0f172a",
+        color: routePreview.color,
         label: routePreview.label,
       });
     } else {
@@ -708,6 +727,8 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
       routeDate: (route.route_day || route.route_date || prev.routeDate || todayISO()) as string,
       routeName: String(route.route_name || route.title || "Ruta"),
       departureTime: route.departure_time || "",
+      color: route.color || ROUTE_COLOR_PALETTE[0],
+      autoColor: !route.color,
       stopEnabled: typeof route.stop_latitude === "number" && typeof route.stop_longitude === "number",
       restStopsEnabled: !!restStops?.enabled,
       restStopsCount: typeof restStops?.count === "number" ? restStops.count : 1,
@@ -788,6 +809,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
         durationText,
         durationSeconds,
         arrivalTime: addDurationToTime(form.departureTime, durationSeconds),
+        color: effectiveRouteColor,
         label: name,
       };
       setFocusedRouteKey(null);
@@ -818,6 +840,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
         routeName: name,
         departureTime: form.departureTime,
         mode,
+        color: form.autoColor ? effectiveRouteColor : form.color || ROUTE_COLOR_PALETTE[0],
         originName: origin.address || "Origen",
         originAddress: origin.address || "Origen",
         originLatitude: origin.latitude,
@@ -1181,6 +1204,33 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                       className="mt-2 min-h-[42px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
                     />
                   </label>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                  <div className="text-xs font-extrabold text-slate-900">Color de la ruta</div>
+                  <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <input
+                      type="color"
+                      value={form.autoColor ? effectiveRouteColor : form.color}
+                      onChange={(e) => setForm((prev) => ({ ...prev, color: e.target.value, autoColor: false }))}
+                      className="h-11 w-full cursor-pointer rounded-xl border border-slate-300 bg-white px-2 sm:w-24"
+                      title="Elegir color de la ruta"
+                      disabled={form.autoColor}
+                      aria-label="Elegir color de la ruta"
+                    />
+                    <label className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-xs font-extrabold text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={form.autoColor}
+                        onChange={(e) => setForm((prev) => ({ ...prev, autoColor: e.target.checked }))}
+                      />
+                      Color auto
+                    </label>
+                    <div className="inline-flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                      <span className="inline-block h-4 w-4 rounded-full border border-slate-300" style={{ backgroundColor: effectiveRouteColor }} />
+                      {form.autoColor ? "Se asignará un color libre automáticamente." : "Color manual seleccionado."}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="rounded-2xl border border-slate-200 bg-white p-3">
