@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useParams, usePathname } from "next/navigation";
 import { ChevronLeft, ChevronRight, HelpCircle, X } from "lucide-react";
 
@@ -447,6 +448,7 @@ export default function TripPageHelp() {
   const [tourOpen, setTourOpen] = useState(false);
   const [tourStep, setTourStep] = useState(0);
   const [pageHelpOpen, setPageHelpOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   /** Se incrementa al terminar el recorrido por pestañas para disparar la ayuda detallada de la pantalla actual. */
   const [tourPulse, setTourPulse] = useState(0);
 
@@ -532,6 +534,10 @@ export default function TripPageHelp() {
     setPageHelpOpen(true);
   }, []);
 
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const tourStepData = TAB_TOUR[tourStep];
   const isLastTourStep = tourStep >= TAB_TOUR.length - 1;
 
@@ -550,191 +556,194 @@ export default function TripPageHelp() {
         <HelpCircle className="h-[1.15rem] w-[1.15rem]" strokeWidth={2.25} aria-hidden />
       </button>
 
-      {tourOpen && tourStepData ? (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto overscroll-contain px-3 py-[max(10px,env(safe-area-inset-top))] pb-[max(12px,env(safe-area-inset-bottom))] sm:p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="trip-tab-tour-title"
-        >
-          <button
-            type="button"
-            className="absolute inset-0 bg-slate-900/50 backdrop-blur-[2px]"
-            aria-label="Cerrar recorrido"
-            onClick={finishTour}
-          />
-          <div
-            className="pointer-events-auto relative my-auto flex min-h-0 w-full max-w-md max-h-[min(92dvh,calc(100svh-1.5rem))] flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-2xl sm:max-h-[min(90dvh,calc(100svh-2rem))]"
-          >
-            <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-cyan-900 px-5 pb-4 pt-4 text-white sm:pt-5">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/75">Recorrido del viaje</p>
-                  <h2 id="trip-tab-tour-title" className="mt-1 text-lg font-extrabold leading-tight">
-                    Qué hay en cada pestaña
-                  </h2>
-                </div>
-                <button
-                  type="button"
-                  onClick={finishTour}
-                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white transition hover:bg-white/15"
-                  aria-label="Cerrar"
+      {mounted
+        ? createPortal(
+            <>
+              {tourOpen && tourStepData ? (
+                <div
+                  className="fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto overscroll-contain px-3 py-[max(10px,env(safe-area-inset-top))] pb-[max(12px,env(safe-area-inset-bottom))] sm:p-4"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="trip-tab-tour-title"
                 >
-                  <X className="h-5 w-5" aria-hidden />
-                </button>
-              </div>
-              <p className="mt-2 text-xs leading-relaxed text-white/80">
-                Siete pasos, uno por cada sección. Puedes saltar cuando quieras; luego podrás repetir ayuda con «?» en
-                cualquier pantalla.
-              </p>
-              <div className="mt-4 flex justify-center gap-1.5">
-                {TAB_TOUR.map((s, i) => (
-                  <span
-                    key={s.id}
-                    className={`h-1.5 rounded-full transition-all ${
-                      i === tourStep ? "w-6 bg-cyan-300" : i < tourStep ? "w-1.5 bg-white/50" : "w-1.5 bg-white/25"
-                    }`}
-                    aria-hidden
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6">
-              <div className="flex flex-col items-center text-center">
-                <div className="flex h-[5.5rem] w-[5.5rem] items-center justify-center rounded-[1.75rem] border border-slate-200 bg-gradient-to-br from-white to-cyan-50 shadow-sm">
-                  {tourStepData.visual.type === "emoji" ? (
-                    <span className="text-[3.25rem] leading-none" aria-hidden>
-                      {tourStepData.visual.value}
-                    </span>
-                  ) : (
-                    <Image
-                      src={tourStepData.visual.src}
-                      alt={tourStepData.visual.alt}
-                      width={72}
-                      height={72}
-                      className="object-contain"
-                    />
-                  )}
-                </div>
-                <p className="mt-4 text-xs font-bold uppercase tracking-[0.14em] text-cyan-800">{tourStepData.lead}</p>
-                <h3 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-950">{tourStepData.title}</h3>
-                <p className="mt-3 max-w-sm text-sm leading-relaxed text-slate-600">{tourStepData.body}</p>
-                <div className="mt-5 w-full max-w-sm rounded-2xl border border-cyan-200/80 bg-cyan-50/90 px-4 py-3 text-left">
-                  <p className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-cyan-900/80">En el móvil</p>
-                  <p className="mt-1.5 text-sm leading-relaxed text-cyan-950/90">{tourStepData.mobileTip}</p>
-                </div>
-                <Link
-                  href={tourStepData.href(tripId)}
-                  onClick={finishTour}
-                  className="mt-5 text-sm font-semibold text-cyan-700 underline-offset-2 hover:text-cyan-900 hover:underline"
-                >
-                  Ir a {tourStepData.title} ahora →
-                </Link>
-              </div>
-            </div>
-
-            <div className="shrink-0 border-t border-slate-100 px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <button
-                  type="button"
-                  onClick={finishTour}
-                  className="text-xs font-semibold text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline"
-                >
-                  Saltar recorrido
-                </button>
-                <div className="ml-auto flex items-center gap-2">
                   <button
                     type="button"
-                    disabled={tourStep <= 0}
-                    onClick={() => setTourStep((s) => Math.max(0, s - 1))}
-                    className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:pointer-events-none disabled:opacity-35"
-                    aria-label="Paso anterior"
-                  >
-                    <ChevronLeft className="h-5 w-5" aria-hidden />
-                  </button>
-                  {isLastTourStep ? (
-                    <button
-                      type="button"
-                      onClick={finishTour}
-                      className="inline-flex min-h-[48px] min-w-[min(100%,12rem)] items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-                    >
-                      Entendido
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setTourStep((s) => Math.min(TAB_TOUR.length - 1, s + 1))}
-                      className="inline-flex min-h-[48px] items-center justify-center gap-1 rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-                    >
-                      Siguiente
-                      <ChevronRight className="h-4 w-4" aria-hidden />
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
+                    className="absolute inset-0 bg-slate-900/50 backdrop-blur-[2px]"
+                    aria-label="Cerrar recorrido"
+                    onClick={finishTour}
+                  />
+                  <div className="pointer-events-auto relative my-auto flex min-h-0 w-full max-w-md max-h-[min(92dvh,calc(100svh-1.5rem))] flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-2xl sm:max-h-[min(90dvh,calc(100svh-2rem))]">
+                    <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-cyan-900 px-5 pb-4 pt-4 text-white sm:pt-5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/75">Recorrido del viaje</p>
+                          <h2 id="trip-tab-tour-title" className="mt-1 text-lg font-extrabold leading-tight">
+                            Qué hay en cada pestaña
+                          </h2>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={finishTour}
+                          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white transition hover:bg-white/15"
+                          aria-label="Cerrar"
+                        >
+                          <X className="h-5 w-5" aria-hidden />
+                        </button>
+                      </div>
+                      <p className="mt-2 text-xs leading-relaxed text-white/80">
+                        Siete pasos, uno por cada sección. Puedes saltar cuando quieras; luego podrás repetir ayuda con «?» en
+                        cualquier pantalla.
+                      </p>
+                      <div className="mt-4 flex justify-center gap-1.5">
+                        {TAB_TOUR.map((s, i) => (
+                          <span
+                            key={s.id}
+                            className={`h-1.5 rounded-full transition-all ${
+                              i === tourStep ? "w-6 bg-cyan-300" : i < tourStep ? "w-1.5 bg-white/50" : "w-1.5 bg-white/25"
+                            }`}
+                            aria-hidden
+                          />
+                        ))}
+                      </div>
+                    </div>
 
-      {pageHelpOpen ? (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto overscroll-contain px-3 py-[max(10px,env(safe-area-inset-top))] pb-[max(12px,env(safe-area-inset-bottom))] sm:p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="trip-page-help-title"
-        >
-          <button
-            type="button"
-            className="absolute inset-0 bg-slate-900/45 backdrop-blur-[2px]"
-            aria-label="Cerrar ayuda"
-            onClick={closePageHelp}
-          />
-          <div
-            className="pointer-events-auto relative my-auto flex min-h-0 w-full max-w-lg max-h-[min(92dvh,calc(100svh-1.5rem))] flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-2xl sm:max-h-[min(90dvh,calc(100svh-2rem))]"
-          >
-            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-5 pb-3 pt-4 sm:pt-5">
-              <h2 id="trip-page-help-title" className="pr-2 text-lg font-bold leading-snug text-slate-950">
-                {entry.title}
-              </h2>
-              <button
-                type="button"
-                onClick={closePageHelp}
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:bg-slate-50"
-                aria-label="Cerrar"
-              >
-                <X className="h-5 w-5" aria-hidden />
-              </button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-              <PageHelpVisualHeader pageId={pageId} />
-              <p className="text-sm leading-relaxed text-slate-600">{entry.intro}</p>
-              <div className="mt-5 space-y-5">
-                {entry.blocks.map((block) => (
-                  <div key={block.heading}>
-                    <h3 className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">{block.heading}</h3>
-                    <ul className="mt-2 list-disc space-y-2 pl-4 text-sm leading-relaxed text-slate-700">
-                      {block.bullets.map((b) => (
-                        <li key={b}>{b}</li>
-                      ))}
-                    </ul>
+                    <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6">
+                      <div className="flex flex-col items-center text-center">
+                        <div className="flex h-[5.5rem] w-[5.5rem] items-center justify-center rounded-[1.75rem] border border-slate-200 bg-gradient-to-br from-white to-cyan-50 shadow-sm">
+                          {tourStepData.visual.type === "emoji" ? (
+                            <span className="text-[3.25rem] leading-none" aria-hidden>
+                              {tourStepData.visual.value}
+                            </span>
+                          ) : (
+                            <Image
+                              src={tourStepData.visual.src}
+                              alt={tourStepData.visual.alt}
+                              width={72}
+                              height={72}
+                              className="object-contain"
+                            />
+                          )}
+                        </div>
+                        <p className="mt-4 text-xs font-bold uppercase tracking-[0.14em] text-cyan-800">{tourStepData.lead}</p>
+                        <h3 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-950">{tourStepData.title}</h3>
+                        <p className="mt-3 max-w-sm text-sm leading-relaxed text-slate-600">{tourStepData.body}</p>
+                        <div className="mt-5 w-full max-w-sm rounded-2xl border border-cyan-200/80 bg-cyan-50/90 px-4 py-3 text-left">
+                          <p className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-cyan-900/80">En el móvil</p>
+                          <p className="mt-1.5 text-sm leading-relaxed text-cyan-950/90">{tourStepData.mobileTip}</p>
+                        </div>
+                        <Link
+                          href={tourStepData.href(tripId)}
+                          onClick={finishTour}
+                          className="mt-5 text-sm font-semibold text-cyan-700 underline-offset-2 hover:text-cyan-900 hover:underline"
+                        >
+                          Ir a {tourStepData.title} ahora →
+                        </Link>
+                      </div>
+                    </div>
+
+                    <div className="shrink-0 border-t border-slate-100 px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={finishTour}
+                          className="text-xs font-semibold text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline"
+                        >
+                          Saltar recorrido
+                        </button>
+                        <div className="ml-auto flex items-center gap-2">
+                          <button
+                            type="button"
+                            disabled={tourStep <= 0}
+                            onClick={() => setTourStep((s) => Math.max(0, s - 1))}
+                            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:pointer-events-none disabled:opacity-35"
+                            aria-label="Paso anterior"
+                          >
+                            <ChevronLeft className="h-5 w-5" aria-hidden />
+                          </button>
+                          {isLastTourStep ? (
+                            <button
+                              type="button"
+                              onClick={finishTour}
+                              className="inline-flex min-h-[48px] min-w-[min(100%,12rem)] items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                            >
+                              Entendido
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setTourStep((s) => Math.min(TAB_TOUR.length - 1, s + 1))}
+                              className="inline-flex min-h-[48px] items-center justify-center gap-1 rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                            >
+                              Siguiente
+                              <ChevronRight className="h-4 w-4" aria-hidden />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                ))}
-              </div>
-            </div>
-            <div className="shrink-0 border-t border-slate-100 px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:pb-4">
-              <button
-                type="button"
-                onClick={closePageHelp}
-                className="flex min-h-[48px] w-full items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-              >
-                Entendido
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+                </div>
+              ) : null}
+
+              {pageHelpOpen ? (
+                <div
+                  className="fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto overscroll-contain px-3 py-[max(10px,env(safe-area-inset-top))] pb-[max(12px,env(safe-area-inset-bottom))] sm:p-4"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="trip-page-help-title"
+                >
+                  <button
+                    type="button"
+                    className="absolute inset-0 bg-slate-900/45 backdrop-blur-[2px]"
+                    aria-label="Cerrar ayuda"
+                    onClick={closePageHelp}
+                  />
+                  <div className="pointer-events-auto relative my-auto flex min-h-0 w-full max-w-lg max-h-[min(92dvh,calc(100svh-1.5rem))] flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-2xl sm:max-h-[min(90dvh,calc(100svh-2rem))]">
+                    <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-5 pb-3 pt-4 sm:pt-5">
+                      <h2 id="trip-page-help-title" className="pr-2 text-lg font-bold leading-snug text-slate-950">
+                        {entry.title}
+                      </h2>
+                      <button
+                        type="button"
+                        onClick={closePageHelp}
+                        className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:bg-slate-50"
+                        aria-label="Cerrar"
+                      >
+                        <X className="h-5 w-5" aria-hidden />
+                      </button>
+                    </div>
+                    <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+                      <PageHelpVisualHeader pageId={pageId} />
+                      <p className="text-sm leading-relaxed text-slate-600">{entry.intro}</p>
+                      <div className="mt-5 space-y-5">
+                        {entry.blocks.map((block) => (
+                          <div key={block.heading}>
+                            <h3 className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">{block.heading}</h3>
+                            <ul className="mt-2 list-disc space-y-2 pl-4 text-sm leading-relaxed text-slate-700">
+                              {block.bullets.map((b) => (
+                                <li key={b}>{b}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="shrink-0 border-t border-slate-100 px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:pb-4">
+                      <button
+                        type="button"
+                        onClick={closePageHelp}
+                        className="flex min-h-[48px] w-full items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                      >
+                        Entendido
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </>,
+            document.body
+          )
+        : null}
     </>
   );
 }
