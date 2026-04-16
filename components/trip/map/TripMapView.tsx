@@ -45,6 +45,8 @@ type RoutePreview = {
   points: RoutePoint[];
   distanceText: string | null;
   durationText: string | null;
+  durationSeconds: number | null;
+  arrivalTime: string | null;
   label: string;
 };
 
@@ -247,6 +249,20 @@ function formatDuration(seconds: number) {
   return mm ? `${h}h ${mm}min` : `${h}h`;
 }
 
+function addDurationToTime(time: string, durationSeconds: number | null) {
+  if (!time || typeof durationSeconds !== "number" || !Number.isFinite(durationSeconds)) return null;
+  const match = /^(\d{1,2}):(\d{2})$/.exec(time.trim());
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+  const totalMinutes = hours * 60 + minutes + Math.round(durationSeconds / 60);
+  const normalized = ((totalMinutes % (24 * 60)) + 24 * 60) % (24 * 60);
+  const hh = String(Math.floor(normalized / 60)).padStart(2, "0");
+  const mm = String(normalized % 60).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
 async function fetchOsrmRoute(params: { origin: RoutePoint; destination: RoutePoint; stop?: RoutePoint | null }) {
   const resp = await fetch("/api/osrm/route", {
     method: "POST",
@@ -426,6 +442,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   const [isRouteFormOpen, setIsRouteFormOpen] = useState(false);
   const [routePreview, setRoutePreview] = useState<RoutePreview | null>(null);
   const [calculatingRoute, setCalculatingRoute] = useState(false);
+  const [isMapVisible, setIsMapVisible] = useState(true);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -748,6 +765,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
       let routePoints: RoutePoint[] = [originPt, ...(stopPt ? [stopPt] : []), destPt];
       let distanceText: string | null = null;
       let durationText: string | null = null;
+      let durationSeconds: number | null = null;
 
       try {
         const osrm = await fetchOsrmRoute({ origin: originPt, destination: destPt, stop: stopPt });
@@ -755,7 +773,10 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
           routePoints = osrm.points;
         }
         if (typeof osrm.distanceMeters === "number" && Number.isFinite(osrm.distanceMeters)) distanceText = formatKm(osrm.distanceMeters);
-        if (typeof osrm.durationSeconds === "number" && Number.isFinite(osrm.durationSeconds)) durationText = formatDuration(osrm.durationSeconds);
+        if (typeof osrm.durationSeconds === "number" && Number.isFinite(osrm.durationSeconds)) {
+          durationSeconds = osrm.durationSeconds;
+          durationText = formatDuration(osrm.durationSeconds);
+        }
       } catch {
         // Si OSRM falla, enseñamos igualmente la línea directa si hay puntos válidos.
       }
@@ -765,6 +786,8 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
         points: routePoints,
         distanceText,
         durationText,
+        durationSeconds,
+        arrivalTime: addDurationToTime(form.departureTime, durationSeconds),
         label: name,
       };
       setFocusedRouteKey(null);
@@ -809,6 +832,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
         destinationLongitude: destination.longitude,
         distanceText: preview.distanceText,
         durationText: preview.durationText,
+        arrivalTime: preview.arrivalTime,
         routePoints: preview.points,
         pathPoints: preview.points,
         notes: buildRouteNotes(form, form.editingRouteId ? routesState.find((r) => r.id === form.editingRouteId && r.source === "trip_routes")?.notes ?? null : null),
@@ -978,8 +1002,19 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[380px_minmax(0,1fr)]">
-      <aside className="space-y-4">
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => setIsMapVisible((v) => !v)}
+          className="inline-flex min-h-[38px] items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+        >
+          {isMapVisible ? "Ocultar mapa" : "Mostrar mapa"}
+        </button>
+      </div>
+
+      <div className={`grid gap-6 ${isMapVisible ? "lg:grid-cols-[380px_minmax(0,1fr)]" : "grid-cols-1"}`}>
+        <aside className="space-y-4">
         {error ? (
           <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</div>
         ) : null}
@@ -1340,7 +1375,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                     {routePreview ? (
                       <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3">
                         <div className="text-xs font-extrabold uppercase tracking-[0.12em] text-emerald-800">Ruta calculada</div>
-                        <div className="mt-2 grid grid-cols-2 gap-3">
+                        <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
                           <div className="rounded-xl bg-white px-3 py-2">
                             <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">Distancia</div>
                             <div className="mt-1 text-sm font-semibold text-slate-900">{routePreview.distanceText || "No disponible"}</div>
@@ -1348,6 +1383,10 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                           <div className="rounded-xl bg-white px-3 py-2">
                             <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">Duración</div>
                             <div className="mt-1 text-sm font-semibold text-slate-900">{routePreview.durationText || "No disponible"}</div>
+                          </div>
+                          <div className="rounded-xl bg-white px-3 py-2">
+                            <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">Llegada aprox.</div>
+                            <div className="mt-1 text-sm font-semibold text-slate-900">{routePreview.arrivalTime || "No disponible"}</div>
                           </div>
                         </div>
                         <div className="mt-2 text-xs text-emerald-900">La previsualización ya está dibujada en el mapa.</div>
@@ -1485,38 +1524,41 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
             )}
           </div>
         </section>
-      </aside>
+        </aside>
 
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="h-[640px] w-full">
-          <MapContainer center={DEFAULT_CENTER} zoom={4} style={{ height: "100%", width: "100%" }} scrollWheelZoom>
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-            <FitToBounds bounds={bounds} boundsKey={boundsKey} />
+        {isMapVisible ? (
+          <section className="lg:sticky lg:top-4 lg:self-start overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="h-[640px] w-full lg:h-[calc(100vh-2rem)]">
+              <MapContainer center={DEFAULT_CENTER} zoom={4} style={{ height: "100%", width: "100%" }} scrollWheelZoom>
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                <FitToBounds bounds={bounds} boundsKey={boundsKey} />
 
-            {mapEntities.lines.map((l) => (
-              <Polyline
-                key={l.key}
-                positions={l.points.map((p) => [p.lat, p.lng] as [number, number])}
-                pathOptions={{ color: l.color, weight: 5, opacity: 0.85 }}
-              >
-                <Popup>{l.label}</Popup>
-              </Polyline>
-            ))}
+                {mapEntities.lines.map((l) => (
+                  <Polyline
+                    key={l.key}
+                    positions={l.points.map((p) => [p.lat, p.lng] as [number, number])}
+                    pathOptions={{ color: l.color, weight: 5, opacity: 0.85 }}
+                  >
+                    <Popup>{l.label}</Popup>
+                  </Polyline>
+                ))}
 
-            {mapEntities.markers.map((m) => (
-              <Marker key={m.key} position={[m.lat, m.lng]} icon={emojiIcon(m.emoji, m.bg)}>
-                <Popup>
-                  <div className="text-sm font-semibold text-slate-900">{m.title}</div>
-                  {m.subtitle ? <div className="mt-1 text-xs text-slate-600">{m.subtitle}</div> : null}
-                </Popup>
-              </Marker>
-            ))}
-          </MapContainer>
-        </div>
-      </section>
+                {mapEntities.markers.map((m) => (
+                  <Marker key={m.key} position={[m.lat, m.lng]} icon={emojiIcon(m.emoji, m.bg)}>
+                    <Popup>
+                      <div className="text-sm font-semibold text-slate-900">{m.title}</div>
+                      {m.subtitle ? <div className="mt-1 text-xs text-slate-600">{m.subtitle}</div> : null}
+                    </Popup>
+                  </Marker>
+                ))}
+              </MapContainer>
+            </div>
+          </section>
+        ) : null}
+      </div>
 
       <DuplicateRouteDialog
         open={duplicateOpen}
