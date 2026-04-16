@@ -14,11 +14,14 @@ export default function TripFirstRunPanel({
   tripId,
   tripName,
   canEditTrip,
+  isPremium,
   counts,
 }: {
   tripId: string;
   tripName: string;
   canEditTrip: boolean;
+  /** Con Premium, la primera recomendación es el chat IA; sin Premium, otro orden guiado. */
+  isPremium: boolean;
   counts: {
     participants: number;
     activities: number;
@@ -57,44 +60,66 @@ export default function TripFirstRunPanel({
 
   if (!open) return null;
 
-  const items: Item[] = [
-    {
-      title: "Añade el destino y las fechas",
-      description: "Activa clima y deja el viaje bien definido.",
-      href: `/trip/${encodeURIComponent(tripId)}`,
-      pill: canEditTrip ? "Recomendado" : "Opcional",
-    },
-    {
-      title: "Invita a tu grupo",
-      description: "Participantes y permisos, todo desde aquí.",
-      href: `/trip/${encodeURIComponent(tripId)}/participants`,
-      pill: counts.participants > 1 ? "Listo" : "Siguiente",
-    },
-    {
-      title: "Crea el plan",
-      description: "Agenda, visitas y horarios por días.",
-      href: `/trip/${encodeURIComponent(tripId)}/plan`,
-      pill: counts.activities > 0 ? "Listo" : "Siguiente",
-    },
-    {
-      title: "Añade gastos",
-      description: "Split, pagos y balances del grupo.",
-      href: `/trip/${encodeURIComponent(tripId)}/expenses`,
-      pill: counts.expenses > 0 ? "Listo" : "Siguiente",
-    },
-    {
-      title: "Sube recursos",
-      description: "Reservas, tickets, documentos y listas.",
-      href: `/trip/${encodeURIComponent(tripId)}/resources`,
-      pill: counts.resources > 0 ? "Listo" : "Opcional",
-    },
-    {
-      title: "Explora el mapa",
-      description: "Rutas, trayectos y paradas.",
-      href: `/trip/${encodeURIComponent(tripId)}/map`,
-      pill: counts.routes > 0 ? "Listo" : "Opcional",
-    },
-  ];
+  const id = encodeURIComponent(tripId);
+
+  const stepDestination: Item = {
+    title: "Añade el destino y las fechas",
+    description: "Activa clima y deja el viaje bien definido.",
+    href: `/trip/${id}`,
+    pill: canEditTrip ? "Recomendado" : "Opcional",
+  };
+
+  const stepParticipants: Item = {
+    title: "Invita a tu grupo",
+    description: "Participantes y permisos, todo desde aquí.",
+    href: `/trip/${id}/participants`,
+    pill: counts.participants > 1 ? "Listo" : "Siguiente",
+  };
+
+  const stepPlan: Item = {
+    title: "Crea el plan",
+    description: "Agenda, visitas y horarios por días.",
+    href: `/trip/${id}/plan`,
+    pill: counts.activities > 0 ? "Listo" : "Siguiente",
+  };
+
+  const stepMap: Item = {
+    title: "Explora el mapa",
+    description: "Rutas, trayectos y paradas.",
+    href: `/trip/${id}/map`,
+    pill: counts.routes > 0 ? "Listo" : "Siguiente",
+  };
+
+  const stepResources: Item = {
+    title: "Sube recursos y reservas",
+    description: "Reservas, tickets, documentos y listas.",
+    href: `/trip/${id}/resources`,
+    pill: counts.resources > 0 ? "Listo" : "Siguiente",
+  };
+
+  const stepExpenses: Item = {
+    title: "Añade gastos",
+    description: "Split, pagos y balances del grupo (lo habitual es dejarlo para cuando ya hay plan y grupo).",
+    href: `/trip/${id}/expenses`,
+    pill: counts.expenses > 0 ? "Listo" : "Siguiente",
+  };
+
+  const stepExpensesFreeLast: Item = {
+    ...stepExpenses,
+    pill: counts.expenses > 0 ? "Listo" : "Por último",
+  };
+
+  const stepAiChat: Item = {
+    title: "Prepara el viaje con el chat IA",
+    description:
+      "Itinerarios, organizar un día completo, dudas y propuestas usando el contexto de este viaje.",
+    href: `/trip/${id}/ai-chat`,
+    pill: "Empieza aquí",
+  };
+
+  const items: Item[] = isPremium
+    ? [stepAiChat, stepDestination, stepParticipants, stepPlan, stepMap, stepResources, stepExpenses]
+    : [stepParticipants, stepPlan, stepMap, stepResources, stepExpensesFreeLast];
 
   return (
     <section className="card-soft overflow-hidden">

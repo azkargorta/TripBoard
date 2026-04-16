@@ -358,6 +358,7 @@ export default async function TripPage({ params }: TripPageProps) {
         tripId={tripId}
         tripName={currentTrip.name}
         canEditTrip={canEditTrip}
+        isPremium={isPremium}
         counts={{
           participants: participants.length,
           activities: activities.length,
