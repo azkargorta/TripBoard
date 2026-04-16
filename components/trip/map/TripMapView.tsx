@@ -1132,8 +1132,8 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                 onClick={() => setIsMapVisible((v) => !v)}
                 className={`inline-flex min-h-[36px] items-center justify-center rounded-xl border px-3 text-xs font-semibold transition ${
                   isMapVisible
-                    ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
-                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    ? "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    : "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
                 }`}
                 title={isMapVisible ? "Ocultar mapa" : "Mostrar mapa"}
               >
@@ -1144,8 +1144,8 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                 onClick={() => setShowPlanMarkers((v) => !v)}
                 className={`inline-flex min-h-[36px] items-center justify-center gap-2 rounded-xl border px-3 text-xs font-semibold transition ${
                   showPlanMarkers
-                    ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
-                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    ? "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    : "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
                 }`}
                 title="Mostrar/ocultar marcadores del plan"
               >
@@ -1587,7 +1587,11 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
               <button
                 type="button"
                 onClick={() => setShowRoutesList((v) => !v)}
-                className="inline-flex min-h-[34px] items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                className={`inline-flex min-h-[34px] items-center justify-center rounded-xl border px-3 text-xs font-semibold transition ${
+                  showRoutesList
+                    ? "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    : "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
+                }`}
                 title={showRoutesList ? "Ocultar rutas" : "Mostrar rutas"}
               >
                 {showRoutesList ? "Ocultar rutas" : "Mostrar rutas"}
