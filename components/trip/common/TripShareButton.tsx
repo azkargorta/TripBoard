@@ -57,7 +57,7 @@ export default function TripShareButton({ tripId }: { tripId: string }) {
         type="button"
         onClick={createAndCopy}
         disabled={busy}
-        className="inline-flex items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60 disabled:opacity-60"
+        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 py-2 text-[10px] font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60 disabled:opacity-60 sm:min-h-0 sm:min-w-0 sm:py-1"
         title="Crear enlace público (solo lectura) y copiar"
       >
         <Share2 className="h-3.5 w-3.5" aria-hidden />
@@ -78,7 +78,7 @@ export default function TripShareButton({ tripId }: { tripId: string }) {
         type="button"
         onClick={revoke}
         disabled={busy}
-        className="inline-flex items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60 disabled:opacity-60"
+        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 py-2 text-[10px] font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60 disabled:opacity-60 sm:min-h-0 sm:min-w-0 sm:py-1"
         title="Revocar enlace público"
       >
         <Ban className="h-3.5 w-3.5" aria-hidden />

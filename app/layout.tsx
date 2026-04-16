@@ -64,7 +64,7 @@ export default async function RootLayout({
           {isPremium !== null ? (
             <div className="sticky top-0 z-50">
               <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-cyan-900">
-                <div className="mx-auto flex max-w-[1200px] items-center justify-end px-4 py-1.5 sm:px-6 sm:py-2">
+                <div className="mx-auto flex max-w-[1200px] items-center justify-end py-1.5 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] sm:py-2 sm:pl-6 sm:pr-6">
                   <div
                     className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold ${
                       isPremium
@@ -86,7 +86,7 @@ export default async function RootLayout({
               </div>
             </div>
           ) : null}
-          {children}
+          <div className="min-h-0 min-w-0">{children}</div>
         </ToastProvider>
       </body>
     </html>

@@ -14,9 +14,9 @@ export default function AuthShell({
   children,
 }: AuthShellProps) {
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-cyan-100">
-      <div className="mx-auto flex min-h-screen max-w-7xl items-start justify-center px-4 py-8 md:px-6 md:py-10">
-        <div className="grid w-full max-w-6xl overflow-hidden rounded-[32px] border border-slate-200 bg-white/80 shadow-2xl backdrop-blur md:grid-cols-[1.05fr_0.95fr]">
+    <main className="min-h-dvh min-w-0 bg-gradient-to-br from-slate-100 via-slate-50 to-cyan-100">
+      <div className="mx-auto flex min-h-dvh max-w-7xl items-start justify-center py-6 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] sm:py-8 sm:pl-6 sm:pr-6 md:py-10">
+        <div className="grid w-full max-w-6xl overflow-hidden rounded-3xl border border-slate-200 bg-white/80 shadow-2xl backdrop-blur sm:rounded-[28px] md:grid-cols-[1.05fr_0.95fr] md:rounded-[32px]">
 
           <section className="relative hidden overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-900 p-10 text-white md:flex md:flex-col md:justify-between">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.14),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(34,211,238,0.22),transparent_30%)]" />
@@ -60,10 +60,10 @@ export default function AuthShell({
             </div>
           </section>
 
-          <section className="flex items-start justify-center p-5 sm:p-8 md:p-10">
-            <div className="w-full max-w-xl">
-              <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-xl sm:p-8">
-                <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <section className="flex min-w-0 items-start justify-center p-4 sm:p-8 md:p-10">
+            <div className="w-full min-w-0 max-w-xl">
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xl sm:rounded-[28px] sm:p-8">
+                <div className="mb-5 flex flex-wrap items-center justify-between gap-2 sm:mb-6 sm:gap-3">
                   <Link
                     href="/"
                     className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
@@ -77,12 +77,12 @@ export default function AuthShell({
                     Ver precios
                   </Link>
                 </div>
-                <div className="mb-8 text-center">
-                  <h3 className="text-4xl font-extrabold tracking-tight text-slate-950">
+                <div className="mb-6 text-center sm:mb-8">
+                  <h3 className="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">
                     {title}
                   </h3>
                   {subtitle ? (
-                    <p className="mt-3 text-base text-slate-600">{subtitle}</p>
+                    <p className="mt-2 text-sm text-slate-600 sm:mt-3 sm:text-base">{subtitle}</p>
                   ) : null}
                 </div>
 

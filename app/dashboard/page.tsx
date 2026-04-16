@@ -116,12 +116,12 @@ function TripSection({
 }) {
   return (
     <section className="space-y-4">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-950">{title}</h2>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+        <div className="min-w-0">
+          <h2 className="text-xl font-bold text-slate-950 sm:text-2xl">{title}</h2>
           <p className="mt-1 text-sm text-slate-600">{subtitle}</p>
         </div>
-        <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+        <div className="shrink-0 self-start rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 sm:self-auto">
           {trips.length} viaje{trips.length === 1 ? "" : "s"}
         </div>
       </div>
@@ -204,25 +204,25 @@ export default async function DashboardPage() {
     <main className="page-shell space-y-8">
       <OnboardingNudge hasTrips={trips.length > 0} />
       <section className="card-soft overflow-hidden">
-        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-cyan-900 p-6 text-white md:p-8">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="space-y-4">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-sm font-semibold uppercase tracking-[0.18em] text-white/85 backdrop-blur">
+        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-cyan-900 p-4 text-white sm:p-6 md:p-8">
+          <div className="flex flex-col gap-5 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+            <div className="min-w-0 space-y-3 sm:space-y-4">
+              <div className="inline-flex max-w-full flex-wrap items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-white/85 backdrop-blur sm:px-4 sm:text-sm sm:tracking-[0.18em]">
                 <TripBoardLogo variant="light" size="md" withWordmark />
                 <span className="text-white/35" aria-hidden>
                   ·
                 </span>
                 <span className="opacity-90">Dashboard</span>
               </div>
-              <div>
-                <h1 className="text-4xl font-extrabold tracking-tight md:text-5xl">Tus viajes</h1>
-                <p className="mt-2 max-w-2xl text-base text-white/75 md:text-lg">
+              <div className="min-w-0">
+                <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl md:text-5xl">Tus viajes</h1>
+                <p className="mt-2 max-w-2xl text-sm text-white/75 sm:text-base md:text-lg">
                   Sumérgete en tus viajes pasados, presentes y futuros,
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-2 sm:gap-3">
               {isAdmin ? (
                 <Link
                   href="/dashboard/admin"
@@ -248,7 +248,7 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        <div className="grid gap-4 p-6 md:grid-cols-4 md:p-8">
+        <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-2 sm:gap-4 sm:p-6 md:grid-cols-4 md:p-8">
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">En curso</p>
             <p className="mt-2 text-3xl font-bold text-slate-950">{current.length}</p>

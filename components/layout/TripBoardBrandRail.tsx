@@ -18,11 +18,8 @@ export default function TripBoardBrandRail({ tripId, tripName }: Props) {
 
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
-      <div
-        className="page-shell max-w-[1200px] !py-2 md:!py-3"
-        style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top))" }}
-      >
-        <div className="flex min-h-[44px] items-center justify-between gap-2">
+      <div className="page-shell max-w-[1200px] !pb-2 !pt-[max(0.5rem,env(safe-area-inset-top))] md:!py-3">
+        <div className="flex min-h-[48px] items-center justify-between gap-2 sm:min-h-[44px]">
           <div className="flex min-w-0 flex-1 items-center gap-2.5">
             {iconSrc ? (
               <Link
@@ -63,7 +60,7 @@ export default function TripBoardBrandRail({ tripId, tripName }: Props) {
                     <span className="text-[10px] font-semibold text-slate-300 md:text-xs" aria-hidden>
                       /
                     </span>
-                    <span className="min-w-0 max-w-[42vw] truncate text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500 md:max-w-none md:text-[11px] md:tracking-[0.12em]">
+                    <span className="min-w-0 max-w-[min(52vw,14rem)] truncate text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500 md:max-w-none md:text-[11px] md:tracking-[0.12em]">
                       {section}
                     </span>
                   </>

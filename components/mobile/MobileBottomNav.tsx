@@ -60,9 +60,9 @@ export default function MobileBottomNav({ tripId, isPremium }: Props) {
       style={{ paddingBottom: "max(env(safe-area-inset-bottom), 8px)" }}
       aria-label="Navegación del viaje"
     >
-      <div className="mx-2 mb-1 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-[0_-8px_32px_rgba(15,23,42,0.08)] backdrop-blur-md supports-[backdrop-filter]:bg-white/90">
+      <div className="mb-1 ml-[max(0.5rem,env(safe-area-inset-left))] mr-[max(0.5rem,env(safe-area-inset-right))] overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-[0_-8px_32px_rgba(15,23,42,0.08)] backdrop-blur-md supports-[backdrop-filter]:bg-white/90">
         <div className="overflow-x-auto no-scrollbar">
-          <div className="mx-auto flex min-w-max items-stretch px-1.5 py-1">
+          <div className="mx-auto flex min-w-max items-stretch px-1 py-1.5">
             {visibleItems.map((item) => {
               const href = item.href(tripId);
               const active = pathname === href;
@@ -72,16 +72,16 @@ export default function MobileBottomNav({ tripId, isPremium }: Props) {
                   key={item.key}
                   href={href}
                   prefetch
-                  className={`flex min-w-[72px] flex-col items-center justify-center gap-0.5 rounded-xl px-2 py-2.5 text-[10px] font-semibold leading-tight transition ${
+                  className={`flex min-h-[52px] min-w-[4.75rem] flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-[11px] font-semibold leading-tight transition active:opacity-90 ${
                     active
                       ? "bg-cyan-100 text-cyan-900 shadow-sm"
                       : "text-slate-500 active:bg-slate-100"
                   }`}
                 >
-                  <span className="text-[1.15rem] leading-none" aria-hidden>
+                  <span className="text-[1.2rem] leading-none [&_img]:shrink-0" aria-hidden>
                     {item.icon}
                   </span>
-                  <span className="max-w-[4.5rem] truncate">{item.label}</span>
+                  <span className="max-w-[5rem] truncate">{item.label}</span>
                 </Link>
               );
             })}

@@ -29,16 +29,11 @@ export default async function TripLayout({
     <>
       <TripBoardHeaderProvider>
         <TripBoardBrandRail tripId={params.id} tripName={tripName} />
-        <div
-          className="pb-[calc(5.35rem+env(safe-area-inset-bottom,0px))] md:pb-0"
-          style={{
-            paddingTop: "max(env(safe-area-inset-top), 0px)",
-          }}
-        >
+        <div className="pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] md:pb-0">
           <div className="page-shell pb-6 md:pb-12">
-            <div className="md:grid md:grid-cols-[120px_1fr] md:gap-4">
+            <div className="min-w-0 md:grid md:grid-cols-[120px_1fr] md:gap-4">
               <DesktopTripSidebar tripId={params.id} isPremium={isPremium} />
-              <div className="space-y-6 md:space-y-10">{children}</div>
+              <div className="min-w-0 space-y-6 md:space-y-10">{children}</div>
             </div>
           </div>
         </div>
