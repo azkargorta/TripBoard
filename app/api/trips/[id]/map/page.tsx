@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireTripAccess } from "@/lib/trip-access";
 import TripMapView from "@/components/trip/map/TripMapView";
-import { isPremiumEnabledForTrip } from "@/lib/entitlements";
 
 type Props = {
   params: { id: string };
@@ -54,13 +53,8 @@ function buildTripDates(startDate?: string | null, endDate?: string | null) {
 export default async function TripMapPage({ params }: Props) {
   const tripId = params.id;
 
-  const access = await requireTripAccess(tripId);
+  await requireTripAccess(tripId);
   const supabase = await createClient();
-
-  const isPremium = await isPremiumEnabledForTrip({ supabase, userId: access.userId, tripId });
-  if (!isPremium) {
-    redirect(`/trip/${tripId}/plan?upgrade=premium&reason=maps_ai_locked`);
-  }
 
   const tripResponse = await supabase
     .from("trips")

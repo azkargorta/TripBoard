@@ -3,7 +3,6 @@ import TripTabActions from "@/components/trip/common/TripTabActions";
 import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
 import { requireTripAccess } from "@/lib/trip-access";
 import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 import { isPremiumEnabledForTrip } from "@/lib/entitlements";
 
 export default async function TripPlanPage({
@@ -14,9 +13,6 @@ export default async function TripPlanPage({
   const access = await requireTripAccess(params.id);
   const supabase = await createClient();
   const isPremium = await isPremiumEnabledForTrip({ supabase, userId: access.userId, tripId: params.id });
-  if (!isPremium) {
-    redirect(`/trip/${params.id}/plan?upgrade=premium&reason=maps_ai_locked`);
-  }
 
   return (
     <main className="space-y-8">

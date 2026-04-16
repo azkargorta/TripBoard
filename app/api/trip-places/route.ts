@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireTripAccess } from "@/lib/trip-access";
-import { isPremiumEnabledForTrip } from "@/lib/entitlements";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -15,26 +14,12 @@ export async function GET(request: Request) {
 
     await requireTripAccess(tripId);
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    const isPremium = user ? await isPremiumEnabledForTrip({ supabase, userId: user.id, tripId }) : false;
 
     let q = supabase.from("trip_places").select("*").eq("trip_id", tripId).order("created_at", { ascending: false });
     if (folderId) q = q.eq("folder_id", folderId);
     const { data, error } = await q;
     if (error) throw error;
-    const places = (data || []).map((p: any) =>
-      isPremium
-        ? p
-        : {
-            ...p,
-            place_id: null,
-            latitude: null,
-            longitude: null,
-          }
-    );
-    return NextResponse.json({ places });
+    return NextResponse.json({ places: data || [] });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "No se pudieron cargar los lugares." },
@@ -63,18 +48,17 @@ export async function POST(request: Request) {
     if (access.role === "viewer") return NextResponse.json({ error: "No tienes permisos." }, { status: 403 });
 
     const supabase = await createClient();
-    const isPremium = await isPremiumEnabledForTrip({ supabase, userId: access.userId, tripId: String(tripId) });
 
     const { data, error } = await supabase
       .from("trip_places")
       .insert({
         trip_id: tripId,
         folder_id: folderId ?? null,
-        place_id: isPremium ? place_id : null,
+        place_id,
         name,
         address,
-        latitude: isPremium ? latitude : null,
-        longitude: isPremium ? longitude : null,
+        latitude,
+        longitude,
         category,
         notes,
         created_by_user_id: access.userId,
