@@ -240,6 +240,21 @@ function placeEmoji(kind?: string | null) {
   return "📍";
 }
 
+function normalizeKind(kind: unknown) {
+  return typeof kind === "string" ? kind.trim().toLowerCase() : "";
+}
+
+function kindLabel(kindRaw: string) {
+  const k = normalizeKind(kindRaw);
+  if (k === "visit") return "Visita";
+  if (k === "museum") return "Museo";
+  if (k === "restaurant") return "Restaurante";
+  if (k === "transport") return "Transporte";
+  if (k === "activity") return "Actividad";
+  if (k === "lodging") return "Alojamiento";
+  return kindRaw.trim().slice(0, 1).toUpperCase() + kindRaw.trim().slice(1);
+}
+
 function todayISO() {
   const d = new Date();
   const y = d.getFullYear();
@@ -289,6 +304,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   const [selectedDate, setSelectedDate] = useState<string>("all");
   const [focusedRouteKey, setFocusedRouteKey] = useState<string | null>(null);
   const [showPlanMarkers, setShowPlanMarkers] = useState(true);
+  const [planKindFilter, setPlanKindFilter] = useState<Set<string>>(new Set());
 
   // Formulario crear ruta
   const [routeName, setRouteName] = useState("");
@@ -340,6 +356,15 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     return list;
   }, [allPlanPlaces]);
 
+  const availablePlanKinds = useMemo(() => {
+    const s = new Set<string>();
+    for (const p of allPlanPlaces) {
+      const k = normalizeKind(p.kind) || "visit";
+      s.add(k);
+    }
+    return Array.from(s.values()).sort((a, b) => a.localeCompare(b));
+  }, [allPlanPlaces]);
+
   const applyPlan = useCallback((planId: string) => planOptions.find((p) => p.id === planId) || null, [planOptions]);
 
   useEffect(() => {
@@ -369,6 +394,8 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
       [];
     if (showPlanMarkers) {
       for (const p of allPlanPlaces) {
+        const k = normalizeKind(p.kind) || "visit";
+        if (planKindFilter.size && !planKindFilter.has(k)) continue;
         markers.push({
           key: `plan:${p.id}`,
           lat: p.latitude,
@@ -413,7 +440,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     }
 
     return { markers, lines };
-  }, [allPlanPlaces, showPlanMarkers, visibleRoutes]);
+  }, [allPlanPlaces, planKindFilter, showPlanMarkers, visibleRoutes]);
 
   const bounds = useMemo(() => {
     const latlngs: Array<[number, number]> = [];
@@ -588,6 +615,52 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                 ))}
               </select>
             </label>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-3">
+              <div className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-600">Tipos de plan</div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPlanKindFilter(new Set())}
+                  className={`inline-flex min-h-[34px] items-center rounded-full border px-3 text-xs font-extrabold transition ${
+                    planKindFilter.size === 0
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                  title="Mostrar todos los tipos"
+                >
+                  Todos
+                </button>
+                {availablePlanKinds.map((k) => {
+                  const active = planKindFilter.has(k);
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => {
+                        setPlanKindFilter((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(k)) next.delete(k);
+                          else next.add(k);
+                          return next;
+                        });
+                      }}
+                      className={`inline-flex min-h-[34px] items-center rounded-full border px-3 text-xs font-extrabold transition ${
+                        active
+                          ? "border-violet-300 bg-violet-50 text-violet-900"
+                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                      title={`Mostrar/ocultar: ${kindLabel(k)}`}
+                    >
+                      {kindLabel(k)}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="mt-2 text-[11px] text-slate-500">
+                Consejo: si no seleccionas ninguno, se muestran todos.
+              </div>
+            </div>
 
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
               <div className="flex items-center justify-between gap-2">

@@ -11,7 +11,8 @@ export type ActivityKind =
   | "restaurant"
   | "lodging"
   | "transport"
-  | "activity";
+  | "activity"
+  | string;
 
 export type PlanFormValues = {
   title: string;
@@ -48,6 +49,7 @@ type Props = {
   onCancelEdit?: () => void;
   onSubmit: (values: PlanFormValues) => Promise<void>;
   premiumEnabled: boolean;
+  availableKinds?: string[];
 };
 
 const EMPTY_FORM: PlanFormValues = {
@@ -77,17 +79,45 @@ function fromInitial(initialData?: EditableActivity | null): PlanFormValues {
     address: initialData.address || "",
     latitude: typeof initialData.latitude === "number" ? initialData.latitude : null,
     longitude: typeof initialData.longitude === "number" ? initialData.longitude : null,
-    activityKind: (initialData.activity_kind === "visit" || initialData.activity_kind === "museum" || initialData.activity_kind === "restaurant" || initialData.activity_kind === "lodging" || initialData.activity_kind === "transport" || initialData.activity_kind === "activity") ? initialData.activity_kind : "visit",
+    activityKind:
+      (typeof initialData.activity_kind === "string" && initialData.activity_kind.trim()) ? initialData.activity_kind.trim() : "visit",
   };
 }
 
-export default function PlanForm({ saving = false, initialData, onCancelEdit, onSubmit, premiumEnabled }: Props) {
+function normalizeKind(kind: unknown) {
+  return typeof kind === "string" ? kind.trim().toLowerCase() : "";
+}
+
+function toLabel(kindRaw: string) {
+  const k = normalizeKind(kindRaw);
+  if (k === "visit") return "Visita";
+  if (k === "museum") return "Museo";
+  if (k === "restaurant") return "Restaurante";
+  if (k === "transport") return "Transporte";
+  if (k === "activity") return "Actividad";
+  if (k === "lodging") return "Alojamiento";
+  // Custom: capitaliza primera letra
+  return kindRaw.trim().slice(0, 1).toUpperCase() + kindRaw.trim().slice(1);
+}
+
+export default function PlanForm({
+  saving = false,
+  initialData,
+  onCancelEdit,
+  onSubmit,
+  premiumEnabled,
+  availableKinds = [],
+}: Props) {
   const [form, setForm] = useState<PlanFormValues>(fromInitial(initialData));
   const [error, setError] = useState<string | null>(null);
   const isEditing = Boolean(initialData?.id);
+  const [customKind, setCustomKind] = useState<string>("");
+  const [kindMode, setKindMode] = useState<"select" | "custom">("select");
 
   useEffect(() => {
     setForm(fromInitial(initialData));
+    setCustomKind("");
+    setKindMode("select");
   }, [initialData]);
 
   function update<K extends keyof PlanFormValues>(key: K, value: PlanFormValues[K]) {
@@ -114,7 +144,19 @@ export default function PlanForm({ saving = false, initialData, onCancelEdit, on
       return;
     }
 
-    await onSubmit(form);
+    const nextKind =
+      kindMode === "custom"
+        ? customKind.trim()
+        : typeof form.activityKind === "string"
+          ? form.activityKind.trim()
+          : String(form.activityKind || "").trim();
+
+    if (!nextKind) {
+      setError("Selecciona un tipo de actividad (o escribe uno personalizado).");
+      return;
+    }
+
+    await onSubmit({ ...form, activityKind: nextKind });
 
     if (!isEditing) {
       setForm(EMPTY_FORM);
@@ -164,18 +206,67 @@ export default function PlanForm({ saving = false, initialData, onCancelEdit, on
 
           <label className="space-y-2">
             <span className="text-sm font-semibold text-slate-800">Tipo de actividad</span>
-            <select
-              value={form.activityKind}
-              onChange={(e) => update("activityKind", e.target.value as ActivityKind)}
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
-            >
-              <option value="visit">Visita</option>
-              <option value="museum">Museo</option>
-              <option value="restaurant">Restaurante</option>
-              <option value="transport">Transporte</option>
-              <option value="activity">Actividad</option>
-              <option value="lodging">Alojamiento</option>
-            </select>
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setKindMode("select")}
+                  className={`flex-1 rounded-xl border px-3 py-2 text-xs font-extrabold transition focus:outline-none focus:ring-2 focus:ring-violet-200 ${
+                    kindMode === "select"
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  Lista
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setKindMode("custom")}
+                  className={`flex-1 rounded-xl border px-3 py-2 text-xs font-extrabold transition focus:outline-none focus:ring-2 focus:ring-violet-200 ${
+                    kindMode === "custom"
+                      ? "border-violet-300 bg-violet-50 text-violet-900"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  Personalizado
+                </button>
+              </div>
+
+              {kindMode === "select" ? (
+                <select
+                  value={typeof form.activityKind === "string" ? form.activityKind : "visit"}
+                  onChange={(e) => update("activityKind", e.target.value as ActivityKind)}
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+                >
+                  {[
+                    "visit",
+                    "museum",
+                    "restaurant",
+                    "transport",
+                    "activity",
+                    "lodging",
+                    ...availableKinds.filter((k) => {
+                      const nk = normalizeKind(k);
+                      return nk && !["visit", "museum", "restaurant", "transport", "activity", "lodging"].includes(nk);
+                    }),
+                  ]
+                    .map((k) => String(k))
+                    .filter(Boolean)
+                    .map((k) => (
+                      <option key={k} value={k}>
+                        {toLabel(k)}
+                      </option>
+                    ))}
+                </select>
+              ) : (
+                <input
+                  value={customKind}
+                  onChange={(e) => setCustomKind(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+                  placeholder="Ej. Playa, Senderismo, Compras…"
+                />
+              )}
+            </div>
           </label>
         </div>
 

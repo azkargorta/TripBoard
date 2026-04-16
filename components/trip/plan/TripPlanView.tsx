@@ -434,6 +434,7 @@ export default function TripPlanView({
           onCancelEdit={handleCancelEditOrClose}
           onSubmit={handleSubmit}
           premiumEnabled={premiumEnabled}
+          availableKinds={availableKinds}
           />
         </div>
       ) : null}
