@@ -105,7 +105,7 @@ export default function PlanForm({
   initialData,
   onCancelEdit,
   onSubmit,
-  premiumEnabled,
+  premiumEnabled: _premiumEnabled,
   availableKinds = [],
 }: Props) {
   const [form, setForm] = useState<PlanFormValues>(fromInitial(initialData));
@@ -284,46 +284,31 @@ export default function PlanForm({
           />
         </label>
 
-        {premiumEnabled ? (
-          <PlaceAutocompleteInput
-            label="Lugar / dirección"
-            value={form.address}
-            onChange={(value) => update("address", value)}
-            onPlaceSelect={({ address, latitude, longitude }) => {
-              setForm((current) => ({
-                ...current,
-                address,
-                latitude,
-                longitude,
-                placeName: current.placeName || address,
-              }));
-            }}
-          />
-        ) : (
-          <label className="space-y-2">
-            <span className="text-sm font-semibold text-slate-800">Dirección (manual)</span>
-            <input
-              value={form.address}
-              onChange={(e) => {
-                update("address", e.target.value);
-                update("latitude", null);
-                update("longitude", null);
-              }}
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
-              placeholder="Ej. Calle Mayor 1, Madrid"
-            />
-            <p className="text-xs text-slate-500">Autocompletar y coordenadas solo en Premium.</p>
-          </label>
-        )}
+        <PlaceAutocompleteInput
+          label="Lugar / dirección"
+          value={form.address}
+          onChange={(value) => {
+            update("address", value);
+            update("latitude", null);
+            update("longitude", null);
+          }}
+          onPlaceSelect={({ address, latitude, longitude }) => {
+            setForm((current) => ({
+              ...current,
+              address,
+              latitude,
+              longitude,
+              placeName: current.placeName || address,
+            }));
+          }}
+        />
 
-        {premiumEnabled ? (
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-            Coordenadas:{" "}
-            {form.latitude != null && form.longitude != null
-              ? `${form.latitude.toFixed(6)}, ${form.longitude.toFixed(6)}`
-              : "ninguna todavía"}
-          </div>
-        ) : null}
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          Coordenadas:{" "}
+          {form.latitude != null && form.longitude != null
+            ? `${form.latitude.toFixed(6)}, ${form.longitude.toFixed(6)}`
+            : "ninguna todavía"}
+        </div>
 
         <div className="grid gap-4 md:grid-cols-2">
           <label className="space-y-2">

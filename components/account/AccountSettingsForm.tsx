@@ -27,8 +27,8 @@ export default function AccountSettingsForm({ initial }: Props) {
   const planLabel = initial.isPremium ? "Premium" : "Gratis";
   const [billingStatus, setBillingStatus] = useState<string | null>(null);
   const [billingLoading, setBillingLoading] = useState(false);
-  const monthlyPriceLabel = "7,99€ / mes";
-  const yearlyPriceLabel = "79,99€ / año";
+  const monthlyPriceLabel = "3,99€ / mes";
+  const yearlyPriceLabel = "39,99€ / año";
   const [highlightPlans, setHighlightPlans] = useState(false);
 
   const normalized = useMemo(() => normalizeUsername(username), [username]);
@@ -207,7 +207,7 @@ export default function AccountSettingsForm({ initial }: Props) {
             <p className="text-sm text-slate-600">
               {initial.isPremium
                 ? "Tienes acceso completo a IA, mapas, rutas y análisis."
-                : "IA, mapas/rutas y coordenadas están bloqueados en el plan gratuito."}
+                : "El plan gratuito incluye mapas, rutas y autocompletar. Premium desbloquea IA y funciones avanzadas."}
             </p>
           </div>
           <div className="w-full sm:w-auto">
