@@ -41,10 +41,27 @@ function padHhMm(value: string | null | undefined): string | null {
   return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 }
 
+function inferKindFromTitle(title: string): DayPlanItem["kind"] {
+  const t = title.toLowerCase();
+  if (/almuerzo|cena|comida|restaurant|brunch|tapas|bar\b|café|cafe/.test(t)) return "restaurant";
+  if (/museum|museo|rijks|van gogh|frank|gallery|galería|galeria/.test(t)) return "museum";
+  if (/barco|crucero|canal|tour|bici|rent|alquiler/.test(t)) return "activity";
+  return "visit";
+}
+
+function normalizeItemKind(ks: string, title: string): DayPlanItem["kind"] {
+  const s = ks.toLowerCase();
+  if (s === "restaurant" || s === "food") return "restaurant";
+  if (s === "museum") return "museum";
+  if (s === "activity") return "activity";
+  if (s === "visit") return "visit";
+  return inferKindFromTitle(title);
+}
+
 function normalizeParsedDayPlan(parsed: unknown): DayPlanPayload | null {
   if (!parsed || typeof parsed !== "object") return null;
   const p = parsed as Record<string, unknown>;
-  if (p.version !== 1) return null;
+  if (p.version !== 1 && p.version !== "1") return null;
   if (typeof p.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(p.date.trim())) return null;
   if (!Array.isArray(p.items) || p.items.length === 0) return null;
 
@@ -61,20 +78,40 @@ function normalizeParsedDayPlan(parsed: unknown): DayPlanPayload | null {
   for (const raw of p.items) {
     if (!raw || typeof raw !== "object") continue;
     const it = raw as Record<string, unknown>;
-    const title = typeof it.title === "string" ? it.title.trim() : "";
+    const title =
+      typeof it.title === "string"
+        ? it.title.trim()
+        : typeof it.name === "string"
+          ? it.name.trim()
+          : "";
     if (!title) continue;
-    const ks = typeof it.kind === "string" ? it.kind.toLowerCase() : "visit";
-    const kind: DayPlanItem["kind"] =
-      ks === "restaurant" ? "restaurant" : ks === "museum" ? "museum" : ks === "activity" ? "activity" : "visit";
-    const query = typeof it.query === "string" ? it.query.trim() || null : null;
-    const startTime = padHhMm(typeof it.startTime === "string" ? it.startTime : null);
+    const ks = typeof it.kind === "string" ? it.kind : "";
+    const kind = normalizeItemKind(ks, title);
+    let query = typeof it.query === "string" ? it.query.trim() || null : null;
+    if (!query && typeof it.place === "string") query = it.place.trim() || null;
+    const startTime = padHhMm(
+      typeof it.startTime === "string"
+        ? it.startTime
+        : typeof it.time === "string"
+          ? it.time
+          : typeof it.start_time === "string"
+            ? it.start_time
+            : null
+    );
     let durationMinutes =
       typeof it.durationMinutes === "number" && Number.isFinite(it.durationMinutes)
         ? Math.round(it.durationMinutes)
-        : 45;
+        : typeof it.duration_minutes === "number"
+          ? Math.round(it.duration_minutes)
+          : 45;
     durationMinutes = Math.max(15, Math.min(480, durationMinutes));
-    const ticketRequired = Boolean(it.ticketRequired);
-    const notes = typeof it.notes === "string" ? it.notes.trim() || null : null;
+    const ticketRequired = Boolean(it.ticketRequired ?? it.ticket_required);
+    const notes =
+      typeof it.notes === "string"
+        ? it.notes.trim() || null
+        : typeof it.description === "string"
+          ? it.description.trim() || null
+          : null;
     items.push({ title, kind, query, startTime, durationMinutes, ticketRequired, notes });
   }
   if (!items.length) return null;
@@ -94,14 +131,191 @@ function normalizeParsedDayPlan(parsed: unknown): DayPlanPayload | null {
   };
 }
 
-function tryParseDayPlanJson(raw: string): DayPlanPayload | null {
+function inferDateFromHint(hintText: string): string | null {
+  const m = hintText.match(/\b(\d{4}-\d{2}-\d{2})\b/);
+  return m ? m[1] : null;
+}
+
+/** Fechas tipo "1 de junio de 2026" o "01/06/2026" en contexto hispano. */
+function inferDateLoose(hintText: string): string | null {
+  const iso = inferDateFromHint(hintText);
+  if (iso) return iso;
+
+  const months: Record<string, string> = {
+    enero: "01",
+    febrero: "02",
+    marzo: "03",
+    abril: "04",
+    mayo: "05",
+    junio: "06",
+    julio: "07",
+    agosto: "08",
+    septiembre: "09",
+    setiembre: "09",
+    octubre: "10",
+    noviembre: "11",
+    diciembre: "12",
+  };
+  const m = hintText.match(/\b(\d{1,2})\s+de\s+([a-záéíóúñ]+)\s+de\s+(\d{4})\b/i);
+  if (m) {
+    const mon = months[m[2].toLowerCase()];
+    if (mon) {
+      const d = String(Math.min(31, Math.max(1, parseInt(m[1], 10)))).padStart(2, "0");
+      return `${m[3]}-${mon}-${d}`;
+    }
+  }
+
+  const slash = hintText.match(/\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})\b/);
+  if (slash) {
+    const day = parseInt(slash[1], 10);
+    const month = parseInt(slash[2], 10);
+    const y = slash[3];
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${y}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    }
+  }
+
+  return null;
+}
+
+function inferTravelModeFromHint(hintText: string): DayPlanPayload["travelMode"] {
+  const h = hintText.toLowerCase();
+  if (/\bbici\b|bicicleta|bicycle|cicl/.test(h)) return "cycling";
+  if (/coche|driving|en coche|\bcar\b/.test(h)) return "driving";
+  return "walking";
+}
+
+function inferDayStartEndFromHint(hintText: string, items: DayPlanItem[]): { dayStart: string | null; dayEnd: string | null } {
+  const times = [...hintText.matchAll(/\b(\d{1,2}:\d{2})\b/g)]
+    .map((x) => padHhMm(x[1]))
+    .filter((x): x is string => Boolean(x));
+  let dayStart = times[0] ?? null;
+  let dayEnd = times.length > 1 ? times[times.length - 1]! : null;
+  if (items[0]?.startTime) dayStart = dayStart ?? items[0].startTime;
+  const last = items[items.length - 1];
+  if (last?.startTime) dayEnd = dayEnd ?? last.startTime;
+  return { dayStart, dayEnd };
+}
+
+function mapLooseScheduleRow(row: unknown): DayPlanItem | null {
+  if (!row || typeof row !== "object") return null;
+  const r = row as Record<string, unknown>;
+  const title =
+    typeof r.title === "string"
+      ? r.title.trim()
+      : typeof r.name === "string"
+        ? r.name.trim()
+        : "";
+  if (!title) return null;
+  const timeRaw =
+    typeof r.time === "string"
+      ? r.time
+      : typeof r.startTime === "string"
+        ? r.startTime
+        : typeof r.start_time === "string"
+          ? r.start_time
+          : null;
+  const startTime = padHhMm(timeRaw);
+  let query =
+    typeof r.query === "string"
+      ? r.query.trim() || null
+      : typeof r.place === "string"
+        ? r.place.trim()
+        : null;
+  if (!query) query = title.length < 140 ? title : `${title.slice(0, 100)}`.trim();
+  const notes =
+    typeof r.description === "string"
+      ? r.description.trim() || null
+      : typeof r.notes === "string"
+        ? r.notes.trim()
+        : null;
+  const kind =
+    typeof r.kind === "string" ? normalizeItemKind(r.kind, title) : inferKindFromTitle(title);
+  let durationMinutes =
+    typeof r.durationMinutes === "number" && Number.isFinite(r.durationMinutes)
+      ? Math.round(r.durationMinutes)
+      : 45;
+  durationMinutes = Math.max(15, Math.min(480, durationMinutes));
+  const ticketRequired = Boolean(r.ticketRequired ?? r.ticket_required);
+  return { title, kind, query, startTime, durationMinutes, ticketRequired, notes };
+}
+
+function coerceItemsArray(rows: unknown[]): DayPlanItem[] | null {
+  const items = rows.map(mapLooseScheduleRow).filter(Boolean) as DayPlanItem[];
+  return items.length ? items : null;
+}
+
+function tryCoerceFlexibleDayPlan(parsed: unknown, hintText: string): DayPlanPayload | null {
+  let rows: unknown[] | null = null;
+  if (Array.isArray(parsed)) {
+    rows = parsed;
+  } else if (parsed && typeof parsed === "object") {
+    const o = parsed as Record<string, unknown>;
+    const keys = ["items", "activities", "schedule", "stops", "plan", "itinerary", "events"] as const;
+    for (const k of keys) {
+      const v = o[k];
+      if (Array.isArray(v) && v.length) {
+        rows = v;
+        break;
+      }
+    }
+  }
+  if (!rows) return null;
+  const items = coerceItemsArray(rows);
+  if (!items) return null;
+  const rawDate =
+    parsed && typeof parsed === "object" && typeof (parsed as Record<string, unknown>).date === "string"
+      ? (parsed as Record<string, unknown>).date
+      : null;
+  const date = (typeof rawDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(rawDate.trim()) ? rawDate.trim() : null) || inferDateLoose(hintText);
+  if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date.trim())) return null;
+
+  let travelMode: DayPlanPayload["travelMode"] = inferTravelModeFromHint(hintText);
+  if (parsed && typeof parsed === "object") {
+    const tm = (parsed as Record<string, unknown>).travelMode;
+    if (tm === "driving" || tm === "walking" || tm === "cycling") travelMode = tm;
+  }
+  const { dayStart, dayEnd } = inferDayStartEndFromHint(hintText, items);
+  let cityHint: string | null = null;
+  if (parsed && typeof parsed === "object") {
+    const ch = (parsed as Record<string, unknown>).cityHint;
+    if (typeof ch === "string" && ch.trim()) cityHint = ch.trim();
+  }
+  if (!cityHint) {
+    const m = hintText.match(/\b(?:en|En)\s+([A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+){0,3})\b/);
+    if (m) cityHint = m[1].trim();
+  }
+
+  return {
+    version: 1,
+    date: date.trim(),
+    cityHint,
+    travelMode,
+    dayStart,
+    dayEnd,
+    items,
+  };
+}
+
+function tryParseDayPlanJson(raw: string, hintText: string): DayPlanPayload | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
   try {
-    return normalizeParsedDayPlan(JSON.parse(trimmed));
+    const parsed = JSON.parse(trimmed);
+    const n = normalizeParsedDayPlan(parsed);
+    if (n) return n;
+    return tryCoerceFlexibleDayPlan(parsed, hintText);
   } catch {
-    return null;
+    try {
+      if (trimmed.startsWith("[")) {
+        const parsed = JSON.parse(trimmed);
+        return tryCoerceFlexibleDayPlan(parsed, hintText);
+      }
+    } catch {
+      return null;
+    }
   }
+  return null;
 }
 
 /** Busca el primer objeto JSON equilibrado que empieza en `openBrace`. */
@@ -126,7 +340,28 @@ function parseBalancedJsonFrom(text: string, openBrace: number): unknown | null 
   return null;
 }
 
-function extractDayPlanFromLooseText(text: string): DayPlanPayload | null {
+function parseBalancedArrayFrom(text: string, openBracket: number): unknown[] | null {
+  if (text[openBracket] !== "[") return null;
+  let depth = 0;
+  for (let i = openBracket; i < text.length; i++) {
+    const c = text[i];
+    if (c === "[") depth++;
+    else if (c === "]") {
+      depth--;
+      if (depth === 0) {
+        try {
+          const v = JSON.parse(text.slice(openBracket, i + 1));
+          return Array.isArray(v) ? v : null;
+        } catch {
+          return null;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function extractDayPlanFromLooseText(text: string, hintText: string): DayPlanPayload | null {
   let idx = 0;
   while (idx < text.length) {
     const v = text.indexOf('"version"', idx);
@@ -137,21 +372,36 @@ function extractDayPlanFromLooseText(text: string): DayPlanPayload | null {
       continue;
     }
     const parsed = parseBalancedJsonFrom(text, open);
-    const plan = parsed ? normalizeParsedDayPlan(parsed) : null;
-    if (plan) return plan;
+    if (parsed) {
+      const plan = normalizeParsedDayPlan(parsed) ?? tryCoerceFlexibleDayPlan(parsed, hintText);
+      if (plan) return plan;
+    }
     idx = v + 1;
   }
+
+  let j = 0;
+  while (j < text.length) {
+    const ob = text.indexOf("[", j);
+    if (ob === -1) break;
+    const parsed = parseBalancedArrayFrom(text, ob);
+    if (parsed && parsed.length > 0) {
+      const plan = tryCoerceFlexibleDayPlan(parsed, hintText);
+      if (plan) return plan;
+    }
+    j = ob + 1;
+  }
+
   return null;
 }
 
-function extractDayPlan(text: string): DayPlanPayload | null {
+function extractDayPlan(text: string, hintText: string): DayPlanPayload | null {
   const start = "TRIPBOARD_DAYPLAN_JSON_START";
   const end = "TRIPBOARD_DAYPLAN_JSON_END";
   const iStart = text.indexOf(start);
   const iEnd = text.indexOf(end);
   if (iStart !== -1 && iEnd !== -1 && iEnd > iStart) {
     const raw = text.slice(iStart + start.length, iEnd).trim();
-    const fromMarkers = tryParseDayPlanJson(raw);
+    const fromMarkers = tryParseDayPlanJson(raw, hintText);
     if (fromMarkers) return fromMarkers;
   }
 
@@ -159,12 +409,12 @@ function extractDayPlan(text: string): DayPlanPayload | null {
   let m: RegExpExecArray | null;
   while ((m = fenceRe.exec(text)) !== null) {
     const inner = m[1]?.trim() ?? "";
-    if (!inner.includes('"version"') || !inner.includes('"items"')) continue;
-    const plan = tryParseDayPlanJson(inner);
+    if (inner.length < 5) continue;
+    const plan = tryParseDayPlanJson(inner, hintText);
     if (plan) return plan;
   }
 
-  return extractDayPlanFromLooseText(text);
+  return extractDayPlanFromLooseText(text, hintText);
 }
 
 function asProfile(mode: DayPlanPayload["travelMode"]) {
@@ -388,13 +638,14 @@ export async function POST(req: Request) {
       usage,
     });
 
-    const plan = extractDayPlan(answer);
+    const hintBlob = [question, ...conversationSlice.map((c) => c.content), answer.slice(0, 8000)].join("\n");
+    const plan = extractDayPlan(answer, hintBlob);
     if (!plan) {
       const multiTurn = conversationSlice.length >= 2;
       const detailedAnswer = question.length > 40 || /\d{1,2}:\d{2}/.test(question);
       const dayPlannerHint =
         multiTurn && detailedAnswer
-          ? "No se pudo leer el plan en la respuesta de la IA (faltan los marcadores TRIPBOARD_DAYPLAN_JSON_START/END o el JSON es inválido). Prueba a escribir: «Genera ya el día con los marcadores TRIPBOARD_DAYPLAN_JSON» o divide tus respuestas en líneas (hora inicio, transporte, intereses, hora fin)."
+          ? "No se pudo leer el plan (falta una fecha YYYY-MM-DD en el hilo, el JSON está truncado o es inválido). Incluye la fecha del día en formato 2026-06-01 o pide: «plan del día con TRIPBOARD_DAYPLAN_JSON_START»."
           : null;
       return NextResponse.json({ answer, plan: null, diff: null, dayPlannerHint });
     }
