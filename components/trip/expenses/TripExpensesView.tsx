@@ -476,6 +476,16 @@ export default function TripExpensesView({
                 expenses={expenses as any}
                 onEdit={(expense) => {
                   setEditingExpense(expense);
+                  setDetectedData(null);
+                  setIsAddOpen(true);
+                }}
+                onDuplicate={(expense) => {
+                  setEditingExpense({
+                    ...expense,
+                    id: undefined,
+                    attachment_name: null,
+                  });
+                  setDetectedData(null);
                   setIsAddOpen(true);
                 }}
                 onDelete={deleteExpense}

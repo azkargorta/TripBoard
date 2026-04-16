@@ -28,10 +28,12 @@ function normalizeParticipants(value: unknown) {
 export default function ExpenseList({
   expenses,
   onEdit,
+  onDuplicate,
   onDelete,
 }: {
   expenses: Expense[];
   onEdit: (expense: Expense) => void;
+  onDuplicate: (expense: Expense) => void;
   onDelete: (expenseId: string) => Promise<void>;
 }) {
   return (
@@ -74,6 +76,7 @@ export default function ExpenseList({
 
                 <div className="mt-4 flex flex-wrap gap-2">
                   <button type="button" onClick={() => onEdit(expense)} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900">Editar</button>
+                  <button type="button" onClick={() => onDuplicate(expense)} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900">Duplicar</button>
                   <button type="button" onClick={() => onDelete(expense.id)} className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700">Eliminar</button>
                 </div>
               </div>

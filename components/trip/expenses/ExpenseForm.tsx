@@ -6,7 +6,7 @@ import type { ExpenseAnalysis, ExpenseFormInput } from "@/hooks/useTripExpenses"
 import type { ExpenseDetectedData } from "@/components/trip/expenses/ExpenseAnalyzerPanel";
 
 type ExistingExpense = {
-  id: string;
+  id?: string;
   title?: string | null;
   category?: string | null;
   payer_name?: string | null;
@@ -76,6 +76,7 @@ export default function ExpenseForm({
   const [error, setError] = useState<string | null>(null);
 
   const isEditing = Boolean(editingExpense?.id);
+  const isDuplicating = Boolean(editingExpense && !editingExpense.id);
 
   const travelerOptions = useMemo(() => {
     const set = new Set<string>();
@@ -214,10 +215,10 @@ export default function ExpenseForm({
       <div>
         <div className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
           <span>💸</span>
-          <span>{isEditing ? "Editar gasto" : "Nuevo gasto"}</span>
+          <span>{isEditing ? "Editar gasto" : isDuplicating ? "Duplicar gasto" : "Nuevo gasto"}</span>
         </div>
         <h3 className="mt-3 text-lg font-semibold text-slate-900">
-          {isEditing ? "Editar gasto" : "Añadir gasto"}
+          {isEditing ? "Editar gasto" : isDuplicating ? "Duplicar gasto" : "Añadir gasto"}
         </h3>
       </div>
 
