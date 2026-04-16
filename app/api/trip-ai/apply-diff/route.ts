@@ -57,6 +57,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No tienes permisos para aplicar cambios." }, { status: 403 });
     }
 
+    const needsMap = diff.operations.some((opRaw: any) => {
+      const op = typeof opRaw?.op === "string" ? opRaw.op : "";
+      return op === "create_route" || op === "update_route";
+    });
+    if (needsMap && !access.can_manage_map) {
+      return NextResponse.json(
+        {
+          error:
+            "Este diff incluye rutas en el mapa. Necesitas permiso para gestionar el mapa del viaje (o pide a un editor con ese permiso que aplique los cambios).",
+        },
+        { status: 403 }
+      );
+    }
+
     const supabase = await createClient();
     const isPremium = await isPremiumEnabledForTrip({ supabase, userId: access.userId, tripId });
     if (!isPremium) {

@@ -501,16 +501,25 @@ export default function TripAiChatView({
         },
       ]);
 
-      const maybe = typeof data?.answer === "string" ? extractItinerary(data.answer) : null;
-      if (maybe) setItineraryDraft(maybe);
-      if (maybe) setExpandedDay(null);
+      const hasDayPlannerDiff =
+        mode === "day_planner" &&
+        data?.diff &&
+        (data.diff as { version?: number }).version === 1 &&
+        Array.isArray((data.diff as { operations?: unknown }).operations);
 
-      const maybeDiff = typeof data?.answer === "string" ? extractDiff(data.answer) : null;
-      if (maybeDiff) setDiffDraft(maybeDiff);
+      // Organizar día: el plan real (actividades + rutas) va en `diff`; no mezclar con
+      // TRIPBOARD_ITINERARY_JSON del texto o "Ejecutar plan" crearía duplicados o 0 filas.
+      if (hasDayPlannerDiff) {
+        setItineraryDraft(null);
+        setExpandedDay(null);
+        setDiffDraft(data.diff as DiffPayload);
+      } else {
+        const maybe = typeof data?.answer === "string" ? extractItinerary(data.answer) : null;
+        if (maybe) setItineraryDraft(maybe);
+        if (maybe) setExpandedDay(null);
 
-      // Day planner: el endpoint devuelve diff directamente (y puede no venir en el texto).
-      if (mode === "day_planner" && data?.diff && data.diff.version === 1 && Array.isArray(data.diff.operations)) {
-        setDiffDraft(data.diff as any);
+        const maybeDiff = typeof data?.answer === "string" ? extractDiff(data.answer) : null;
+        if (maybeDiff) setDiffDraft(maybeDiff);
       }
 
       if (data?.actionExecuted && data?.actionResult) {
@@ -692,6 +701,13 @@ export default function TripAiChatView({
               <div className="mt-1 text-xs text-slate-600">
                 Revisa el “diff” antes de aplicar. Está agrupado por día y muestra antes → después cuando es posible.
               </div>
+              {mode === "day_planner" ? (
+                <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+                  En <span className="font-semibold">Organizar día</span>, las actividades y las rutas se guardan con{" "}
+                  <span className="font-semibold">Aplicar cambios</span> (no uses “Ejecutar plan”, que es solo para
+                  itinerarios en JSON incrustados en el chat).
+                </div>
+              ) : null}
             </div>
             <div className="flex flex-wrap gap-2">
               <button
