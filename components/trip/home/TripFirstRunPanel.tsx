@@ -13,13 +13,11 @@ type Item = {
 export default function TripFirstRunPanel({
   tripId,
   tripName,
-  canEditTrip,
   isPremium,
   counts,
 }: {
   tripId: string;
   tripName: string;
-  canEditTrip: boolean;
   /** Con Premium, la primera recomendación es el chat IA; sin Premium, otro orden guiado. */
   isPremium: boolean;
   counts: {
@@ -56,18 +54,16 @@ export default function TripFirstRunPanel({
       /* */
     }
     setOpen(false);
+    try {
+      window.dispatchEvent(new CustomEvent("tripboard:first-run-dismissed", { detail: { tripId } }));
+    } catch {
+      /* */
+    }
   }
 
   if (!open) return null;
 
   const id = encodeURIComponent(tripId);
-
-  const stepDestination: Item = {
-    title: "Añade el destino y las fechas",
-    description: "Activa clima y deja el viaje bien definido.",
-    href: `/trip/${id}`,
-    pill: canEditTrip ? "Recomendado" : "Opcional",
-  };
 
   const stepParticipants: Item = {
     title: "Invita a tu grupo",
@@ -118,7 +114,7 @@ export default function TripFirstRunPanel({
   };
 
   const items: Item[] = isPremium
-    ? [stepAiChat, stepDestination, stepParticipants, stepPlan, stepMap, stepResources, stepExpenses]
+    ? [stepAiChat, stepParticipants, stepPlan, stepMap, stepResources, stepExpenses]
     : [stepParticipants, stepPlan, stepMap, stepResources, stepExpensesFreeLast];
 
   return (

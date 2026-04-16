@@ -357,7 +357,6 @@ export default async function TripPage({ params }: TripPageProps) {
       <TripFirstRunPanel
         tripId={tripId}
         tripName={currentTrip.name}
-        canEditTrip={canEditTrip}
         isPremium={isPremium}
         counts={{
           participants: participants.length,
