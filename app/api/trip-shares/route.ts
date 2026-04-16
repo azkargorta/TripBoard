@@ -9,7 +9,7 @@ const TABLE = "trip_shares";
 
 async function requireCanShareTrip(tripId: string) {
   const access = await requireTripAccess(tripId);
-  if (access.role === "viewer") {
+  if (!access.can_manage_resources) {
     throw new Error("No tienes permisos para compartir este viaje.");
   }
   return access;

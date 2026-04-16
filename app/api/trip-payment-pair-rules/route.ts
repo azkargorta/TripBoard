@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     if (fromName === toName) return NextResponse.json({ error: "from y to no pueden ser iguales." }, { status: 400 });
 
     const access = await requireTripAccess(tripId);
-    if (access.role === "viewer") {
+    if (!access.can_manage_expenses) {
       return NextResponse.json({ error: "No tienes permisos para configurar reglas." }, { status: 403 });
     }
 

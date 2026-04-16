@@ -85,7 +85,7 @@ export async function POST(request: Request) {
     if (!label) return NextResponse.json({ error: "Falta label" }, { status: 400 });
 
     const access = await requireTripAccess(String(tripId));
-    if (access.role === "viewer") return NextResponse.json({ error: "No tienes permisos." }, { status: 403 });
+    if (!access.can_manage_plan) return NextResponse.json({ error: "No tienes permisos." }, { status: 403 });
 
     const supabase = await createClient();
     const { data, error } = await supabase

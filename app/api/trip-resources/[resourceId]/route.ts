@@ -15,7 +15,7 @@
      if (!row?.trip_id) return NextResponse.json({ error: "Recurso no encontrado." }, { status: 404 });
  
      const access = await requireTripAccess(row.trip_id);
-     if (access.role === "viewer") {
+    if (!access.can_manage_resources) {
        return NextResponse.json({ error: "No tienes permisos para borrar recursos." }, { status: 403 });
      }
  

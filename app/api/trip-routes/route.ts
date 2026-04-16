@@ -103,7 +103,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Falta tripId" }, { status: 400 });
     }
 
-    await requireTripAccess(tripId);
+    const access = await requireTripAccess(tripId);
+    if (!access.can_manage_map) {
+      return NextResponse.json({ error: "No tienes permisos para crear rutas." }, { status: 403 });
+    }
     const supabase = await createClient();
     const { data: actor } = await supabase.auth.getUser();
     const payload = buildPayload(body);

@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     if (!name) return NextResponse.json({ error: "Falta nombre de carpeta." }, { status: 400 });
 
     const access = await requireTripAccess(String(tripId));
-    if (access.role === "viewer") return NextResponse.json({ error: "No tienes permisos." }, { status: 403 });
+    if (!access.can_manage_map) return NextResponse.json({ error: "No tienes permisos." }, { status: 403 });
 
     const supabase = await createClient();
     const { data, error } = await supabase

@@ -69,7 +69,7 @@
      if (!row?.trip_id) return NextResponse.json({ error: "Reserva no encontrada." }, { status: 404 });
  
      const access = await requireTripAccess(row.trip_id);
-     if (access.role === "viewer") {
+    if (!access.can_manage_resources) {
        return NextResponse.json({ error: "No tienes permisos para editar reservas." }, { status: 403 });
      }
  
@@ -133,7 +133,7 @@
      if (!row?.trip_id) return NextResponse.json({ error: "Reserva no encontrada." }, { status: 404 });
  
      const access = await requireTripAccess(row.trip_id);
-     if (access.role === "viewer") {
+    if (!access.can_manage_resources) {
        return NextResponse.json({ error: "No tienes permisos para borrar reservas." }, { status: 403 });
      }
  

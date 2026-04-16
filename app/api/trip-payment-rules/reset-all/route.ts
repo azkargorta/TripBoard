@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     if (!participants.length) return NextResponse.json({ error: "Faltan participants" }, { status: 400 });
 
     const access = await requireTripAccess(tripId);
-    if (access.role === "viewer") {
+    if (!access.can_manage_expenses) {
       return NextResponse.json({ error: "No tienes permisos para configurar reglas." }, { status: 403 });
     }
 

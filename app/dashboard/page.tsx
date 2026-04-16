@@ -267,10 +267,10 @@ export default async function DashboardPage() {
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Plan gratuito</p>
             <p className="text-lg font-bold text-slate-950">
-              Puedes crear hasta 3 viajes. Para usar IA/Mapa, pásate a Premium.
+              Puedes crear hasta 3 viajes. Para usar IA y análisis de documentos, pásate a Premium.
             </p>
             <p className="text-sm text-slate-600">
-              Tus viajes se guardan y puedes acceder a todos, pero las funciones premium seguirán bloqueadas.
+              Tus viajes se guardan y puedes acceder a todos. Premium añade IA y funciones avanzadas.
             </p>
           </div>
         </section>

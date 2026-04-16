@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     if (!participantName) return NextResponse.json({ error: "Falta participantName" }, { status: 400 });
 
     const access = await requireTripAccess(tripId);
-    if (access.role === "viewer") {
+    if (!access.can_manage_expenses) {
       return NextResponse.json({ error: "No tienes permisos para configurar pagos." }, { status: 403 });
     }
 

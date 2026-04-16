@@ -34,7 +34,7 @@ export async function PATCH(request: Request, { params }: { params: { kindId: st
     if (!row?.trip_id) return NextResponse.json({ error: "Tipo no encontrado." }, { status: 404 });
 
     const access = await requireTripAccess(String(row.trip_id));
-    if (access.role === "viewer") return NextResponse.json({ error: "No tienes permisos." }, { status: 403 });
+    if (!access.can_manage_plan) return NextResponse.json({ error: "No tienes permisos." }, { status: 403 });
 
     const patch: Record<string, unknown> = {};
     if (body?.kind_key != null || body?.key != null) {
@@ -86,7 +86,7 @@ export async function DELETE(_request: Request, { params }: { params: { kindId: 
     if (!row?.trip_id) return NextResponse.json({ error: "Tipo no encontrado." }, { status: 404 });
 
     const access = await requireTripAccess(String(row.trip_id));
-    if (access.role === "viewer") return NextResponse.json({ error: "No tienes permisos." }, { status: 403 });
+    if (!access.can_manage_plan) return NextResponse.json({ error: "No tienes permisos." }, { status: 403 });
 
     const { error } = await supabase.from("trip_activity_kinds").delete().eq("id", params.kindId);
     if (error) throw error;

@@ -46,7 +46,7 @@ export async function POST(req: Request) {
     }
 
     const access = await requireTripAccess(tripId);
-    if (access.role === "viewer") {
+    if (!access.can_manage_plan) {
       return NextResponse.json({ error: "No tienes permisos para aplicar cambios." }, { status: 403 });
     }
 

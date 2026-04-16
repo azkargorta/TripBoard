@@ -24,7 +24,7 @@ export async function DELETE(
     }
 
     const access = await requireTripAccess(String(routeRow.trip_id));
-    if (access.role === "viewer") {
+    if (!access.can_manage_map) {
       return NextResponse.json({ error: "No tienes permisos para borrar esta ruta." }, { status: 403 });
     }
 

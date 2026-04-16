@@ -70,7 +70,7 @@ async function safeInsertAudit(
      if (!tripId) return NextResponse.json({ error: "Falta tripId" }, { status: 400 });
  
      const access = await requireTripAccess(tripId);
-     if (access.role === "viewer") {
+    if (!access.can_manage_plan) {
        return NextResponse.json({ error: "No tienes permisos para crear actividades." }, { status: 403 });
      }
  

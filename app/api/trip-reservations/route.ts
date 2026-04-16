@@ -62,7 +62,7 @@
      if (!tripId) return NextResponse.json({ error: "Falta tripId" }, { status: 400 });
  
      const access = await requireTripAccess(tripId);
-     if (access.role === "viewer") {
+    if (!access.can_manage_resources) {
        return NextResponse.json({ error: "No tienes permisos para crear reservas." }, { status: 403 });
      }
  

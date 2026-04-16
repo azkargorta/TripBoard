@@ -121,7 +121,7 @@ async function safeInsertAudit(
      if (!tripId) return NextResponse.json({ error: "Falta tripId" }, { status: 400 });
  
      const access = await requireTripAccess(tripId);
-     if (access.role === "viewer") {
+    if (!access.can_manage_expenses) {
        return NextResponse.json({ error: "No tienes permisos para crear gastos." }, { status: 403 });
      }
  

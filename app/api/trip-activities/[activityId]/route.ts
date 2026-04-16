@@ -46,7 +46,7 @@ async function safeInsertAudit(
      if (!row?.trip_id) return NextResponse.json({ error: "Actividad no encontrada." }, { status: 404 });
  
      const access = await requireTripAccess(row.trip_id);
-     if (access.role === "viewer") {
+    if (!access.can_manage_plan) {
        return NextResponse.json({ error: "No tienes permisos para editar actividades." }, { status: 403 });
      }
  
@@ -132,7 +132,7 @@ async function safeInsertAudit(
      if (!row?.trip_id) return NextResponse.json({ error: "Actividad no encontrada." }, { status: 404 });
  
      const access = await requireTripAccess(row.trip_id);
-     if (access.role === "viewer") {
+    if (!access.can_manage_plan) {
        return NextResponse.json({ error: "No tienes permisos para borrar actividades." }, { status: 403 });
      }
  

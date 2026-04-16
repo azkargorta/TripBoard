@@ -1,12 +1,18 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { isPremiumEnabledForTrip } from "@/lib/entitlements";
+import { normalizePermissions, normalizeRole } from "@/lib/permissions";
 
 export type TripAccessResult = {
   userId: string;
   participantId: string;
   tripId: string;
   role: "owner" | "editor" | "viewer";
+  can_manage_trip: boolean;
+  can_manage_participants: boolean;
+  can_manage_expenses: boolean;
+  can_manage_plan: boolean;
+  can_manage_map: boolean;
+  can_manage_resources: boolean;
 };
 
 export async function requireTripAccess(
@@ -24,7 +30,9 @@ export async function requireTripAccess(
 
   const { data: participant, error } = await supabase
     .from("trip_participants")
-    .select("id, trip_id, user_id, role")
+    .select(
+      "id, trip_id, user_id, role, can_manage_trip, can_manage_participants, can_manage_expenses, can_manage_plan, can_manage_map, can_manage_resources"
+    )
     .eq("trip_id", tripId)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -38,59 +46,21 @@ export async function requireTripAccess(
     redirect("/dashboard");
   }
 
-  // Premium gating: en plan gratis solo se permite entrar al "viaje activo".
-  // Implementación: el último viaje creado (created_at más reciente) de los viajes donde participas.
-  // Los viajes antiguos quedan guardados pero bloqueados hasta premium.
-  const { data: profileRow } = await supabase
-    .from("profiles")
-    .select("is_premium")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  const isPremium = Boolean((profileRow as any)?.is_premium);
-  if (!isPremium) {
-    // Si el viaje tiene al menos 1 usuario premium, permitimos acceso aunque el usuario sea free:
-    // ese viaje funciona "modo premium compartido".
-    const tripHasPremium = await isPremiumEnabledForTrip({
-      supabase,
-      userId: user.id,
-      tripId,
-    });
-    if (tripHasPremium) {
-      return {
-        userId: user.id,
-        participantId: participant.id,
-        tripId: participant.trip_id,
-        role: (participant.role ?? "viewer") as "owner" | "editor" | "viewer",
-      };
-    }
-
-    const { data: newestTrip } = await supabase
-      .from("trips")
-      .select("id, created_at")
-      .in(
-        "id",
-        (
-          await supabase
-            .from("trip_participants")
-            .select("trip_id")
-            .eq("user_id", user.id)
-            .neq("status", "removed")
-        ).data?.map((r: any) => r.trip_id) ?? []
-      )
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (newestTrip?.id && String(newestTrip.id) !== String(tripId)) {
-      redirect("/dashboard?upgrade=premium&reason=trip_limit");
-    }
-  }
+  const role = normalizeRole((participant as any)?.role);
+  const perms = normalizePermissions(role, {
+    can_manage_trip: (participant as any)?.can_manage_trip ?? undefined,
+    can_manage_participants: (participant as any)?.can_manage_participants ?? undefined,
+    can_manage_expenses: (participant as any)?.can_manage_expenses ?? undefined,
+    can_manage_plan: (participant as any)?.can_manage_plan ?? undefined,
+    can_manage_map: (participant as any)?.can_manage_map ?? undefined,
+    can_manage_resources: (participant as any)?.can_manage_resources ?? undefined,
+  });
 
   return {
     userId: user.id,
     participantId: participant.id,
     tripId: participant.trip_id,
-    role: (participant.role ?? "viewer") as "owner" | "editor" | "viewer",
+    role,
+    ...perms,
   };
 }

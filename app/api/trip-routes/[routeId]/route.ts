@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireTripAccess } from "@/lib/trip-access";
-import { isPremiumEnabledForTrip } from "@/lib/entitlements";
 
 async function safeInsertAudit(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -116,24 +115,9 @@ export async function PATCH(request: Request, { params }: { params: { routeId: s
     if (!routeRow?.trip_id) {
       return NextResponse.json({ error: "Ruta no encontrada." }, { status: 404 });
     }
-    await requireTripAccess(routeRow.trip_id);
-
-    const actorId = actor?.user?.id || "";
-    const isPremium = actorId
-      ? await isPremiumEnabledForTrip({ supabase, userId: actorId, tripId: String(routeRow.trip_id) })
-      : false;
-
-    if (!isPremium) {
-      // Free tier: no coordenadas / no puntos de ruta. Mantiene campos manuales.
-      delete (payload as any).origin_latitude;
-      delete (payload as any).origin_longitude;
-      delete (payload as any).stop_latitude;
-      delete (payload as any).stop_longitude;
-      delete (payload as any).destination_latitude;
-      delete (payload as any).destination_longitude;
-      if ("path_points" in payload) (payload as any).path_points = [];
-      if ("route_points" in payload) (payload as any).route_points = [];
-      if ("distance_text" in payload) (payload as any).distance_text = null;
+    const access = await requireTripAccess(routeRow.trip_id);
+    if (!access.can_manage_map) {
+      return NextResponse.json({ error: "No tienes permisos para editar rutas." }, { status: 403 });
     }
 
     const response = await patchWithFallback(supabase, params.routeId, payload);
@@ -177,7 +161,10 @@ export async function DELETE(
     if (!routeRow?.trip_id) {
       return NextResponse.json({ error: "Ruta no encontrada." }, { status: 404 });
     }
-    await requireTripAccess(routeRow.trip_id);
+    const access = await requireTripAccess(routeRow.trip_id);
+    if (!access.can_manage_map) {
+      return NextResponse.json({ error: "No tienes permisos para borrar rutas." }, { status: 403 });
+    }
 
     const response = await supabase.from("trip_routes").delete().eq("id", params.routeId);
     if (response.error) throw new Error(response.error.message);
