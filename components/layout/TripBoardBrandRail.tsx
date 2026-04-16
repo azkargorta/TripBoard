@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import TripBoardLogo from "@/components/brand/TripBoardLogo";
 import { useTripBoardHeader } from "@/components/layout/TripBoardHeaderContext";
+import TripPageHelp from "@/components/trip/common/TripPageHelp";
 
 type Props = {
   tripId: string;
@@ -70,6 +71,7 @@ export default function TripBoardBrandRail({ tripId, tripName }: Props) {
           </div>
 
           <div className="flex shrink-0 items-center gap-1.5">
+            <TripPageHelp />
             {header.actions ? (
               <div className="flex max-w-[45vw] flex-nowrap justify-end gap-1.5 overflow-x-auto no-scrollbar md:max-w-none">
                 {header.actions}
