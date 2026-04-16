@@ -40,6 +40,14 @@ type RouteFormState = {
   checklist: ChecklistItem[];
 };
 
+type RoutePreview = {
+  key: string;
+  points: RoutePoint[];
+  distanceText: string | null;
+  durationText: string | null;
+  label: string;
+};
+
 export type TripMapRoute = {
   id: string;
   source?: "trip_routes" | "legacy_routes";
@@ -416,6 +424,8 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [duplicateRoute, setDuplicateRoute] = useState<TripMapRoute | null>(null);
   const [isRouteFormOpen, setIsRouteFormOpen] = useState(false);
+  const [routePreview, setRoutePreview] = useState<RoutePreview | null>(null);
+  const [calculatingRoute, setCalculatingRoute] = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -446,6 +456,18 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+
+  const routeCalcKey = useMemo(() => {
+    return JSON.stringify({
+      name: form.routeName.trim() || "Ruta",
+      date: form.routeDate,
+      departureTime: form.departureTime,
+      stopEnabled: form.stopEnabled,
+      origin: [origin.address, origin.latitude, origin.longitude],
+      stop: form.stopEnabled ? [stop.address, stop.latitude, stop.longitude] : null,
+      destination: [destination.address, destination.latitude, destination.longitude],
+    });
+  }, [destination.address, destination.latitude, destination.longitude, form.departureTime, form.routeDate, form.routeName, form.stopEnabled, origin.address, origin.latitude, origin.longitude, stop.address, stop.latitude, stop.longitude]);
 
   const reloadRoutes = useCallback(async () => {
     try {
@@ -518,6 +540,10 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   }, [allRoutes]);
 
   useEffect(() => {
+    setRoutePreview((prev) => (prev?.key === routeCalcKey ? prev : null));
+  }, [routeCalcKey]);
+
+  useEffect(() => {
     let cancelled = false;
     async function loadHistory() {
       if (!historyOpen) return;
@@ -556,8 +582,10 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   const mapEntities = useMemo(() => {
     const markers: Array<{ key: string; lat: number; lng: number; title: string; emoji: string; bg: string; subtitle?: string }> =
       [];
-    // Cuando una ruta está enfocada, ocultamos el resto del mapa para destacar solo esa ruta.
-    if (showPlanMarkers && !focusedRouteKey) {
+    const hasPreview = isRouteFormOpen && !!routePreview;
+
+    // Cuando una ruta está enfocada o estamos previsualizando una nueva, ocultamos el resto del mapa para destacar solo esa ruta.
+    if (showPlanMarkers && !focusedRouteKey && !hasPreview) {
       for (const p of allPlanPlaces) {
         const k = normalizeKind(p.kind) || "visit";
         if (planKindFilter.size && !planKindFilter.has(k)) continue;
@@ -574,38 +602,47 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     }
 
     const lines: Array<{ key: string; points: RoutePoint[]; color: string; label: string }> = [];
-    for (const r of visibleRoutes) {
-      const key = `${r.source || "trip_routes"}:${r.id}`;
-      const pts = (Array.isArray(r.path_points) && r.path_points.length ? r.path_points : r.route_points) || [];
-      const normalized = Array.isArray(pts)
-        ? pts.filter((x) => x && typeof x.lat === "number" && typeof x.lng === "number" && Number.isFinite(x.lat) && Number.isFinite(x.lng))
-        : [];
-      const color = (r.color && String(r.color).trim()) || "#6366f1";
+    if (hasPreview && routePreview) {
+      lines.push({
+        key: "route-preview",
+        points: routePreview.points,
+        color: "#0f172a",
+        label: routePreview.label,
+      });
+    } else {
+      for (const r of visibleRoutes) {
+        const key = `${r.source || "trip_routes"}:${r.id}`;
+        const pts = (Array.isArray(r.path_points) && r.path_points.length ? r.path_points : r.route_points) || [];
+        const normalized = Array.isArray(pts)
+          ? pts.filter((x) => x && typeof x.lat === "number" && typeof x.lng === "number" && Number.isFinite(x.lat) && Number.isFinite(x.lng))
+          : [];
+        const color = (r.color && String(r.color).trim()) || "#6366f1";
 
-      if (normalized.length >= 2) {
-        lines.push({ key, points: normalized, color, label: String(r.title || r.route_name || "Ruta") });
-        continue;
-      }
-      if (
-        typeof r.origin_latitude === "number" &&
-        typeof r.origin_longitude === "number" &&
-        typeof r.destination_latitude === "number" &&
-        typeof r.destination_longitude === "number"
-      ) {
-        lines.push({
-          key,
-          points: [
-            { lat: r.origin_latitude, lng: r.origin_longitude },
-            { lat: r.destination_latitude, lng: r.destination_longitude },
-          ],
-          color,
-          label: String(r.title || r.route_name || "Ruta"),
-        });
+        if (normalized.length >= 2) {
+          lines.push({ key, points: normalized, color, label: String(r.title || r.route_name || "Ruta") });
+          continue;
+        }
+        if (
+          typeof r.origin_latitude === "number" &&
+          typeof r.origin_longitude === "number" &&
+          typeof r.destination_latitude === "number" &&
+          typeof r.destination_longitude === "number"
+        ) {
+          lines.push({
+            key,
+            points: [
+              { lat: r.origin_latitude, lng: r.origin_longitude },
+              { lat: r.destination_latitude, lng: r.destination_longitude },
+            ],
+            color,
+            label: String(r.title || r.route_name || "Ruta"),
+          });
+        }
       }
     }
 
     return { markers, lines };
-  }, [allPlanPlaces, customByKey, focusedRouteKey, planKindFilter, showPlanMarkers, visibleRoutes]);
+  }, [allPlanPlaces, customByKey, focusedRouteKey, isRouteFormOpen, planKindFilter, routePreview, showPlanMarkers, visibleRoutes]);
 
   const bounds = useMemo(() => {
     const latlngs: Array<[number, number]> = [];
@@ -621,8 +658,9 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
       `d:${selectedDate}`,
       `m:${showPlanMarkers ? 1 : 0}`,
       `r:${visibleRoutes.map((r) => `${r.source || "trip_routes"}:${r.id}`).join(",")}`,
+      `p:${routePreview?.key || ""}`,
     ].join("|");
-  }, [selectedDate, showPlanMarkers, visibleRoutes]);
+  }, [routePreview?.key, selectedDate, showPlanMarkers, visibleRoutes]);
 
   const onSelectPlace = useCallback(
     (setState: (v: { address: string; latitude: number | null; longitude: number | null }) => void, payload: AutocompletePayload) => {
@@ -635,6 +673,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     if (!route) return;
     setIsRouteFormOpen(true);
     setFocusedRouteKey(`${route.source || "trip_routes"}:${route.id}`);
+    setRoutePreview(null);
     const notes = parseRouteNotes(route.notes);
     const restStops = notes?.restStops;
     const noteText = typeof notes?.noteText === "string" ? notes.noteText : "";
@@ -677,14 +716,14 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     });
   }
 
-  async function createOrUpdateRoute() {
+  async function calculateRoutePreview() {
     setError(null);
     setInfo(null);
 
     const name = form.routeName.trim() || "Ruta";
     if (!form.routeDate) {
       setError("Selecciona un día.");
-      return;
+      return null;
     }
 
     if (
@@ -694,10 +733,10 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
       typeof destination.longitude !== "number"
     ) {
       setError("Origen y destino deben tener coordenadas (elige un plan con coords o usa el buscador).");
-      return;
+      return null;
     }
 
-    setSaving(true);
+    setCalculatingRoute(true);
     try {
       const originPt: RoutePoint = { lat: origin.latitude, lng: origin.longitude };
       const destPt: RoutePoint = { lat: destination.latitude, lng: destination.longitude };
@@ -714,12 +753,42 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
         const osrm = await fetchOsrmRoute({ origin: originPt, destination: destPt, stop: stopPt });
         if (Array.isArray(osrm.points) && osrm.points.length >= 2) {
           routePoints = osrm.points;
-          if (typeof osrm.distanceMeters === "number" && Number.isFinite(osrm.distanceMeters)) distanceText = formatKm(osrm.distanceMeters);
-          if (typeof osrm.durationSeconds === "number" && Number.isFinite(osrm.durationSeconds)) durationText = formatDuration(osrm.durationSeconds);
         }
+        if (typeof osrm.distanceMeters === "number" && Number.isFinite(osrm.distanceMeters)) distanceText = formatKm(osrm.distanceMeters);
+        if (typeof osrm.durationSeconds === "number" && Number.isFinite(osrm.durationSeconds)) durationText = formatDuration(osrm.durationSeconds);
       } catch {
-        // best-effort: si OSRM falla, guardamos línea simple
+        // Si OSRM falla, enseñamos igualmente la línea directa si hay puntos válidos.
       }
+
+      const preview: RoutePreview = {
+        key: routeCalcKey,
+        points: routePoints,
+        distanceText,
+        durationText,
+        label: name,
+      };
+      setFocusedRouteKey(null);
+      setRoutePreview(preview);
+      setInfo("Ruta calculada. Revisa el trazado y guarda cuando quieras.");
+      return preview;
+    } catch (e) {
+      setRoutePreview(null);
+      setError(e instanceof Error ? e.message : "No se pudo calcular la ruta.");
+      return null;
+    } finally {
+      setCalculatingRoute(false);
+    }
+  }
+
+  async function createOrUpdateRoute() {
+    setError(null);
+    setInfo(null);
+
+    setSaving(true);
+    try {
+      const name = form.routeName.trim() || "Ruta";
+      const preview = routePreview?.key === routeCalcKey ? routePreview : await calculateRoutePreview();
+      if (!preview) return;
 
       const input: SaveRouteInput = {
         routeDate: form.routeDate,
@@ -738,10 +807,10 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
         destinationAddress: destination.address || "Destino",
         destinationLatitude: destination.latitude,
         destinationLongitude: destination.longitude,
-        distanceText,
-        durationText,
-        routePoints,
-        pathPoints: routePoints,
+        distanceText: preview.distanceText,
+        durationText: preview.durationText,
+        routePoints: preview.points,
+        pathPoints: preview.points,
         notes: buildRouteNotes(form, form.editingRouteId ? routesState.find((r) => r.id === form.editingRouteId && r.source === "trip_routes")?.notes ?? null : null),
       };
 
@@ -749,6 +818,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
       setInfo(form.editingRouteId ? "Ruta actualizada." : "Ruta guardada.");
       setForm(defaultRouteForm(form.routeDate));
       setIsRouteFormOpen(false);
+      setRoutePreview(null);
       setOrigin({ address: "", latitude: null, longitude: null });
       setStop({ address: "", latitude: null, longitude: null });
       setDestination({ address: "", latitude: null, longitude: null });
@@ -1010,6 +1080,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                       onClick={() => {
                         setIsRouteFormOpen(false);
                         setForm(defaultRouteForm(form.routeDate || todayISO()));
+                        setRoutePreview(null);
                         setOrigin({ address: "", latitude: null, longitude: null });
                         setStop({ address: "", latitude: null, longitude: null });
                         setDestination({ address: "", latitude: null, longitude: null });
@@ -1027,6 +1098,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                       onClick={() => {
                         setIsRouteFormOpen(true);
                         setForm(defaultRouteForm(selectedDate !== "all" ? selectedDate : todayISO()));
+                        setRoutePreview(null);
                         setOrigin({ address: "", latitude: null, longitude: null });
                         setStop({ address: "", latitude: null, longitude: null });
                         setDestination({ address: "", latitude: null, longitude: null });
@@ -1253,15 +1325,50 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  disabled={saving || savingRoute}
-                  onClick={() => void createOrUpdateRoute()}
-                  className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                >
-                  <Save className="h-4 w-4" aria-hidden />
-                  {saving || savingRoute ? "Guardando…" : form.editingRouteId ? "Guardar cambios" : "Guardar ruta"}
-                </button>
+                <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                  <div className="flex flex-col gap-3">
+                    <button
+                      type="button"
+                      disabled={calculatingRoute || saving || savingRoute}
+                      onClick={() => void calculateRoutePreview()}
+                      className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 disabled:opacity-60"
+                    >
+                      <RefreshCw className={`h-4 w-4 ${calculatingRoute ? "animate-spin" : ""}`} aria-hidden />
+                      {calculatingRoute ? "Calculando ruta…" : "Calcular ruta"}
+                    </button>
+
+                    {routePreview ? (
+                      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3">
+                        <div className="text-xs font-extrabold uppercase tracking-[0.12em] text-emerald-800">Ruta calculada</div>
+                        <div className="mt-2 grid grid-cols-2 gap-3">
+                          <div className="rounded-xl bg-white px-3 py-2">
+                            <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">Distancia</div>
+                            <div className="mt-1 text-sm font-semibold text-slate-900">{routePreview.distanceText || "No disponible"}</div>
+                          </div>
+                          <div className="rounded-xl bg-white px-3 py-2">
+                            <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">Duración</div>
+                            <div className="mt-1 text-sm font-semibold text-slate-900">{routePreview.durationText || "No disponible"}</div>
+                          </div>
+                        </div>
+                        <div className="mt-2 text-xs text-emerald-900">La previsualización ya está dibujada en el mapa.</div>
+                      </div>
+                    ) : (
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                        Calcula la ruta para ver el trazado en el mapa antes de guardarla.
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      disabled={saving || savingRoute || calculatingRoute}
+                      onClick={() => void createOrUpdateRoute()}
+                      className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                    >
+                      <Save className="h-4 w-4" aria-hidden />
+                      {saving || savingRoute ? "Guardando…" : form.editingRouteId ? "Guardar cambios" : "Guardar ruta"}
+                    </button>
+                  </div>
+                </div>
               </div>
               ) : (
                 <div className="mt-3 text-sm text-slate-600">
