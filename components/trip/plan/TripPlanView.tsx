@@ -57,7 +57,10 @@ function kindMeta(kindRaw: unknown, custom?: Map<string, { label: string; emoji?
   if (kind === "transport") return { key: "transport", label: "Transporte", glyph: "✈", color: "#0ea5e9" };
   if (kind === "lodging") return { key: "lodging", label: "Alojamiento", glyph: "H", color: "#8b5cf6" };
   if (kind === "activity") return { key: "activity", label: "Actividad", glyph: "🎟️", color: "#10b981" };
-  return { key: "visit", label: "Visita", glyph: "📍", color: "#64748b" };
+  if (kind === "visit" || !kind) return { key: "visit", label: "Visita", glyph: "📍", color: "#64748b" };
+  // Tipo desconocido (todavía sin catálogo): mostrar su propio nombre.
+  const label = kind.slice(0, 1).toUpperCase() + kind.slice(1);
+  return { key: kind, label, glyph: "🏷️", color: "#475569" };
 }
 
 function Chip({
