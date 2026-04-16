@@ -1335,39 +1335,48 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                           className="min-w-0 text-left"
                           title="Enfocar/mostrar en el mapa"
                         >
-                          <div className="text-sm font-semibold text-slate-950 line-clamp-1">{title}</div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="text-sm font-semibold text-slate-950 line-clamp-1">{title}</div>
+                            {r.source === "legacy_routes" ? (
+                              <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.08em] text-amber-800">
+                                Legacy
+                              </span>
+                            ) : null}
+                          </div>
                           {subtitle ? <div className="mt-1 text-xs text-slate-600 line-clamp-2">{subtitle}</div> : null}
                         </button>
-                        {r.source === "trip_routes" ? (
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => beginEditRoute(r)}
-                              className="inline-flex min-h-[34px] items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                            >
-                              Editar
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setDuplicateRoute(r);
-                                setDuplicateOpen(true);
-                              }}
-                              className="inline-flex min-h-[34px] items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                              title="Duplicar ruta"
-                            >
-                              <Copy className="h-4 w-4" aria-hidden />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void removeRoute(r)}
-                              className="inline-flex min-h-[34px] items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-800 hover:bg-rose-100"
-                              title="Eliminar ruta"
-                            >
-                              <Trash2 className="h-4 w-4" aria-hidden />
-                            </button>
-                          </div>
-                        ) : null}
+                        <div className="flex items-center gap-2">
+                          {r.source === "trip_routes" ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => beginEditRoute(r)}
+                                className="inline-flex min-h-[34px] items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDuplicateRoute(r);
+                                  setDuplicateOpen(true);
+                                }}
+                                className="inline-flex min-h-[34px] items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                title="Duplicar ruta"
+                              >
+                                <Copy className="h-4 w-4" aria-hidden />
+                              </button>
+                            </>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() => void removeRoute(r)}
+                            className="inline-flex min-h-[34px] items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-800 hover:bg-rose-100"
+                            title={r.source === "legacy_routes" ? "Eliminar ruta legacy" : "Eliminar ruta"}
+                          >
+                            <Trash2 className="h-4 w-4" aria-hidden />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
