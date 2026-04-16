@@ -48,6 +48,14 @@ export function normalizePermissions(
   const normalizedRole = normalizeRole(role);
   const base = DEFAULT_PERMISSIONS_BY_ROLE[normalizedRole];
 
+  // En BD, `can_manage_*` puede ser `false` por defectos de migraciones antiguas.
+  // `false ?? defaultPorRol` sigue siendo `false`, así que un owner quedaba sin plan.
+  // El propietario del viaje debe tener siempre control completo (coherente con
+  // docs/tripboard_permissions_modules.sql).
+  if (normalizedRole === "owner") {
+    return { ...DEFAULT_PERMISSIONS_BY_ROLE.owner };
+  }
+
   return {
     can_manage_trip: overrides?.can_manage_trip ?? base.can_manage_trip,
     can_manage_participants:

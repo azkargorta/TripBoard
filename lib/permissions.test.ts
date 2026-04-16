@@ -25,5 +25,14 @@ describe("lib/permissions", () => {
     expect(overridden.can_manage_plan).toBe(true);
     expect(overridden.can_manage_map).toBe(false);
   });
+
+  it("normalizePermissions: owner ignora flags false legacy en BD (plan/map)", () => {
+    const owner = normalizePermissions("owner", {
+      can_manage_plan: false,
+      can_manage_map: false,
+    });
+    expect(owner.can_manage_plan).toBe(true);
+    expect(owner.can_manage_map).toBe(true);
+  });
 });
 

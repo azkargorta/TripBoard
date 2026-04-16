@@ -95,6 +95,12 @@ export function normalizePermissions(
 ): ParticipantPermissions {
   const defaults = getDefaultPermissionsByRole(role);
 
+  // Misma lógica que `lib/permissions.ts`: flags en `false` en BD no deben dejar
+  // al owner sin permisos por el operador `??`.
+  if (role === "owner") {
+    return { ...getDefaultPermissionsByRole("owner") };
+  }
+
   return {
     can_manage_trip: overrides?.can_manage_trip ?? defaults.can_manage_trip,
     can_manage_participants:
