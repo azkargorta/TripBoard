@@ -85,14 +85,94 @@ function extractDiff(answer: string): DiffPayload | null {
   }
 }
 
-const MODE_OPTIONS: { id: ExtendedChatMode; label: string; description: string }[] = [
-  { id: "general", label: "General", description: "Consultas generales del viaje" },
-  { id: "planning", label: "Planificación", description: "Plan del viaje, días y visitas" },
-  { id: "expenses", label: "Gastos", description: "Balances, pagos y ahorro" },
-  { id: "optimizer", label: "Optimizador", description: "Mejoras automáticas del viaje" },
-  { id: "actions", label: "Acciones", description: "Crear o modificar datos del viaje" },
-  { id: "day_planner", label: "Organizar día", description: "Itinerario completo con tiempos, comidas y desplazamientos" },
+type ModeGroupId = "talk" | "write";
+
+type ModeOption = {
+  id: ExtendedChatMode;
+  label: string;
+  /** Una línea: para qué sirve este modo */
+  description: string;
+  /** Cuándo elegirlo (texto orientativo) */
+  useFor: string;
+  group: ModeGroupId;
+};
+
+const MODE_GROUPS: { id: ModeGroupId; title: string; hint: string }[] = [
+  {
+    id: "talk",
+    title: "Preguntar y analizar",
+    hint: "La IA responde y usa el contexto del viaje; no cambia datos hasta que tú apliques un plan o un diff.",
+  },
+  {
+    id: "write",
+    title: "Preparar o guardar en la app",
+    hint: "Aquí la IA puede proponer cambios concretos (actividades, rutas…) para que los revises y apliques.",
+  },
 ];
+
+const MODE_OPTIONS: ModeOption[] = [
+  {
+    id: "general",
+    label: "General",
+    description: "Dudas amplias sobre el viaje",
+    useFor: "Resúmenes, qué tienes guardado, recomendaciones generales.",
+    group: "talk",
+  },
+  {
+    id: "planning",
+    label: "Planificación",
+    description: "Itinerarios por varios días",
+    useFor: "Varios días, orden de visitas, propuestas de agenda (itinerario en JSON + «Ejecutar plan»).",
+    group: "talk",
+  },
+  {
+    id: "expenses",
+    label: "Gastos",
+    description: "Balances y reparto",
+    useFor: "Cuánto se ha gastado, quién debe a quién, ideas para pagar.",
+    group: "talk",
+  },
+  {
+    id: "optimizer",
+    label: "Optimizador",
+    description: "Mejorar el viaje",
+    useFor: "Detectar huecos, solapes o formas de aprovechar mejor el plan.",
+    group: "talk",
+  },
+  {
+    id: "actions",
+    label: "Acciones",
+    description: "Cambios puntuales en datos",
+    useFor: "Pedir a la IA que cree o modifique actividades/rutas vía «diff» revisable.",
+    group: "write",
+  },
+  {
+    id: "day_planner",
+    label: "Organizar día",
+    description: "Un día completo con rutas",
+    useFor: "Un solo día: horarios, comidas, desplazamientos; guardas con «Aplicar cambios» (no «Ejecutar plan»).",
+    group: "write",
+  },
+];
+
+const MODE_LABELS: Record<ExtendedChatMode, string> = {
+  general: "General",
+  planning: "Planificación",
+  expenses: "Gastos",
+  optimizer: "Optimizador",
+  actions: "Acciones",
+  day_planner: "Organizar día",
+};
+
+const PLACEHOLDERS: Record<ExtendedChatMode, string> = {
+  general: "Ej.: hazme un resumen del viaje o qué documentos conviene llevar…",
+  planning: "Ej.: dame un plan de 3 días en Roma o reorganiza mis visitas…",
+  expenses: "Ej.: ¿cuánto llevamos gastado? ¿quién debe a quién?…",
+  optimizer: "Ej.: detecta huecos en mi plan o sugiere mejoras…",
+  actions: "Ej.: añade una cena el viernes en el plan o crea una ruta entre dos puntos…",
+  day_planner:
+    "Ej.: organízame el 2026-06-15 en Ámsterdam, andando, de 10:00 a 21:00… (luego «Aplicar cambios» para guardar)",
+};
 
 const SUGGESTIONS: Record<ExtendedChatMode, string[]> = {
   general: [
@@ -182,7 +262,10 @@ export default function TripAiChatView({
       id: "welcome",
       role: "assistant",
       content:
-        "Hola. Soy tu asistente del viaje. Ya puedo recordar conversaciones, ayudarte con gastos, optimizar el viaje y ejecutar algunas acciones básicas dentro de la app.",
+        "Hola. Soy el asistente de este viaje.\n\n" +
+        "1) Elige el tipo de chat a la izquierda (o las pastillas arriba en el móvil): «Preguntar y analizar» para dudas e ideas, o «Preparar o guardar en la app» cuando quieras propuestas que luego puedas aplicar al plan o al mapa.\n\n" +
+        "2) Planificación = varios días y suele acabar en «Ejecutar plan». Organizar día = un solo día con rutas y se guarda con «Aplicar cambios».\n\n" +
+        "Las conversaciones se guardan: puedes volver a ellas cuando quieras.",
     },
   ]);
   const [question, setQuestion] = useState("");
@@ -385,6 +468,10 @@ export default function TripAiChatView({
 
   const currentSuggestions = useMemo(() => SUGGESTIONS[mode], [mode]);
 
+  const placeholder = useMemo(() => PLACEHOLDERS[mode], [mode]);
+
+  const activeMode = useMemo(() => MODE_OPTIONS.find((m) => m.id === mode), [mode]);
+
   useEffect(() => {
     try {
       const stored = window.localStorage.getItem("trip_ai_provider");
@@ -444,7 +531,7 @@ export default function TripAiChatView({
         id: crypto.randomUUID(),
         role: "assistant",
         content:
-          "Nueva conversación iniciada. Pregúntame lo que necesites sobre tu viaje.",
+          "Nueva conversación. Elige el tipo de chat a la izquierda (o las pastillas arriba en el móvil) y escribe cuando quieras.",
       },
     ]);
     setQuestion("");
@@ -564,12 +651,38 @@ export default function TripAiChatView({
     <main className="space-y-6">
       <TripBoardPageHeader
         section="Asistente IA del viaje"
-        title="Chat, memoria, acciones y optimización"
-        description="Recuerda conversaciones, ayuda con gastos, optimiza el viaje y ejecuta acciones básicas dentro de la app."
+        title="Chat IA"
+        description="Elige el modo según lo que necesites: preguntar, planear varios días, optimizar, o pedir cambios guardables. Todo sigue disponible; abajo tienes la guía por modos."
         iconSrc="/brand/tabs/ai.png"
         iconAlt="Chat IA"
         actions={<TripScreenActions tripId={tripId} />}
       />
+
+      {/* Móvil: cambiar de modo sin bajar al panel lateral */}
+      <div
+        className="no-scrollbar -mx-0.5 flex gap-2 overflow-x-auto pb-1 pt-1 xl:hidden"
+        role="tablist"
+        aria-label="Tipo de chat"
+      >
+        {MODE_OPTIONS.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            role="tab"
+            aria-selected={mode === item.id}
+            onClick={() => setMode(item.id)}
+            className={`shrink-0 rounded-full border px-3.5 py-2 text-xs font-semibold transition ${
+              mode === item.id
+                ? "border-violet-400 bg-violet-50 text-violet-950 shadow-sm"
+                : item.group === "write"
+                  ? "border-amber-200/80 bg-amber-50/80 text-amber-950"
+                  : "border-slate-200 bg-white text-slate-700"
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
 
       {itineraryDraft ? (
         <section className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-sky-50 p-5 shadow-sm">
@@ -940,7 +1053,7 @@ export default function TripAiChatView({
       ) : null}
 
       <section className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
-        <aside className="space-y-6">
+        <aside className="order-2 space-y-5 xl:order-1 xl:space-y-6">
           <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-lg font-bold text-slate-950">Conversaciones</h2>
@@ -968,7 +1081,9 @@ export default function TripAiChatView({
                   }`}
                 >
                   <div className="font-semibold">{item.title || "Sin título"}</div>
-                  <div className="mt-1 text-xs opacity-70">{item.mode}</div>
+                  <div className="mt-1 text-xs opacity-70">
+                    {MODE_LABELS[item.mode as ExtendedChatMode] || item.mode}
+                  </div>
                 </button>
               )) : (
                 <p className="text-sm text-slate-500">Todavía no hay conversaciones guardadas.</p>
@@ -977,22 +1092,46 @@ export default function TripAiChatView({
           </div>
 
           <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-950">Modos IA</h2>
-            <div className="mt-4 space-y-2">
-              {MODE_OPTIONS.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setMode(item.id)}
-                  className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
-                    mode === item.id
-                      ? "border-violet-300 bg-violet-50"
-                      : "border-slate-200 bg-slate-50 hover:bg-slate-100"
-                  }`}
-                >
-                  <div className="font-semibold text-slate-900">{item.label}</div>
-                  <div className="mt-1 text-xs text-slate-500">{item.description}</div>
-                </button>
+            <h2 className="text-lg font-bold text-slate-950">Tipo de chat</h2>
+            <p className="mt-2 text-xs leading-relaxed text-slate-600">
+              Cambia de modo antes de enviar: cada uno activa instrucciones distintas para la IA. Nada se borra: todos
+              los modos siguen aquí.
+            </p>
+            <div className="mt-5 space-y-6">
+              {MODE_GROUPS.map((g) => (
+                <div key={g.id}>
+                  <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-500">{g.title}</p>
+                  <p className="mt-1 text-[11px] leading-snug text-slate-500">{g.hint}</p>
+                  <div className="mt-3 space-y-2">
+                    {MODE_OPTIONS.filter((m) => m.group === g.id).map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => setMode(item.id)}
+                        className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
+                          mode === item.id
+                            ? "border-violet-300 bg-violet-50 shadow-sm"
+                            : g.id === "write"
+                              ? "border-amber-200/70 bg-amber-50/50 hover:bg-amber-50"
+                              : "border-slate-200 bg-slate-50 hover:bg-slate-100"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="font-semibold text-slate-900">{item.label}</span>
+                          {mode === item.id ? (
+                            <span className="shrink-0 rounded-full bg-violet-200/80 px-2 py-0.5 text-[10px] font-bold text-violet-900">
+                              Activo
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="mt-0.5 text-xs font-medium text-slate-600">{item.description}</div>
+                        <div className="mt-1.5 text-[11px] leading-snug text-slate-500">
+                          <span className="font-semibold text-slate-600">Cuándo:</span> {item.useFor}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           </div>
@@ -1042,13 +1181,19 @@ export default function TripAiChatView({
           </div>
         </aside>
 
-        <section className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
+        <section className="chat-panel order-1 min-w-0 rounded-[28px] border border-slate-200 bg-white shadow-sm xl:order-2">
           <div className="border-b border-slate-200 px-5 py-4">
             <div className="flex items-center justify-between gap-3">
-              <div>
+              <div className="min-w-0">
                 <h2 className="text-lg font-bold text-slate-950">Conversación</h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  El asistente usa el contexto guardado del viaje y recuerda esta conversación.
+                  Modo: <span className="font-semibold text-slate-800">{activeMode?.label}</span>
+                  {activeMode ? (
+                    <span className="mt-0.5 block text-xs text-slate-500 xl:hidden">{activeMode.useFor}</span>
+                  ) : null}
+                </p>
+                <p className="mt-1 hidden text-xs text-slate-500 xl:block">
+                  El asistente usa el contexto del viaje y recuerda esta conversación.
                 </p>
               </div>
 
@@ -1077,7 +1222,7 @@ export default function TripAiChatView({
                 className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 <div
-                  className={`max-w-[88%] rounded-[24px] px-4 py-3 text-sm leading-7 ${
+                  className={`max-w-[88%] whitespace-pre-wrap rounded-[24px] px-4 py-3 text-sm leading-7 ${
                     message.role === "user"
                       ? "bg-slate-950 text-white"
                       : "border border-slate-200 bg-slate-50 text-slate-800"
@@ -1105,14 +1250,15 @@ export default function TripAiChatView({
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
                 rows={4}
-                placeholder="Escribe tu pregunta o acción sobre el viaje…"
+                placeholder={placeholder}
                 disabled={!isPremium}
                 className="min-h-[120px] w-full resize-none rounded-2xl border-0 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400"
               />
 
               <div className="flex flex-col gap-3 border-t border-slate-200 px-2 pt-3 md:flex-row md:items-center md:justify-between">
-                <p className="text-xs text-slate-500">
-                  Modo activo: {MODE_OPTIONS.find((m) => m.id === mode)?.label}.
+                <p className="min-w-0 flex-1 text-xs leading-snug text-slate-500">
+                  <span className="font-semibold text-slate-700">{activeMode?.label}</span>
+                  {activeMode ? <span className="text-slate-500"> — {activeMode.useFor}</span> : null}
                 </p>
 
                 <div className="flex items-center gap-2">
