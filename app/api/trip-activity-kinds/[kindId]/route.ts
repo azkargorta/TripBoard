@@ -13,6 +13,13 @@ function normalizeKey(input: unknown) {
     .replace(/[^\p{L}\p{N}_-]+/gu, "");
 }
 
+function sentenceCase(input: unknown) {
+  const raw = typeof input === "string" ? input.trim() : "";
+  if (!raw) return "";
+  const lower = raw.toLowerCase();
+  return lower.slice(0, 1).toUpperCase() + lower.slice(1);
+}
+
 export async function PATCH(request: Request, { params }: { params: { kindId: string } }) {
   try {
     const body = await request.json().catch(() => null);
@@ -35,7 +42,7 @@ export async function PATCH(request: Request, { params }: { params: { kindId: st
       if (next) patch.kind_key = next;
     }
     if (body?.label != null) {
-      const label = typeof body.label === "string" ? body.label.trim() : "";
+      const label = sentenceCase(body.label);
       if (label) patch.label = label;
     }
     if (body?.emoji !== undefined) {

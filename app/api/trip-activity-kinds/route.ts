@@ -13,6 +13,13 @@ function normalizeKey(input: unknown) {
     .replace(/[^\p{L}\p{N}_-]+/gu, "");
 }
 
+function sentenceCase(input: unknown) {
+  const raw = typeof input === "string" ? input.trim() : "";
+  if (!raw) return "";
+  const lower = raw.toLowerCase();
+  return lower.slice(0, 1).toUpperCase() + lower.slice(1);
+}
+
 function normalizeEmoji(input: unknown) {
   const s = typeof input === "string" ? input.trim() : "";
   return s || null;
@@ -69,7 +76,7 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => null);
     const tripId = typeof body?.tripId === "string" ? body.tripId : body?.trip_id;
     const kindKey = normalizeKey(body?.kind_key ?? body?.key ?? body?.kindKey ?? body?.name);
-    const label = typeof body?.label === "string" ? body.label.trim() : typeof body?.name === "string" ? body.name.trim() : "";
+    const label = sentenceCase(typeof body?.label === "string" ? body.label : body?.name);
     const emoji = normalizeEmoji(body?.emoji);
     const color = normalizeColor(body?.color);
 
