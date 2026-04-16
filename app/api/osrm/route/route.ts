@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 type LatLng = { lat: number; lng: number };
+type OsrmProfile = "driving" | "walking" | "cycling";
 
 function isLatLng(value: any): value is LatLng {
   return (
@@ -25,6 +26,11 @@ export async function POST(request: Request) {
     const origin = body?.origin;
     const destination = body?.destination;
     const stop = body?.stop ?? null;
+    const profileRaw = typeof body?.profile === "string" ? body.profile.trim().toLowerCase() : "";
+    const profile: OsrmProfile =
+      profileRaw === "walking" || profileRaw === "cycling" || profileRaw === "driving"
+        ? (profileRaw as OsrmProfile)
+        : "driving";
 
     if (!isLatLng(origin) || !isLatLng(destination)) {
       return NextResponse.json({ error: "origin y destination deben ser {lat,lng}." }, { status: 400 });
@@ -37,7 +43,7 @@ export async function POST(request: Request) {
       ";"
     );
 
-    const url = new URL(`https://router.project-osrm.org/route/v1/driving/${coords}`);
+    const url = new URL(`https://router.project-osrm.org/route/v1/${profile}/${coords}`);
     url.searchParams.set("overview", "full");
     url.searchParams.set("geometries", "geojson");
     url.searchParams.set("steps", "false");

@@ -28,6 +28,13 @@ function asStringOrNull(value: unknown) {
   return undefined;
 }
 
+function asNumberOrNull(value: unknown) {
+  if (value === null) return null;
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return undefined;
+  return n;
+}
+
 function normalizeTravelMode(value: unknown) {
   const s = typeof value === "string" ? value.trim().toUpperCase() : "";
   if (s === "DRIVING" || s === "WALKING" || s === "BICYCLING" || s === "TRANSIT") return s;
@@ -78,6 +85,8 @@ export async function POST(req: Request) {
           assign("activity_kind", asStringOrNull(patchIn.activity_kind));
           assign("activity_date", patchIn.activity_date === null ? null : asIsoDate(patchIn.activity_date));
           assign("activity_time", patchIn.activity_time === null ? null : asTime(patchIn.activity_time));
+          assign("latitude", asNumberOrNull(patchIn.latitude));
+          assign("longitude", asNumberOrNull(patchIn.longitude));
 
           const { error } = await supabase.from("trip_activities").update(patch).eq("id", id).eq("trip_id", tripId);
           if (error) throw new Error(error.message);
@@ -97,6 +106,8 @@ export async function POST(req: Request) {
             activity_time: fieldsIn.activity_time === null ? null : asTime(fieldsIn.activity_time),
             place_name: typeof fieldsIn.place_name === "string" ? fieldsIn.place_name.trim() : null,
             address: typeof fieldsIn.address === "string" ? fieldsIn.address.trim() : null,
+            latitude: asNumberOrNull(fieldsIn.latitude) ?? null,
+            longitude: asNumberOrNull(fieldsIn.longitude) ?? null,
             activity_type: "general",
             activity_kind: typeof fieldsIn.activity_kind === "string" ? fieldsIn.activity_kind.trim() : null,
             source: "ai",
@@ -138,6 +149,47 @@ export async function POST(req: Request) {
           const { error } = await supabase.from("trip_routes").update(patch).eq("id", id).eq("trip_id", tripId);
           if (error) throw new Error(error.message);
           results.push({ ok: true, op, id });
+          continue;
+        }
+
+        if (op === "create_route") {
+          const fieldsIn = opRaw?.fields || {};
+          const title = typeof fieldsIn.title === "string" ? fieldsIn.title.trim() : "";
+          if (!title) throw new Error("Falta title.");
+          const payload = {
+            trip_id: tripId,
+            title,
+            route_name: title,
+            name: title,
+            route_day: fieldsIn.route_day === null ? null : asIsoDate(fieldsIn.route_day),
+            route_date: fieldsIn.route_day === null ? null : asIsoDate(fieldsIn.route_day),
+            departure_time: fieldsIn.departure_time === null ? null : asTime(fieldsIn.departure_time),
+            travel_mode: normalizeTravelMode(fieldsIn.travel_mode),
+            mode: normalizeTravelMode(fieldsIn.travel_mode)?.toLowerCase(),
+            notes: asStringOrNull(fieldsIn.notes),
+            color: typeof fieldsIn.color === "string" ? fieldsIn.color.trim() : null,
+            origin_name: asStringOrNull(fieldsIn.origin_name),
+            origin_address: asStringOrNull(fieldsIn.origin_address),
+            origin_latitude: typeof fieldsIn.origin_latitude === "number" ? fieldsIn.origin_latitude : null,
+            origin_longitude: typeof fieldsIn.origin_longitude === "number" ? fieldsIn.origin_longitude : null,
+            destination_name: asStringOrNull(fieldsIn.destination_name),
+            destination_address: asStringOrNull(fieldsIn.destination_address),
+            destination_latitude: typeof fieldsIn.destination_latitude === "number" ? fieldsIn.destination_latitude : null,
+            destination_longitude: typeof fieldsIn.destination_longitude === "number" ? fieldsIn.destination_longitude : null,
+            stop_name: asStringOrNull(fieldsIn.stop_name),
+            stop_address: asStringOrNull(fieldsIn.stop_address),
+            stop_latitude: typeof fieldsIn.stop_latitude === "number" ? fieldsIn.stop_latitude : null,
+            stop_longitude: typeof fieldsIn.stop_longitude === "number" ? fieldsIn.stop_longitude : null,
+            path_points: Array.isArray(fieldsIn.path_points) ? fieldsIn.path_points : [],
+            route_points: Array.isArray(fieldsIn.route_points) ? fieldsIn.route_points : [],
+            distance_text: asStringOrNull(fieldsIn.distance_text),
+            duration_text: asStringOrNull(fieldsIn.duration_text),
+            arrival_time: asStringOrNull(fieldsIn.arrival_time),
+            created_by_user_id: access.userId,
+          };
+          const { data, error } = await supabase.from("trip_routes").insert(payload).select("id").single();
+          if (error) throw new Error(error.message);
+          results.push({ ok: true, op, id: String(data?.id || "") });
           continue;
         }
 

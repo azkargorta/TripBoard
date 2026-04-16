@@ -1,6 +1,6 @@
 import { createServerSupabase } from "@/lib/trip-ai/serverSupabase";
 
-export type ChatMode = "general" | "planning" | "expenses" | "optimizer" | "actions";
+export type ChatMode = "general" | "planning" | "expenses" | "optimizer" | "actions" | "day_planner";
 
 export async function listConversations(tripId: string) {
   const supabase = createServerSupabase();

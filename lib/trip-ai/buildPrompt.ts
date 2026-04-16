@@ -1,4 +1,4 @@
-export type TripAiMode = "general" | "planning" | "expenses" | "optimizer" | "actions";
+export type TripAiMode = "general" | "planning" | "expenses" | "optimizer" | "actions" | "day_planner";
 
 export function buildTripPrompt(context: string, question: string, mode: TripAiMode) {
   const modeInstructions: Record<TripAiMode, string> = {
@@ -76,6 +76,49 @@ export function buildTripPrompt(context: string, question: string, mode: TripAiM
         "- Si no estás seguro, no propongas deletes.",
       ].join("\n"),
     actions: "Si el usuario pide ejecutar algo, explica claramente qué vas a hacer y qué efecto tendrá.",
+    day_planner:
+      [
+        "Objetivo: organizar UN día completo con tiempos realistas y desplazamientos entre puntos.",
+        "Antes de proponer, si falta información, debes hacer preguntas cortas y concretas sobre:",
+        "- Fecha o día concreto (YYYY-MM-DD).",
+        "- Preferencias (museos, miradores, compras, paseo, etc.) y ritmo (tranquilo/normal/intenso).",
+        "- Hora de inicio y fin aproximadas.",
+        "- Cómo se moverán: coche / andando / bici (si es transporte público, pregunta y propón como aproximación).",
+        "- Presupuesto y si quieren reservar restaurante o algo informal.",
+        "",
+        "Cuando tengas suficiente contexto, debes devolver además un JSON ejecutable ENTRE ESTOS MARCADORES EXACTOS:",
+        "TRIPBOARD_DAYPLAN_JSON_START",
+        "{...json...}",
+        "TRIPBOARD_DAYPLAN_JSON_END",
+        "",
+        "Formato del JSON (version 1):",
+        "{",
+        '  "version": 1,',
+        '  "date": "YYYY-MM-DD",',
+        '  "cityHint": "string|null",',
+        '  "travelMode": "driving|walking|cycling",',
+        '  "dayStart": "HH:MM|null",',
+        '  "dayEnd": "HH:MM|null",',
+        '  "items": [',
+        "    {",
+        '      "title": "string",',
+        '      "kind": "visit|museum|activity|restaurant",',
+        '      "query": "string|null",',
+        '      "startTime": "HH:MM|null",',
+        '      "durationMinutes": 30,',
+        '      "ticketRequired": true,',
+        '      "notes": "string|null"',
+        "    }",
+        "  ]",
+        "}",
+        "",
+        "Reglas:",
+        "- `query` debe ser algo geocodable (nombre + ciudad si aplica).",
+        "- Incluye comida y/o cena como items `restaurant` cuando encaje en el horario.",
+        "- Si un sitio necesita entrada, marca `ticketRequired=true` y en `notes` indica 'Necesita entrada'.",
+        "- No inventes coordenadas ni URLs en el JSON.",
+        "- En el texto humano, explica el porqué del orden y pregunta correcciones.",
+      ].join("\n"),
   };
 
   return [

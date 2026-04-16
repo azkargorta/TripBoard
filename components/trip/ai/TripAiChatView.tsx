@@ -6,11 +6,12 @@ import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
 import Link from "next/link";
 
 type ChatMode = "general" | "planning" | "expenses" | "optimizer" | "actions";
+type ExtendedChatMode = ChatMode | "day_planner";
 
 type Conversation = {
   id: string;
   title: string;
-  mode: ChatMode;
+  mode: ExtendedChatMode;
   updated_at?: string;
 };
 
@@ -82,15 +83,16 @@ function extractDiff(answer: string): DiffPayload | null {
   }
 }
 
-const MODE_OPTIONS: { id: ChatMode; label: string; description: string }[] = [
+const MODE_OPTIONS: { id: ExtendedChatMode; label: string; description: string }[] = [
   { id: "general", label: "General", description: "Consultas generales del viaje" },
   { id: "planning", label: "Planificación", description: "Plan del viaje, días y visitas" },
   { id: "expenses", label: "Gastos", description: "Balances, pagos y ahorro" },
   { id: "optimizer", label: "Optimizador", description: "Mejoras automáticas del viaje" },
   { id: "actions", label: "Acciones", description: "Crear o modificar datos del viaje" },
+  { id: "day_planner", label: "Organizar día", description: "Itinerario completo con tiempos, comidas y desplazamientos" },
 ];
 
-const SUGGESTIONS: Record<ChatMode, string[]> = {
+const SUGGESTIONS: Record<ExtendedChatMode, string[]> = {
   general: [
     "Hazme un resumen del viaje",
     "¿Qué reservas tengo confirmadas?",
@@ -115,6 +117,11 @@ const SUGGESTIONS: Record<ChatMode, string[]> = {
     "Añade actividad cena en Honfleur 2026-04-02",
     "Marca como pagado el siguiente balance pendiente",
     "Crea una actividad paseo por Caen 2026-04-03",
+  ],
+  day_planner: [
+    "Organízame el día 2026-04-02 en París. Vamos andando. Queremos 2 museos y un mirador.",
+    "Hazme un día completo mañana. Ritmo tranquilo, comida informal y cena reservable. En coche.",
+    "Quiero visitar lo imprescindible en un día y que me lo guardes con rutas.",
   ],
 };
 
@@ -164,7 +171,7 @@ export default function TripAiChatView({
     );
   }
 
-  const [mode, setMode] = useState<ChatMode>("general");
+  const [mode, setMode] = useState<ExtendedChatMode>("general");
   const [provider, setProvider] = useState<"auto" | "gemini" | "ollama">("auto");
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -458,22 +465,33 @@ export default function TripAiChatView({
     setInfo(null);
 
     try {
-      const res = await fetch("/api/trip-ai/chat", {
+      const endpoint = mode === "day_planner" ? "/api/trip-ai/organize-day" : "/api/trip-ai/chat";
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tripId,
-          question: clean,
-          mode,
-          conversationId,
-          provider: provider === "auto" ? null : provider,
-        }),
+        body: JSON.stringify(
+          mode === "day_planner"
+            ? {
+                tripId,
+                question: clean,
+                provider: provider === "auto" ? null : provider,
+              }
+            : {
+                tripId,
+                question: clean,
+                mode,
+                conversationId,
+                provider: provider === "auto" ? null : provider,
+              }
+        ),
       });
 
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || "No se pudo obtener respuesta.");
 
-      setConversationId(data?.conversationId || conversationId);
+      if (mode !== "day_planner") {
+        setConversationId(data?.conversationId || conversationId);
+      }
       setMessages((current) => [
         ...current,
         {
@@ -489,6 +507,11 @@ export default function TripAiChatView({
 
       const maybeDiff = typeof data?.answer === "string" ? extractDiff(data.answer) : null;
       if (maybeDiff) setDiffDraft(maybeDiff);
+
+      // Day planner: el endpoint devuelve diff directamente (y puede no venir en el texto).
+      if (mode === "day_planner" && data?.diff && data.diff.version === 1 && Array.isArray(data.diff.operations)) {
+        setDiffDraft(data.diff as any);
+      }
 
       if (data?.actionExecuted && data?.actionResult) {
         setInfo(String(data.actionResult));
