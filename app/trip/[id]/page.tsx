@@ -6,6 +6,7 @@ import { requireTripAccess } from "@/lib/trip-access";
 import TripHomeActions from "@/components/trip/home/TripHomeActions";
 import TripWeatherCard from "@/components/trip/home/TripWeatherCard";
 import TripTripBasicsEditor from "@/components/trip/home/TripTripBasicsEditor";
+import TripHomeBasicsCollapse from "@/components/trip/home/TripHomeBasicsCollapse";
 import { computePersonalBalance } from "@/lib/personal-balance";
 import { buildSettlementSuggestions, type SettlementSuggestion } from "@/lib/expense-balance";
 import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
@@ -366,6 +367,44 @@ export default async function TripPage({ params }: TripPageProps) {
         }}
       />
 
+      <section className="md:hidden">
+        <div className="mb-3">
+          <h2 className="text-lg font-extrabold tracking-tight text-slate-950">Accesos rápidos</h2>
+          <p className="mt-0.5 text-xs text-slate-600">Plan, mapa, gastos, participantes y más.</p>
+        </div>
+        <div className="grid gap-2.5">
+          {moduleCards.map((item) => (
+            <Link
+              key={item.title}
+              href={item.href}
+              className={`group rounded-2xl border bg-gradient-to-br p-3.5 transition active:scale-[0.99] ${item.accent}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-start gap-3">
+                  {"iconSrc" in item && item.iconSrc ? (
+                    <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white/70 ring-1 ring-slate-200">
+                      <Image
+                        src={item.iconSrc}
+                        alt={item.iconAlt || item.title}
+                        width={36}
+                        height={36}
+                        className="h-full w-full object-contain object-center scale-[1.15]"
+                      />
+                    </span>
+                  ) : null}
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-slate-950">{item.title}</p>
+                    <p className="mt-0.5 line-clamp-2 text-xs text-slate-600">{item.subtitle}</p>
+                    <p className="mt-1.5 text-[11px] font-semibold text-slate-700">{item.metric}</p>
+                  </div>
+                </div>
+                <span className="shrink-0 text-sm font-semibold text-slate-500">→</span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </section>
+
       {nextCheckIn || Math.abs(ownBalance.net) >= 0.01 || pendingSettlements.length ? (
         <section className="card-soft p-6 md:p-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -474,125 +513,79 @@ export default async function TripPage({ params }: TripPageProps) {
         </section>
       ) : null}
 
-      <section className="card-soft p-6 md:p-8">
-        <div className="grid gap-6 md:grid-cols-[1.8fr_1fr]">
-          <div className="space-y-5">
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Datos principales
-              </div>
-              <TripTripBasicsEditor
-                tripId={tripId}
-                destination={currentTrip.destination}
-                startDate={currentTrip.start_date}
-                endDate={currentTrip.end_date}
-                baseCurrency={currentTrip.base_currency}
-                canEdit={canEditTrip}
-              />
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Fechas</p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">
-                  {formatDateRange(currentTrip.start_date, currentTrip.end_date)}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Lugar</p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">
-                  {currentTrip.destination || "Sin destino"}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Participantes</p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">{participants.length} viajeros</p>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Moneda</p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">{currentTrip.base_currency || "EUR"}</p>
-              </div>
-            </div>
-
-            <TripHomeActions trip={currentTrip} />
-          </div>
-
-          <div className="rounded-3xl border border-violet-200 bg-gradient-to-br from-violet-50 to-indigo-50 p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-600">Próxima actividad</p>
-            {nextActivity ? (
-              <div className="mt-4 space-y-3">
-                <div className="inline-flex items-center rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-800">
-                  {nextActivity.activity_date ? formatDate(nextActivity.activity_date) : "Sin fecha"}
-                  {nextActivity.activity_time ? ` · ${nextActivity.activity_time.slice(0, 5)}` : ""}
-                </div>
-                <h2 className="text-2xl font-bold text-slate-950">{nextActivity.title}</h2>
-                <p className="text-sm text-slate-600">
-                  {nextActivity.place_name || nextActivity.address || "Ubicación pendiente"}
-                </p>
-                <p className="text-sm font-medium text-violet-700">
-                  {nextActivity.activity_kind || nextActivity.activity_type || "Actividad del plan"}
-                </p>
-              </div>
-            ) : (
-              <div className="mt-4 rounded-2xl border border-dashed border-violet-300 bg-white/70 p-4 text-sm text-slate-600">
-                No hay una próxima actividad programada. Añade algo al plan para verla aquí.
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* Accesos rápidos: plegable en móvil, siempre visible en desktop */}
-      <section className="md:hidden">
-        <details className="card-soft overflow-hidden" open>
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-5">
-            <div>
-              <h2 className="text-lg font-extrabold tracking-tight text-slate-950">Accesos rápidos</h2>
-              <p className="mt-1 text-sm text-slate-600">Plan, gastos, mapa, participantes y más.</p>
-            </div>
-            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
-              Abrir
+      <TripHomeBasicsCollapse
+        canEditTrip={canEditTrip}
+        compactSummary={
+          <>
+            <span className="block truncate font-semibold text-slate-900">{currentTrip.name}</span>
+            <span className="mt-0.5 block text-slate-600">
+              {(currentTrip.destination || "Destino pendiente").trim()}
+              <span className="text-slate-400"> · </span>
+              {formatDateRange(currentTrip.start_date, currentTrip.end_date)}
             </span>
-          </summary>
-          <div className="px-5 pb-5">
-            <div className="grid gap-3">
-              {moduleCards.map((item) => (
-                <Link
-                  key={item.title}
-                  href={item.href}
-                  className={`group rounded-2xl border bg-gradient-to-br p-4 transition active:scale-[0.99] ${item.accent}`}
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-start gap-3">
-                      {"iconSrc" in item && item.iconSrc ? (
-                        <span className="mt-0.5 inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl bg-white/70 ring-1 ring-slate-200">
-                          <Image
-                            src={item.iconSrc}
-                            alt={item.iconAlt || item.title}
-                            width={40}
-                            height={40}
-                            className="h-full w-full object-contain object-center scale-[1.18]"
-                          />
-                        </span>
-                      ) : (
-                        <span className="text-2xl" aria-hidden>
-                          {(item as any).emoji}
-                        </span>
-                      )}
-                      <div>
-                        <p className="text-sm font-bold text-slate-950">{item.title}</p>
-                        <p className="mt-0.5 text-sm text-slate-600">{item.subtitle}</p>
-                        <p className="mt-2 text-xs font-semibold text-slate-700">{item.metric}</p>
-                      </div>
-                    </div>
-                    <span className="text-sm font-semibold text-slate-500">→</span>
-                  </div>
-                </Link>
-              ))}
+          </>
+        }
+        editor={
+          <TripTripBasicsEditor
+            tripId={tripId}
+            destination={currentTrip.destination}
+            startDate={currentTrip.start_date}
+            endDate={currentTrip.end_date}
+            baseCurrency={currentTrip.base_currency}
+            canEdit={canEditTrip}
+          />
+        }
+      >
+        <div className="space-y-5">
+          <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Fechas</p>
+              <p className="mt-2 text-sm font-semibold text-slate-900">
+                {formatDateRange(currentTrip.start_date, currentTrip.end_date)}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Lugar</p>
+              <p className="mt-2 text-sm font-semibold text-slate-900">
+                {currentTrip.destination || "Sin destino"}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Participantes</p>
+              <p className="mt-2 text-sm font-semibold text-slate-900">{participants.length} viajeros</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Moneda</p>
+              <p className="mt-2 text-sm font-semibold text-slate-900">{currentTrip.base_currency || "EUR"}</p>
             </div>
           </div>
-        </details>
-      </section>
+
+          <TripHomeActions trip={currentTrip} />
+        </div>
+
+        <div className="rounded-3xl border border-violet-200 bg-gradient-to-br from-violet-50 to-indigo-50 p-4 md:p-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-600">Próxima actividad</p>
+          {nextActivity ? (
+            <div className="mt-3 space-y-2 md:mt-4 md:space-y-3">
+              <div className="inline-flex items-center rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-800">
+                {nextActivity.activity_date ? formatDate(nextActivity.activity_date) : "Sin fecha"}
+                {nextActivity.activity_time ? ` · ${nextActivity.activity_time.slice(0, 5)}` : ""}
+              </div>
+              <h2 className="text-xl font-bold text-slate-950 md:text-2xl">{nextActivity.title}</h2>
+              <p className="text-sm text-slate-600">
+                {nextActivity.place_name || nextActivity.address || "Ubicación pendiente"}
+              </p>
+              <p className="text-sm font-medium text-violet-700">
+                {nextActivity.activity_kind || nextActivity.activity_type || "Actividad del plan"}
+              </p>
+            </div>
+          ) : (
+            <div className="mt-3 rounded-2xl border border-dashed border-violet-300 bg-white/70 p-4 text-sm text-slate-600 md:mt-4">
+              No hay una próxima actividad programada. Añade algo al plan para verla aquí.
+            </div>
+          )}
+        </div>
+      </TripHomeBasicsCollapse>
 
       <section className="hidden gap-4 md:grid md:grid-cols-2 xl:grid-cols-3">
         {moduleCards.map((item) => (
