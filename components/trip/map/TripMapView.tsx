@@ -416,6 +416,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   const [history, setHistory] = useState<any[]>([]);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [duplicateRoute, setDuplicateRoute] = useState<TripMapRoute | null>(null);
+  const [isRouteFormOpen, setIsRouteFormOpen] = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -638,6 +639,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
 
   function beginEditRoute(route: TripMapRoute) {
     if (!route) return;
+    setIsRouteFormOpen(true);
     setFocusedRouteKey(`${route.source || "trip_routes"}:${route.id}`);
     const notes = parseRouteNotes(route.notes);
     const restStops = notes?.restStops;
@@ -752,6 +754,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
       await saveRoute(input, form.editingRouteId || undefined);
       setInfo(form.editingRouteId ? "Ruta actualizada." : "Ruta guardada.");
       setForm(defaultRouteForm(form.routeDate));
+      setIsRouteFormOpen(false);
       setOrigin({ address: "", latitude: null, longitude: null });
       setStop({ address: "", latitude: null, longitude: null });
       setDestination({ address: "", latitude: null, longitude: null });
@@ -1003,12 +1006,41 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
               <div className="flex items-center justify-between gap-2">
                 <div className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-600">Nueva ruta</div>
-                <div className="inline-flex items-center gap-2 rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-slate-700">
-                  <Plus className="h-3.5 w-3.5" aria-hidden />
-                  Gratis
+                <div className="flex items-center gap-2">
+                  {isRouteFormOpen ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsRouteFormOpen(false);
+                        setForm(defaultRouteForm(form.routeDate || todayISO()));
+                        setOrigin({ address: "", latitude: null, longitude: null });
+                        setStop({ address: "", latitude: null, longitude: null });
+                        setDestination({ address: "", latitude: null, longitude: null });
+                        setOriginPlanId("");
+                        setStopPlanId("");
+                        setDestinationPlanId("");
+                      }}
+                      className="inline-flex min-h-[34px] items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      Cerrar
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsRouteFormOpen(true);
+                        setForm(defaultRouteForm(selectedDate !== "all" ? selectedDate : todayISO()));
+                      }}
+                      className="inline-flex min-h-[34px] items-center justify-center gap-2 rounded-xl bg-slate-950 px-3 text-xs font-semibold text-white hover:bg-slate-800"
+                    >
+                      <Plus className="h-3.5 w-3.5" aria-hidden />
+                      Nueva ruta
+                    </button>
+                  )}
                 </div>
               </div>
 
+              {isRouteFormOpen ? (
               <div className="mt-3 grid gap-3">
                 <label className="text-xs font-semibold text-slate-700">
                   Nombre
@@ -1228,6 +1260,11 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                   {saving || savingRoute ? "Guardando…" : form.editingRouteId ? "Guardar cambios" : "Guardar ruta"}
                 </button>
               </div>
+              ) : (
+                <div className="mt-3 text-sm text-slate-600">
+                  Pulsa <span className="font-semibold text-slate-900">Nueva ruta</span> para crear una, o usa <span className="font-semibold text-slate-900">Editar</span> en una ruta existente.
+                </div>
+              )}
             </div>
           </div>
         </section>
