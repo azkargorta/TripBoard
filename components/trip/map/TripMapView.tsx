@@ -523,6 +523,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   const [routePreview, setRoutePreview] = useState<RoutePreview | null>(null);
   const [calculatingRoute, setCalculatingRoute] = useState(false);
   const [isMapVisible, setIsMapVisible] = useState(true);
+  const [showRoutesList, setShowRoutesList] = useState(true);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -1110,48 +1111,31 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
 
   return (
     <div className="space-y-4">
-      <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-gradient-to-br from-slate-950 via-slate-900 to-violet-950 text-white shadow-sm">
-        <div className="flex flex-col gap-5 px-5 py-5 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl">
-            <div className="text-xs font-extrabold uppercase tracking-[0.16em] text-violet-200">Centro de rutas</div>
-            <h2 className="mt-2 text-2xl font-black tracking-tight">Visualiza, organiza y edita los trayectos del viaje desde un solo sitio.</h2>
-            <p className="mt-2 text-sm text-slate-200">
-              Filtra por día, centra una ruta concreta, calcula recorridos antes de guardarlos y mantén el mapa siempre visible mientras trabajas.
-            </p>
+      <div className="card-soft p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+              <MapPin className="h-4 w-4 text-violet-700" aria-hidden />
+              Mapa y rutas
+            </div>
+            <div className="mt-1 text-xs text-slate-600">
+              Filtra por día, calcula recorridos, enfoca una ruta concreta y organiza todo desde la misma pantalla.
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
             <StatusChip active={!!focusedRouteKey}>{focusedRouteKey ? "Ruta enfocada" : "Vista general"}</StatusChip>
-            <StatusChip active={!!routePreview}>{routePreview ? "Preview sin guardar" : "Sin preview"}</StatusChip>
-            <StatusChip active={showPlanMarkers}>{showPlanMarkers ? "Marcadores visibles" : "Marcadores ocultos"}</StatusChip>
-            <StatusChip active={isMapVisible}>{isMapVisible ? "Mapa visible" : "Mapa oculto"}</StatusChip>
-          </div>
-        </div>
-        <div className="border-t border-white/10 px-5 py-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap gap-2">
-              <div className="rounded-2xl bg-white/10 px-4 py-3">
-                <div className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-violet-100">Día</div>
-                <div className="mt-1 text-sm font-semibold">{selectedDate === "all" ? "Todos los días" : selectedDate}</div>
-              </div>
-              <div className="rounded-2xl bg-white/10 px-4 py-3">
-                <div className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-violet-100">Rutas visibles</div>
-                <div className="mt-1 text-sm font-semibold">{visibleRoutes.length}</div>
-              </div>
-              <div className="rounded-2xl bg-white/10 px-4 py-3">
-                <div className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-violet-100">Tipos activos</div>
-                <div className="mt-1 text-sm font-semibold">{planKindFilter.size || availablePlanKinds.length || 0}</div>
-              </div>
-            </div>
+            <StatusChip active={!!routePreview}>{routePreview ? "Preview" : "Sin preview"}</StatusChip>
+            <StatusChip active={showPlanMarkers}>{showPlanMarkers ? "Marcadores on" : "Marcadores off"}</StatusChip>
             <button
               type="button"
               onClick={() => setIsMapVisible((v) => !v)}
-              className="inline-flex min-h-[38px] items-center justify-center rounded-xl border border-white/15 bg-white px-4 text-sm font-semibold text-slate-900 hover:bg-slate-100"
+              className="inline-flex min-h-[34px] items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
             >
               {isMapVisible ? "Ocultar mapa" : "Mostrar mapa"}
             </button>
           </div>
         </div>
-      </section>
+      </div>
 
       <div className={`grid gap-6 ${isMapVisible ? "xl:grid-cols-[420px_minmax(0,1fr)]" : "grid-cols-1"}`}>
         <aside className="space-y-4">
@@ -1245,7 +1229,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
               </div>
             </div>
 
-            <div className="rounded-2xl border border-violet-200/70 bg-gradient-to-br from-violet-50 via-white to-slate-50 p-3">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
               <div className="flex items-center justify-between gap-2">
                 <div className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-600">{form.editingRouteId ? "Editor de ruta" : "Nueva ruta"}</div>
                 <div className="flex items-center gap-2">
@@ -1603,16 +1587,29 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
 
         <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
           <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-4">
-            <div className="text-sm font-extrabold text-slate-950">Rutas guardadas</div>
-            <button
-              type="button"
-              onClick={() => setFocusedRouteKey(null)}
-              className="inline-flex min-h-[34px] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-              title="Mostrar todas"
-            >
-              <RefreshCw className="h-4 w-4" aria-hidden />
-              Todas
-            </button>
+            <div>
+              <div className="text-sm font-extrabold text-slate-950">Rutas guardadas</div>
+              <div className="mt-1 text-xs text-slate-600">Consulta, filtra y ordena tus recorridos del viaje.</div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowRoutesList((v) => !v)}
+                className="inline-flex min-h-[34px] items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                title={showRoutesList ? "Ocultar rutas" : "Mostrar rutas"}
+              >
+                {showRoutesList ? "Ocultar rutas" : "Mostrar rutas"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setFocusedRouteKey(null)}
+                className="inline-flex min-h-[34px] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                title="Mostrar todas"
+              >
+                <RefreshCw className="h-4 w-4" aria-hidden />
+                Todas
+              </button>
+            </div>
           </div>
 
           <div className="grid gap-2 px-4 py-4">
@@ -1628,6 +1625,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
             {selectedDate !== "all" ? <div className="text-[11px] text-slate-500">Puedes reordenar rutas de este día arrastrando.</div> : null}
           </div>
 
+          {showRoutesList ? (
           <div className="space-y-3 px-4 pb-4">
             {selectedDate !== "all" ? (
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -1706,6 +1704,9 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
               </div>
             )}
           </div>
+          ) : (
+            <div className="px-4 py-4 text-sm text-slate-500">La lista de rutas está oculta.</div>
+          )}
         </section>
         </aside>
 
