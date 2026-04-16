@@ -23,9 +23,14 @@
    - `STRIPE_WEBHOOK_SECRET`
    - `STRIPE_PRICE_ID_MONTHLY`
    - `STRIPE_PRICE_ID_YEARLY`
-   - `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`
    - `OCR_SPACE_API_KEY`
-   - `OPENAI_API_KEY`
+   - `AI_PROVIDER` (opcional; por defecto `gemini`)
+   - `GEMINI_API_KEY` (si usas IA con Gemini)
+   - `GEMINI_MODEL` (opcional)
+   - `AI_USER_MONTHLY_BUDGET_EUR` (opcional)
+   - `AI_ENHANCE_ANALYSIS` (opcional)
+   - `NEXT_PUBLIC_APP_URL` (recomendado)
+   - `TRIPBOARD_ADMIN_EMAILS` (opcional)
 6. En Supabase > Authentication > URL Configuration:
    - Site URL: `https://TU-DOMINIO.vercel.app`
    - Redirect URLs:
