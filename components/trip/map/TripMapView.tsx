@@ -383,7 +383,6 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
       routeSources && (routeSources.tripRoutes || routeSources.legacyRoutes)
         ? [
             ...normalizeRoutes(routeSources.tripRoutes, "trip_routes"),
-            ...normalizeRoutes(routeSources.legacyRoutes, "legacy_routes"),
           ]
         : normalizeRoutes(routes as any[], "trip_routes");
 
@@ -454,13 +453,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
       const payload = await resp.json().catch(() => null);
       if (resp.ok && Array.isArray(payload?.routes)) {
         const nextTripRoutes = normalizeRoutes(payload.routes as any[], "trip_routes");
-        setRoutesState((prev) => {
-          const legacy = prev.filter((r) => r.source === "legacy_routes");
-          const byKey = new Map<string, TripMapRoute>();
-          legacy.forEach((r) => byKey.set(`legacy_routes:${r.id}`, r));
-          nextTripRoutes.forEach((r) => byKey.set(`trip_routes:${r.id}`, r));
-          return Array.from(byKey.values());
-        });
+        setRoutesState(nextTripRoutes);
       }
     } catch {
       // noop
