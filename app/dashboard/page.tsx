@@ -7,6 +7,7 @@ import TripBoardLogo from "@/components/brand/TripBoardLogo";
 import { isPlatformAdmin } from "@/lib/platform-admin";
 import TripCardItem from "@/components/dashboard/TripCardItem";
 import OnboardingNudge from "@/components/dashboard/OnboardingNudge";
+import DashboardQuickActions from "@/components/dashboard/DashboardQuickActions";
 
 type Trip = {
   id: string;
@@ -198,6 +199,7 @@ export default async function DashboardPage() {
 
   const { current, future, past, unscheduled } = categorizeTrips(trips);
   const lockedTripIds = new Set<string>();
+  const recentTripId = trips[0]?.id ?? null;
   // Nota: en plan gratuito se permite abrir/ver todos los viajes; solo se limita la creación (API/UI).
 
   return (
@@ -217,7 +219,7 @@ export default async function DashboardPage() {
               <div className="min-w-0">
                 <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl md:text-5xl">Tus viajes</h1>
                 <p className="mt-2 max-w-2xl text-sm text-white/75 sm:text-base md:text-lg">
-                  Sumérgete en tus viajes pasados, presentes y futuros,
+                  Itinerario, mapa, gastos y rutas en un solo panel. Crea un viaje o abre el chat de IA si tienes Premium.
                 </p>
               </div>
             </div>
@@ -248,24 +250,36 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-2 sm:gap-4 sm:p-6 md:grid-cols-4 md:p-8">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">En curso</p>
-            <p className="mt-2 text-3xl font-bold text-slate-950">{current.length}</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Futuros</p>
-            <p className="mt-2 text-3xl font-bold text-slate-950">{future.length}</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Pasados</p>
-            <p className="mt-2 text-3xl font-bold text-slate-950">{past.length}</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Sin fecha cerrada</p>
-            <p className="mt-2 text-3xl font-bold text-slate-950">{unscheduled.length}</p>
-          </div>
+        <div className="border-t border-slate-100 bg-slate-50/40 p-4 sm:p-6 md:p-8">
+          <DashboardQuickActions isPremium={isPremium} recentTripId={recentTripId} />
         </div>
+
+        <details className="group border-t border-slate-200 bg-white">
+          <summary className="cursor-pointer list-none px-4 py-4 text-sm font-semibold text-slate-800 marker:content-none sm:px-6 md:px-8 [&::-webkit-details-marker]:hidden">
+            <span className="flex items-center justify-between gap-2">
+              Ver conteo por estado
+              <span className="text-xs font-normal text-slate-500 group-open:hidden">(en curso, futuros…)</span>
+            </span>
+          </summary>
+          <div className="grid grid-cols-2 gap-3 px-4 pb-6 sm:grid-cols-2 sm:gap-4 sm:px-6 md:grid-cols-4 md:px-8">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">En curso</p>
+              <p className="mt-2 text-3xl font-bold text-slate-950">{current.length}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Futuros</p>
+              <p className="mt-2 text-3xl font-bold text-slate-950">{future.length}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Pasados</p>
+              <p className="mt-2 text-3xl font-bold text-slate-950">{past.length}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Sin fecha cerrada</p>
+              <p className="mt-2 text-3xl font-bold text-slate-950">{unscheduled.length}</p>
+            </div>
+          </div>
+        </details>
       </section>
 
       {!isPremium ? (

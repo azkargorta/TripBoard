@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect } from "react";
 import TripBoardLogo from "@/components/brand/TripBoardLogo";
+import TripHeroMock from "@/components/landing/TripHeroMock";
 import { ArrowRight, Check, Sparkles } from "lucide-react";
 
 function Feature({ children }: { children: string }) {
@@ -69,108 +70,78 @@ export default function PublicLanding() {
         </div>
       </header>
 
-      <section className="page-shell py-10 md:py-14">
-        <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
+      <section className="page-shell space-y-10 py-10 md:space-y-14 md:py-14">
+        <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
           <div className="space-y-6">
             <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
               <Sparkles className="h-3.5 w-3.5 text-cyan-700" aria-hidden />
-              Organiza viajes en grupo sin líos
+              Menos caos, más viaje
             </div>
 
             <h1 className="text-4xl font-extrabold tracking-tight text-slate-950 md:text-5xl">
-              Plan, mapa, rutas y gastos en un solo lugar
+              Organiza todo tu viaje en un solo lugar
             </h1>
             <p className="max-w-2xl text-base leading-relaxed text-slate-600 md:text-lg">
-              Kaviro te ayuda a coordinar el itinerario, dibujar rutas, guardar lugares con coordenadas y repartir gastos.
-              El plan gratuito incluye mapa, rutas y autocompletar.
+              Itinerario, gastos, rutas y planes sin caos. Gratis: mapa, plan por días y reparto de gastos. Premium: IA,
+              documentos y automatización.
             </p>
 
             <div className="flex flex-wrap gap-3">
               <Link
                 href="/auth/register"
-                className="inline-flex min-h-[44px] items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                className="inline-flex min-h-[48px] items-center justify-center rounded-2xl bg-slate-950 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
               >
-                Empezar gratis
+                Crear viaje
                 <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
               </Link>
               <Link
                 href="/pricing"
-                className="inline-flex min-h-[44px] items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
+                className="inline-flex min-h-[48px] items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
               >
                 Ver precios
               </Link>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-3xl border border-slate-200 bg-white p-5">
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Gratis</div>
-                <div className="mt-2 text-sm font-bold text-slate-950">Mapa, rutas y autocompletar incluidos</div>
-                <ul className="mt-3 space-y-2">
-                  <Feature>Crear plan por días con horas</Feature>
-                  <Feature>Guardar lugares con coordenadas</Feature>
-                  <Feature>Calcular rutas y previsualizar</Feature>
-                  <Feature>Gastos y balances del grupo</Feature>
-                </ul>
-              </div>
-
-              <div className="rounded-3xl border border-slate-200 bg-white p-5">
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Premium</div>
-                <div className="mt-2 text-sm font-bold text-slate-950">IA y análisis de documentos</div>
-                <ul className="mt-3 space-y-2">
-                  <Feature>Chat IA del viaje</Feature>
-                  <Feature>Analizar tickets (PDF/imagen)</Feature>
-                  <Feature>Automatizar tareas repetitivas</Feature>
-                  <Feature>Funciones avanzadas</Feature>
-                </ul>
-                <div className="mt-4 rounded-2xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white">
-                  3,99€ / mes · 39,99€ / año
-                </div>
-              </div>
+            <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 md:p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Qué incluye</p>
+              <ul className="mt-3 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
+                <Feature>Plan por días con horas</Feature>
+                <Feature>Mapa y rutas entre paradas</Feature>
+                <Feature>Gastos y balances del grupo</Feature>
+                <Feature>Premium: chat IA y OCR de reservas</Feature>
+              </ul>
+              <p className="mt-3 text-center text-xs text-slate-500">
+                <Link href="/pricing" className="font-semibold text-cyan-800 hover:underline">
+                  Comparar planes
+                </Link>
+              </p>
             </div>
           </div>
 
-          <aside className="card-soft p-6 md:p-8">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">En 2 minutos</p>
-                <p className="mt-2 text-xl font-extrabold tracking-tight text-slate-950">
-                  Tu viaje listo para colaborar
-                </p>
-                <p className="mt-2 text-sm text-slate-600">
-                  Crea un viaje, invita a tu grupo y empieza a rellenar plan, mapa y gastos. Todo queda centralizado.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-6 space-y-3">
-              {[
-                ["1) Crea el viaje", "Nombre y destino (opcional)."],
-                ["2) Invita a tu grupo", "Link por WhatsApp o email."],
-                ["3) Añade plan y rutas", "Autocompletar + coordenadas + mapa."],
-                ["4) Reparte gastos", "Balances y exportación."],
-              ].map(([t, d]) => (
-                <div key={t} className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <p className="text-sm font-semibold text-slate-950">{t}</p>
-                  <p className="mt-1 text-sm text-slate-600">{d}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-6">
+          <div className="space-y-4">
+            <TripHeroMock />
+            <aside className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">En 2 minutos</p>
+              <p className="mt-2 text-lg font-extrabold tracking-tight text-slate-950">Crea, invita, rellena</p>
+              <ol className="mt-4 list-decimal space-y-2 pl-4 text-sm text-slate-600">
+                <li>Crea el viaje (nombre obligatorio).</li>
+                <li>Invita por enlace.</li>
+                <li>Plan, mapa y gastos en el mismo sitio.</li>
+              </ol>
               <Link
                 href="/auth/register"
-                className="inline-flex w-full min-h-[46px] items-center justify-center rounded-2xl bg-cyan-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-cyan-800"
+                className="mt-5 inline-flex w-full min-h-[48px] items-center justify-center rounded-2xl bg-cyan-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-cyan-800"
               >
-                Crear cuenta y empezar
+                Crear cuenta
               </Link>
               <p className="mt-2 text-center text-xs text-slate-500">
                 ¿Ya tienes cuenta?{" "}
                 <Link href="/auth/login" className="font-semibold text-slate-700 hover:underline">
-                  Inicia sesión
+                  Entrar
                 </Link>
               </p>
-            </div>
-          </aside>
+            </aside>
+          </div>
         </div>
       </section>
 
