@@ -88,7 +88,7 @@ function normalizeKind(kind: unknown) {
   return typeof kind === "string" ? kind.trim().toLowerCase() : "";
 }
 
-function toLabel(kindRaw: string) {
+function toSpanishLabel(kindRaw: string) {
   const k = normalizeKind(kindRaw);
   if (k === "visit") return "Visita";
   if (k === "museum") return "Museo";
@@ -96,8 +96,19 @@ function toLabel(kindRaw: string) {
   if (k === "transport") return "Transporte";
   if (k === "activity") return "Actividad";
   if (k === "lodging") return "Alojamiento";
-  // Custom: capitaliza primera letra
-  return kindRaw.trim().slice(0, 1).toUpperCase() + kindRaw.trim().slice(1);
+  return "";
+}
+
+function toSentenceCase(label: string) {
+  const cleaned = String(label || "").trim().replace(/_/g, " ");
+  if (!cleaned) return cleaned;
+  return cleaned.slice(0, 1).toUpperCase() + cleaned.slice(1).toLowerCase();
+}
+
+function toLabel(kindRaw: string) {
+  const spanish = toSpanishLabel(kindRaw);
+  if (spanish) return spanish;
+  return toSentenceCase(kindRaw);
 }
 
 export default function PlanForm({
@@ -256,9 +267,10 @@ export default function PlanForm({
                     .filter(Boolean)
                     .map((k) => {
                       const custom = availableKinds.find((x) => normalizeKind(x.key) === normalizeKind(k));
+                      const baseLabel = custom?.label || toLabel(k);
                       return (
                         <option key={k} value={k}>
-                          {custom?.label || toLabel(k)}
+                          {toSentenceCase(baseLabel)}
                         </option>
                       );
                     })}

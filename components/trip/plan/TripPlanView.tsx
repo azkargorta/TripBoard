@@ -277,7 +277,7 @@ export default function TripPlanView({
   }, [showForm]);
 
   async function handleSubmit(values: PlanFormValues) {
-    if (editingActivity) {
+    if (editingActivity?.id) {
       await updateActivity(editingActivity.id, values);
       setEditingActivity(null);
       setIsFormOpen(false);
