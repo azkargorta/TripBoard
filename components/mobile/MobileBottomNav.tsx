@@ -25,7 +25,7 @@ const items: Array<{ key: string; label: string; icon: React.ReactNode; href: (i
   },
   {
     key: "map",
-    label: "Mapa",
+    label: "Rutas",
     icon: <Image src="/brand/tabs/map.png" alt="" width={22} height={22} className="h-[22px] w-[22px] object-contain" />,
     href: (id: string) => `/trip/${id}/map`,
   },
@@ -61,7 +61,7 @@ export default function MobileBottomNav({ tripId, isPremium }: Props) {
 
   function isActivePath(href: string, key: string) {
     if (pathname === href) return true;
-    // En rutas internas del mapa, mantenemos “Mapa” activo.
+    // En rutas internas bajo /map, mantenemos «Rutas» activo.
     if (key === "map" && pathname.startsWith(`${href}/`)) return true;
     return false;
   }

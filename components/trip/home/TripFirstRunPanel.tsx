@@ -80,8 +80,8 @@ export default function TripFirstRunPanel({
   };
 
   const stepMap: Item = {
-    title: "Explora el mapa",
-    description: "Rutas, trayectos y paradas.",
+    title: "Abre Rutas",
+    description: "Trayectos y paradas sobre el mapa.",
     href: `/trip/${id}/map`,
     pill: counts.routes > 0 ? "Listo" : "Siguiente",
   };

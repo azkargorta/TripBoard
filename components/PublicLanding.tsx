@@ -117,7 +117,7 @@ export default function PublicLanding() {
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-800/90">Qué incluye</p>
                 <ul className="mt-3 grid gap-2 text-sm text-slate-800 sm:grid-cols-2">
                   <Feature>Plan por días con horas</Feature>
-                  <Feature>Mapa y rutas entre paradas</Feature>
+                  <Feature>Rutas entre paradas sobre el mapa</Feature>
                   <Feature>Gastos y balances del grupo</Feature>
                   <Feature>Premium: asistente personal y OCR de reservas</Feature>
                 </ul>
@@ -137,12 +137,12 @@ export default function PublicLanding() {
                     <TripBoardLogo href="/" variant="light" size="md" withWordmark />
                   </div>
                   <p className="text-sm font-medium leading-relaxed text-cyan-50/95">
-                    Todo lo esencial del viaje en un panel: agenda, mapa, gastos y asistente cuando tengas Premium.
+                    Todo lo esencial del viaje en un panel: agenda, rutas, gastos y asistente cuando tengas Premium.
                   </p>
                   <ul className="space-y-3">
                     {[
                       { label: "Plan e itinerario", sub: "Por días y horas", icon: CalendarDays, tone: "from-sky-400 to-cyan-300" },
-                      { label: "Mapa y rutas", sub: "Paradas enlazadas", icon: MapPinned, tone: "from-emerald-400 to-teal-300" },
+                      { label: "Rutas", sub: "Paradas enlazadas", icon: MapPinned, tone: "from-emerald-400 to-teal-300" },
                       { label: "Gastos del grupo", sub: "Balances claros", icon: Wallet, tone: "from-amber-400 to-orange-300" },
                       { label: "Asistente personal", sub: "Premium", icon: Sparkles, tone: "from-violet-400 to-fuchsia-300" },
                     ].map((row) => {
@@ -174,7 +174,7 @@ export default function PublicLanding() {
                 <ol className="mt-4 list-decimal space-y-2 pl-4 text-sm text-slate-700">
                   <li>Crea el viaje (nombre obligatorio).</li>
                   <li>Invita por enlace.</li>
-                  <li>Plan, mapa y gastos en el mismo sitio.</li>
+                  <li>Plan, rutas y gastos en el mismo sitio.</li>
                 </ol>
                 <Link
                   href="/auth/register"

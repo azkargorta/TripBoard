@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { TripBoardHeaderProvider } from "@/components/layout/TripBoardHeaderContext";
 import { isPremiumEnabledForTrip } from "@/lib/entitlements";
 import DesktopTripSidebar from "@/components/layout/DesktopTripSidebar";
+import TripPageAssistantDock from "@/components/trip/ai/TripPageAssistantDock";
 
 type TripLayoutProps = {
   children: ReactNode;
@@ -38,6 +39,7 @@ export default async function TripLayout({
           </div>
         </div>
         <MobileBottomNav tripId={params.id} isPremium={isPremium} />
+        <TripPageAssistantDock tripId={params.id} isPremium={isPremium} />
       </TripBoardHeaderProvider>
     </>
   );

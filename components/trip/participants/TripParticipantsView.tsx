@@ -30,7 +30,7 @@ import {
 
 type TripParticipantsViewProps = {
   tripId: string;
-  /** Rutas bajo `/trip/[id]/map/*`: pestañas del flujo mapa en lugar de acciones de pantalla completa */
+  /** Rutas bajo `/trip/[id]/map/*`: pestañas del flujo «Rutas» en lugar de acciones de pantalla completa */
   mapFlow?: boolean;
 };
 

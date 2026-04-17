@@ -25,7 +25,7 @@ const NAV_ITEMS: Array<{
     href: (id) => `/trip/${id}/summary`,
   },
   { key: "plan", label: "Plan", icon: { type: "image", src: "/brand/tabs/plan.png", alt: "Plan" }, href: (id) => `/trip/${id}/plan` },
-  { key: "map", label: "Mapa", icon: { type: "image", src: "/brand/tabs/map.png", alt: "Mapa" }, href: (id) => `/trip/${id}/map` },
+  { key: "map", label: "Rutas", icon: { type: "image", src: "/brand/tabs/map.png", alt: "Rutas" }, href: (id) => `/trip/${id}/map` },
   { key: "expenses", label: "Gastos", icon: { type: "image", src: "/brand/tabs/expenses.png", alt: "Gastos" }, href: (id) => `/trip/${id}/expenses` },
   { key: "participants", label: "Gente", icon: { type: "image", src: "/brand/tabs/participants.png", alt: "Participantes" }, href: (id) => `/trip/${id}/participants` },
   { key: "resources", label: "Docs", icon: { type: "image", src: "/brand/tabs/documents.png", alt: "Docs" }, href: (id) => `/trip/${id}/resources` },

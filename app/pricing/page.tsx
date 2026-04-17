@@ -10,7 +10,7 @@ export const metadata = {
 
 const FREE_FEATURES = [
   "Plan del viaje",
-  "Mapa, rutas y previsualización",
+  "Rutas, mapa y previsualización",
   "Autocompletar de lugares y coordenadas",
   "Gastos, balances y export CSV",
   "Participantes y permisos",
@@ -125,9 +125,9 @@ export default function PricingPage() {
         <h3 className="text-lg font-bold text-slate-950">Preguntas frecuentes</h3>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <p className="text-sm font-semibold text-slate-950">¿El mapa y el autocompletar están incluidos en Gratis?</p>
+            <p className="text-sm font-semibold text-slate-950">¿Las rutas y el autocompletar están incluidos en Gratis?</p>
             <p className="mt-1 text-sm text-slate-600">
-              Sí. El plan gratuito incluye mapa, rutas y autocompletar para guardar coordenadas.
+              Sí. El plan gratuito incluye mapa con rutas, trayectos y autocompletar para guardar coordenadas.
             </p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-4">

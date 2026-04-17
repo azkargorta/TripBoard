@@ -219,7 +219,7 @@ export default async function DashboardPage() {
               <div className="min-w-0">
                 <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl md:text-5xl">Tus viajes</h1>
                 <p className="mt-2 max-w-2xl text-sm text-white/75 sm:text-base md:text-lg">
-                  Itinerario, mapa, gastos y rutas en un solo panel. Crea un viaje o abre el asistente personal si tienes Premium.
+                  Itinerario, rutas y gastos en un solo panel. Crea un viaje o abre el asistente personal si tienes Premium.
                 </p>
               </div>
             </div>

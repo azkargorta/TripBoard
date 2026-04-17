@@ -94,7 +94,7 @@ export default function OnboardingNudge({
             <div>
               <p className="font-semibold text-slate-950">Organiza sobre la marcha</p>
               <p className="mt-1 text-sm text-slate-600">
-                Itinerario, gastos, mapa y recursos desde el mismo panel.
+                Itinerario, gastos, rutas y recursos desde el mismo panel.
               </p>
             </div>
           </div>

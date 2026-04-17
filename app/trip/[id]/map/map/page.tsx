@@ -79,11 +79,11 @@ export default async function TripMapPage({ params }: Props) {
   return (
     <main className="space-y-6">
       <TripBoardPageHeader
-        section="Mapa del viaje"
+        section="Rutas del viaje"
         title={trip.name || "Viaje"}
         description="Organiza actividades sobre el mapa, crea rutas del día y visualiza lugares guardados."
         iconSrc="/brand/tabs/map.png"
-        iconAlt="Mapa"
+        iconAlt="Rutas"
         actions={<TripTabActions tripId={tripId} />}
       />
 

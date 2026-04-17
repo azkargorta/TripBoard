@@ -7,9 +7,78 @@ import Link from "next/link";
 import { useTripData } from "@/hooks/useTripData";
 import { useTripAiOnboarding, type OnboardingDraft } from "@/components/trip/ai/useTripAiOnboarding";
 import type { AIActionId } from "@/lib/trip-ai/aiActions";
+import type { TripAssistantSurface } from "@/lib/trip-assistant-context";
+
+type TripAiChatLayout = "page" | "drawer";
 
 type ChatMode = "general" | "planning" | "expenses" | "optimizer" | "actions";
 type ExtendedChatMode = ChatMode | "day_planner";
+
+type AssistantContextPreset = {
+  mode: ExtendedChatMode;
+  modeSource: "auto" | "manual";
+  welcome: string;
+};
+
+function assistantContextPreset(surface: TripAssistantSurface): AssistantContextPreset {
+  switch (surface) {
+    case "plan":
+      return {
+        mode: "planning",
+        modeSource: "manual",
+        welcome:
+          "Estás en Plan: me centraré en crear o reorganizar el itinerario por días (visitas, horarios, propuestas).\n\n" +
+          "Si ya tienes destino y fechas, pide un borrador de N días o dime qué quieres cambiar. Cuando haya un itinerario listo, podrás usar «Ejecutar plan» o «Aplicar cambios» según el formato que devuelva el asistente.",
+      };
+    case "routes":
+      return {
+        mode: "optimizer",
+        modeSource: "manual",
+        welcome:
+          "Estás en Rutas: me centro en trayectos entre paradas, orden geográfico del día y cómo conectar lo que ya hay en el plan.\n\n" +
+          "Pide crear rutas entre paradas concretas, mejorar el orden para menos desplazamiento o revisar huecos en el recorrido. Los cambios aplicables pueden salir como bloque para «Aplicar cambios».",
+      };
+    case "expenses":
+      return {
+        mode: "expenses",
+        modeSource: "manual",
+        welcome:
+          "Estás en Gastos: repasemos balances, quién debe a quién, ideas para repartir pagos y presupuesto del grupo.",
+      };
+    case "resources":
+      return {
+        mode: "general",
+        modeSource: "manual",
+        welcome:
+          "Estás en Docs: puedo orientarte sobre qué subir (PDF, capturas de vuelo u hotel), cómo organizar reservas y qué revisar antes del viaje.",
+      };
+    case "participants":
+      return {
+        mode: "general",
+        modeSource: "manual",
+        welcome:
+          "Estás en Gente: conviene aclarar invitaciones, permisos (quién edita plan, rutas o gastos) y cómo presentar el viaje al grupo.",
+      };
+    case "summary":
+      return {
+        mode: "general",
+        modeSource: "manual",
+        welcome:
+          "Estás en Resumen: puedo darte una visión general del viaje (fechas, destino, qué falta por preparar) y sugerirte los siguientes pasos.",
+      };
+    default:
+      return {
+        mode: "general",
+        modeSource: "auto",
+        welcome: "",
+      };
+  }
+}
+
+const DEFAULT_PAGE_WELCOME =
+  "Bienvenido ✈️\n\n" +
+  "Escribe con naturalidad (destino, días, ritmo, qué os apetece) o pulsa arriba «Sugerir itinerario» si el plan está vacío: te preparo un borrador de varios días y lo vas afinando en esta misma conversación.\n\n" +
+  "Cuando salga el itinerario en formato ejecutable, «Ejecutar plan» lo vuelca al mapa y al plan; los retoques puntuales van con «Aplicar cambios». Para un solo día muy detallado, usa «Modo asistente → Organizar día».";
 
 type Conversation = {
   id: string;
@@ -217,10 +286,17 @@ const SUGGESTIONS: Record<ExtendedChatMode, string[]> = {
 export default function TripAiChatView({
   tripId,
   isPremium = true,
+  layout = "page",
+  assistantContext = null,
 }: {
   tripId: string;
   isPremium?: boolean;
+  /** `drawer`: panel compacto sin cabecera de página ni columna de conversaciones. */
+  layout?: TripAiChatLayout;
+  /** Si viene del panel contextual, fija modo y mensaje inicial acorde a la pestaña. */
+  assistantContext?: TripAssistantSurface | null;
 }) {
+  const ctxPreset = assistantContext ? assistantContextPreset(assistantContext) : null;
   if (!isPremium) {
     return (
       <main className="space-y-6">
@@ -260,18 +336,15 @@ export default function TripAiChatView({
     );
   }
 
-  const [mode, setMode] = useState<ExtendedChatMode>("general");
+  const [mode, setMode] = useState<ExtendedChatMode>(() => ctxPreset?.mode ?? "general");
   const [provider, setProvider] = useState<"auto" | "gemini" | "ollama">("auto");
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([
+  const [messages, setMessages] = useState<Message[]>(() => [
     {
       id: "welcome",
       role: "assistant",
-      content:
-        "Bienvenido ✈️\n\n" +
-        "Escribe con naturalidad (destino, días, ritmo, qué os apetece) o pulsa arriba «Sugerir itinerario» si el plan está vacío: te preparo un borrador de varios días y lo vas afinando en esta misma conversación.\n\n" +
-        "Cuando salga el itinerario en formato ejecutable, «Ejecutar plan» lo vuelca al mapa y al plan; los retoques puntuales van con «Aplicar cambios». Para un solo día muy detallado, usa «Modo asistente → Organizar día».",
+      content: layout === "drawer" && ctxPreset?.welcome ? ctxPreset.welcome : DEFAULT_PAGE_WELCOME,
     },
   ]);
   const [question, setQuestion] = useState("");
@@ -290,7 +363,7 @@ export default function TripAiChatView({
   const [diffSelected, setDiffSelected] = useState<Set<string>>(new Set());
   const [executingPlan, setExecutingPlan] = useState(false);
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
-  const [modeSource, setModeSource] = useState<"auto" | "manual">("auto");
+  const [modeSource, setModeSource] = useState<"auto" | "manual">(() => ctxPreset?.modeSource ?? "auto");
   const [planActivityCount, setPlanActivityCount] = useState<number | null>(null);
   const [onboardingBusy, setOnboardingBusy] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
@@ -580,15 +653,28 @@ export default function TripAiChatView({
 
   function newConversation() {
     setConversationId(null);
-    setModeSource("auto");
-    setMessages([
-      {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content:
-          "Nueva conversación. Cuéntame destino, fechas y qué buscáis del viaje; con el modo automático iré orientando respuestas y propuestas. Cuando haya itinerario o cambios concretos, los guardas con «Ejecutar plan» o «Aplicar cambios».",
-      },
-    ]);
+    if (layout === "drawer" && ctxPreset) {
+      setModeSource(ctxPreset.modeSource);
+      setMode(ctxPreset.mode);
+      setMessages([
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: ctxPreset.welcome,
+        },
+      ]);
+    } else {
+      setModeSource("auto");
+      setMode("general");
+      setMessages([
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content:
+            "Nueva conversación. Cuéntame destino, fechas y qué buscáis del viaje; con el modo automático iré orientando respuestas y propuestas. Cuando haya itinerario o cambios concretos, los guardas con «Ejecutar plan» o «Aplicar cambios».",
+        },
+      ]);
+    }
     setQuestion("");
     setInfo(null);
     setError(null);
@@ -821,16 +907,23 @@ export default function TripAiChatView({
     void sendMessage();
   }
 
+  const showPageHeader = layout === "page";
+  const showConvSidebar = layout === "page";
+  const Root = layout === "drawer" ? "div" : "main";
+  const rootClass = layout === "drawer" ? "h-full min-h-0 space-y-3 overflow-y-auto pr-0.5" : "space-y-6";
+
   return (
-    <main className="space-y-6">
-      <TripBoardPageHeader
-        section="Asistente personal del viaje"
-        title="Asistente personal"
-        description="Conversación libre con sugerencias y guía opcional al crear el plan. El asistente personal usa un resumen del viaje y acciones concretas (no todo el historial) para ahorrar tokens."
-        iconSrc="/brand/tabs/ai.png"
-        iconAlt="Asistente personal"
-        actions={<TripScreenActions tripId={tripId} />}
-      />
+    <Root className={rootClass}>
+      {showPageHeader ? (
+        <TripBoardPageHeader
+          section="Asistente personal del viaje"
+          title="Asistente personal"
+          description="Conversación libre con sugerencias y guía opcional al crear el plan. El asistente personal usa un resumen del viaje y acciones concretas (no todo el historial) para ahorrar tokens."
+          iconSrc="/brand/tabs/ai.png"
+          iconAlt="Asistente personal"
+          actions={<TripScreenActions tripId={tripId} />}
+        />
+      ) : null}
 
       {onboardingActive ? (
         <section className="rounded-2xl border border-violet-200/70 bg-gradient-to-br from-violet-50 via-white to-sky-50 p-4 shadow-sm">
@@ -1261,7 +1354,10 @@ export default function TripAiChatView({
         </section>
       ) : null}
 
-      <section className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+      <section
+        className={showConvSidebar ? "grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]" : "grid grid-cols-1 gap-3"}
+      >
+        {showConvSidebar ? (
         <aside className="order-2 space-y-5 xl:order-1 xl:space-y-6">
           <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between gap-3">
@@ -1317,6 +1413,7 @@ export default function TripAiChatView({
             </div>
           </div>
         </aside>
+        ) : null}
 
         <section className="chat-panel order-1 min-w-0 rounded-[28px] border border-slate-200 bg-white shadow-sm xl:order-2">
           <div className="border-b border-slate-200 px-5 py-4">
@@ -1383,7 +1480,13 @@ export default function TripAiChatView({
             </div>
           ) : null}
 
-          <div className="max-h-[560px] space-y-5 overflow-y-auto px-5 py-5">
+          <div
+            className={
+              layout === "drawer"
+                ? "max-h-[min(52dvh,440px)] space-y-5 overflow-y-auto px-5 py-4"
+                : "max-h-[560px] space-y-5 overflow-y-auto px-5 py-5"
+            }
+          >
             {messages.map((message) => (
               <div
                 key={message.id}
@@ -1471,6 +1574,6 @@ export default function TripAiChatView({
           </form>
         </section>
       </section>
-    </main>
+    </Root>
   );
 }

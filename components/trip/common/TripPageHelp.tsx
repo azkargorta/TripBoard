@@ -89,12 +89,12 @@ const TAB_TOUR: TourStep[] = [
   },
   {
     id: "map",
-    title: "Mapa",
+    title: "Rutas",
     lead: "Paso 3 de 7",
-    body: "Geografía del viaje: rutas, paradas y vistas como explorar el entorno o ver el plan sobre el mapa.",
+    body: "Rutas y trayectos del viaje sobre el mapa: paradas, orden del día y vistas para explorar el entorno o ver el plan georreferenciado.",
     mobileTip: "Gestos de pellizco para zoom; los paneles laterales o inferiores se pueden deslizar o cerrar.",
     href: (id) => `/trip/${id}/map`,
-    visual: { type: "image", src: "/brand/tabs/map.png", alt: "Mapa" },
+    visual: { type: "image", src: "/brand/tabs/map.png", alt: "Rutas" },
   },
   {
     id: "expenses",
@@ -146,7 +146,7 @@ const HELP: Record<string, HelpEntry> = {
         heading: "Qué puedes hacer en esta página",
         bullets: [
           "Consultar y, si tienes permiso, editar datos básicos del viaje (nombre, destino, fechas, etc.).",
-          "Ir al Plan, Mapa, Gastos, Gente, Docs o asistente personal desde las tarjetas de accesos rápidos o desde el menú inferior.",
+          "Ir al Plan, Rutas, Gastos, Gente, Docs o asistente personal desde las tarjetas de accesos rápidos o desde el menú inferior.",
           "Leer avisos y recordatorios (clima, datos pendientes, participantes) cuando el viaje aún está incompleto.",
           "Seguir el bloque «Primeros pasos» si el viaje es nuevo: enlaces directos a las tareas más habituales.",
         ],
@@ -188,7 +188,7 @@ const HELP: Record<string, HelpEntry> = {
         bullets: [
           "Un solo plan compartido: todo el mundo ve la misma versión del día.",
           "Menos improvisación last minute: el grupo llega al destino con expectativas alineadas.",
-          "Encaja con Mapa y Gastos: lo que planificas aquí da contexto al resto de herramientas.",
+          "Encaja con Rutas y Gastos: lo que planificas aquí da contexto al resto de herramientas.",
         ],
       },
       {
@@ -201,9 +201,9 @@ const HELP: Record<string, HelpEntry> = {
     ],
   },
   map: {
-    title: "Mapa",
+    title: "Rutas",
     intro:
-      "Visualiza el destino, rutas, paradas y notas en el mapa; puedes abrir vistas como Explorar o ver el plan georreferenciado.",
+      "Gestiona trayectos y paradas sobre el mapa: crea rutas del día, revisa el orden geográfico y abre vistas como Explorar o el plan georreferenciado.",
     blocks: [
       {
         heading: "Qué puedes hacer en esta página",
@@ -337,7 +337,7 @@ const HELP: Record<string, HelpEntry> = {
         bullets: [
           "Ahorra tiempo de búsqueda: resume opciones usando los datos que ya tienes en el viaje.",
           "Sirve de “segunda opinión” creativa sin sustituir tu criterio ni las reservas reales.",
-          "Encaja con Plan y Mapa: puedes pasar de la idea al calendario o al mapa con menos saltos mentales.",
+          "Encaja con Plan y Rutas: puedes pasar de la idea al calendario o al mapa con menos saltos mentales.",
         ],
       },
       {

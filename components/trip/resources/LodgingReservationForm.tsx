@@ -196,7 +196,7 @@ export default function LodgingReservationForm({
             {isEditing ? "Editar alojamiento" : "Plantilla · Alojamiento"}
           </h3>
           <p className="mt-1 text-sm text-slate-500">
-            Guarda hoteles y alojamientos. Si eliges el lugar desde el autocompletar, se guardarán también las coordenadas para Plan y Mapa.
+            Guarda hoteles y alojamientos. Si eliges el lugar desde el autocompletar, se guardarán también las coordenadas para Plan y Rutas.
           </p>
         </div>
 
@@ -209,7 +209,7 @@ export default function LodgingReservationForm({
               className="mt-1 h-4 w-4 rounded border-slate-300"
             />
             <span className="text-sm text-violet-900">
-              <span className="font-semibold">Añadir automáticamente al plan y al mapa</span>
+              <span className="font-semibold">Añadir automáticamente al plan y a Rutas</span>
               <span className="block text-violet-700">
                 Se creará o actualizará una actividad de tipo alojamiento usando la fecha de entrada y las coordenadas del hotel.
               </span>

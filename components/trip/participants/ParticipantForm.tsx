@@ -238,7 +238,7 @@ export default function ParticipantForm({
           <PermissionCheckbox label="Gestionar participantes" checked={canManageParticipants} onChange={setCanManageParticipants} />
           <PermissionCheckbox label="Gestionar gastos" checked={canManageExpenses} onChange={setCanManageExpenses} />
           <PermissionCheckbox label="Gestionar plan" checked={canManagePlan} onChange={setCanManagePlan} />
-          <PermissionCheckbox label="Gestionar mapa" checked={canManageMap} onChange={setCanManageMap} />
+          <PermissionCheckbox label="Gestionar rutas (mapa)" checked={canManageMap} onChange={setCanManageMap} />
           <PermissionCheckbox label="Gestionar recursos" checked={canManageResources} onChange={setCanManageResources} />
         </div>
       </div>

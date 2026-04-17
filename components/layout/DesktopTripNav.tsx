@@ -38,7 +38,7 @@ const items: Array<{
   },
   {
     key: "map",
-    label: "Mapa",
+    label: "Rutas",
     icon: (
       <Image
         src="/brand/tabs/map.png"
@@ -58,7 +58,7 @@ const items: Array<{
 
 function isActivePath(pathname: string, href: string, key: string) {
   if (pathname === href) return true;
-  // En rutas internas del mapa, mantenemos “Mapa” activo.
+  // En rutas internas bajo /map, mantenemos «Rutas» activo.
   if (key === "map" && pathname.startsWith(`${href}/`)) return true;
   return false;
 }

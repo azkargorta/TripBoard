@@ -25,7 +25,7 @@ const items: Array<{ key: string; label: string; icon: React.ReactNode; href: (i
   },
   {
     key: "map",
-    label: "Mapa",
+    label: "Rutas",
     icon: <Image src="/brand/tabs/map.png" alt="" width={22} height={22} className="h-[22px] w-[22px] object-contain" />,
     href: (id: string) => `/trip/${id}/map`,
   },
@@ -57,7 +57,7 @@ const items: Array<{ key: string; label: string; icon: React.ReactNode; href: (i
 
 function isActivePath(pathname: string, href: string, key: string) {
   if (pathname === href) return true;
-  if (key === "map" && pathname.startsWith(`${href}/`)) return true;
+  if (key === "map" && pathname.startsWith(`${href}/`)) return true; // URL /map; pestaña «Rutas»
   return false;
 }
 

@@ -223,7 +223,7 @@ export default async function TripSummaryPage({ params }: TripPageProps) {
     !currentTrip.destination ? "Añade el destino para activar clima y contexto." : null,
     (participantsCount ?? 0) <= 1 ? "Añade participantes si vais a viajar en grupo." : null,
     (activitiesCount ?? 0) === 0 ? "Todavía no hay planes: crea tu primer plan en la pestaña Plan." : null,
-    (routesCount ?? 0) === 0 ? "Aún no hay rutas: usa Mapa para crear trayectos." : null,
+    (routesCount ?? 0) === 0 ? "Aún no hay rutas: abre Rutas para crear trayectos." : null,
     (expensesCount ?? 0) === 0 ? "Aún no hay gastos: añade el primer gasto para ver balances." : null,
   ].filter(Boolean) as string[];
 
@@ -274,7 +274,7 @@ export default async function TripSummaryPage({ params }: TripPageProps) {
     },
     {
       href: `/trip/${tripId}/map`,
-      label: "Mapa",
+      label: "Rutas",
       subtitle: "Rutas, trayectos y paradas sobre el mapa",
       metric: `${routesCount ?? 0} rutas`,
       iconSrc: "/brand/tabs/map.png",
