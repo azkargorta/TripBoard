@@ -4,7 +4,13 @@ import { useState } from "react";
 import { Share2, Link as LinkIcon, Ban } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 
-export default function TripShareButton({ tripId }: { tripId: string }) {
+export default function TripShareButton({
+  tripId,
+  showLabels = false,
+}: {
+  tripId: string;
+  showLabels?: boolean;
+}) {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
 
@@ -61,7 +67,7 @@ export default function TripShareButton({ tripId }: { tripId: string }) {
         title="Crear enlace público (solo lectura) y copiar"
       >
         <Share2 className="h-3.5 w-3.5" aria-hidden />
-        <span className="hidden sm:inline">Compartir</span>
+        <span className={showLabels ? "inline" : "hidden sm:inline"}>Compartir</span>
       </button>
 
       <button
@@ -82,7 +88,7 @@ export default function TripShareButton({ tripId }: { tripId: string }) {
         title="Revocar enlace público"
       >
         <Ban className="h-3.5 w-3.5" aria-hidden />
-        <span className="hidden sm:inline">Revocar</span>
+        <span className={showLabels ? "inline" : "hidden sm:inline"}>Revocar</span>
       </button>
     </div>
   );

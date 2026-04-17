@@ -9,6 +9,8 @@ type Props = {
   homeLabel?: string;
   /** Botones claros para cabeceras con gradiente oscuro. */
   variant?: "default" | "inverse";
+  /** En móvil, mostrar texto junto al icono. */
+  showLabels?: boolean;
 };
 
 export default function TripScreenActions({
@@ -17,6 +19,7 @@ export default function TripScreenActions({
   summaryLabel = "Pantalla de resumen",
   homeLabel = "Pantalla de inicio",
   variant = "default",
+  showLabels = false,
 }: Props) {
   const btn =
     variant === "inverse"
@@ -25,7 +28,7 @@ export default function TripScreenActions({
 
   return (
     <div className="flex flex-wrap gap-2">
-      <TripShareButton tripId={tripId} />
+      <TripShareButton tripId={tripId} showLabels={showLabels} />
       <Link
         href={`/trip/${tripId}/map/explore`}
         className={btn}
@@ -33,18 +36,18 @@ export default function TripScreenActions({
         title="Explorar en el mapa"
       >
         <Compass className="h-3.5 w-3.5" aria-hidden />
-        <span className="hidden sm:inline">Explorar</span>
+        <span className={showLabels ? "inline" : "hidden sm:inline"}>Explorar</span>
       </Link>
       {showSummary ? (
         <Link href={`/trip/${tripId}`} className={btn} aria-label={summaryLabel} title={summaryLabel}>
           <LayoutDashboard className="h-3.5 w-3.5" aria-hidden />
-          <span className="hidden sm:inline">{summaryLabel}</span>
+          <span className={showLabels ? "inline" : "hidden sm:inline"}>{summaryLabel}</span>
         </Link>
       ) : null}
 
       <Link href="/dashboard" className={btn} aria-label={homeLabel} title={homeLabel}>
         <Home className="h-3.5 w-3.5" aria-hidden />
-        <span className="hidden sm:inline">{homeLabel}</span>
+        <span className={showLabels ? "inline" : "hidden sm:inline"}>{homeLabel}</span>
       </Link>
     </div>
   );
