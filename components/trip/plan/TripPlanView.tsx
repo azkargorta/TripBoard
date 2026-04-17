@@ -564,36 +564,46 @@ export default function TripPlanView({
         </div>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
+      <details className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+          <div className="min-w-0">
             <div className="text-sm font-extrabold text-slate-950">Tipos personalizados</div>
             <div className="mt-1 text-xs text-slate-600">
-              Crea categorías reutilizables (label/emoji/color) para Plan y Mapa.
+              Avanzado: crea categorías reutilizables (emoji/color) para Plan y Mapa.
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setKindsOpen((v) => !v)}
-            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            {kindsOpen ? "Cerrar" : "Gestionar"}
-          </button>
-        </div>
+          <span className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+            Abrir
+          </span>
+        </summary>
 
-        {customKindsWarning ? (
-          <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            {customKindsWarning}
+        <div className="mt-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="text-xs font-semibold text-slate-600">
+              Aquí puedes crear, editar o eliminar tipos. Los verás en filtros, chinchetas y formularios.
+            </div>
+            <button
+              type="button"
+              onClick={() => setKindsOpen((v) => !v)}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              {kindsOpen ? "Cerrar" : "Gestionar"}
+            </button>
           </div>
-        ) : null}
-        {customKindsError ? (
-          <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-            {customKindsError}
-          </div>
-        ) : null}
 
-        {kindsOpen ? (
-          <div className="mt-4 grid gap-4">
+          {customKindsWarning ? (
+            <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              {customKindsWarning}
+            </div>
+          ) : null}
+          {customKindsError ? (
+            <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+              {customKindsError}
+            </div>
+          ) : null}
+
+          {kindsOpen ? (
+            <div className="mt-4 grid gap-4">
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-600">Nuevo tipo</div>
               <div className="mt-3 grid gap-3 md:grid-cols-4">
@@ -764,8 +774,9 @@ export default function TripPlanView({
               )}
             </div>
           </div>
-        ) : null}
-      </div>
+          ) : null}
+        </div>
+      </details>
 
       {showForm ? (
         <div ref={formAnchorRef} className="scroll-mt-24">
