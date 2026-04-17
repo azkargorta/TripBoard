@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireTripAccess } from "@/lib/trip-access";
-import TripMapHub from "@/components/trip/map/TripMapHub";
+import TripMapView from "@/components/trip/map/TripMapView";
 import TripScreenActions from "@/components/trip/common/TripScreenActions";
 import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
 
@@ -56,7 +56,10 @@ export default async function TripMapPage({ params, searchParams }: Props) {
   const tripId = params.id;
   const rawView = searchParams?.view;
   const view = typeof rawView === "string" ? rawView.trim().toLowerCase() : Array.isArray(rawView) ? String(rawView[0] || "").trim().toLowerCase() : "";
-  const exploreMode = view === "explore";
+  if (view === "explore") {
+    // Explorar ya no vive dentro del mapa.
+    redirect(`/trip/${encodeURIComponent(tripId)}/plan?explore=1`);
+  }
 
   await requireTripAccess(tripId);
   const supabase = await createClient();
@@ -83,19 +86,15 @@ export default async function TripMapPage({ params, searchParams }: Props) {
   return (
     <main className="space-y-6">
       <TripBoardPageHeader
-        section={exploreMode ? "Mapa explorador" : "Mapa del viaje"}
-        title={exploreMode ? "Explorar y guardar" : (trip.name || "Viaje")}
-        description={
-          exploreMode
-            ? "Busca restaurantes, museos y actividades y guárdalos en carpetas dentro del viaje."
-            : "Crea rutas con los lugares del plan, edita recorridos por día, organiza varias paradas y visualízalo todo sobre el mapa."
-        }
+        section="Mapa del viaje"
+        title={trip.name || "Viaje"}
+        description="Crea rutas con los lugares del plan, edita recorridos por día, organiza varias paradas y visualízalo todo sobre el mapa."
         iconSrc="/brand/tabs/map.png"
         iconAlt="Mapa"
         actions={<TripScreenActions tripId={tripId} />}
       />
 
-      <TripMapHub
+      <TripMapView
         tripId={tripId}
         trip={{
           id: trip.id,

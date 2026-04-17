@@ -8,7 +8,7 @@ export default async function ExplorePage({ params }: { params: { id: string } }
 
   await requireTripAccess(tripId);
 
-  // Explorar ahora vive dentro de /map como vista interna.
-  redirect(`/trip/${encodeURIComponent(tripId)}/map?view=explore`);
+  // Explorar ahora vive dentro de /plan.
+  redirect(`/trip/${encodeURIComponent(tripId)}/plan?explore=1`);
 }
 

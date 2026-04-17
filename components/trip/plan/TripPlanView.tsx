@@ -58,6 +58,23 @@ function normalizeKind(kind: unknown) {
   return typeof kind === "string" ? kind.trim().toLowerCase() : "";
 }
 
+function toSentenceCase(label: string) {
+  const cleaned = String(label || "").trim().replace(/_/g, " ");
+  if (!cleaned) return cleaned;
+  return cleaned.slice(0, 1).toUpperCase() + cleaned.slice(1).toLowerCase();
+}
+
+function defaultKindLabelEs(kindKey: string) {
+  const k = normalizeKind(kindKey);
+  if (k === "visit") return "Visita";
+  if (k === "museum") return "Museo";
+  if (k === "restaurant") return "Restaurante";
+  if (k === "transport") return "Transporte";
+  if (k === "activity") return "Actividad";
+  if (k === "lodging") return "Alojamiento";
+  return "";
+}
+
 function isLodgingActivity(a: TripActivity) {
   return (
     a.activity_type === "lodging" ||
@@ -223,7 +240,10 @@ export default function TripPlanView({
     for (const k of availableKinds) {
       const key = normalizeKind(k);
       if (!key) continue;
-      if (!merged.has(key)) merged.set(key, { key, label: key });
+      if (!merged.has(key)) {
+        const base = defaultKindLabelEs(key) || key;
+        merged.set(key, { key, label: toSentenceCase(base) });
+      }
     }
     return Array.from(merged.values()).sort((a, b) => a.label.localeCompare(b.label));
   }, [availableKinds, customKinds]);
