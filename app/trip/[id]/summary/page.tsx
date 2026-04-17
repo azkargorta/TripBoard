@@ -3,22 +3,14 @@ import Image from "next/image";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireTripAccess } from "@/lib/trip-access";
-import TripHomeActions from "@/components/trip/home/TripHomeActions";
-import TripWeatherCard from "@/components/trip/home/TripWeatherCard";
-import TripTripBasicsEditor from "@/components/trip/home/TripTripBasicsEditor";
-import TripHomeBasicsCollapse from "@/components/trip/home/TripHomeBasicsCollapse";
-import { computePersonalBalance } from "@/lib/personal-balance";
-import { buildSettlementSuggestions, type SettlementSuggestion } from "@/lib/expense-balance";
 import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
 import TripScreenActions from "@/components/trip/common/TripScreenActions";
-import { isPremiumEnabledForTrip } from "@/lib/entitlements";
 import TripFirstRunPanel from "@/components/trip/home/TripFirstRunPanel";
-import { Bell, CalendarDays, Wallet } from "lucide-react";
+import { CalendarDays, MapPinned, Wallet } from "lucide-react";
+import { isPremiumEnabledForTrip } from "@/lib/entitlements";
 
 type TripPageProps = {
-  params: {
-    id: string;
-  };
+  params: { id: string };
 };
 
 type TripRow = {
@@ -30,23 +22,6 @@ type TripRow = {
   base_currency: string | null;
 };
 
-type ParticipantRow = {
-  id: string;
-  display_name: string | null;
-  username: string | null;
-  email: string | null;
-  user_id: string | null;
-  status: string | null;
-  role?: string | null;
-  can_manage_trip?: boolean | null;
-};
-
-type ProfileRow = {
-  full_name: string | null;
-  username: string | null;
-  email: string | null;
-};
-
 type ActivityRow = {
   id: string;
   title: string;
@@ -54,42 +29,12 @@ type ActivityRow = {
   activity_time: string | null;
   place_name: string | null;
   address: string | null;
-  activity_kind: string | null;
-  activity_type: string | null;
-};
-
-type RouteRow = {
-  id: string;
-  route_day?: string | null;
-  route_date?: string | null;
-  day_date?: string | null;
-};
-
-type ExpenseRow = {
-  id: string;
-  amount: number | string | null;
-  amount_in_base?: number | string | null;
-  currency: string | null;
-  payer_name?: string | null;
-  participant_names?: unknown;
-  paid_by_names?: unknown;
-  owed_by_names?: unknown;
-  paid_by_participant_id: string | null;
-  split_between: unknown;
-};
-
-type ResourceRow = {
-  id: string;
 };
 
 function formatDate(value: string | null) {
   if (!value) return "Sin fecha";
   const date = new Date(`${value}T00:00:00`);
-  return new Intl.DateTimeFormat("es-ES", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(date);
+  return new Intl.DateTimeFormat("es-ES", { day: "2-digit", month: "short", year: "numeric" }).format(date);
 }
 
 function formatDateRange(start: string | null, end: string | null) {
@@ -98,34 +43,12 @@ function formatDateRange(start: string | null, end: string | null) {
   return start ? `Desde ${formatDate(start)}` : `Hasta ${formatDate(end)}`;
 }
 
-function amountValue(value: string | number | null | undefined) {
-  const n = typeof value === "number" ? value : Number(value ?? 0);
-  return Number.isFinite(n) ? n : 0;
-}
-
-function isTripInProgress(start: string | null, end: string | null, today: string) {
-  if (!start || !end) return false;
-  return start <= today && today <= end;
-}
-
-function isFutureTrip(start: string | null, today: string) {
-  return !!start && start > today;
-}
-
 function parseActivityMoment(activity: ActivityRow) {
   if (!activity.activity_date) return null;
   const time =
-    activity.activity_time && /^\d{2}:\d{2}/.test(activity.activity_time)
-      ? `${activity.activity_time}:00`
-      : "23:59:59";
+    activity.activity_time && /^\d{2}:\d{2}/.test(activity.activity_time) ? `${activity.activity_time}:00` : "23:59:59";
   const value = new Date(`${activity.activity_date}T${time}`);
   return Number.isNaN(value.getTime()) ? null : value;
-}
-
-function isLodging(activity: ActivityRow) {
-  const kind = String(activity.activity_kind || "").trim().toLowerCase();
-  const type = String(activity.activity_type || "").trim().toLowerCase();
-  return kind === "lodging" || type === "lodging";
 }
 
 export default async function TripSummaryPage({ params }: TripPageProps) {
@@ -136,44 +59,24 @@ export default async function TripSummaryPage({ params }: TripPageProps) {
 
   const [
     { data: trip, error: tripError },
-    { data: participantsData, error: participantsError },
-    { data: profileData, error: profileError },
-    { data: activitiesData, error: activitiesError },
-    { data: routesData, error: routesError },
-    { data: expensesData, error: expensesError },
-    { data: resourcesData, error: resourcesError },
+    { count: participantsCount },
+    { count: activitiesCount, data: activitiesData },
+    { count: routesCount },
+    { count: expensesCount },
+    { count: resourcesCount },
   ] = await Promise.all([
-    supabase
-      .from("trips")
-      .select("id, name, destination, start_date, end_date, base_currency")
-      .eq("id", tripId)
-      .maybeSingle(),
-    supabase
-      .from("trip_participants")
-      .select("id, display_name, username, email, user_id, status, role, can_manage_trip")
-      .eq("trip_id", tripId)
-      .neq("status", "removed")
-      .order("created_at", { ascending: true }),
-    supabase
-      .from("profiles")
-      .select("full_name, username, email")
-      .eq("id", access.userId)
-      .maybeSingle(),
+    supabase.from("trips").select("id, name, destination, start_date, end_date, base_currency").eq("id", tripId).maybeSingle(),
+    supabase.from("trip_participants").select("id", { count: "exact", head: true }).eq("trip_id", tripId).neq("status", "removed"),
     supabase
       .from("trip_activities")
-      .select("id, title, activity_date, activity_time, place_name, address, activity_kind, activity_type")
+      .select("id, title, activity_date, activity_time, place_name, address", { count: "exact" })
       .eq("trip_id", tripId)
       .order("activity_date", { ascending: true })
       .order("activity_time", { ascending: true })
       .order("created_at", { ascending: true }),
-    supabase.from("trip_routes").select("id, route_day, route_date, day_date").eq("trip_id", tripId),
-    supabase
-      .from("trip_expenses")
-      .select(
-        "id, amount, amount_in_base, currency, payer_name, participant_names, paid_by_names, owed_by_names, paid_by_participant_id, split_between"
-      )
-      .eq("trip_id", tripId),
-    supabase.from("trip_resources").select("id").eq("trip_id", tripId),
+    supabase.from("trip_routes").select("id", { count: "exact", head: true }).eq("trip_id", tripId),
+    supabase.from("trip_expenses").select("id", { count: "exact", head: true }).eq("trip_id", tripId),
+    supabase.from("trip_resources").select("id", { count: "exact", head: true }).eq("trip_id", tripId),
   ]);
 
   if (tripError || !trip) {
@@ -181,167 +84,56 @@ export default async function TripSummaryPage({ params }: TripPageProps) {
     redirect("/dashboard");
   }
 
-  if (participantsError) console.error("Error cargando participantes:", participantsError);
-  if (profileError) console.error("Error cargando perfil:", profileError);
-  if (activitiesError) console.error("Error cargando actividades:", activitiesError);
-  if (routesError) console.error("Error cargando rutas:", routesError);
-  if (expensesError) console.error("Error cargando gastos:", expensesError);
-  if (resourcesError) console.error("Error cargando recursos:", resourcesError);
-
   const currentTrip = trip as TripRow;
-  const participants = ((participantsData ?? []) as ParticipantRow[]).filter((item) => item.status !== "removed");
-  const currentParticipant = participants.find((participant) => participant.id === access.participantId) ?? null;
-  const canEditTrip = Boolean(
-    currentParticipant && ((currentParticipant.role ?? access.role) === "owner" || currentParticipant.can_manage_trip)
-  );
-  const currentProfile = (profileData ?? null) as ProfileRow | null;
   const activities = (activitiesData ?? []) as ActivityRow[];
-  const routes = (routesData ?? []) as RouteRow[];
-  const expenses = (expensesData ?? []) as ExpenseRow[];
-  const resources = (resourcesData ?? []) as ResourceRow[];
 
-  const today = new Date().toISOString().slice(0, 10);
   const now = new Date();
-  const activeToday = isTripInProgress(currentTrip.start_date, currentTrip.end_date, today);
-  const futureTrip = isFutureTrip(currentTrip.start_date, today);
-  const todayActivities = activities.filter((activity) => activity.activity_date === today);
   const nextActivity =
     activities
       .map((activity) => ({ activity, when: parseActivityMoment(activity) }))
       .filter((item): item is { activity: ActivityRow; when: Date } => !!item.when)
       .find((item) => item.when.getTime() >= now.getTime())?.activity ?? null;
 
-  const ownBalance = computePersonalBalance({
-    currentParticipant,
-    currentProfile,
-    expenses,
-    participants,
-  });
-
-  const baseCurrency = (currentTrip.base_currency || "EUR").toUpperCase();
-  const expensesForSettlements = expenses
-    .map((e) => {
-      const currency = (e.currency || baseCurrency).toUpperCase();
-      const amount =
-        typeof e.amount_in_base !== "undefined" && e.amount_in_base !== null
-          ? e.amount_in_base
-          : currency === baseCurrency
-            ? e.amount
-            : null;
-      if (amount === null) return null;
-      return {
-        id: String(e.id),
-        title: null,
-        payer_name: e.payer_name || null,
-        participant_names: e.participant_names,
-        paid_by_names: e.paid_by_names,
-        owed_by_names: e.owed_by_names,
-        amount,
-        currency: baseCurrency,
-      };
-    })
-    .filter(Boolean) as Array<{
-    id: string;
-    title: string | null;
-    payer_name: string | null;
-    participant_names: unknown;
-    paid_by_names: unknown;
-    owed_by_names: unknown;
-    amount: number | string | null;
-    currency: string | null;
-  }>;
-
-  const pendingSettlements = buildSettlementSuggestions(expensesForSettlements, baseCurrency)
-    .filter((s) => s.status !== "paid")
-    .slice(0, 4) as SettlementSuggestion[];
-
-  const nextCheckIn =
-    activities
-      .filter((a) => isLodging(a))
-      .map((activity) => ({ activity, when: parseActivityMoment(activity) }))
-      .filter((item): item is { activity: ActivityRow; when: Date } => !!item.when)
-      .find((item) => {
-        const delta = item.when.getTime() - now.getTime();
-        return delta >= 0 && delta <= 24 * 60 * 60 * 1000;
-      })?.activity ?? null;
-
-  const totalSpent = expenses.reduce((sum, expense) => sum + amountValue(expense.amount_in_base ?? expense.amount), 0);
-
   const alerts = [
-    !currentTrip.destination ? "Añade el destino del viaje para activar clima y contexto." : null,
-    participants.length === 0 ? "Este viaje no tiene participantes visibles." : null,
-    activities.length === 0 ? "No hay actividades en el plan todavía." : null,
-    routes.length === 0 ? "Todavía no has creado rutas en el mapa." : null,
-    expenses.length === 0 ? "Aún no hay gastos añadidos al split." : null,
-    resources.length === 0 ? "No has subido recursos o reservas todavía." : null,
-    ownBalance.matchedBy === "none"
-      ? "No se ha podido enlazar tu balance con los gastos. Revisa que tu nombre de participante coincida con el usado en los gastos."
-      : null,
+    !currentTrip.destination ? "Añade el destino para activar clima y contexto." : null,
+    (participantsCount ?? 0) <= 1 ? "Añade participantes si vais a viajar en grupo." : null,
+    (activitiesCount ?? 0) === 0 ? "Todavía no hay planes: crea tu primer plan en la pestaña Plan." : null,
+    (routesCount ?? 0) === 0 ? "Aún no hay rutas: usa Mapa para crear trayectos." : null,
+    (expensesCount ?? 0) === 0 ? "Aún no hay gastos: añade el primer gasto para ver balances." : null,
   ].filter(Boolean) as string[];
 
-  const moduleCards = [
+  const quick = [
     {
       href: `/trip/${tripId}/plan`,
       title: "Plan",
-      subtitle: "Agenda, visitas y horarios",
-      iconSrc: "/brand/tabs/plan.png",
-      iconAlt: "Plan",
-      metric: `${activities.length} actividades`,
-      accent: "from-sky-100 to-cyan-50 border-sky-200",
+      subtitle: "Añadir y organizar actividades",
+      icon: <CalendarDays className="h-4 w-4" aria-hidden />,
+      metric: `${activitiesCount ?? 0} planes`,
     },
     {
       href: `/trip/${tripId}/map`,
       title: "Mapa",
       subtitle: "Rutas, trayectos y paradas",
-      iconSrc: "/brand/tabs/map.png",
-      iconAlt: "Mapa",
-      metric: `${routes.length} rutas`,
-      accent: "from-emerald-100 to-teal-50 border-emerald-200",
+      icon: <MapPinned className="h-4 w-4" aria-hidden />,
+      metric: `${routesCount ?? 0} rutas`,
     },
     {
       href: `/trip/${tripId}/expenses`,
       title: "Gastos",
-      subtitle: "Split, pagos y balances",
-      iconSrc: "/brand/tabs/expenses.png",
-      iconAlt: "Gastos",
-      metric: `${totalSpent.toFixed(2)} ${currentTrip.base_currency || "EUR"}`,
-      accent: "from-amber-100 to-orange-50 border-amber-200",
-    },
-    {
-      href: `/trip/${tripId}/participants`,
-      title: "Participantes",
-      subtitle: "Viajeros, roles y permisos",
-      iconSrc: "/brand/tabs/participants.png",
-      iconAlt: "Participantes",
-      metric: `${participants.length} viajeros`,
-      accent: "from-violet-100 to-fuchsia-50 border-violet-200",
-    },
-    {
-      href: `/trip/${tripId}/resources`,
-      title: "Recursos y listas",
-      subtitle: "Tickets, reservas, docs y listas",
-      iconSrc: "/brand/tabs/resources.png",
-      iconAlt: "Recursos",
-      metric: `${resources.length} recursos`,
-      accent: "from-slate-100 to-slate-50 border-slate-200",
-    },
-    {
-      href: `/trip/${tripId}/ai-chat`,
-      title: "Chat IA",
-      subtitle: "Consulta y organiza el viaje",
-      iconSrc: "/brand/tabs/ai.png",
-      iconAlt: "Chat IA",
-      metric: nextActivity ? "Con contexto del viaje" : "Listo para ayudarte",
-      accent: "from-pink-100 to-rose-50 border-pink-200",
+      subtitle: "Split y balances",
+      icon: <Wallet className="h-4 w-4" aria-hidden />,
+      metric: `${expensesCount ?? 0} gastos`,
     },
   ];
 
   return (
-    <main className="space-y-8">
+    <main className="space-y-6">
       <TripBoardPageHeader
-        section={activeToday ? "Viaje en curso" : futureTrip ? "Viaje futuro" : "Resumen del viaje"}
+        section="Resumen del viaje"
         title={currentTrip.name}
         description={`${currentTrip.destination || "Destino pendiente"} · ${formatDateRange(currentTrip.start_date, currentTrip.end_date)}`}
+        iconSrc="/brand/tabs/plan.png"
+        iconAlt="Resumen"
         actions={<TripScreenActions tripId={tripId} showSummary={false} homeLabel="Mis viajes" />}
       />
 
@@ -350,358 +142,99 @@ export default async function TripSummaryPage({ params }: TripPageProps) {
         tripName={currentTrip.name}
         isPremium={isPremium}
         counts={{
-          participants: participants.length,
-          activities: activities.length,
-          routes: routes.length,
-          expenses: expenses.length,
-          resources: resources.length,
+          participants: participantsCount ?? 0,
+          activities: activitiesCount ?? 0,
+          routes: routesCount ?? 0,
+          expenses: expensesCount ?? 0,
+          resources: resourcesCount ?? 0,
         }}
       />
 
-      <section className="md:hidden">
-        <div className="mb-3">
-          <h2 className="text-lg font-extrabold tracking-tight text-slate-950">Accesos rápidos</h2>
-          <p className="mt-0.5 text-xs text-slate-600">Plan, mapa, gastos, participantes y más.</p>
-        </div>
-        <div className="grid gap-2.5">
-          {moduleCards.map((item) => (
-            <Link
-              key={item.title}
-              href={item.href}
-              className={`group rounded-2xl border bg-gradient-to-br p-3.5 transition active:scale-[0.99] ${item.accent}`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex min-w-0 items-start gap-3">
-                  {"iconSrc" in item && item.iconSrc ? (
-                    <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white/70 ring-1 ring-slate-200">
-                      <Image
-                        src={item.iconSrc}
-                        alt={item.iconAlt || item.title}
-                        width={36}
-                        height={36}
-                        className="h-full w-full object-contain object-center scale-[1.15]"
-                      />
-                    </span>
-                  ) : null}
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold text-slate-950">{item.title}</p>
-                    <p className="mt-0.5 line-clamp-2 text-xs text-slate-600">{item.subtitle}</p>
-                    <p className="mt-1.5 text-[11px] font-semibold text-slate-700">{item.metric}</p>
-                  </div>
-                </div>
-                <span className="shrink-0 text-sm font-semibold text-slate-500">→</span>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      {nextCheckIn || Math.abs(ownBalance.net) >= 0.01 || pendingSettlements.length ? (
-        <section className="card-soft p-6 md:p-8">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="min-w-0">
-              <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                <Bell className="h-4 w-4" aria-hidden />
-                Recordatorios
-              </div>
-              <div className="mt-2 text-sm text-slate-600">Alertas rápidas dentro de Kaviro (check-ins y pagos del split).</div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Link
-                href={`/trip/${tripId}/plan`}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
-              >
-                <CalendarDays className="h-4 w-4" aria-hidden />
-                Ver plan
-              </Link>
-              <Link
-                href={`/trip/${tripId}/expenses`}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
-              >
-                <Wallet className="h-4 w-4" aria-hidden />
-                Ver gastos
-              </Link>
-            </div>
-          </div>
-
-          <div className="mt-5 grid gap-3 md:grid-cols-2">
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="text-sm font-semibold text-slate-950">Check-in en 24h</div>
-              {nextCheckIn ? (
-                <div className="mt-2 text-sm text-slate-700">
-                  <div className="font-bold text-slate-950">{nextCheckIn.title || "Alojamiento"}</div>
-                  <div className="mt-1 text-xs text-slate-600">
-                    {nextCheckIn.activity_date ? formatDate(nextCheckIn.activity_date) : "Sin fecha"}
-                    {nextCheckIn.activity_time ? ` · ${nextCheckIn.activity_time.slice(0, 5)}` : ""}
-                    {nextCheckIn.place_name || nextCheckIn.address ? ` · ${nextCheckIn.place_name || nextCheckIn.address}` : ""}
-                  </div>
-                </div>
-              ) : (
-                <div className="mt-2 text-sm text-slate-600">No hay check-ins en las próximas 24 horas.</div>
-              )}
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="text-sm font-semibold text-slate-950">Pagos del split</div>
-              <div className="mt-2 text-sm text-slate-700">
-                {ownBalance.net <= -0.01 ? (
-                  <span>
-                    Te falta por pagar aproximadamente{" "}
-                    <span className="font-bold text-rose-700">
-                      {Math.abs(ownBalance.net).toFixed(2)} {currentTrip.base_currency || "EUR"}
-                    </span>
-                    .
-                  </span>
-                ) : ownBalance.net >= 0.01 ? (
-                  <span>
-                    Te deben aproximadamente{" "}
-                    <span className="font-bold text-emerald-700">
-                      {ownBalance.net.toFixed(2)} {currentTrip.base_currency || "EUR"}
-                    </span>
-                    .
-                  </span>
-                ) : (
-                  <span>No parece que tengas pagos pendientes ahora mismo.</span>
-                )}
-              </div>
-              <div className="mt-2 text-xs text-slate-500">
-                Basado en los gastos añadidos. Para “quién debe a quién”, revisa Balances y pagos.
-              </div>
-            </div>
-          </div>
-
-          {pendingSettlements.length ? (
-            <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="text-sm font-semibold text-slate-950">Pendientes (quién debe a quién)</div>
-              <div className="mt-2 space-y-2">
-                {pendingSettlements.map((s) => {
-                  const msg = `Hola. Según el balance del viaje, ${s.debtor_name} debe pagar ${s.amount.toFixed(2)} ${s.currency} a ${s.creditor_name}. Estado: pendiente.`;
-                  const href = `https://wa.me/?text=${encodeURIComponent(msg)}`;
-                  return (
-                    <div
-                      key={s.source_balance_key}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2"
-                    >
-                      <div className="min-w-0 text-sm font-semibold text-slate-900">
-                        <span className="truncate">{s.debtor_name}</span>{" "}
-                        <span className="text-slate-500">→</span>{" "}
-                        <span className="truncate">{s.creditor_name}</span>{" "}
-                        <span className="ml-2 text-slate-700">
-                          {s.amount.toFixed(2)} {s.currency}
-                        </span>
-                      </div>
-                      <a
-                        href={href}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex min-h-[36px] items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
-                        title="Enviar recordatorio por WhatsApp"
-                      >
-                        WhatsApp
-                      </a>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ) : null}
-        </section>
-      ) : null}
-
-      <TripHomeBasicsCollapse
-        canEditTrip={canEditTrip}
-        compactSummary={
-          <>
-            <span className="block truncate font-semibold text-slate-900">{currentTrip.name}</span>
-            <span className="mt-0.5 block text-slate-600">
-              {(currentTrip.destination || "Destino pendiente").trim()}
-              <span className="text-slate-400"> · </span>
-              {formatDateRange(currentTrip.start_date, currentTrip.end_date)}
-            </span>
-          </>
-        }
-        editor={
-          <TripTripBasicsEditor
-            tripId={tripId}
-            destination={currentTrip.destination}
-            startDate={currentTrip.start_date}
-            endDate={currentTrip.end_date}
-            baseCurrency={currentTrip.base_currency}
-            canEdit={canEditTrip}
-          />
-        }
-      >
-        <div className="space-y-5">
-          <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Fechas</p>
-              <p className="mt-2 text-sm font-semibold text-slate-900">
-                {formatDateRange(currentTrip.start_date, currentTrip.end_date)}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Lugar</p>
-              <p className="mt-2 text-sm font-semibold text-slate-900">{currentTrip.destination || "Sin destino"}</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Participantes</p>
-              <p className="mt-2 text-sm font-semibold text-slate-900">{participants.length} viajeros</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Moneda</p>
-              <p className="mt-2 text-sm font-semibold text-slate-900">{currentTrip.base_currency || "EUR"}</p>
-            </div>
-          </div>
-
-          <TripHomeActions trip={currentTrip} />
-        </div>
-
-        <div className="rounded-3xl border border-violet-200 bg-gradient-to-br from-violet-50 to-indigo-50 p-4 md:p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-600">Próxima actividad</p>
-          {nextActivity ? (
-            <div className="mt-3 space-y-2 md:mt-4 md:space-y-3">
-              <div className="inline-flex items-center rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-800">
-                {nextActivity.activity_date ? formatDate(nextActivity.activity_date) : "Sin fecha"}
-                {nextActivity.activity_time ? ` · ${nextActivity.activity_time.slice(0, 5)}` : ""}
-              </div>
-              <h2 className="text-xl font-bold text-slate-950 md:text-2xl">{nextActivity.title}</h2>
-              <p className="text-sm text-slate-600">{nextActivity.place_name || nextActivity.address || "Ubicación pendiente"}</p>
-              <p className="text-sm font-medium text-violet-700">
-                {nextActivity.activity_kind || nextActivity.activity_type || "Actividad del plan"}
-              </p>
-            </div>
-          ) : (
-            <div className="mt-3 rounded-2xl border border-dashed border-violet-300 bg-white/70 p-4 text-sm text-slate-600 md:mt-4">
-              No hay una próxima actividad programada. Añade algo al plan para verla aquí.
-            </div>
-          )}
-        </div>
-      </TripHomeBasicsCollapse>
-
-      <section className="hidden gap-4 md:grid md:grid-cols-2 xl:grid-cols-3">
-        {moduleCards.map((item) => (
+      <section className="grid gap-3 md:grid-cols-3">
+        {quick.map((item) => (
           <Link
             key={item.title}
             href={item.href}
-            className={`group rounded-3xl border bg-gradient-to-br p-5 transition hover:-translate-y-0.5 hover:shadow-lg ${item.accent}`}
+            className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
           >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="text-3xl">
-                  {"iconSrc" in item && item.iconSrc ? (
-                    <span className="inline-flex h-[54px] w-[54px] items-center justify-center overflow-hidden rounded-2xl bg-white/70 ring-1 ring-slate-200">
-                      <Image
-                        src={item.iconSrc}
-                        alt={item.iconAlt || item.title}
-                        width={54}
-                        height={54}
-                        className="h-full w-full object-contain object-center scale-[1.18]"
-                      />
-                    </span>
-                  ) : (
-                    (item as any).emoji
-                  )}
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-sm font-extrabold text-slate-950">
+                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700">
+                    {item.icon}
+                  </span>
+                  {item.title}
                 </div>
-                <h2 className="mt-4 text-xl font-bold text-slate-950">{item.title}</h2>
-                <p className="mt-1 text-sm text-slate-600">{item.subtitle}</p>
+                <div className="mt-1 text-xs text-slate-600">{item.subtitle}</div>
               </div>
-              <div className="rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-slate-700">Entrar</div>
-            </div>
-            <div className="mt-5 flex items-center justify-between rounded-2xl bg-white/70 px-4 py-3">
-              <span className="text-sm font-semibold text-slate-800">{item.metric}</span>
-              <span className="text-sm text-slate-500 transition group-hover:translate-x-0.5">→</span>
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+                {item.metric}
+              </span>
             </div>
           </Link>
         ))}
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
-        {isPremium ? (
-          <TripWeatherCard tripId={tripId} destination={currentTrip.destination} />
-        ) : (
-          <section className="card-soft p-6">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-600">Clima</p>
-                <h3 className="mt-1 text-2xl font-bold text-slate-950">Próximos 7 días</h3>
-                <p className="mt-1 text-sm text-slate-600">Funcionalidad disponible solo con el plan Premium.</p>
-              </div>
-              <Link
-                href="/account?upgrade=premium&focus=premium#premium-plans"
-                className="inline-flex min-h-[40px] items-center justify-center rounded-2xl bg-slate-950 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800"
-              >
-                Mejorar a Premium
-              </Link>
-            </div>
-            <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-              La meteorología está deshabilitada en la versión gratuita.
-            </div>
-          </section>
-        )}
+      {nextActivity ? (
+        <section className="rounded-2xl border border-violet-200 bg-violet-50 p-5 shadow-sm">
+          <div className="text-xs font-extrabold uppercase tracking-[0.18em] text-violet-700">Próximo plan</div>
+          <div className="mt-2 text-lg font-extrabold text-slate-950">{nextActivity.title}</div>
+          <div className="mt-1 text-sm text-slate-700">
+            {(nextActivity.activity_date ? formatDate(nextActivity.activity_date) : "Sin fecha") +
+              (nextActivity.activity_time ? ` · ${nextActivity.activity_time.slice(0, 5)}` : "")}
+          </div>
+          <div className="mt-1 text-sm text-slate-600">{nextActivity.place_name || nextActivity.address || "Ubicación pendiente"}</div>
+          <div className="mt-4">
+            <Link
+              href={`/trip/${tripId}/plan`}
+              className="inline-flex min-h-11 items-center justify-center rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+            >
+              Ir a Plan
+            </Link>
+          </div>
+        </section>
+      ) : null}
 
-        <div className="space-y-6">
-          <details className="card-soft overflow-hidden md:open" open>
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-5 md:cursor-default">
-              <h3 className="text-xl font-bold text-slate-950">Hoy toca</h3>
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 md:hidden">Ver</span>
-            </summary>
-            <div className="px-5 pb-5">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                {activeToday ? (
-                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">Hoy estás de viaje</span>
-                ) : (
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Aún no toca hoy</span>
-                )}
-              </div>
+      {alerts.length ? (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
+          <div className="text-sm font-extrabold text-amber-900">Siguientes pasos</div>
+          <ul className="mt-3 space-y-2 text-sm text-amber-950">
+            {alerts.slice(0, 4).map((a) => (
+              <li key={a} className="flex gap-2">
+                <span aria-hidden>•</span>
+                <span>{a}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : (
+        <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
+          <div className="text-sm font-extrabold text-emerald-900">Todo listo</div>
+          <div className="mt-1 text-sm text-emerald-950">El viaje ya tiene plan, mapa y gastos en marcha. Sigue organizando desde Plan.</div>
+        </section>
+      )}
 
-              {activeToday && todayActivities.length > 0 ? (
-                <div className="space-y-3">
-                  {todayActivities.slice(0, 4).map((activity) => (
-                    <div key={activity.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="font-semibold text-slate-900">{activity.title}</p>
-                          <p className="mt-1 text-sm text-slate-600">{activity.place_name || activity.address || "Ubicación pendiente"}</p>
-                        </div>
-                        <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
-                          {activity.activity_time ? activity.activity_time.slice(0, 5) : "Sin hora"}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-600">
-                  {activeToday ? "No hay actividades planificadas para hoy." : "Este bloque se activará cuando el viaje coincida con la fecha actual."}
-                </div>
-              )}
-            </div>
-          </details>
-
-          <details className="card-soft overflow-hidden md:open" open>
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-5 md:cursor-default">
-              <h3 className="text-xl font-bold text-slate-950">Tu balance</h3>
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 md:hidden">Ver</span>
-            </summary>
-            <div className="px-5 pb-5">
-              <div className="flex items-center justify-between gap-3">
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-                  {currentParticipant?.display_name || currentProfile?.full_name || currentProfile?.username || "Tu usuario"}
-                </span>
-              </div>
-              <p className="mt-2 text-sm text-slate-500">
-                Balance enlazado por{" "}
-                {ownBalance.matchedBy === "mixed"
-                  ? "nombres e IDs"
-                  : ownBalance.matchedBy === "names"
-                    ? "nombres"
-                    : ownBalance.matchedBy === "ids"
-                      ? "IDs de participante"
-                      : "sin coincidencia"}
-                .
-              </p>
-            </div>
-          </details>
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-extrabold text-slate-950">Recursos</div>
+            <div className="mt-1 text-xs text-slate-600">Reservas, documentos y listas del viaje.</div>
+          </div>
+          <span className="text-sm font-semibold text-slate-700">{resourcesCount ?? 0}</span>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Link
+            href={`/trip/${tripId}/resources`}
+            className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+          >
+            Ver recursos
+          </Link>
+          <Link
+            href={`/trip/${tripId}/ai-chat`}
+            className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+          >
+            Abrir IA
+          </Link>
         </div>
       </section>
     </main>
