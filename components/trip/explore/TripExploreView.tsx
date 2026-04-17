@@ -4,15 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
 import PlaceAutocompleteInput from "@/components/PlaceAutocompleteInput";
-import { MapPin, Plus, RefreshCcw, Save, Trash2 } from "lucide-react";
+import { MapPin, Plus, RefreshCcw, Trash2 } from "lucide-react";
 import { useTripActivityKinds } from "@/hooks/useTripActivityKinds";
-
-type Folder = {
-  id: string;
-  trip_id: string;
-  name: string;
-  color?: string | null;
-};
 
 type PlaceRow = {
   id: string;
@@ -174,9 +167,7 @@ export default function TripExploreView({
   onCreatePlan?: (payload: CreatePlanPayload) => void;
 }) {
 
-  const [folders, setFolders] = useState<Folder[]>([]);
   const [places, setPlaces] = useState<PlaceRow[]>([]);
-  const [selectedFolderId, setSelectedFolderId] = useState<string | "all">("all");
 
   const [plans, setPlans] = useState<PlanRow[]>([]);
   const [visiblePlanKinds, setVisiblePlanKinds] = useState<Record<string, boolean>>({});
@@ -199,24 +190,16 @@ export default function TripExploreView({
 
   const [query, setQuery] = useState("");
   const [pending, setPending] = useState<PendingPlace | null>(null);
-  const [pendingFolderId, setPendingFolderId] = useState<string | "none">("none");
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function loadAll() {
     setError(null);
-    const [fRes, pRes] = await Promise.all([
-      fetch(`/api/trip-place-folders?tripId=${encodeURIComponent(tripId)}`),
-      fetch(`/api/trip-places?tripId=${encodeURIComponent(tripId)}`),
-    ]);
+    const pRes = await fetch(`/api/trip-places?tripId=${encodeURIComponent(tripId)}`);
     const aRes = await fetch(`/api/trip-activities?tripId=${encodeURIComponent(tripId)}`);
-    const fJson = await fRes.json().catch(() => null);
     const pJson = await pRes.json().catch(() => null);
     const aJson = await aRes.json().catch(() => null);
-    if (!fRes.ok) throw new Error(fJson?.error || "No se pudieron cargar carpetas.");
     if (!pRes.ok) throw new Error(pJson?.error || "No se pudieron cargar lugares.");
     if (!aRes.ok) throw new Error(aJson?.error || "No se pudieron cargar los planes.");
-    setFolders(Array.isArray(fJson?.folders) ? fJson.folders : []);
     setPlaces(Array.isArray(pJson?.places) ? pJson.places : []);
     const activities = Array.isArray(aJson?.activities) ? (aJson.activities as any[]) : [];
     const normalizedPlans: PlanRow[] = activities.map((a: any) => ({
@@ -238,10 +221,7 @@ export default function TripExploreView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tripId]);
 
-  const visiblePlaces = useMemo(() => {
-    if (selectedFolderId === "all") return places;
-    return places.filter((p) => p.folder_id === selectedFolderId);
-  }, [places, selectedFolderId]);
+  const visiblePlaces = useMemo(() => places, [places]);
 
   const planKinds = useMemo(() => {
     // Mezcla: tipos que existen en planes + tipos creados manualmente (para que se vean renombres/catálogos).
@@ -330,33 +310,6 @@ export default function TripExploreView({
   }, [mapPoints]);
 
   const pointsKey = useMemo(() => mapPoints.map((p) => p.key).join("|"), [mapPoints]);
-
-  async function savePlace() {
-    if (!pending) return;
-    setSaving(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/trip-places", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tripId,
-          folderId: pendingFolderId === "none" ? null : pendingFolderId,
-          ...pending,
-        }),
-      });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(json?.error || "No se pudo guardar el lugar.");
-      setPending(null);
-      setQuery("");
-      setPendingFolderId("none");
-      await loadAll();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo guardar el lugar.");
-    } finally {
-      setSaving(false);
-    }
-  }
 
   return (
     <div className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
@@ -495,49 +448,7 @@ export default function TripExploreView({
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-sm font-extrabold text-slate-950">Carpetas</div>
-            <button
-              type="button"
-              onClick={() => void loadAll().catch((e) => setError(e instanceof Error ? e.message : "Error"))}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-            >
-              <RefreshCcw className="h-4 w-4" aria-hidden />
-              Recargar
-            </button>
-          </div>
-
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setSelectedFolderId("all")}
-              className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
-                selectedFolderId === "all"
-                  ? "border-slate-900 bg-slate-900 text-white"
-                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-              }`}
-            >
-              Todas
-            </button>
-            {folders.map((f) => (
-              <button
-                key={f.id}
-                type="button"
-                onClick={() => setSelectedFolderId(f.id)}
-                className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
-                  selectedFolderId === f.id
-                    ? "border-violet-300 bg-violet-50 text-violet-900"
-                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                }`}
-              >
-                {f.name}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-sm font-extrabold text-slate-950">Buscar y guardar</div>
+          <div className="text-sm font-extrabold text-slate-950">Buscar</div>
           <div className="mt-3">
             <PlaceAutocompleteInput
               value={query}
@@ -596,32 +507,6 @@ export default function TripExploreView({
                     Crear plan con este lugar
                   </button>
                 ) : null}
-
-                <label className="space-y-2">
-                  <span className="text-xs font-semibold text-slate-700">Carpeta</span>
-                  <select
-                    value={pendingFolderId}
-                    onChange={(e) => setPendingFolderId(e.target.value as any)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
-                  >
-                    <option value="none">Sin carpeta</option>
-                    {folders.map((f) => (
-                      <option key={f.id} value={f.id}>
-                        {f.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={() => void savePlace()}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-violet-700 disabled:opacity-60"
-                >
-                  <Save className="h-4 w-4" aria-hidden />
-                  {saving ? "Guardando..." : "Guardar en carpetas"}
-                </button>
               </div>
             </div>
           ) : null}
@@ -655,7 +540,7 @@ export default function TripExploreView({
               ))
             ) : (
               <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                Todavía no has guardado lugares. Busca arriba y guárdalos en una carpeta.
+                Todavía no hay lugares guardados.
               </div>
             )}
           </div>
