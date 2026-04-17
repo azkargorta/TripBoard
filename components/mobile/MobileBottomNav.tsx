@@ -54,6 +54,13 @@ export default function MobileBottomNav({ tripId, isPremium }: Props) {
   const pathname = usePathname();
   const visibleItems = items;
 
+  function isActivePath(href: string, key: string) {
+    if (pathname === href) return true;
+    // En rutas internas del mapa, mantenemos “Mapa” activo.
+    if (key === "map" && pathname.startsWith(`${href}/`)) return true;
+    return false;
+  }
+
   return (
     <nav
       className="fixed inset-x-0 bottom-0 z-40 md:hidden"
@@ -65,7 +72,7 @@ export default function MobileBottomNav({ tripId, isPremium }: Props) {
           <div className="mx-auto flex min-w-max items-stretch px-1 py-1.5">
             {visibleItems.map((item) => {
               const href = item.href(tripId);
-              const active = pathname === href;
+              const active = isActivePath(href, item.key);
 
               return (
                 <Link
