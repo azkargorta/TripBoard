@@ -339,6 +339,8 @@ export default function TripPlanView({
     return <div className="p-4">Cargando plan...</div>;
   }
 
+  const isEmpty = activities.length === 0;
+
   return (
     <div className="space-y-6">
       {error ? (
@@ -351,14 +353,23 @@ export default function TripPlanView({
         <p className="text-sm text-slate-600">
           <span className="font-semibold text-slate-900">{trip?.name || trip?.destination || "Este viaje"}</span>
           {" · "}
-          Actividades manuales y alojamientos sincronizados desde Reservas.
+          Añade planes con fecha/hora y reutilízalos en el mapa para rutas.
         </p>
         <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
           <button
             type="button"
+            onClick={handleStartCreate}
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-200 sm:w-auto"
+            title="Crear un plan manual"
+          >
+            <Plus className="h-4 w-4" />
+            Añadir plan
+          </button>
+          <button
+            type="button"
             onClick={() => setExploreOpen(true)}
             className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-5 py-3 text-sm font-semibold text-violet-900 shadow-sm transition hover:bg-violet-100 focus:outline-none focus:ring-2 focus:ring-violet-200 sm:w-auto"
-            title="Explorar lugares y crear planes con coordenadas"
+            title="Buscar lugares y crear planes con coordenadas"
           >
             <Compass className="h-4 w-4" />
             Explorar
@@ -371,14 +382,6 @@ export default function TripPlanView({
           >
             <Clock className="h-4 w-4" />
             Historial
-          </button>
-          <button
-            type="button"
-            onClick={handleStartCreate}
-            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-200 sm:w-auto"
-          >
-            <Plus className="h-4 w-4" />
-            Añadir plan
           </button>
         </div>
       </div>
@@ -788,8 +791,37 @@ export default function TripPlanView({
       ) : null}
 
       {grouped.length === 0 ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-          {selectedDate ? "No hay actividades para este día." : "Todavía no hay actividades en el plan."}
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="text-base font-extrabold text-slate-950">
+            {selectedDate ? "No hay actividades para este día" : isEmpty ? "Crea tu primer plan" : "No hay resultados"}
+          </div>
+          <div className="mt-1 text-sm text-slate-600">
+            {selectedDate
+              ? "Prueba otra fecha o quita filtros."
+              : isEmpty
+                ? "Empieza añadiendo una visita o usa Explorar para traer un lugar con coordenadas."
+                : "Prueba a quitar filtros o cambiar la búsqueda."}
+          </div>
+          {selectedDate || !isEmpty ? null : (
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={handleStartCreate}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-200"
+              >
+                <Plus className="h-4 w-4" />
+                Añadir plan
+              </button>
+              <button
+                type="button"
+                onClick={() => setExploreOpen(true)}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-5 py-3 text-sm font-semibold text-violet-900 shadow-sm transition hover:bg-violet-100 focus:outline-none focus:ring-2 focus:ring-violet-200"
+              >
+                <Compass className="h-4 w-4" />
+                Explorar
+              </button>
+            </div>
+          )}
         </div>
       ) : null}
 
