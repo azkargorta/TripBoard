@@ -6,9 +6,10 @@ import PlanActivityCard from "@/components/trip/plan/PlanActivityCard";
 import PlanLodgingCard from "@/components/trip/plan/PlanLodgingCard";
 import PlanForm, { type PlanFormValues } from "@/components/trip/plan/PlanForm";
 import { useTripActivities, type TripActivity } from "@/hooks/useTripActivities";
-import { CalendarDays, Clock, Eye, EyeOff, Filter, Plus, Search, SlidersHorizontal } from "lucide-react";
+import { CalendarDays, Clock, Compass, Eye, EyeOff, Filter, Plus, Search, SlidersHorizontal } from "lucide-react";
 import TripPlanCalendar from "@/components/trip/plan/TripPlanCalendar";
 import { useTripActivityKinds } from "@/hooks/useTripActivityKinds";
+import TripPlanExploreDrawer, { type ExploreCreatePlanPayload } from "@/components/trip/plan/TripPlanExploreDrawer";
 
 const COMMON_KIND_ICONS: Array<{ emoji: string; label: string }> = [
   { emoji: "📍", label: "Visita" },
@@ -128,9 +129,11 @@ function Chip({
 export default function TripPlanView({
   tripId,
   premiumEnabled,
+  initialExploreOpen = false,
 }: {
   tripId: string;
   premiumEnabled: boolean;
+  initialExploreOpen?: boolean;
 }) {
   const { trip, activities, loading, saving, error, createActivity, updateActivity, deleteActivity } =
     useTripActivities(tripId);
@@ -162,6 +165,7 @@ export default function TripPlanView({
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [history, setHistory] = useState<any[]>([]);
+  const [exploreOpen, setExploreOpen] = useState(initialExploreOpen);
 
   useEffect(() => {
     let cancelled = false;
@@ -299,6 +303,18 @@ export default function TripPlanView({
     setIsFormOpen(false);
   }
 
+  function openCreateWithExplorePlace(payload: ExploreCreatePlanPayload) {
+    setEditingActivity({
+      title: payload.title,
+      place_name: payload.title,
+      address: payload.address,
+      latitude: payload.latitude,
+      longitude: payload.longitude,
+      activity_kind: "visit",
+    } as any);
+    setIsFormOpen(true);
+  }
+
   if (loading) {
     return <div className="p-4">Cargando plan...</div>;
   }
@@ -320,6 +336,15 @@ export default function TripPlanView({
         <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
           <button
             type="button"
+            onClick={() => setExploreOpen(true)}
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-5 py-3 text-sm font-semibold text-violet-900 shadow-sm transition hover:bg-violet-100 focus:outline-none focus:ring-2 focus:ring-violet-200 sm:w-auto"
+            title="Explorar lugares y crear planes con coordenadas"
+          >
+            <Compass className="h-4 w-4" />
+            Explorar
+          </button>
+          <button
+            type="button"
             onClick={() => setHistoryOpen((v) => !v)}
             className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-cyan-200 sm:w-auto"
             title="Ver historial de cambios"
@@ -337,6 +362,13 @@ export default function TripPlanView({
           </button>
         </div>
       </div>
+
+      <TripPlanExploreDrawer
+        tripId={tripId}
+        open={exploreOpen}
+        onClose={() => setExploreOpen(false)}
+        onCreatePlan={openCreateWithExplorePlace}
+      />
 
       {historyOpen ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">

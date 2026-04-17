@@ -7,12 +7,17 @@ import { isPremiumEnabledForTrip } from "@/lib/entitlements";
 
 export default async function TripPlanPage({
   params,
+  searchParams,
 }: {
   params: { id: string };
+  searchParams?: Record<string, string | string[] | undefined>;
 }) {
   const access = await requireTripAccess(params.id);
   const supabase = await createClient();
   const isPremium = await isPremiumEnabledForTrip({ supabase, userId: access.userId, tripId: params.id });
+  const rawExplore = searchParams?.explore;
+  const explore = typeof rawExplore === "string" ? rawExplore : Array.isArray(rawExplore) ? String(rawExplore[0] || "") : "";
+  const initialExploreOpen = explore.trim() === "1" || explore.trim().toLowerCase() === "true";
 
   return (
     <main className="space-y-8">
@@ -27,7 +32,7 @@ export default async function TripPlanPage({
         actions={<TripScreenActions tripId={params.id} />}
       />
 
-      <TripPlanView tripId={params.id} premiumEnabled={isPremium} />
+      <TripPlanView tripId={params.id} premiumEnabled={isPremium} initialExploreOpen={initialExploreOpen} />
     </main>
   );
 }

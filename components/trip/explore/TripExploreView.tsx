@@ -5,6 +5,7 @@ import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
 import PlaceAutocompleteInput from "@/components/PlaceAutocompleteInput";
 import { FolderPlus, MapPin, Plus, RefreshCcw, Save, Trash2 } from "lucide-react";
+import { useTripActivityKinds } from "@/hooks/useTripActivityKinds";
 
 type Folder = {
   id: string;
@@ -47,6 +48,13 @@ type PlanRow = {
   activity_kind: string | null;
 };
 
+type CreatePlanPayload = {
+  title: string;
+  address: string;
+  latitude: number | null;
+  longitude: number | null;
+};
+
 function categoryEmoji(category: string | null | undefined) {
   const c = (category || "").toLowerCase();
   if (c.includes("restaurant") || c.includes("food") || c.includes("cafe")) return "🍽️";
@@ -58,9 +66,27 @@ function categoryEmoji(category: string | null | undefined) {
   return "📍";
 }
 
-function planKindMeta(kind: string | null | undefined) {
-  const k = (kind || "visit").toLowerCase();
-  if (k === "food")
+function normalizeKind(kind: unknown) {
+  return typeof kind === "string" ? kind.trim().toLowerCase() : "";
+}
+
+function planKindMeta(
+  kind: string | null | undefined,
+  custom?: Map<string, { label: string; emoji?: string | null; color?: string | null }>
+) {
+  const k = normalizeKind(kind) || "visit";
+  const fromCustom = custom?.get(k) || null;
+  if (fromCustom) {
+    const emoji = (fromCustom.emoji || "🏷️").trim() || "🏷️";
+    const color = fromCustom.color || "#64748b";
+    return {
+      label: fromCustom.label || k,
+      emoji,
+      accent: "bg-violet-50 text-violet-900 border-violet-200",
+      pin: { fill: color, stroke: "#0f172a" },
+    };
+  }
+  if (k === "food" || k === "restaurant")
     return {
       label: "Comida",
       emoji: "🍽️",
@@ -140,7 +166,13 @@ function FitToBounds({ pointsKey, bounds }: { pointsKey: string; bounds: L.LatLn
   return null;
 }
 
-export default function TripExploreView({ tripId }: { tripId: string }) {
+export default function TripExploreView({
+  tripId,
+  onCreatePlan,
+}: {
+  tripId: string;
+  onCreatePlan?: (payload: CreatePlanPayload) => void;
+}) {
 
   const [folders, setFolders] = useState<Folder[]>([]);
   const [places, setPlaces] = useState<PlaceRow[]>([]);
@@ -150,6 +182,21 @@ export default function TripExploreView({ tripId }: { tripId: string }) {
 
   const [plans, setPlans] = useState<PlanRow[]>([]);
   const [visiblePlanKinds, setVisiblePlanKinds] = useState<Record<string, boolean>>({});
+  const { kinds: customKinds } = useTripActivityKinds(tripId);
+
+  const customByKey = useMemo(() => {
+    const map = new Map<string, { label: string; emoji?: string | null; color?: string | null }>();
+    for (const k of customKinds || []) {
+      const kk = normalizeKind((k as any)?.kind_key);
+      if (!kk) continue;
+      map.set(kk, {
+        label: String((k as any)?.label || kk),
+        emoji: (k as any)?.emoji ?? null,
+        color: (k as any)?.color ?? null,
+      });
+    }
+    return map;
+  }, [customKinds]);
 
   const [query, setQuery] = useState("");
   const [pending, setPending] = useState<PendingPlace | null>(null);
@@ -228,7 +275,7 @@ export default function TripExploreView({ tripId }: { tripId: string }) {
 
     for (const a of visiblePlans) {
       if (typeof a.latitude !== "number" || typeof a.longitude !== "number") continue;
-      const meta = planKindMeta(a.activity_kind);
+      const meta = planKindMeta(a.activity_kind, customByKey);
       out.push({
         key: `plan:${a.id}`,
         lat: a.latitude,
@@ -266,7 +313,7 @@ export default function TripExploreView({ tripId }: { tripId: string }) {
     }
 
     return out;
-  }, [pending, visiblePlaces, visiblePlans]);
+  }, [customByKey, pending, visiblePlaces, visiblePlans]);
 
   const bounds = useMemo(() => {
     if (!mapPoints.length) return null;
@@ -546,6 +593,26 @@ export default function TripExploreView({ tripId }: { tripId: string }) {
               </div>
 
               <div className="mt-3 grid gap-3">
+                {onCreatePlan ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const title = String(pending.name || pending.address || "Nuevo plan").trim() || "Nuevo plan";
+                      const address = String(pending.address || pending.name || "").trim();
+                      onCreatePlan({
+                        title,
+                        address,
+                        latitude: pending.latitude ?? null,
+                        longitude: pending.longitude ?? null,
+                      });
+                    }}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                    title="Crear un plan con este lugar (se abrirá el formulario)"
+                  >
+                    Crear plan con este lugar
+                  </button>
+                ) : null}
+
                 <label className="space-y-2">
                   <span className="text-xs font-semibold text-slate-700">Carpeta</span>
                   <select

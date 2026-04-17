@@ -29,15 +29,6 @@ export default function TripScreenActions({
   return (
     <div className="flex flex-wrap gap-2">
       <TripShareButton tripId={tripId} showLabels={showLabels} />
-      <Link
-        href={`/trip/${tripId}/map?view=explore`}
-        className={btn}
-        aria-label="Explorar en el mapa"
-        title="Explorar en el mapa"
-      >
-        <Compass className="h-3.5 w-3.5" aria-hidden />
-        <span className={showLabels ? "inline" : "hidden sm:inline"}>Explorar</span>
-      </Link>
       {showSummary ? (
         <Link href={`/trip/${tripId}`} className={btn} aria-label={summaryLabel} title={summaryLabel}>
           <LayoutDashboard className="h-3.5 w-3.5" aria-hidden />
