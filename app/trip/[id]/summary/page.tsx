@@ -82,6 +82,27 @@ function truncateHint(s: string, max = 52) {
   return `${t.slice(0, max - 1)}…`;
 }
 
+function formatMoneyCompact(amount: number, currency: string) {
+  const c = (currency || "EUR").toUpperCase();
+  try {
+    return new Intl.NumberFormat("es-ES", { style: "currency", currency: c, maximumFractionDigits: 0 }).format(amount);
+  } catch {
+    return `${Math.round(amount)} ${c}`;
+  }
+}
+
+function sumExpensesByCurrency(rows: Array<{ amount: unknown; currency: string | null }>, baseCurrency: string) {
+  const map = new Map<string, number>();
+  const bc = (baseCurrency || "EUR").toUpperCase();
+  for (const r of rows) {
+    const n = Number(r.amount);
+    if (!Number.isFinite(n)) continue;
+    const c = (typeof r.currency === "string" && r.currency.trim() ? r.currency : bc).toUpperCase();
+    map.set(c, (map.get(c) ?? 0) + n);
+  }
+  return map;
+}
+
 export default async function TripSummaryPage({ params }: TripPageProps) {
   const tripId = params.id;
   const access = await requireTripAccess(tripId);
@@ -97,6 +118,8 @@ export default async function TripSummaryPage({ params }: TripPageProps) {
     { count: resourcesCount },
     { data: lastExpenseRow },
     { data: lastResourceRow },
+    { data: firstRouteRow },
+    { data: expenseAmountRows },
   ] = await Promise.all([
     supabase.from("trips").select("id, name, destination, start_date, end_date, base_currency").eq("id", tripId).maybeSingle(),
     supabase.from("trip_participants").select("id", { count: "exact", head: true }).eq("trip_id", tripId).neq("status", "removed"),
@@ -112,6 +135,15 @@ export default async function TripSummaryPage({ params }: TripPageProps) {
     supabase.from("trip_resources").select("id", { count: "exact", head: true }).eq("trip_id", tripId),
     supabase.from("trip_expenses").select("title").eq("trip_id", tripId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     supabase.from("trip_resources").select("title").eq("trip_id", tripId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    supabase
+      .from("trip_routes")
+      .select("title, route_day")
+      .eq("trip_id", tripId)
+      .order("route_day", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+    supabase.from("trip_expenses").select("amount, currency").eq("trip_id", tripId).limit(1200),
   ]);
 
   if (tripError || !trip) {
@@ -181,6 +213,12 @@ export default async function TripSummaryPage({ params }: TripPageProps) {
       ? String((lastResourceRow as { title: string }).title).trim()
       : "";
 
+  const firstRoute = firstRouteRow as { title?: string | null; route_day?: string | null } | null;
+  const expenseSums = sumExpensesByCurrency(
+    (expenseAmountRows ?? []) as Array<{ amount: unknown; currency: string | null }>,
+    currentTrip.base_currency || "EUR"
+  );
+
   const alerts = [
     !currentTrip.destination ? "Añade el destino para activar clima y contexto." : null,
     (participantsCount ?? 0) <= 1 ? "Añade participantes si vais a viajar en grupo." : null,
@@ -195,9 +233,28 @@ export default async function TripSummaryPage({ params }: TripPageProps) {
       ? "Hay actividades: revisa fechas en Plan si no ves un “siguiente”."
       : null;
   const mapHint =
-    (routesCount ?? 0) === 0 ? "Aún sin rutas: enlaza paradas del plan en el mapa." : "Edita trayectos y paradas aquí.";
+    (routesCount ?? 0) === 0
+      ? "Aún sin rutas: enlaza paradas del plan en el mapa."
+      : firstRoute?.title
+        ? `Primera en calendario: ${truncateHint(String(firstRoute.title), 34)}${
+            firstRoute.route_day ? ` · ${formatDate(firstRoute.route_day)}` : ""
+          }`
+        : "Edita trayectos y paradas en el mapa.";
+
+  const expenseHintParts: string[] = [];
+  if ((expensesCount ?? 0) > 0 && expenseSums.size === 1) {
+    const [cur, val] = [...expenseSums.entries()][0]!;
+    expenseHintParts.push(`Suma aprox.: ${formatMoneyCompact(val, cur)}`);
+  } else if ((expensesCount ?? 0) > 0 && expenseSums.size > 1) {
+    expenseHintParts.push("Varias divisas: totales en Gastos");
+  }
+  if (lastExpenseTitle) expenseHintParts.push(`Último: ${truncateHint(lastExpenseTitle, 38)}`);
   const expensesHint =
-    lastExpenseTitle ? `Último gasto: ${truncateHint(lastExpenseTitle, 44)}` : (expensesCount ?? 0) > 0 ? "Abre Gastos para ver el detalle." : "Registra el primer gasto para balances.";
+    expenseHintParts.length > 0
+      ? expenseHintParts.join(" · ")
+      : (expensesCount ?? 0) > 0
+        ? "Abre Gastos para ver importes y balances."
+        : "Registra el primer gasto para balances.";
   const peopleHint =
     (participantsCount ?? 0) <= 1 ? "Invita al grupo con el enlace de participantes." : "Roles y permisos por persona.";
   const resourcesHint = lastResourceTitle ? `Último doc: ${truncateHint(lastResourceTitle, 44)}` : (resourcesCount ?? 0) > 0 ? "Revisa reservas y archivos." : "Sube billetes o PDFs cuando los tengas.";

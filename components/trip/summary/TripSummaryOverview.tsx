@@ -252,7 +252,7 @@ export default function TripSummaryOverview({
                 <p className="mt-4 text-lg font-extrabold text-slate-950">{tab.label}</p>
                 <p className="mt-1 text-sm text-slate-600">{tab.subtitle}</p>
                 {tab.hint ? (
-                  <p className="mt-2 line-clamp-2 rounded-xl border border-slate-100 bg-slate-50/90 px-3 py-2 text-xs font-medium leading-snug text-slate-800">
+                  <p className="mt-2 line-clamp-3 rounded-xl border border-slate-100 bg-slate-50/90 px-3 py-2 text-xs font-medium leading-snug text-slate-800">
                     {tab.hint}
                   </p>
                 ) : null}
