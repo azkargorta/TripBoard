@@ -6,6 +6,13 @@ describe("inferAIActionFromQuestion", () => {
     expect(inferAIActionFromQuestion("Hazme un planning para Roma")).toBe("generate_trip");
   });
 
+  it("detecta el typo «planing» y «que me hagas un plan»", () => {
+    expect(inferAIActionFromQuestion("quiero que me hagas un planing de que ver en londres esos dias")).toBe(
+      "generate_trip"
+    );
+    expect(inferAIActionFromQuestion("Quiero que me hagas un plan para el finde")).toBe("generate_trip");
+  });
+
   it("detecta «planificación» y variantes de plan", () => {
     expect(inferAIActionFromQuestion("Necesito planificación 4 días Lisboa")).toBe("generate_trip");
     expect(inferAIActionFromQuestion("Dame un plan de fin de semana")).toBe("generate_trip");

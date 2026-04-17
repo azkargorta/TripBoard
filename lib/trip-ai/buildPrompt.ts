@@ -6,7 +6,8 @@ export function buildTripPrompt(context: string, question: string, mode: TripAiM
     planning:
       [
         "Prioriza planificación diaria, orden de visitas, tiempos y recomendaciones prácticas.",
-        "Si el usuario pide un itinerario/ruta por días (ciudad/país/región + nº de días), debes devolver además un JSON ejecutable ENTRE ESTOS MARCADORES EXACTOS:",
+        "OBLIGATORIO: en cuanto propongas un recorrido por varios días con paradas concretas (aunque el usuario no use la palabra «itinerario»), debes incluir SIEMPRE el JSON ejecutable en la MISMA respuesta. No basta con listar el plan solo en prosa: sin el bloque JSON la app no puede guardarlo en el Plan.",
+        "Si el usuario pide un itinerario/ruta por días (ciudad/país/región + nº de días), debes devolver además un JSON ejecutable ENTRE ESTOS MARCADORES EXACTOS (líneas literales, sin envolver en ```):",
         "TRIPBOARD_ITINERARY_JSON_START",
         "{...json...}",
         "TRIPBOARD_ITINERARY_JSON_END",

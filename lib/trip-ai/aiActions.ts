@@ -67,6 +67,7 @@ export function inferAIActionFromQuestion(question: string): AIActionId {
   // Itinerario / plan por días → modo planificación + JSON TRIPBOARD_ITINERARY (aunque el UI esté en «general»).
   if (
     q.includes("planning") ||
+    q.includes("planing") ||
     q.includes("planificacion") ||
     q.includes("planificar") ||
     q.includes("itinerario") ||
@@ -91,6 +92,10 @@ export function inferAIActionFromQuestion(question: string): AIActionId {
     q.includes("propuesta de viaje") ||
     q.includes("borrador de itinerario") ||
     q.includes("hazme un plan") ||
+    q.includes("me hagas un plan") ||
+    q.includes("que me hagas un plan") ||
+    q.includes("hagas un plan") ||
+    q.includes("haceme un plan") ||
     q.includes("dame un plan") ||
     q.includes("crea un plan") ||
     q.includes("creame un plan") ||

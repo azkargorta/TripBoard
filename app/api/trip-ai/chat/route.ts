@@ -95,6 +95,7 @@ export async function POST(req: Request) {
       role: "user",
       content: question,
       metadata: { mode: effectiveMode, clientMode, aiAction, modeSource },
+      conversationMode: effectiveMode,
     });
 
     const { executedMessage: actionResult, parsedAction: action } = await handleAIAction(tripId, aiAction, question, effectiveMode);
@@ -139,6 +140,7 @@ export async function POST(req: Request) {
         actionExecuted: Boolean(actionResult),
         actionResult: actionResult || null,
       },
+      conversationMode: effectiveMode,
     });
 
     return NextResponse.json({

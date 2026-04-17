@@ -61,6 +61,8 @@ export async function appendMessage(params: {
   role: "user" | "assistant" | "system";
   content: string;
   metadata?: Record<string, unknown>;
+  /** Si se indica, actualiza el modo de la conversación (p. ej. planning tras detectar itinerario en modo automático). */
+  conversationMode?: ChatMode;
 }) {
   const supabase = createServerSupabase();
   const response = await supabase
@@ -77,16 +79,15 @@ export async function appendMessage(params: {
 
   if (response.error) throw new Error(response.error.message);
 
-  await supabase
-    .from("trip_ai_conversations")
-    .update({
-      updated_at: new Date().toISOString(),
-      title:
-        params.role === "user" && params.content.trim()
-          ? params.content.trim().slice(0, 60)
-          : undefined,
-    })
-    .eq("id", params.conversationId);
+  const convoPatch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (params.role === "user" && params.content.trim()) {
+    convoPatch.title = params.content.trim().slice(0, 60);
+  }
+  if (params.conversationMode) {
+    convoPatch.mode = params.conversationMode;
+  }
+
+  await supabase.from("trip_ai_conversations").update(convoPatch).eq("id", params.conversationId);
 
   return response.data;
 }
