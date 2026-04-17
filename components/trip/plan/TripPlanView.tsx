@@ -10,6 +10,7 @@ import { CalendarDays, Clock, Compass, Eye, EyeOff, Filter, Plus, Search, Slider
 import TripPlanCalendar from "@/components/trip/plan/TripPlanCalendar";
 import { useTripActivityKinds } from "@/hooks/useTripActivityKinds";
 import TripPlanExploreDrawer, { type ExploreCreatePlanPayload } from "@/components/trip/plan/TripPlanExploreDrawer";
+import TripPlanNotesPanel from "@/components/trip/plan/TripPlanNotesPanel";
 
 const COMMON_KIND_ICONS: Array<{ emoji: string; label: string }> = [
   { emoji: "📍", label: "Visita" },
@@ -147,10 +148,16 @@ export default function TripPlanView({
   tripId,
   premiumEnabled,
   initialExploreOpen = false,
+  initialTripDescription = null,
+  canEditTripNotes = false,
+  initialWorkspaceTab = "itinerary",
 }: {
   tripId: string;
   premiumEnabled: boolean;
   initialExploreOpen?: boolean;
+  initialTripDescription?: string | null;
+  canEditTripNotes?: boolean;
+  initialWorkspaceTab?: "itinerary" | "notes";
 }) {
   const { trip, activities, loading, saving, error, createActivity, updateActivity, deleteActivity } =
     useTripActivities(tripId);
@@ -183,6 +190,7 @@ export default function TripPlanView({
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [exploreOpen, setExploreOpen] = useState(initialExploreOpen);
+  const [workspaceTab, setWorkspaceTab] = useState<"itinerary" | "notes">(initialWorkspaceTab);
 
   useEffect(() => {
     let cancelled = false;
@@ -343,7 +351,46 @@ export default function TripPlanView({
 
   return (
     <div className="space-y-6">
-      {!showForm ? (
+      {error ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      ) : null}
+
+      <div
+        role="tablist"
+        aria-label="Vista del plan"
+        className="flex gap-2 rounded-2xl border border-slate-200 bg-slate-50/80 p-1.5 sm:inline-flex sm:max-w-md"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={workspaceTab === "itinerary"}
+          onClick={() => setWorkspaceTab("itinerary")}
+          className={`inline-flex min-h-11 flex-1 items-center justify-center rounded-xl px-4 text-sm font-extrabold transition focus:outline-none focus:ring-2 focus:ring-cyan-200 sm:flex-1 ${
+            workspaceTab === "itinerary" ? "bg-white text-slate-950 shadow-sm" : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          Itinerario
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={workspaceTab === "notes"}
+          onClick={() => setWorkspaceTab("notes")}
+          className={`inline-flex min-h-11 flex-1 items-center justify-center rounded-xl px-4 text-sm font-extrabold transition focus:outline-none focus:ring-2 focus:ring-cyan-200 sm:flex-1 ${
+            workspaceTab === "notes" ? "bg-white text-slate-950 shadow-sm" : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          Notas
+        </button>
+      </div>
+
+      {workspaceTab === "notes" ? (
+        <TripPlanNotesPanel tripId={tripId} initialDescription={initialTripDescription} readOnly={!canEditTripNotes} />
+      ) : null}
+
+      {workspaceTab === "itinerary" && !showForm ? (
         <button
           type="button"
           onClick={handleStartCreate}
@@ -355,13 +402,9 @@ export default function TripPlanView({
         </button>
       ) : null}
 
-      {error ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      ) : null}
-
-      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+      {workspaceTab === "itinerary" ? (
+        <>
+          <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <p className="text-sm text-slate-600">
           <span className="font-semibold text-slate-900">{trip?.name || trip?.destination || "Este viaje"}</span>
           {" · "}
@@ -894,6 +937,8 @@ export default function TripPlanView({
           </section>
         ))}
       </div>
+        </>
+      ) : null}
     </div>
   );
 }

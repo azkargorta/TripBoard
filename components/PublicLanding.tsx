@@ -86,7 +86,7 @@ export default function PublicLanding() {
               documentos y automatización.
             </p>
 
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <Link
                 href="/auth/register"
                 className="inline-flex min-h-[48px] items-center justify-center rounded-2xl bg-slate-950 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
@@ -94,12 +94,11 @@ export default function PublicLanding() {
                 Crear viaje
                 <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
               </Link>
-              <Link
-                href="/pricing"
-                className="inline-flex min-h-[48px] items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
-              >
-                Ver precios
-              </Link>
+              <span className="text-sm text-slate-500">
+                <Link href="/pricing" className="font-semibold text-cyan-800 underline-offset-2 hover:underline">
+                  Ver precios y planes
+                </Link>
+              </span>
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 md:p-5">
