@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import TripScreenActions from "@/components/trip/common/TripScreenActions";
 import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
 import Link from "next/link";
+import { useTripData } from "@/hooks/useTripData";
+import { useTripAiOnboarding, type OnboardingDraft } from "@/components/trip/ai/useTripAiOnboarding";
+import type { AIActionId } from "@/lib/trip-ai/aiActions";
 
 type ChatMode = "general" | "planning" | "expenses" | "optimizer" | "actions";
 type ExtendedChatMode = ChatMode | "day_planner";
@@ -174,6 +177,13 @@ const PLACEHOLDERS: Record<ExtendedChatMode, string> = {
     "Ej.: organízame el 2026-06-15 en Ámsterdam, andando, de 10:00 a 21:00… (luego «Aplicar cambios» para guardar)",
 };
 
+const SMART_CHIPS: Array<{ label: string; prompt: string; action: AIActionId }> = [
+  { label: "✨ Optimizar viaje", prompt: "Optimiza el viaje: detecta huecos, solapes y mejoras prácticas.", action: "optimize_route" },
+  { label: "🗺️ Mejorar rutas", prompt: "Mejora el orden geográfico y las rutas entre paradas para desperdiciar menos tiempo.", action: "optimize_route" },
+  { label: "💸 Ajustar presupuesto", prompt: "Ayúdame a revisar el presupuesto y el reparto de gastos con lo que ya tenemos.", action: "adjust_budget" },
+  { label: "🍽️ Añadir restaurantes", prompt: "Sugiere restaurantes que encajen y, si aplica, añade actividades tipo restaurante al plan.", action: "add_activity" },
+];
+
 const SUGGESTIONS: Record<ExtendedChatMode, string[]> = {
   general: [
     "Hazme un resumen del viaje",
@@ -262,10 +272,9 @@ export default function TripAiChatView({
       id: "welcome",
       role: "assistant",
       content:
-        "Hola. Soy el asistente de este viaje.\n\n" +
-        "1) Elige el tipo de chat a la izquierda (o las pastillas arriba en el móvil): «Preguntar y analizar» para dudas e ideas, o «Preparar o guardar en la app» cuando quieras propuestas que luego puedas aplicar al plan o al mapa.\n\n" +
-        "2) Planificación = varios días y suele acabar en «Ejecutar plan». Organizar día = un solo día con rutas y se guarda con «Aplicar cambios».\n\n" +
-        "Las conversaciones se guardan: puedes volver a ellas cuando quieras.",
+        "Te ayudo con tu viaje ✈️\n\n" +
+        "Escribe abajo con libertad: optimizar rutas, gastos, ideas… Si el plan está vacío, te propondré una guía breve para arrancar.\n\n" +
+        "Cuando la IA devuelva un itinerario o cambios, revísalos y usa «Ejecutar plan» o «Aplicar cambios» para guardarlos en el mapa y el plan.",
     },
   ]);
   const [question, setQuestion] = useState("");
@@ -286,7 +295,58 @@ export default function TripAiChatView({
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
   /** Panel «Tipo de chat» (y pastillas en móvil): cerrado por defecto */
   const [chatTypesOpen, setChatTypesOpen] = useState(false);
+  const [modeSource, setModeSource] = useState<"auto" | "manual">("auto");
+  const [planActivityCount, setPlanActivityCount] = useState<number | null>(null);
+  const [onboardingBusy, setOnboardingBusy] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+
+  const { trip, reload: reloadTrip, loading: tripDataLoading } = useTripData(tripId);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/trip-activities?tripId=${encodeURIComponent(tripId)}`, { cache: "no-store" });
+        const data = await res.json().catch(() => null);
+        const n = Array.isArray(data?.activities) ? data.activities.length : 0;
+        if (!cancelled) setPlanActivityCount(n);
+      } catch {
+        if (!cancelled) setPlanActivityCount(0);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tripId]);
+
+  const {
+    onboardingActive,
+    onboardingStep,
+    setOnboardingStep,
+    onboardingDraft,
+    setOnboardingDraft,
+    skipOnboarding,
+    markOnboardingComplete,
+    applyDurationChips,
+  } = useTripAiOnboarding({
+    tripId,
+    tripLoaded: !tripDataLoading && planActivityCount !== null && Boolean(trip),
+    planActivityCount,
+  });
+
+  const patchTripMeta = useCallback(
+    async (payload: Record<string, unknown>) => {
+      const res = await fetch(`/api/trips/${encodeURIComponent(tripId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || "No se pudo actualizar el viaje.");
+      await reloadTrip();
+    },
+    [tripId, reloadTrip]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -472,6 +532,21 @@ export default function TripAiChatView({
 
   const placeholder = useMemo(() => PLACEHOLDERS[mode], [mode]);
 
+  const inputPlaceholder = useMemo(() => {
+    if (onboardingActive && onboardingStep === 1) return "Escribe un destino (ciudad, región, país)…";
+    if (onboardingActive && onboardingStep === 2) {
+      return "Opcional: escribe fechas o matices (“del 3 al 9 de agosto”, “Semana Santa”)…";
+    }
+    return placeholder;
+  }, [onboardingActive, onboardingStep, placeholder]);
+
+  useEffect(() => {
+    if (!onboardingActive || onboardingStep !== 1) return;
+    const t = trip?.destination?.trim();
+    if (!t) return;
+    setOnboardingDraft((d) => (d.destination ? d : { ...d, destination: t }));
+  }, [onboardingActive, onboardingStep, trip?.destination, setOnboardingDraft]);
+
   const activeMode = useMemo(() => MODE_OPTIONS.find((m) => m.id === mode), [mode]);
 
   useEffect(() => {
@@ -528,12 +603,13 @@ export default function TripAiChatView({
 
   function newConversation() {
     setConversationId(null);
+    setModeSource("auto");
     setMessages([
       {
         id: crypto.randomUUID(),
         role: "assistant",
         content:
-          "Nueva conversación. Elige el tipo de chat a la izquierda (o las pastillas arriba en el móvil) y escribe cuando quieras.",
+          "Nueva conversación. Escribe con libertad o usa las sugerencias de abajo; en modo automático la IA detecta la intención.",
       },
     ]);
     setQuestion("");
@@ -541,15 +617,28 @@ export default function TripAiChatView({
     setError(null);
   }
 
-  async function sendMessage(customQuestion?: string) {
+  async function sendMessage(
+    customQuestion?: string,
+    forcedAiAction?: AIActionId | null,
+    hooks?: { onSuccess?: () => void }
+  ) {
     if (!isPremium) return;
     const clean = (customQuestion ?? question).trim();
     if (!clean || loading) return;
 
-    setMessages((current) => [
-      ...current,
-      { id: crypto.randomUUID(), role: "user", content: clean },
-    ]);
+    const priorForHint = messages
+      .filter((m) => m.role === "user" || m.role === "assistant")
+      .filter((m) => m.id !== "welcome")
+      .slice(-4);
+    const dialogHint =
+      [
+        ...priorForHint.map((m) => `${m.role === "user" ? "Usuario" : "Asistente"}: ${m.content.slice(0, 420)}`),
+        `Usuario: ${clean.slice(0, 420)}`,
+      ]
+        .join("\n")
+        .slice(0, 900) || "";
+
+    setMessages((current) => [...current, { id: crypto.randomUUID(), role: "user", content: clean }]);
     setQuestion("");
     setLoading(true);
     setError(null);
@@ -572,14 +661,17 @@ export default function TripAiChatView({
                     .filter((m) => m.id !== "welcome")
                     .map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
                   { role: "user" as const, content: clean },
-                ].slice(-16),
+                ].slice(-8),
               }
             : {
                 tripId,
                 question: clean,
-                mode,
+                mode: modeSource === "manual" ? mode : "general",
+                modeSource,
                 conversationId,
                 provider: provider === "auto" ? null : provider,
+                dialogHint,
+                ...(forcedAiAction ? { aiAction: forcedAiAction } : {}),
               }
         ),
       });
@@ -605,8 +697,6 @@ export default function TripAiChatView({
         (data.diff as { version?: number }).version === 1 &&
         Array.isArray((data.diff as { operations?: unknown }).operations);
 
-      // Organizar día: el plan real (actividades + rutas) va en `diff`; no mezclar con
-      // TRIPBOARD_ITINERARY_JSON del texto o "Ejecutar plan" crearía duplicados o 0 filas.
       if (hasDayPlannerDiff) {
         setItineraryDraft(null);
         setExpandedDay(null);
@@ -629,6 +719,7 @@ export default function TripAiChatView({
       }
 
       await loadConversations();
+      hooks?.onSuccess?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo obtener respuesta.");
       setMessages((current) => [
@@ -644,8 +735,74 @@ export default function TripAiChatView({
     }
   }
 
+  async function finalizeOnboardingWithAi(override?: Partial<OnboardingDraft>) {
+    if (!isPremium || onboardingBusy) return;
+    const merged = { ...onboardingDraft, ...override };
+    setOnboardingDraft(merged);
+    setOnboardingBusy(true);
+    setError(null);
+    try {
+      const dest = (merged.destination || trip?.destination || "").trim();
+      if (!dest) {
+        setError("Indica un destino (o elige una sugerencia) para generar el plan.");
+        return;
+      }
+      await patchTripMeta({
+        destination: dest || null,
+        start_date: merged.startDate || trip?.start_date || null,
+        end_date: merged.endDate || trip?.end_date || null,
+      });
+
+      const datePart =
+        merged.startDate && merged.endDate
+          ? `Fechas: ${merged.startDate} → ${merged.endDate}.`
+          : merged.dateNotes
+            ? `Fechas (texto del usuario): ${merged.dateNotes}.`
+            : "Fechas: propón un calendario coherente si faltan datos exactos.";
+
+      const prompt = [
+        `Genera un itinerario completo (varios días) para este viaje y devuelve el bloque JSON según el modo planificación.`,
+        `Destino principal: ${dest}.`,
+        datePart,
+        merged.partySize ? `Personas aprox.: ${merged.partySize}.` : "",
+        merged.tripStyle ? `Tipo de viaje: ${merged.tripStyle}.` : "",
+        `Incluye 3–6 paradas por día cuando tenga sentido, con ritmo equilibrado.`,
+      ]
+        .filter(Boolean)
+        .join(" ");
+
+      await sendMessage(prompt, "generate_trip", {
+        onSuccess: () => {
+          markOnboardingComplete();
+        },
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo completar la guía inicial.");
+    } finally {
+      setOnboardingBusy(false);
+    }
+  }
+
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
+    const clean = question.trim();
+    if (!clean || loading) return;
+
+    if (onboardingActive) {
+      if (onboardingStep === 1) {
+        setOnboardingDraft((d) => ({ ...d, destination: clean }));
+        setOnboardingStep(2);
+        setQuestion("");
+        return;
+      }
+      if (onboardingStep === 2) {
+        setOnboardingDraft((d) => ({ ...d, dateNotes: clean }));
+        setOnboardingStep(3);
+        setQuestion("");
+        return;
+      }
+    }
+
     void sendMessage();
   }
 
@@ -654,11 +811,141 @@ export default function TripAiChatView({
       <TripBoardPageHeader
         section="Asistente IA del viaje"
         title="Chat IA"
-        description="Elige el modo según lo que necesites: preguntar, planear varios días, optimizar, o pedir cambios guardables. Todo sigue disponible; abajo tienes la guía por modos."
+        description="Chat libre con sugerencias y guía opcional al crear el plan. La IA usa un resumen del viaje y acciones concretas (no todo el historial) para ahorrar tokens."
         iconSrc="/brand/tabs/ai.png"
         iconAlt="Chat IA"
         actions={<TripScreenActions tripId={tripId} />}
       />
+
+      {onboardingActive ? (
+        <section className="rounded-[28px] border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-violet-50 p-5 shadow-sm">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-sky-800">Guía inicial</p>
+              <h2 className="mt-1 text-lg font-bold text-slate-950">Te ayudo a crear tu viaje paso a paso ✈️</h2>
+              <p className="mt-2 text-sm text-slate-600">
+                Responde con los botones o escribe abajo cuando quieras. Nada es obligatorio: puedes saltar la guía en cualquier momento.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => skipOnboarding()}
+              className="shrink-0 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+            >
+              Saltar guía
+            </button>
+          </div>
+
+          <div className="mt-5 space-y-4">
+            {onboardingStep === 0 ? (
+              <div className="space-y-3">
+                <p className="text-sm font-medium text-slate-800">¿Empezamos con unas preguntas rápidas?</p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setOnboardingStep(1)}
+                    className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+                  >
+                    Empezar
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {onboardingStep === 1 ? (
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-slate-900">1. ¿Cuál es el destino principal?</p>
+                <div className="flex flex-wrap gap-2">
+                  {["Roma", "París", "Lisboa", "Nueva York", "Tokio"].map((city) => (
+                    <button
+                      key={city}
+                      type="button"
+                      onClick={() => {
+                        setOnboardingDraft((d) => ({ ...d, destination: city }));
+                        setOnboardingStep(2);
+                      }}
+                      className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                    >
+                      {city}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-slate-500">O escribe el destino en el cuadro de abajo y pulsa Enviar.</p>
+              </div>
+            ) : null}
+
+            {onboardingStep === 2 ? (
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-slate-900">2. ¿Cuánto dura el viaje?</p>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { label: "3 días", nights: 3 },
+                    { label: "5 días", nights: 5 },
+                    { label: "1 semana", nights: 7 },
+                    { label: "10 días", nights: 10 },
+                  ].map((opt) => (
+                    <button
+                      key={opt.label}
+                      type="button"
+                      onClick={() => {
+                        applyDurationChips(opt.nights);
+                        setOnboardingStep(3);
+                      }}
+                      className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-slate-500">
+                  También puedes escribir fechas o aclaraciones (ej. «del 3 al 9 de agosto») abajo y pulsar Enviar.
+                </p>
+              </div>
+            ) : null}
+
+            {onboardingStep === 3 ? (
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-slate-900">3. ¿Cuántas personas viajáis?</p>
+                <div className="flex flex-wrap gap-2">
+                  {[2, 3, 4, 6].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => {
+                        setOnboardingDraft((d) => ({ ...d, partySize: n }));
+                        setOnboardingStep(4);
+                      }}
+                      className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                    >
+                      {n === 6 ? "6 o más" : String(n)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {onboardingStep === 4 ? (
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-slate-900">4. ¿Qué tipo de viaje buscáis?</p>
+                <div className="flex flex-wrap gap-2">
+                  {["Cultura", "Fiesta", "Naturaleza", "Relax", "Barato", "Premium", "Mixto"].map((style) => (
+                    <button
+                      key={style}
+                      type="button"
+                      onClick={() => void finalizeOnboardingWithAi({ tripStyle: style })}
+                      disabled={onboardingBusy || loading}
+                      className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-sm font-semibold text-violet-950 hover:bg-violet-100 disabled:opacity-50"
+                    >
+                      {style}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-slate-500">Al elegir un estilo se generará un borrador de itinerario con la IA (luego puedes ejecutarlo en el plan).</p>
+              </div>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
 
       {itineraryDraft ? (
         <section className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-sky-50 p-5 shadow-sm">
@@ -1174,18 +1461,49 @@ export default function TripAiChatView({
               <div className="min-w-0">
                 <h2 className="text-lg font-bold text-slate-950">Conversación</h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Modo: <span className="font-semibold text-slate-800">{activeMode?.label}</span>
-                  {activeMode ? (
+                  Modo:{" "}
+                  <span className="font-semibold text-slate-800">
+                    {modeSource === "auto" ? "Automático" : activeMode?.label || mode}
+                  </span>
+                  {modeSource === "manual" && activeMode ? (
                     <span className="mt-0.5 block text-xs text-slate-500 xl:hidden">{activeMode.useFor}</span>
                   ) : null}
                 </p>
                 <p className="mt-1 hidden text-xs text-slate-500 xl:block">
-                  El asistente usa el contexto del viaje y recuerda esta conversación.
+                  {modeSource === "auto"
+                    ? "Modo automático: la intención se traduce en acción y resumen del viaje (sin enviar todo el historial)."
+                    : "Modo manual: controlas el tipo de respuesta de la IA."}
                 </p>
               </div>
 
-              <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                {loading ? "Pensando..." : "Listo"}
+              <div className="flex flex-col items-end gap-2">
+                <label className="flex flex-col items-end gap-1 text-[11px] font-semibold text-slate-600">
+                  Modo IA
+                  <select
+                    value={modeSource === "manual" ? mode : "auto"}
+                    onChange={(e) => {
+                      const v = e.target.value as "auto" | ExtendedChatMode;
+                      if (v === "auto") {
+                        setModeSource("auto");
+                      } else {
+                        setModeSource("manual");
+                        setMode(v);
+                      }
+                    }}
+                    className="rounded-xl border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800 shadow-sm"
+                  >
+                    <option value="auto">Automático (recomendado)</option>
+                    <option value="general">Manual · General</option>
+                    <option value="planning">Manual · Planificación</option>
+                    <option value="expenses">Manual · Gastos</option>
+                    <option value="optimizer">Manual · Optimizador</option>
+                    <option value="actions">Manual · Acciones</option>
+                    <option value="day_planner">Manual · Organizar día</option>
+                  </select>
+                </label>
+                <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                  {loading ? "Pensando..." : "Listo"}
+                </div>
               </div>
             </div>
           </div>
@@ -1231,13 +1549,30 @@ export default function TripAiChatView({
             <div ref={bottomRef} />
           </div>
 
+          <div className="border-t border-slate-200 px-5 py-3">
+            <p className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-500">Sugerencias</p>
+            <div className="flex flex-wrap gap-2">
+              {SMART_CHIPS.map((c) => (
+                <button
+                  key={c.label}
+                  type="button"
+                  disabled={loading || !isPremium}
+                  onClick={() => void sendMessage(c.prompt, c.action)}
+                  className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <form onSubmit={handleSubmit} className="border-t border-slate-200 p-5">
             <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-3">
               <textarea
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
                 rows={4}
-                placeholder={placeholder}
+                placeholder={inputPlaceholder}
                 disabled={!isPremium}
                 className="min-h-[120px] w-full resize-none rounded-2xl border-0 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400"
               />

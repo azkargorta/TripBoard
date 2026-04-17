@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { buildTripContext } from "@/lib/trip-ai/buildTripContext";
+import { buildTripSummaryForAi } from "@/lib/trip-ai/buildTripSummary";
 import { buildTripPrompt, type TripAiMode } from "@/lib/trip-ai/buildPrompt";
 import { askTripAIWithUsage } from "@/lib/trip-ai/providers";
-import { appendMessage, createConversation, getConversation, listMessages } from "@/lib/trip-ai/chatStore";
-import { detectAction, executeAction } from "@/lib/trip-ai/actions";
+import { appendMessage, createConversation, getConversation } from "@/lib/trip-ai/chatStore";
+import { inferAIActionFromQuestion, parseClientAIAction, resolveEffectiveTripAiMode, type AIActionId } from "@/lib/trip-ai/aiActions";
+import { actionPromptHint, handleAIAction } from "@/lib/trip-ai/handleAIAction";
 import { enforceAiMonthlyBudgetOrThrow, trackAiUsage } from "@/lib/ai-budget";
 import { monthKeyUtc } from "@/lib/ai-usage";
 import { isPremiumEnabledForTrip } from "@/lib/entitlements";
@@ -11,14 +12,23 @@ import { isPremiumEnabledForTrip } from "@/lib/entitlements";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
+function clampDialogHint(input: unknown) {
+  if (typeof input !== "string") return "";
+  const t = input.trim();
+  if (!t) return "";
+  return t.length > 900 ? `${t.slice(0, 900)}…` : t;
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const tripId = typeof body?.tripId === "string" ? body.tripId : "";
     const question = typeof body?.question === "string" ? body.question.trim() : "";
-    const mode = (typeof body?.mode === "string" ? body.mode : "general") as TripAiMode;
+    const clientMode = (typeof body?.mode === "string" ? body.mode : "general") as TripAiMode;
+    const modeSource = typeof body?.modeSource === "string" ? body.modeSource : "auto";
     const provider = typeof body?.provider === "string" ? body.provider : null;
     let conversationId = typeof body?.conversationId === "string" ? body.conversationId : "";
+    const dialogHint = clampDialogHint(body?.dialogHint);
 
     if (!tripId) {
       return NextResponse.json({ error: "Falta el ID del viaje." }, { status: 400 });
@@ -64,8 +74,16 @@ export async function POST(req: Request) {
       );
     }
 
+    const parsedClientAction = parseClientAIAction(body?.aiAction);
+    const aiAction: AIActionId = parsedClientAction ?? inferAIActionFromQuestion(question);
+    const effectiveMode = resolveEffectiveTripAiMode({
+      clientMode: clientMode === "day_planner" ? "general" : clientMode,
+      aiAction,
+      respectExplicitMode: modeSource === "manual",
+    });
+
     if (!conversationId) {
-      const conversation = await createConversation(tripId, mode, question.slice(0, 60));
+      const conversation = await createConversation(tripId, effectiveMode, question.slice(0, 60));
       conversationId = conversation.id;
     } else {
       await getConversation(conversationId);
@@ -76,21 +94,16 @@ export async function POST(req: Request) {
       tripId,
       role: "user",
       content: question,
-      metadata: { mode },
+      metadata: { mode: effectiveMode, clientMode, aiAction, modeSource },
     });
 
-    const action = detectAction(question, mode);
-    const actionResult = await executeAction(tripId, action);
+    const { executedMessage: actionResult, parsedAction: action } = await handleAIAction(tripId, aiAction, question, effectiveMode);
 
-    const context = await buildTripContext(tripId);
-    const history = await listMessages(conversationId);
-    const compactHistory = history
-      .slice(-10)
-      .map((item) => `${item.role === "user" ? "Usuario" : "Asistente"}: ${item.content}`)
-      .join("\n");
+    const tripSummary = await buildTripSummaryForAi(tripId);
+    const actionHintLine = actionPromptHint(aiAction);
 
     const optimizerHint =
-      mode === "optimizer"
+      effectiveMode === "optimizer"
         ? "\nDebes proponer mejoras concretas del viaje, huecos, conflictos, y una mini hoja de ruta priorizada."
         : "";
 
@@ -99,13 +112,17 @@ export async function POST(req: Request) {
         ? `\nAcción ejecutada en la app: ${actionResult}\nExplícale al usuario qué has hecho y qué conviene revisar ahora.`
         : "";
 
+    const hintBlock = [actionHintLine && `Guía de intención: ${actionHintLine}`, dialogHint && `Último intercambio (opcional, breve):\n${dialogHint}`]
+      .filter(Boolean)
+      .join("\n\n");
+
     const prompt = buildTripPrompt(
-      `${context}\n\nHISTORIAL RECIENTE:\n${compactHistory}${optimizerHint}${actionHint}`,
+      `${tripSummary}${hintBlock ? `\n\n${hintBlock}` : ""}${optimizerHint}${actionHint}`,
       question,
-      mode
+      effectiveMode
     );
 
-    const { text: answer, usage } = await askTripAIWithUsage(prompt, mode, { provider });
+    const { text: answer, usage } = await askTripAIWithUsage(prompt, effectiveMode, { provider });
 
     await trackAiUsage({ supabase, userId, provider: (provider || process.env.AI_PROVIDER || "gemini").toLowerCase(), monthKey, usage });
 
@@ -115,7 +132,9 @@ export async function POST(req: Request) {
       role: "assistant",
       content: answer,
       metadata: {
-        mode,
+        mode: effectiveMode,
+        clientMode,
+        aiAction,
         actionType: action.type,
         actionExecuted: Boolean(actionResult),
         actionResult: actionResult || null,
@@ -128,6 +147,8 @@ export async function POST(req: Request) {
       contextUsed: true,
       actionExecuted: Boolean(actionResult),
       actionResult,
+      aiAction,
+      effectiveMode,
     });
   } catch (error) {
     return NextResponse.json(
