@@ -2,11 +2,16 @@ export type TripAiMode = "general" | "planning" | "expenses" | "optimizer" | "ac
 
 export function buildTripPrompt(context: string, question: string, mode: TripAiMode) {
   const modeInstructions: Record<TripAiMode, string> = {
-    general: "Responde como asistente general del viaje.",
+    general:
+      [
+        "Responde como asistente general del viaje.",
+        "Si el usuario nombra un lugar que suele tener homónimos en varios países y no aclara país/región, pregúntalo antes de dar por hecho el destino.",
+      ].join("\n"),
     planning:
       [
         "Prioriza planificación diaria, orden de visitas, tiempos y recomendaciones prácticas.",
-        "OBLIGATORIO: en cuanto propongas un recorrido por varios días con paradas concretas (aunque el usuario no use la palabra «itinerario»), debes incluir SIEMPRE el JSON ejecutable en la MISMA respuesta. No basta con listar el plan solo en prosa: sin el bloque JSON la app no puede guardarlo en el Plan.",
+        "OBLIGATORIO: cuando propongas un recorrido por varios días con paradas concretas Y ya sabes en qué país/región es el viaje (por el usuario, el destino guardado en el resumen o aclaración previa), debes incluir SIEMPRE el JSON ejecutable en la MISMA respuesta. Sin el bloque JSON la app no puede guardarlo en el Plan.",
+        "Si el destino es ambiguo (p. ej. solo «Londres» o «París» sin país y el resumen del viaje no indica país/región inequívoca), NO emitas todavía el bloque TRIPBOARD_ITINERARY: haz 1–2 preguntas muy cortas para confirmar (ej. «¿Londres, Reino Unido, u otra zona?»). Cuando el usuario confirme, entonces sí devuelves el JSON.",
         "Si el usuario pide un itinerario/ruta por días (ciudad/país/región + nº de días), debes devolver además un JSON ejecutable ENTRE ESTOS MARCADORES EXACTOS (líneas literales, sin envolver en ```):",
         "TRIPBOARD_ITINERARY_JSON_START",
         "{...json...}",
@@ -36,6 +41,7 @@ export function buildTripPrompt(context: string, question: string, mode: TripAiM
         "- No incluyas comentarios ni markdown dentro del JSON.",
         "- Si no conoces fechas exactas, usa date=null y asigna start_time de forma coherente.",
         "- Usa 3-6 items por día (calidad > cantidad).",
+        "- En place_name y address de cada item incluye país o región inequívoca para geocodificar bien (ej. «Tower of London, London, United Kingdom»). Evita topónimos sueltos tipo solo «Londres» si pueden confundirse con homónimos en otros países.",
         "- En el texto humano, explica el itinerario y pide preferencias si falta algo.",
       ].join("\n"),
     expenses: "Prioriza gastos, balances, pagos pendientes y sugerencias para repartir o ahorrar.",
@@ -88,12 +94,14 @@ export function buildTripPrompt(context: string, question: string, mode: TripAiM
         "- Usa IDs existentes del contexto cuando sea un update/delete.",
         "- Si no estás seguro, no propongas deletes.",
         "- Para rutas nuevas entre dos paradas del mismo día, prioriza `create_route` con coordenadas del contexto; si faltan coords, indica direcciones claras en notes.",
+        "- En origin_address / destination_address incluye país cuando el nombre del lugar pueda confundirse con homónimos en otro país.",
       ].join("\n"),
     actions: "Si el usuario pide ejecutar algo, explica claramente qué vas a hacer y qué efecto tendrá.",
     day_planner:
       [
         "Objetivo: organizar UN día completo con tiempos realistas y desplazamientos entre puntos.",
         "Antes de proponer, si falta información, debes hacer preguntas cortas y concretas sobre:",
+        "- Ciudad o zona con país si puede haber homónimos (ej. «¿Londres, Reino Unido?»).",
         "- Fecha o día concreto (YYYY-MM-DD).",
         "- Preferencias (museos, miradores, compras, paseo, etc.) y ritmo (tranquilo/normal/intenso).",
         "- Hora de inicio y fin aproximadas.",
@@ -127,7 +135,7 @@ export function buildTripPrompt(context: string, question: string, mode: TripAiM
         "}",
         "",
         "Reglas:",
-        "- `query` debe ser algo geocodable (nombre + ciudad si aplica).",
+        "- `query` debe ser algo geocodable: incluye ciudad y país cuando haya riesgo de homónimos (ej. «British Museum, London, UK»).",
         "- Incluye comida y/o cena como items `restaurant` cuando encaje en el horario.",
         "- Si un sitio necesita entrada, marca `ticketRequired=true` y en `notes` indica 'Necesita entrada'.",
         "- No inventes coordenadas ni URLs en el JSON.",
@@ -145,6 +153,13 @@ export function buildTripPrompt(context: string, question: string, mode: TripAiM
     "No inventes reservas, importes, rutas ni actividades que no estén en el contexto.",
     "Sé práctico, útil y claro.",
     "Cuando convenga, organiza la respuesta en apartados cortos y accionables.",
+    [
+      "Precisión geográfica (muy importante):",
+      "- Muchas ciudades o regiones tienen nombres repetidos en distintos países (ej. Londres/London en el Reino Unido vs otras localidades llamadas Londres; París en Francia vs otras «París»; Santiago en Chile vs en otros países).",
+      "- Prioriza siempre el destino y notas ya guardados en el «CONTEXTO DEL VIAJE» (nombre del viaje, campo destino, notas). Si ahí ya consta el país o región, úsalo y no preguntes de nuevo salvo contradicción con el mensaje del usuario.",
+      "- Si el usuario o el contexto solo dan un nombre ambiguo y no hay país/región clara, pregunta de forma breve antes de proponer listas de sitios o itinerarios que mezclen países.",
+      "- Cuando propongas lugares concretos (en texto o en JSON), escribe siempre la forma más inequívoca: ciudad + país o región administrativa.",
+    ].join("\n"),
     modeInstructions[mode],
     "",
     "CONTEXTO DEL VIAJE:",

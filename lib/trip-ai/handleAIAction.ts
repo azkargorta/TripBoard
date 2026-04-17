@@ -52,7 +52,10 @@ export function actionPromptHint(aiAction: AIActionId): string {
         "No inventes datos de reservas que no estén en el resumen.",
       ].join(" ");
     case "generate_trip":
-      return "Objetivo: proponer itinerario por días con JSON ejecutable según las instrucciones del modo planificación.";
+      return [
+        "Objetivo: proponer itinerario por días con JSON ejecutable según las instrucciones del modo planificación.",
+        "Si el destino puede ser varios países, aclara primero con el usuario; en JSON usa siempre place_name/address con país inequívoco.",
+      ].join(" ");
     case "route_legs":
       return [
         "El usuario quiere rutas entre paradas del plan (mapa).",
