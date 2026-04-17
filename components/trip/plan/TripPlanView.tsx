@@ -343,6 +343,18 @@ export default function TripPlanView({
 
   return (
     <div className="space-y-6">
+      {!showForm ? (
+        <button
+          type="button"
+          onClick={handleStartCreate}
+          className="fixed bottom-[calc(max(env(safe-area-inset-bottom),8px)+84px)] right-[max(1rem,env(safe-area-inset-right))] z-30 inline-flex h-14 w-14 items-center justify-center rounded-full bg-slate-950 text-white shadow-lg transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-200 md:hidden"
+          aria-label="Añadir plan"
+          title="Añadir plan"
+        >
+          <Plus className="h-6 w-6" aria-hidden />
+        </button>
+      ) : null}
+
       {error ? (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
