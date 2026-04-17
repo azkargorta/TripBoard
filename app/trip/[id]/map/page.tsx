@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireTripAccess } from "@/lib/trip-access";
-import TripMapView from "@/components/trip/map/TripMapView";
+import TripMapHub from "@/components/trip/map/TripMapHub";
 import TripScreenActions from "@/components/trip/common/TripScreenActions";
 import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
 
@@ -87,7 +87,7 @@ export default async function TripMapPage({ params }: Props) {
         actions={<TripScreenActions tripId={tripId} />}
       />
 
-      <TripMapView
+      <TripMapHub
         tripId={tripId}
         trip={{
           id: trip.id,

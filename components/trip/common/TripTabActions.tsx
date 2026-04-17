@@ -15,7 +15,7 @@ export default function TripTabActions({ tripId, variant = "default" }: Props) {
   return (
     <div className="flex flex-wrap gap-2">
       <Link
-        href={`/trip/${tripId}/map/explore`}
+        href={`/trip/${tripId}/map?view=explore`}
         className={className}
         aria-label="Explorar en el mapa"
         title="Explorar en el mapa"

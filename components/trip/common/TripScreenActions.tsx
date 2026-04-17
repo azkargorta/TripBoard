@@ -30,7 +30,7 @@ export default function TripScreenActions({
     <div className="flex flex-wrap gap-2">
       <TripShareButton tripId={tripId} showLabels={showLabels} />
       <Link
-        href={`/trip/${tripId}/map/explore`}
+        href={`/trip/${tripId}/map?view=explore`}
         className={btn}
         aria-label="Explorar en el mapa"
         title="Explorar en el mapa"
