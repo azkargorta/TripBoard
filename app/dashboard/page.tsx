@@ -3,11 +3,9 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import SignOutButton from "@/components/auth/SignOutButton";
 import CreateTripSection from "@/components/dashboard/CreateTripSection";
-import TripBoardLogo from "@/components/brand/TripBoardLogo";
-import { isPlatformAdmin } from "@/lib/platform-admin";
 import TripCardItem from "@/components/dashboard/TripCardItem";
 import OnboardingNudge from "@/components/dashboard/OnboardingNudge";
-import DashboardQuickActions from "@/components/dashboard/DashboardQuickActions";
+import { isPlatformAdmin } from "@/lib/platform-admin";
 
 type Trip = {
   id: string;
@@ -30,12 +28,6 @@ function formatDate(value: string | null) {
     month: "short",
     year: "numeric",
   }).format(date);
-}
-
-function formatRange(start: string | null, end: string | null) {
-  if (!start && !end) return "Fechas por definir";
-  if (start && end) return `${formatDate(start)} — ${formatDate(end)}`;
-  return start ? `Desde ${formatDate(start)}` : `Hasta ${formatDate(end)}`;
 }
 
 function categorizeTrips(trips: Trip[]) {
@@ -116,23 +108,23 @@ function TripSection({
   lockedTripIds: Set<string>;
 }) {
   return (
-    <section className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+    <section className="space-y-5">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
         <div className="min-w-0">
-          <h2 className="text-xl font-bold text-slate-950 sm:text-2xl">{title}</h2>
-          <p className="mt-1 text-sm text-slate-600">{subtitle}</p>
+          <h2 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">{title}</h2>
+          <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
         </div>
-        <div className="shrink-0 self-start rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 sm:self-auto">
+        <div className="shrink-0 self-start rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm sm:self-auto">
           {trips.length} viaje{trips.length === 1 ? "" : "s"}
         </div>
       </div>
 
       {trips.length === 0 ? (
-        <div className="rounded-3xl border border-dashed border-slate-300 bg-white/70 p-5 text-sm text-slate-600">
+        <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50/80 px-6 py-10 text-center text-sm text-slate-500">
           No hay viajes en esta categoría.
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {trips.map((trip) => (
             <TripCard
               key={trip.id}
@@ -200,169 +192,194 @@ export default async function DashboardPage() {
   const { current, future, past, unscheduled } = categorizeTrips(trips);
   const lockedTripIds = new Set<string>();
   const recentTripId = trips[0]?.id ?? null;
-  // Nota: en plan gratuito se permite abrir/ver todos los viajes; solo se limita la creación (API/UI).
+  const recentChatHref = recentTripId ? `/trip/${encodeURIComponent(recentTripId)}/ai-chat` : null;
 
   return (
-    <main className="page-shell space-y-8">
+    <main className="page-shell space-y-12 pb-16 md:space-y-16 md:pb-20">
       <OnboardingNudge hasTrips={trips.length > 0} />
-      <section className="card-soft overflow-hidden">
-        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-cyan-900 p-4 text-white sm:p-6 md:p-8">
-          <div className="flex flex-col gap-5 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
-            <div className="min-w-0 space-y-3 sm:space-y-4">
-              <div className="inline-flex max-w-full flex-wrap items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-white/85 backdrop-blur sm:px-4 sm:text-sm sm:tracking-[0.18em]">
-                <TripBoardLogo variant="light" size="md" withWordmark />
-                <span className="text-white/35" aria-hidden>
-                  ·
-                </span>
-                <span className="opacity-90">Dashboard</span>
-              </div>
-              <div className="min-w-0">
-                <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl md:text-5xl">Tus viajes</h1>
-                <p className="mt-2 max-w-2xl text-sm text-white/75 sm:text-base md:text-lg">
-                  Itinerario, rutas y gastos en un solo panel. Crea un viaje o abre el asistente personal si tienes Premium.
-                </p>
-              </div>
-            </div>
 
-            <div className="flex flex-wrap gap-2 sm:gap-3">
-              {isAdmin ? (
-                <Link
-                  href="/dashboard/admin"
-                  className="inline-flex min-h-[44px] items-center justify-center rounded-2xl border border-amber-300/40 bg-amber-400/20 px-4 py-2 text-sm font-semibold text-amber-50 transition hover:bg-amber-400/30"
-                >
-                  Administración
-                </Link>
-              ) : null}
-              <Link
-                href="/pricing"
-                className="inline-flex min-h-[44px] items-center justify-center rounded-2xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15"
-              >
-                Precios
-              </Link>
-              <Link
-                href="/account"
-                className="inline-flex min-h-[44px] items-center justify-center rounded-2xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15"
-              >
-                Cuenta
-              </Link>
-              <SignOutButton />
-            </div>
-          </div>
+      <header className="flex flex-col gap-6 border-b border-slate-200/90 pb-10 md:flex-row md:items-start md:justify-between">
+        <div className="min-w-0 max-w-2xl space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Dashboard</p>
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-950 md:text-4xl">Tus viajes</h1>
+          <p className="text-base leading-relaxed text-slate-600 md:text-lg">
+            Un solo camino: <span className="font-semibold text-slate-800">crear el viaje</span>, dejar que el{" "}
+            <span className="font-semibold text-slate-800">asistente personal</span> proponga plan y rutas (Premium), y{" "}
+            <span className="font-semibold text-slate-800">editar</span> cuando quieras en Plan, Rutas o Gastos.
+          </p>
         </div>
+        <nav className="flex flex-wrap items-center gap-2 md:justify-end">
+          {isAdmin ? (
+            <Link
+              href="/dashboard/admin"
+              className="inline-flex min-h-[40px] items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-950 transition hover:bg-amber-100"
+            >
+              Admin
+            </Link>
+          ) : null}
+          <Link
+            href="/pricing"
+            className="inline-flex min-h-[40px] items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+          >
+            Precios
+          </Link>
+          <Link
+            href="/account"
+            className="inline-flex min-h-[40px] items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+          >
+            Cuenta
+          </Link>
+          <SignOutButton />
+        </nav>
+      </header>
 
-        <div className="border-t border-slate-100 bg-slate-50/40 p-4 sm:p-6 md:p-8">
-          <DashboardQuickActions isPremium={isPremium} recentTripId={recentTripId} />
-        </div>
-
-        <details className="group border-t border-slate-200 bg-white">
-          <summary className="cursor-pointer list-none px-4 py-4 text-sm font-semibold text-slate-800 marker:content-none sm:px-6 md:px-8 [&::-webkit-details-marker]:hidden">
-            <span className="flex items-center justify-between gap-2">
-              Ver conteo por estado
-              <span className="text-xs font-normal text-slate-500 group-open:hidden">(en curso, futuros…)</span>
+      <section className="rounded-[28px] border border-slate-200/90 bg-white px-6 py-10 shadow-sm md:px-12 md:py-12">
+        <ol className="mb-8 flex flex-wrap gap-6 text-sm text-slate-500 md:gap-10">
+          <li className="flex items-center gap-2">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-950 text-xs font-bold text-white">
+              1
             </span>
-          </summary>
-          <div className="grid grid-cols-2 gap-3 px-4 pb-6 sm:grid-cols-2 sm:gap-4 sm:px-6 md:grid-cols-4 md:px-8">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">En curso</p>
-              <p className="mt-2 text-3xl font-bold text-slate-950">{current.length}</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Futuros</p>
-              <p className="mt-2 text-3xl font-bold text-slate-950">{future.length}</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Pasados</p>
-              <p className="mt-2 text-3xl font-bold text-slate-950">{past.length}</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Sin fecha cerrada</p>
-              <p className="mt-2 text-3xl font-bold text-slate-950">{unscheduled.length}</p>
-            </div>
+            <span className="font-medium text-slate-800">Crear viaje</span>
+          </li>
+          <li className="flex items-center gap-2">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 bg-slate-50 text-xs font-bold text-slate-600">
+              2
+            </span>
+            <span>Asistente (borrador)</span>
+          </li>
+          <li className="flex items-center gap-2">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 bg-slate-50 text-xs font-bold text-slate-600">
+              3
+            </span>
+            <span>Editar a tu gusto</span>
+          </li>
+        </ol>
+
+        <div className="mx-auto max-w-xl space-y-4">
+          <a
+            href="#create-trip"
+            className="flex min-h-[56px] w-full items-center justify-center rounded-2xl bg-slate-950 px-6 py-4 text-center text-lg font-bold text-white shadow-md transition hover:bg-slate-800 md:min-h-[64px] md:text-xl"
+          >
+            Crear viaje
+          </a>
+          <p className="text-center text-xs text-slate-500">Nombre obligatorio; destino y fechas cuando quieras.</p>
+        </div>
+
+        <div className="mx-auto mt-10 max-w-2xl border-t border-slate-100 pt-10">
+          <p className="text-center text-xs font-bold uppercase tracking-[0.18em] text-violet-700">Asistente personal</p>
+          <p className="mx-auto mt-2 max-w-lg text-center text-sm text-slate-600">
+            Tras crear el viaje, el asistente te guía con propuestas. También puedes abrirlo en cualquier viaje desde la
+            pestaña del mismo nombre.
+          </p>
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-center">
+            {isPremium ? (
+              <>
+                <a
+                  href="#create-trip"
+                  className="inline-flex min-h-[48px] flex-1 items-center justify-center rounded-2xl border-2 border-violet-300 bg-violet-50/80 px-4 py-3 text-center text-sm font-semibold text-violet-950 shadow-sm transition hover:bg-violet-50 sm:min-w-[220px] sm:flex-none"
+                  title="Al guardar, abrimos el asistente para montar el viaje"
+                >
+                  ✨ Crear viaje con asistente personal
+                </a>
+                {recentChatHref ? (
+                  <>
+                    <Link
+                      href={recentChatHref}
+                      className="inline-flex min-h-[48px] flex-1 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 sm:min-w-[200px] sm:flex-none"
+                    >
+                      Optimizar viaje
+                    </Link>
+                    <Link
+                      href={recentChatHref}
+                      className="inline-flex min-h-[48px] flex-1 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 sm:min-w-[220px] sm:flex-none"
+                    >
+                      Añadir planes automáticamente
+                    </Link>
+                  </>
+                ) : (
+                  <p className="w-full text-center text-sm text-slate-500">
+                    Crea un viaje y estos atajos usarán tu último viaje para abrir el asistente con contexto.
+                  </p>
+                )}
+              </>
+            ) : (
+              <Link
+                href="/account?upgrade=premium&focus=premium#premium-plans"
+                className="inline-flex min-h-[48px] w-full items-center justify-center rounded-2xl border-2 border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm font-semibold text-amber-950 transition hover:bg-amber-100 sm:w-auto sm:min-w-[280px]"
+              >
+                ✨ Crear con asistente personal (Premium)
+              </Link>
+            )}
           </div>
-        </details>
+        </div>
       </section>
 
       {!isPremium ? (
-        <section className="card-soft p-6">
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Plan gratuito</p>
-            <p className="text-lg font-bold text-slate-950">
-              Puedes crear hasta 3 viajes. Para usar el asistente personal y el análisis de documentos, pásate a Premium.
-            </p>
-            <p className="text-sm text-slate-600">
-              Tus viajes se guardan y puedes acceder a todos. Premium añade el asistente personal y funciones avanzadas.
-            </p>
-          </div>
+        <section className="rounded-2xl border border-slate-200 bg-slate-50/80 px-6 py-5 text-sm text-slate-700">
+          <span className="font-semibold text-slate-900">Plan gratuito:</span> hasta 3 viajes. Premium desbloquea el
+          asistente personal y el análisis de documentos.
         </section>
       ) : null}
 
-      <section id="create-trip" className="card-soft p-6 md:p-8">
-        <div className="mb-4 flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-bold text-slate-950">Crear nuevo viaje</h2>
-            <p className="mt-1 text-sm text-slate-600">Añádelo aquí y aparecerá automáticamente en su categoría.</p>
+      <details className="group rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <summary className="cursor-pointer list-none px-5 py-4 text-sm font-semibold text-slate-800 [&::-webkit-details-marker]:hidden">
+          <span className="flex items-center justify-between gap-2">
+            Resumen por estado
+            <span className="text-xs font-normal text-slate-500 group-open:hidden">en curso, futuros…</span>
+          </span>
+        </summary>
+        <div className="grid grid-cols-2 gap-3 border-t border-slate-100 px-5 pb-6 pt-4 sm:grid-cols-4">
+          <div className="rounded-2xl border border-slate-100 bg-slate-50/90 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">En curso</p>
+            <p className="mt-2 text-2xl font-bold text-slate-950">{current.length}</p>
+          </div>
+          <div className="rounded-2xl border border-slate-100 bg-slate-50/90 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Futuros</p>
+            <p className="mt-2 text-2xl font-bold text-slate-950">{future.length}</p>
+          </div>
+          <div className="rounded-2xl border border-slate-100 bg-slate-50/90 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Pasados</p>
+            <p className="mt-2 text-2xl font-bold text-slate-950">{past.length}</p>
+          </div>
+          <div className="rounded-2xl border border-slate-100 bg-slate-50/90 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Sin fecha</p>
+            <p className="mt-2 text-2xl font-bold text-slate-950">{unscheduled.length}</p>
           </div>
         </div>
-              <CreateTripSection isPremium={isPremium} tripCount={trips.length} />
+      </details>
+
+      <section id="create-trip" className="rounded-[28px] border border-slate-200/90 bg-white px-6 py-8 shadow-sm md:px-10 md:py-10">
+        <h2 className="text-xl font-bold text-slate-950 md:text-2xl">Datos del viaje</h2>
+        <p className="mt-2 text-sm text-slate-600">
+          Rellena el formulario y guarda. Si tienes Premium, después te llevamos al asistente para generar o pulir el
+          plan.
+        </p>
+        <div className="mt-8">
+          <CreateTripSection isPremium={isPremium} tripCount={trips.length} startWithFormOpen={trips.length === 0} />
+        </div>
       </section>
 
-      {trips.length === 0 ? (
-        <section className="card-soft p-6 md:p-8">
-          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-            <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Primeros pasos
-              </p>
-              <h2 className="text-2xl font-extrabold tracking-tight text-slate-950">
-                Crea tu primer viaje y empieza a organizarlo
-              </h2>
-              <p className="text-sm text-slate-600">
-                Consejo: solo el nombre es obligatorio. Lo demás puedes rellenarlo más tarde.
-              </p>
-            </div>
-            <a
-              href="#create-trip"
-              className="inline-flex min-h-[44px] items-center justify-center rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
-            >
-              Ir a crear viaje
-            </a>
-          </div>
-          <div className="mt-6 grid gap-3 md:grid-cols-3">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-sm font-semibold text-slate-950">1) Crea el viaje</p>
-              <p className="mt-1 text-sm text-slate-600">Nombre + destino opcional.</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-sm font-semibold text-slate-950">2) Invita a tu grupo</p>
-              <p className="mt-1 text-sm text-slate-600">Comparte el enlace y listo.</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-sm font-semibold text-slate-950">3) Añade gastos y plan</p>
-              <p className="mt-1 text-sm text-slate-600">Todo en el mismo panel.</p>
-            </div>
-          </div>
-        </section>
-      ) : (
-        <div className="space-y-8">
+      {trips.length === 0 ? null : (
+        <div className="space-y-14">
           <TripSection
-            title="Viajes en curso"
-            subtitle="Lo que estás viviendo ahora mismo."
+            title="En curso"
+            subtitle="Lo que estás viviendo ahora."
             trips={current}
             badge="En curso"
             accent="from-emerald-100 to-teal-50 border-emerald-200"
             lockedTripIds={lockedTripIds}
           />
           <TripSection
-            title="Viajes futuros"
-            subtitle="Lo próximo que tienes preparado."
+            title="Próximos"
+            subtitle="Viajes con fecha futura."
             trips={future}
             badge="Próximo"
             accent="from-sky-100 to-cyan-50 border-sky-200"
             lockedTripIds={lockedTripIds}
           />
           <TripSection
-            title="Viajes pasados"
-            subtitle="Tus viajes ya finalizados."
+            title="Pasados"
+            subtitle="Viajes ya cerrados en el calendario."
             trips={past}
             badge="Finalizado"
             accent="from-slate-100 to-slate-50 border-slate-200"
@@ -370,8 +387,8 @@ export default async function DashboardPage() {
           />
           {unscheduled.length > 0 ? (
             <TripSection
-              title="Viajes sin fecha cerrada"
-              subtitle="Pendientes de definir o completar."
+              title="Sin fechas cerradas"
+              subtitle="Define inicio y fin cuando puedas."
               trips={unscheduled}
               badge="Pendiente"
               accent="from-amber-100 to-orange-50 border-amber-200"

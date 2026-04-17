@@ -86,8 +86,8 @@ export default function TripCardItem({
         if (locked) return;
         if (e.key === "Enter" || e.key === " ") openTrip();
       }}
-      className={`rounded-3xl border bg-gradient-to-br p-5 ${accent} ${
-        locked ? "opacity-80" : "cursor-pointer transition hover:-translate-y-0.5 hover:shadow-lg"
+      className={`rounded-3xl border bg-gradient-to-br p-5 shadow-sm ${accent} ${
+        locked ? "opacity-80" : "cursor-pointer transition hover:-translate-y-0.5 hover:shadow-md"
       }`}
     >
       <div className="flex items-start justify-between gap-4">

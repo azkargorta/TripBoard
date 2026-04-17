@@ -55,10 +55,10 @@ export default function OnboardingNudge({
               Bienvenido/a
             </p>
             <h2 className="text-2xl font-extrabold tracking-tight text-slate-950">
-              Empieza tu primer viaje en 60 segundos
+              Tu primer viaje en tres pasos
             </h2>
             <p className="text-sm text-slate-600">
-              Lo esencial es muy simple: crea el viaje y luego añade lo que necesites.
+              Crear → dejar que el asistente personal proponga (Premium) → afinar en Plan y Rutas.
             </p>
           </div>
           <button
@@ -83,18 +83,18 @@ export default function OnboardingNudge({
           <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <Icon>2</Icon>
             <div>
-              <p className="font-semibold text-slate-950">Invita a tu grupo</p>
+              <p className="font-semibold text-slate-950">Asistente personal (Premium)</p>
               <p className="mt-1 text-sm text-slate-600">
-                Comparte un enlace y que cada persona añada sus gastos/plan.
+                Borrador de plan y rutas con contexto del viaje; tú revisas y guardas.
               </p>
             </div>
           </div>
           <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <Icon>3</Icon>
             <div>
-              <p className="font-semibold text-slate-950">Organiza sobre la marcha</p>
+              <p className="font-semibold text-slate-950">Edita con calma</p>
               <p className="mt-1 text-sm text-slate-600">
-                Itinerario, gastos, rutas y recursos desde el mismo panel.
+                Plan, Rutas y Gastos comparten el mismo viaje: un solo contexto para el grupo.
               </p>
             </div>
           </div>

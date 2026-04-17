@@ -1,17 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import CreateTripForm from "./CreateTripForm";
 import Link from "next/link";
 
 export default function CreateTripSection({
   isPremium,
   tripCount,
+  startWithFormOpen = false,
 }: {
   isPremium: boolean;
   tripCount: number;
+  /** Si no hay viajes, abrimos el formulario al cargar (camino principal). */
+  startWithFormOpen?: boolean;
 }) {
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(startWithFormOpen);
+
+  useEffect(() => {
+    const openFromHash = () => {
+      try {
+        if (window.location.hash === "#create-trip") setShowForm(true);
+      } catch {
+        /* */
+      }
+    };
+    openFromHash();
+    window.addEventListener("hashchange", openFromHash);
+    return () => window.removeEventListener("hashchange", openFromHash);
+  }, []);
   const FREE_TRIP_LIMIT = 3;
   const locked = !isPremium && tripCount >= FREE_TRIP_LIMIT;
 
@@ -37,9 +53,9 @@ export default function CreateTripSection({
           type="button"
           onClick={() => setShowForm(true)}
           disabled={locked}
-          className="inline-flex min-h-[44px] items-center justify-center rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex min-h-[48px] items-center justify-center rounded-2xl border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          + Crear nuevo viaje
+          Mostrar formulario de creación
         </button>
       ) : (
         <div className="space-y-4">
