@@ -4,6 +4,9 @@ import type { AIActionId } from "@/lib/trip-ai/aiActions";
 import type { TripAiMode } from "@/lib/trip-ai/buildPrompt";
 
 function mapToParsedAction(aiAction: AIActionId, question: string, mode: TripAiMode): ParsedAction {
+  if (aiAction === "route_legs") {
+    return { type: "none" };
+  }
   if (aiAction === "optimize_route") {
     return { type: "optimizer_summary" };
   }
@@ -50,6 +53,14 @@ export function actionPromptHint(aiAction: AIActionId): string {
       ].join(" ");
     case "generate_trip":
       return "Objetivo: proponer itinerario por días con JSON ejecutable según las instrucciones del modo planificación.";
+    case "route_legs":
+      return [
+        "El usuario quiere rutas entre paradas del plan (mapa).",
+        "Usa el contexto de actividades existentes (mismas fechas y orden).",
+        "Devuelve un diff con operaciones `create_route` entre pares consecutivos del mismo día cuando tengan coordenadas o dirección geocodificable.",
+        "travel_mode: WALKING si el tramo es corto; si el usuario pide transporte público o el trayecto a pie sería largo (>30 min aprox.), usa TRANSIT y acláralo en notes.",
+        "path_points y route_points pueden ser [] si no calculas geometría; la app puede recalcular al aplicar.",
+      ].join(" ");
     case "optimize_route":
       return "Prioriza orden geográfico, tiempos de desplazamiento y coherencia entre actividades y rutas existentes.";
     case "adjust_budget":

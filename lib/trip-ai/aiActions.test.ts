@@ -13,6 +13,15 @@ describe("inferAIActionFromQuestion", () => {
     expect(inferAIActionFromQuestion("Quiero que me hagas un plan para el finde")).toBe("generate_trip");
   });
 
+  it("detecta creación de rutas entre paradas (no optimizador genérico)", () => {
+    expect(
+      inferAIActionFromQuestion(
+        "Ahora quiero que me crees rutas para ir de un lado a otro si es mas de 30 minutos andando ire en transporte publico"
+      )
+    ).toBe("route_legs");
+    expect(inferAIActionFromQuestion("Mejorar rutas del mapa y el orden")).toBe("optimize_route");
+  });
+
   it("detecta «planificación» y variantes de plan", () => {
     expect(inferAIActionFromQuestion("Necesito planificación 4 días Lisboa")).toBe("generate_trip");
     expect(inferAIActionFromQuestion("Dame un plan de fin de semana")).toBe("generate_trip");
@@ -42,6 +51,16 @@ describe("resolveEffectiveTripAiMode", () => {
         respectExplicitMode: true,
       })
     ).toBe("planning");
+  });
+
+  it("route_legs fuerza modo optimizer (diff con create_route)", () => {
+    expect(
+      resolveEffectiveTripAiMode({
+        clientMode: "general",
+        aiAction: "route_legs",
+        respectExplicitMode: true,
+      })
+    ).toBe("optimizer");
   });
 
   it("tripAiModeForAction enlaza generate_trip → planning", () => {

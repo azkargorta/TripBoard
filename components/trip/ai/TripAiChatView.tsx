@@ -88,6 +88,33 @@ function extractDiff(answer: string): DiffPayload | null {
   }
 }
 
+/** Oculta bloques JSON internos en la burbuja; el texto completo sigue en estado para extraer itinerario/diff. */
+function stripTripboardJsonBlocksForDisplay(content: string): string {
+  const blocks = [
+    {
+      start: "TRIPBOARD_ITINERARY_JSON_START",
+      end: "TRIPBOARD_ITINERARY_JSON_END",
+      label: "Itinerario generado (panel «Itinerario propuesto» arriba)",
+    },
+    {
+      start: "TRIPBOARD_DIFF_JSON_START",
+      end: "TRIPBOARD_DIFF_JSON_END",
+      label: "Cambios propuestos (panel «Aplicar cambios» arriba)",
+    },
+  ];
+  let out = content;
+  for (const { start, end, label } of blocks) {
+    for (;;) {
+      const a = out.indexOf(start);
+      const b = out.indexOf(end);
+      if (a === -1 || b === -1 || b < a) break;
+      const replacement = `\n\n— ${label} —\n\n`;
+      out = out.slice(0, a) + replacement + out.slice(b + end.length);
+    }
+  }
+  return out.replace(/\n{3,}/g, "\n\n").trim();
+}
+
 type ModeOption = {
   id: ExtendedChatMode;
   label: string;
@@ -626,18 +653,36 @@ export default function TripAiChatView({
         ),
       });
 
-      const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || "No se pudo obtener respuesta.");
+      const rawText = await res.text();
+      let data: Record<string, unknown> | null = null;
+      try {
+        data = rawText ? (JSON.parse(rawText) as Record<string, unknown>) : null;
+      } catch {
+        data = null;
+      }
+      if (!res.ok) {
+        const fromJson = typeof data?.error === "string" ? data.error : "";
+        const fallback = rawText.trim().slice(0, 280);
+        throw new Error(fromJson || fallback || "No se pudo obtener respuesta.");
+      }
+
+      if (!data) {
+        throw new Error("Respuesta vacía del servidor.");
+      }
 
       if (mode !== "day_planner") {
-        setConversationId(data?.conversationId || conversationId);
+        const nextConv =
+          typeof data.conversationId === "string" && data.conversationId
+            ? data.conversationId
+            : conversationId;
+        setConversationId(nextConv);
       }
       setMessages((current) => [
         ...current,
         {
           id: crypto.randomUUID(),
           role: "assistant",
-          content: data?.answer || "No se pudo generar respuesta",
+          content: typeof data.answer === "string" ? data.answer : "No se pudo generar respuesta",
         },
       ]);
 
@@ -652,11 +697,12 @@ export default function TripAiChatView({
         setExpandedDay(null);
         setDiffDraft(data.diff as DiffPayload);
       } else {
-        const maybe = typeof data?.answer === "string" ? extractItinerary(data.answer) : null;
+        const answerStr = typeof data.answer === "string" ? data.answer : "";
+        const maybe = answerStr ? extractItinerary(answerStr) : null;
         if (maybe) setItineraryDraft(maybe);
         if (maybe) setExpandedDay(null);
 
-        const maybeDiff = typeof data?.answer === "string" ? extractDiff(data.answer) : null;
+        const maybeDiff = answerStr ? extractDiff(answerStr) : null;
         if (maybeDiff) setDiffDraft(maybeDiff);
       }
 
@@ -672,13 +718,17 @@ export default function TripAiChatView({
       if (onboardingActive) markOnboardingComplete();
       hooks?.onSuccess?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo obtener respuesta.");
+      const detail = err instanceof Error ? err.message : "No se pudo obtener respuesta.";
+      setError(detail);
       setMessages((current) => [
         ...current,
         {
           id: crypto.randomUUID(),
           role: "assistant",
-          content: "He tenido un problema al responder. Revisa la configuración del chat IA.",
+          content:
+            "No pude completar la respuesta del servidor.\n\n" +
+            `Detalle: ${detail}\n\n` +
+            "Si habla de cuota o API (Gemini), espera un poco o revisa GEMINI_API_KEY. Si el mensaje era muy largo, prueba una petición más corta.",
         },
       ]);
     } finally {
@@ -1346,7 +1396,9 @@ export default function TripAiChatView({
                       : "border border-slate-200 bg-slate-50 text-slate-800"
                   }`}
                 >
-                  {message.content}
+                  {message.role === "assistant"
+                    ? stripTripboardJsonBlocksForDisplay(message.content)
+                    : message.content}
                 </div>
               </div>
             ))}

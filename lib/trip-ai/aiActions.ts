@@ -2,6 +2,7 @@ import type { TripAiMode } from "@/lib/trip-ai/buildPrompt";
 
 export const AI_ACTION_IDS = [
   "generate_trip",
+  "route_legs",
   "optimize_route",
   "add_activity",
   "adjust_budget",
@@ -43,12 +44,33 @@ export function inferAIActionFromQuestion(question: string): AIActionId {
   ) {
     return "adjust_budget";
   }
+  // Rutas nuevas entre paradas (diff `create_route`). Debe ir ANTES del filtro genérico «ruta» del optimizador.
   if (
-    q.includes("ruta") ||
+    q.includes("crear ruta") ||
+    q.includes("crees ruta") ||
+    q.includes("crear rutas") ||
+    q.includes("crees rutas") ||
+    q.includes("creame rutas") ||
+    q.includes("me crees rutas") ||
+    q.includes("haz rutas") ||
+    q.includes("hazme rutas") ||
+    q.includes("rutas entre") ||
+    q.includes("ruta entre") ||
+    q.includes("rutas del plan") ||
+    q.includes("rutas en el mapa") ||
+    q.includes("conectar paradas") ||
+    q.includes("unir paradas") ||
+    (q.includes("de un lado a otro") && (q.includes("ruta") || q.includes("rutas")))
+  ) {
+    return "route_legs";
+  }
+  if (
     q.includes("mapa") ||
     q.includes("desplaz") ||
     q.includes("orden de visitas") ||
-    (q.includes("optimiza") && (q.includes("ruta") || q.includes("plan")))
+    (q.includes("optimiza") && (q.includes("ruta") || q.includes("rutas") || q.includes("plan"))) ||
+    (q.includes("mejorar") && (q.includes("ruta") || q.includes("rutas"))) ||
+    (q.includes("mejora ") && (q.includes("ruta") || q.includes("rutas")))
   ) {
     return "optimize_route";
   }
@@ -120,6 +142,8 @@ export function tripAiModeForAction(aiAction: AIActionId): TripAiMode {
   switch (aiAction) {
     case "generate_trip":
       return "planning";
+    case "route_legs":
+      return "optimizer";
     case "optimize_route":
       return "optimizer";
     case "add_activity":
@@ -144,6 +168,9 @@ export function resolveEffectiveTripAiMode(params: {
 }): TripAiMode {
   if (params.aiAction === "generate_trip") {
     return "planning";
+  }
+  if (params.aiAction === "route_legs") {
+    return "optimizer";
   }
   const explicit = params.clientMode;
   if (params.respectExplicitMode && explicit && explicit !== "general") {
