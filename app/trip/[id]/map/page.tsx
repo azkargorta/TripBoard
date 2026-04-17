@@ -7,6 +7,7 @@ import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
 
 type Props = {
   params: { id: string };
+  searchParams?: Record<string, string | string[] | undefined>;
 };
 
 type QueryResult<T> = { data: T[]; error?: string | null };
@@ -51,8 +52,11 @@ function buildTripDates(startDate?: string | null, endDate?: string | null) {
   return dates;
 }
 
-export default async function TripMapPage({ params }: Props) {
+export default async function TripMapPage({ params, searchParams }: Props) {
   const tripId = params.id;
+  const rawView = searchParams?.view;
+  const view = typeof rawView === "string" ? rawView.trim().toLowerCase() : Array.isArray(rawView) ? String(rawView[0] || "").trim().toLowerCase() : "";
+  const exploreMode = view === "explore";
 
   await requireTripAccess(tripId);
   const supabase = await createClient();
@@ -79,9 +83,13 @@ export default async function TripMapPage({ params }: Props) {
   return (
     <main className="space-y-6">
       <TripBoardPageHeader
-        section="Mapa del viaje"
-        title={trip.name || "Viaje"}
-        description="Crea rutas con los lugares del plan, edita recorridos por día, organiza varias paradas y visualízalo todo sobre el mapa."
+        section={exploreMode ? "Mapa explorador" : "Mapa del viaje"}
+        title={exploreMode ? "Explorar y guardar" : (trip.name || "Viaje")}
+        description={
+          exploreMode
+            ? "Busca restaurantes, museos y actividades y guárdalos en carpetas dentro del viaje."
+            : "Crea rutas con los lugares del plan, edita recorridos por día, organiza varias paradas y visualízalo todo sobre el mapa."
+        }
         iconSrc="/brand/tabs/map.png"
         iconAlt="Mapa"
         actions={<TripScreenActions tripId={tripId} />}
