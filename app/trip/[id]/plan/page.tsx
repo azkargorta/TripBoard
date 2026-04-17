@@ -24,9 +24,7 @@ export default async function TripPlanPage({
       <TripBoardPageHeader
         section="Plan del viaje"
         title="Plan"
-        description={
-          "Añade lugares, fechas, horas y coordenadas. Todo lo guardado aquí se reutiliza en el mapa para crear rutas y organizar el viaje."
-        }
+        description={"Aquí se organiza el viaje: añade planes con fecha/hora y (si quieres) coordenadas para usarlos en el mapa."}
         iconSrc="/brand/tabs/plan.png"
         iconAlt="Plan"
         actions={<TripScreenActions tripId={params.id} />}

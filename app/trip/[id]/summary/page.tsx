@@ -132,7 +132,7 @@ export default async function TripSummaryPage({ params }: TripPageProps) {
         section="Resumen del viaje"
         title={currentTrip.name}
         description={`${currentTrip.destination || "Destino pendiente"} · ${formatDateRange(currentTrip.start_date, currentTrip.end_date)}`}
-        iconSrc="/brand/tabs/plan.png"
+        iconSrc="/brand/tabs/calendar.png"
         iconAlt="Resumen"
         actions={<TripScreenActions tripId={tripId} showSummary={false} homeLabel="Mis viajes" />}
       />
