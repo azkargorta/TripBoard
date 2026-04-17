@@ -32,12 +32,6 @@ function writeDone(tripId: string) {
   }
 }
 
-function isoAddDays(base: Date, days: number) {
-  const d = new Date(base);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
-}
-
 export function useTripAiOnboarding(params: {
   tripId: string;
   tripLoaded: boolean;
@@ -47,7 +41,6 @@ export function useTripAiOnboarding(params: {
   const { tripId, tripLoaded, planActivityCount } = params;
 
   const [active, setActive] = useState(false);
-  const [step, setStep] = useState(0);
   const [draft, setDraft] = useState<OnboardingDraft>({
     destination: "",
     startDate: null,
@@ -68,21 +61,12 @@ export function useTripAiOnboarding(params: {
       return;
     }
     setActive(true);
-    setStep(0);
   }, [tripId, tripLoaded, planActivityCount]);
 
   const skip = useCallback(() => {
     writeDone(tripId);
     setActive(false);
   }, [tripId]);
-
-  const applyDurationChips = useCallback((nights: number) => {
-    const start = new Date();
-    start.setUTCDate(start.getUTCDate() + 21);
-    const startIso = start.toISOString().slice(0, 10);
-    const endIso = isoAddDays(start, Math.max(1, nights) - 1);
-    setDraft((d) => ({ ...d, startDate: startIso, endDate: endIso }));
-  }, []);
 
   const resetDraft = useCallback(() => {
     setDraft({
@@ -103,12 +87,9 @@ export function useTripAiOnboarding(params: {
 
   return {
     onboardingActive: active,
-    onboardingStep: step,
-    setOnboardingStep: setStep,
     onboardingDraft: draft,
     setOnboardingDraft: setDraft,
     skipOnboarding: skip,
     markOnboardingComplete: markComplete,
-    applyDurationChips,
   };
 }

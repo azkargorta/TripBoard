@@ -242,16 +242,9 @@ export default function TripAiChatView({
       id: "welcome",
       role: "assistant",
       content:
-        "Bienvenido al asistente de tu viaje ✈️\n\n" +
-        "Para que pueda montarte el viaje en la app, me va bien tener:\n" +
-        "• Destino (ciudad o zona) y, si puedes, fechas aproximadas o número de días.\n" +
-        "• Ritmo (tranquilo / intenso), si vais en familia o pareja, y qué os importa más (cultura, comida, naturaleza…).\n" +
-        "• Si ya tienes vuelos u hoteles, dímelo para encajar el resto alrededor.\n\n" +
-        "Cómo se guarda en TripBoard:\n" +
-        "1) Si aparece un itinerario en el chat, revísalo y pulsa «Ejecutar plan» para crear actividades y rutas en el mapa (hace falta que las paradas se puedan situar en el mapa).\n" +
-        "2) Si la IA propone «cambios» puntuales (diff), revísalos y usa «Aplicar cambios».\n" +
-        "3) Para un solo día con horarios, elige arriba «Manual · Organizar día», genera el día y luego «Aplicar cambios».\n\n" +
-        "Arriba puedes dejar «Modo IA» en Automático: detecto la intención sin que tengas que pensar en modos.",
+        "Bienvenido ✈️\n\n" +
+        "Escribe con naturalidad (destino, días, ritmo, qué os apetece) o pulsa arriba «Sugerir itinerario» si el plan está vacío: te preparo un borrador de varios días y lo vas afinando en esta misma conversación.\n\n" +
+        "Cuando salga el itinerario en formato ejecutable, «Ejecutar plan» lo vuelca al mapa y al plan; los retoques puntuales van con «Aplicar cambios». Para un solo día muy detallado, usa «Modo IA → Organizar día».",
     },
   ]);
   const [question, setQuestion] = useState("");
@@ -296,13 +289,10 @@ export default function TripAiChatView({
 
   const {
     onboardingActive,
-    onboardingStep,
-    setOnboardingStep,
     onboardingDraft,
     setOnboardingDraft,
     skipOnboarding,
     markOnboardingComplete,
-    applyDurationChips,
   } = useTripAiOnboarding({
     tripId,
     tripLoaded: !tripDataLoading && planActivityCount !== null && Boolean(trip),
@@ -507,21 +497,6 @@ export default function TripAiChatView({
 
   const placeholder = useMemo(() => PLACEHOLDERS[mode], [mode]);
 
-  const inputPlaceholder = useMemo(() => {
-    if (onboardingActive && onboardingStep === 1) return "Escribe un destino (ciudad, región, país)…";
-    if (onboardingActive && onboardingStep === 2) {
-      return "Opcional: escribe fechas o matices (“del 3 al 9 de agosto”, “Semana Santa”)…";
-    }
-    return placeholder;
-  }, [onboardingActive, onboardingStep, placeholder]);
-
-  useEffect(() => {
-    if (!onboardingActive || onboardingStep !== 1) return;
-    const t = trip?.destination?.trim();
-    if (!t) return;
-    setOnboardingDraft((d) => (d.destination ? d : { ...d, destination: t }));
-  }, [onboardingActive, onboardingStep, trip?.destination, setOnboardingDraft]);
-
   const activeMode = useMemo(() => MODE_OPTIONS.find((m) => m.id === mode), [mode]);
 
   useEffect(() => {
@@ -694,6 +669,7 @@ export default function TripAiChatView({
       }
 
       await loadConversations();
+      if (onboardingActive) markOnboardingComplete();
       hooks?.onSuccess?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo obtener respuesta.");
@@ -717,9 +693,9 @@ export default function TripAiChatView({
     setOnboardingBusy(true);
     setError(null);
     try {
-      const dest = (merged.destination || trip?.destination || "").trim();
+      const dest = (merged.destination || trip?.destination || trip?.name || "").trim();
       if (!dest) {
-        setError("Indica un destino (o elige una sugerencia) para generar el plan.");
+        setError("Indica un destino (en el chat o en el nombre/resumen del viaje) para generar el plan.");
         return;
       }
       await patchTripMeta({
@@ -746,11 +722,7 @@ export default function TripAiChatView({
         .filter(Boolean)
         .join(" ");
 
-      await sendMessage(prompt, "generate_trip", {
-        onSuccess: () => {
-          markOnboardingComplete();
-        },
-      });
+      await sendMessage(prompt, "generate_trip");
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo completar la guía inicial.");
     } finally {
@@ -758,26 +730,44 @@ export default function TripAiChatView({
     }
   }
 
+  function defaultFiveDayWindow(): { startDate: string; endDate: string } {
+    const start = new Date();
+    start.setUTCDate(start.getUTCDate() + 21);
+    const end = new Date(start);
+    end.setUTCDate(end.getUTCDate() + 4);
+    return { startDate: start.toISOString().slice(0, 10), endDate: end.toISOString().slice(0, 10) };
+  }
+
+  async function quickBootstrapPlan(pickedDestination?: string) {
+    if (!isPremium || onboardingBusy) return;
+    const dest = (pickedDestination || trip?.destination?.trim() || trip?.name?.trim() || "").trim();
+    if (!dest) {
+      setError(
+        "Falta un destino: escríbelo en el chat (ej. «Oporto 4 días») o edita nombre/destino del viaje en el resumen."
+      );
+      return;
+    }
+    let startDate = trip?.start_date ?? null;
+    let endDate = trip?.end_date ?? null;
+    if (!startDate || !endDate || startDate > endDate) {
+      const w = defaultFiveDayWindow();
+      startDate = w.startDate;
+      endDate = w.endDate;
+    }
+    await finalizeOnboardingWithAi({
+      destination: dest,
+      startDate,
+      endDate,
+      partySize: 2,
+      tripStyle: "Mixto",
+      dateNotes: null,
+    });
+  }
+
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     const clean = question.trim();
     if (!clean || loading) return;
-
-    if (onboardingActive) {
-      if (onboardingStep === 1) {
-        setOnboardingDraft((d) => ({ ...d, destination: clean }));
-        setOnboardingStep(2);
-        setQuestion("");
-        return;
-      }
-      if (onboardingStep === 2) {
-        setOnboardingDraft((d) => ({ ...d, dateNotes: clean }));
-        setOnboardingStep(3);
-        setQuestion("");
-        return;
-      }
-    }
-
     void sendMessage();
   }
 
@@ -793,134 +783,62 @@ export default function TripAiChatView({
       />
 
       {onboardingActive ? (
-        <section className="rounded-[28px] border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-violet-50 p-5 shadow-sm">
+        <section className="rounded-2xl border border-violet-200/70 bg-gradient-to-br from-violet-50 via-white to-sky-50 p-4 shadow-sm">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div className="min-w-0">
-              <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-sky-800">Guía inicial</p>
-              <h2 className="mt-1 text-lg font-bold text-slate-950">Te ayudo a crear tu viaje paso a paso ✈️</h2>
-              <p className="mt-2 text-sm text-slate-600">
-                Necesito poco para generar un primer itinerario: destino, cuántos días (o fechas) y cuántas personas sois. Luego podrás refinar por chat. Al terminar estos pasos generaré un borrador con la IA; revísalo y usa «Ejecutar plan» para volcar actividades y rutas al mapa.
+              <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-violet-800">Plan vacío</p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">Montemos el viaje sin formularios largos</p>
+              <p className="mt-1 text-sm text-slate-600">
+                Un clic genera un <span className="font-semibold text-slate-800">borrador de 5 días</span> (ritmo mixto, 2 personas) usando el destino del viaje; luego lo cambias todo por chat. O escribe abajo lo que quieras y seguimos desde ahí: la primera respuesta cierra este aviso.
               </p>
-              <p className="mt-2 text-sm text-slate-600">
-                Usa los botones o escribe en el cuadro de abajo. Puedes saltar la guía cuando quieras.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => skipOnboarding()}
-              className="shrink-0 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
-            >
-              Saltar guía
-            </button>
-          </div>
-
-          <div className="mt-5 space-y-4">
-            {onboardingStep === 0 ? (
-              <div className="space-y-3">
-                <p className="text-sm font-medium text-slate-800">¿Empezamos con unas preguntas rápidas?</p>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setOnboardingStep(1)}
-                    className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
-                  >
-                    Empezar
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            {onboardingStep === 1 ? (
-              <div className="space-y-3">
-                <p className="text-sm font-semibold text-slate-900">1. ¿Cuál es el destino principal?</p>
-                <div className="flex flex-wrap gap-2">
-                  {["Roma", "París", "Lisboa", "Nueva York", "Tokio"].map((city) => (
-                    <button
-                      key={city}
-                      type="button"
-                      onClick={() => {
-                        setOnboardingDraft((d) => ({ ...d, destination: city }));
-                        setOnboardingStep(2);
-                      }}
-                      className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-                    >
-                      {city}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-xs text-slate-500">O escribe el destino en el cuadro de abajo y pulsa Enviar.</p>
-              </div>
-            ) : null}
-
-            {onboardingStep === 2 ? (
-              <div className="space-y-3">
-                <p className="text-sm font-semibold text-slate-900">2. ¿Cuánto dura el viaje?</p>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    { label: "3 días", nights: 3 },
-                    { label: "5 días", nights: 5 },
-                    { label: "1 semana", nights: 7 },
-                    { label: "10 días", nights: 10 },
-                  ].map((opt) => (
-                    <button
-                      key={opt.label}
-                      type="button"
-                      onClick={() => {
-                        applyDurationChips(opt.nights);
-                        setOnboardingStep(3);
-                      }}
-                      className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-xs text-slate-500">
-                  También puedes escribir fechas o aclaraciones (ej. «del 3 al 9 de agosto») abajo y pulsar Enviar.
+              {trip?.destination?.trim() || trip?.name?.trim() ? (
+                <p className="mt-2 text-xs text-slate-500">
+                  Destino detectado:{" "}
+                  <span className="font-semibold text-slate-700">{trip?.destination?.trim() || trip?.name?.trim()}</span>
+                  {trip?.start_date && trip?.end_date ? (
+                    <>
+                      {" "}
+                      · fechas del viaje: {trip.start_date} → {trip.end_date}
+                    </>
+                  ) : null}
                 </p>
-              </div>
-            ) : null}
-
-            {onboardingStep === 3 ? (
-              <div className="space-y-3">
-                <p className="text-sm font-semibold text-slate-900">3. ¿Cuántas personas viajáis?</p>
-                <div className="flex flex-wrap gap-2">
-                  {[2, 3, 4, 6].map((n) => (
-                    <button
-                      key={n}
-                      type="button"
-                      onClick={() => {
-                        setOnboardingDraft((d) => ({ ...d, partySize: n }));
-                        setOnboardingStep(4);
-                      }}
-                      className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-                    >
-                      {n === 6 ? "6 o más" : String(n)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
-            {onboardingStep === 4 ? (
-              <div className="space-y-3">
-                <p className="text-sm font-semibold text-slate-900">4. ¿Qué tipo de viaje buscáis?</p>
-                <div className="flex flex-wrap gap-2">
-                  {["Cultura", "Fiesta", "Naturaleza", "Relax", "Barato", "Premium", "Mixto"].map((style) => (
-                    <button
-                      key={style}
-                      type="button"
-                      onClick={() => void finalizeOnboardingWithAi({ tripStyle: style })}
-                      disabled={onboardingBusy || loading}
-                      className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-sm font-semibold text-violet-950 hover:bg-violet-100 disabled:opacity-50"
-                    >
-                      {style}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-xs text-slate-500">Al elegir un estilo se generará un borrador de itinerario con la IA (luego puedes ejecutarlo en el plan).</p>
-              </div>
-            ) : null}
+              ) : (
+                <p className="mt-2 text-xs text-amber-800">
+                  Aún no hay destino en el viaje: escribe en el chat (ej. «Oporto 4 días») o usa una ciudad de ejemplo.
+                </p>
+              )}
+            </div>
+            <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center">
+              <button
+                type="button"
+                disabled={onboardingBusy || loading}
+                onClick={() => void quickBootstrapPlan()}
+                className="inline-flex min-h-[44px] items-center justify-center rounded-2xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 disabled:opacity-50"
+              >
+                {onboardingBusy ? "Generando…" : "Sugerir itinerario"}
+              </button>
+              <button
+                type="button"
+                onClick={() => skipOnboarding()}
+                disabled={onboardingBusy}
+                className="inline-flex min-h-[44px] items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50"
+              >
+                Prefiero solo chat
+              </button>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {["Roma", "París", "Lisboa", "Oporto", "Tokio"].map((city) => (
+              <button
+                key={city}
+                type="button"
+                disabled={onboardingBusy || loading}
+                onClick={() => void quickBootstrapPlan(city)}
+                className="rounded-full border border-violet-200 bg-white px-3 py-1.5 text-xs font-semibold text-violet-950 hover:bg-violet-50 disabled:opacity-50"
+              >
+                {city}
+              </button>
+            ))}
           </div>
         </section>
       ) : null}
@@ -1467,7 +1385,7 @@ export default function TripAiChatView({
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
                 rows={4}
-                placeholder={inputPlaceholder}
+                placeholder={placeholder}
                 disabled={!isPremium}
                 className="min-h-[120px] w-full resize-none rounded-2xl border-0 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400"
               />
