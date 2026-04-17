@@ -16,7 +16,8 @@ const items: Array<{
   icon: React.ReactNode;
   href: (id: string) => string;
 }> = [
-  { key: "overview", label: "Inicio", icon: "🏠", href: (id: string) => `/trip/${id}` },
+  { key: "home", label: "Inicio", icon: "🏠", href: (id: string) => `/trip/${id}/plan` },
+  { key: "summary", label: "Resumen", icon: "📌", href: (id: string) => `/trip/${id}/summary` },
   {
     key: "plan",
     label: "Plan",

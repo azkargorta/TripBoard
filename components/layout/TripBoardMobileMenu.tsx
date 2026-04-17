@@ -18,7 +18,13 @@ const NAV_ITEMS: Array<{
   icon: { type: "emoji"; value: string } | { type: "image"; src: string; alt: string };
   href: (id: string) => string;
 }> = [
-  { key: "overview", label: "Inicio", icon: { type: "emoji", value: "🏠" }, href: (id) => `/trip/${id}` },
+  { key: "home", label: "Inicio", icon: { type: "emoji", value: "🏠" }, href: (id) => `/trip/${id}/plan` },
+  {
+    key: "summary",
+    label: "Resumen",
+    icon: { type: "emoji", value: "📌" },
+    href: (id) => `/trip/${id}/summary`,
+  },
   { key: "plan", label: "Plan", icon: { type: "image", src: "/brand/tabs/plan.png", alt: "Plan" }, href: (id) => `/trip/${id}/plan` },
   { key: "map", label: "Mapa", icon: { type: "image", src: "/brand/tabs/map.png", alt: "Mapa" }, href: (id) => `/trip/${id}/map` },
   { key: "expenses", label: "Gastos", icon: { type: "image", src: "/brand/tabs/expenses.png", alt: "Gastos" }, href: (id) => `/trip/${id}/expenses` },
