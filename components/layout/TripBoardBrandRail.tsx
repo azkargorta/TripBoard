@@ -25,7 +25,7 @@ export default function TripBoardBrandRail({ tripId, tripName }: Props) {
           <div className="flex min-w-0 flex-1 items-center gap-2.5">
             {iconSrc ? (
               <Link
-                href={`/trip/${tripId}`}
+                href={`/trip/${tripId}/summary`}
                 className="inline-flex shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white/70 ring-1 ring-slate-200 transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60"
                 style={{ width: 42, height: 42 }}
                 title="Ir al resumen del viaje"
@@ -51,7 +51,7 @@ export default function TripBoardBrandRail({ tripId, tripName }: Props) {
             <div className="min-w-0">
               <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                 <Link
-                  href={`/trip/${tripId}`}
+                  href={`/trip/${tripId}/summary`}
                   className="min-w-0 truncate text-xs font-bold text-slate-900 transition hover:text-cyan-700 md:text-sm md:font-semibold"
                   title="Ir al resumen del viaje"
                 >

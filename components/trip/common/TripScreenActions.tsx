@@ -30,7 +30,12 @@ export default function TripScreenActions({
     <div className="flex flex-wrap gap-2">
       <TripShareButton tripId={tripId} showLabels={showLabels} />
       {showSummary ? (
-        <Link href={`/trip/${tripId}`} className={btn} aria-label={summaryLabel} title={summaryLabel}>
+        <Link
+          href={`/trip/${tripId}/summary`}
+          className={btn}
+          aria-label={summaryLabel}
+          title={summaryLabel}
+        >
           <LayoutDashboard className="h-3.5 w-3.5" aria-hidden />
           <span className={showLabels ? "inline" : "hidden sm:inline"}>{summaryLabel}</span>
         </Link>

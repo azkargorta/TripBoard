@@ -14,7 +14,12 @@ export default function TripTabActions({ tripId, variant = "default" }: Props) {
 
   return (
     <div className="flex flex-wrap gap-2">
-      <Link href={`/trip/${tripId}`} className={className} aria-label="Pantalla de resumen" title="Pantalla de resumen">
+      <Link
+        href={`/trip/${tripId}/summary`}
+        className={className}
+        aria-label="Pantalla de resumen"
+        title="Pantalla de resumen"
+      >
         <LayoutDashboard className="h-3.5 w-3.5" aria-hidden />
         <span className="hidden sm:inline">Pantalla de resumen</span>
       </Link>
