@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
+import TripDashboardEditDialog from "@/components/dashboard/TripDashboardEditDialog";
 
 type Trip = {
   id: string;
@@ -12,6 +12,7 @@ type Trip = {
   destination: string | null;
   start_date: string | null;
   end_date: string | null;
+  base_currency: string | null;
 };
 
 function formatDate(value: string | null) {
@@ -45,6 +46,7 @@ export default function TripCardItem({
   const toast = useToast();
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
 
   async function onDelete() {
     setError(null);
@@ -111,8 +113,11 @@ export default function TripCardItem({
       </div>
 
       <div className="mt-5 rounded-2xl bg-white/75 p-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Fechas</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Fechas y moneda</p>
         <p className="mt-2 text-sm font-semibold text-slate-900">{formatRange(trip.start_date, trip.end_date)}</p>
+        <p className="mt-1 text-xs text-slate-600">
+          Moneda base: <span className="font-semibold">{(trip.base_currency || "EUR").toUpperCase()}</span>
+        </p>
       </div>
 
       {error ? (
@@ -135,6 +140,18 @@ export default function TripCardItem({
           type="button"
           onClick={(e) => {
             e.stopPropagation();
+            setEditOpen(true);
+          }}
+          className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-800 transition hover:bg-slate-50"
+          title="Editar destino, fechas y moneda"
+        >
+          <Pencil className="h-4 w-4" aria-hidden />
+          Editar
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
             void onDelete();
           }}
           disabled={deleting}
@@ -145,6 +162,13 @@ export default function TripCardItem({
           {deleting ? "Eliminando…" : "Eliminar viaje"}
         </button>
       </div>
+
+      <TripDashboardEditDialog
+        trip={editOpen ? trip : null}
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        onSaved={() => router.refresh()}
+      />
     </div>
   );
 }

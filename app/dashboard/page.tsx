@@ -13,6 +13,7 @@ type Trip = {
   destination: string | null;
   start_date: string | null;
   end_date: string | null;
+  base_currency: string | null;
   created_at?: string | null;
 };
 
@@ -178,7 +179,7 @@ export default async function DashboardPage() {
   if (tripIds.length > 0) {
     const { data: tripsData, error: tripsError } = await supabase
       .from("trips")
-      .select("id, name, destination, start_date, end_date, created_at")
+      .select("id, name, destination, start_date, end_date, base_currency, created_at")
       .in("id", tripIds)
       .order("created_at", { ascending: false });
 
