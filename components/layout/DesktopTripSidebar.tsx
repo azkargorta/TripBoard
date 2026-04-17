@@ -11,7 +11,6 @@ type Props = {
 };
 
 const items: Array<{ key: string; label: string; icon: React.ReactNode; href: (id: string) => string }> = [
-  { key: "home", label: "Inicio", icon: "🏠", href: (id: string) => `/trip/${id}/plan` },
   { key: "summary", label: "Resumen", icon: "📌", href: (id: string) => `/trip/${id}/summary` },
   {
     key: "plan",
