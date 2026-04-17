@@ -1,13 +1,15 @@
-import Link from "next/link";
-import Image from "next/image";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireTripAccess } from "@/lib/trip-access";
 import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
 import TripScreenActions from "@/components/trip/common/TripScreenActions";
 import TripFirstRunPanel from "@/components/trip/home/TripFirstRunPanel";
-import { CalendarDays, MapPinned, Wallet } from "lucide-react";
+import TripSummaryOverview, {
+  type TripSummaryActivityPreview,
+  type TripSummaryTabDef,
+} from "@/components/trip/summary/TripSummaryOverview";
 import { isPremiumEnabledForTrip } from "@/lib/entitlements";
+import { getTripWeatherByDestination } from "@/lib/trip-weather";
 
 type TripPageProps = {
   params: { id: string };
@@ -31,6 +33,8 @@ type ActivityRow = {
   address: string | null;
 };
 
+const CALENDAR_TZ = "Europe/Madrid";
+
 function formatDate(value: string | null) {
   if (!value) return "Sin fecha";
   const date = new Date(`${value}T00:00:00`);
@@ -41,6 +45,15 @@ function formatDateRange(start: string | null, end: string | null) {
   if (!start && !end) return "Fechas por definir";
   if (start && end) return `${formatDate(start)} — ${formatDate(end)}`;
   return start ? `Desde ${formatDate(start)}` : `Hasta ${formatDate(end)}`;
+}
+
+function calendarDayYMD(timeZone: string, d = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
 }
 
 function parseActivityMoment(activity: ActivityRow) {
@@ -88,11 +101,58 @@ export default async function TripSummaryPage({ params }: TripPageProps) {
   const activities = (activitiesData ?? []) as ActivityRow[];
 
   const now = new Date();
+  const todayStr = calendarDayYMD(CALENDAR_TZ, now);
+  const todayLabel = new Intl.DateTimeFormat("es-ES", {
+    timeZone: CALENDAR_TZ,
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(now);
+
   const nextActivity =
     activities
       .map((activity) => ({ activity, when: parseActivityMoment(activity) }))
       .filter((item): item is { activity: ActivityRow; when: Date } => !!item.when)
       .find((item) => item.when.getTime() >= now.getTime())?.activity ?? null;
+
+  const plansToday: Array<TripSummaryActivityPreview & { isPast: boolean }> = activities
+    .filter((a) => a.activity_date === todayStr)
+    .map((a) => {
+      const w = parseActivityMoment(a);
+      return {
+        id: a.id,
+        title: a.title,
+        activity_date: a.activity_date,
+        activity_time: a.activity_time,
+        place_name: a.place_name,
+        address: a.address,
+        isPast: w ? w.getTime() < now.getTime() : false,
+      };
+    })
+    .sort((a, b) => {
+      const wa = parseActivityMoment(a as ActivityRow);
+      const wb = parseActivityMoment(b as ActivityRow);
+      if (!wa && !wb) return 0;
+      if (!wa) return 1;
+      if (!wb) return -1;
+      return wa.getTime() - wb.getTime();
+    });
+
+  const nextPlanPreview: TripSummaryActivityPreview | null = nextActivity
+    ? {
+        id: nextActivity.id,
+        title: nextActivity.title,
+        activity_date: nextActivity.activity_date,
+        activity_time: nextActivity.activity_time,
+        place_name: nextActivity.place_name,
+        address: nextActivity.address,
+      }
+    : null;
+
+  const weather = await getTripWeatherByDestination(currentTrip.destination);
+  const destTrim = (currentTrip.destination ?? "").trim();
+  const weatherHint = !destTrim ? "no-destination" : !weather ? "unavailable" : "ok";
 
   const alerts = [
     !currentTrip.destination ? "Añade el destino para activar clima y contexto." : null,
@@ -102,32 +162,59 @@ export default async function TripSummaryPage({ params }: TripPageProps) {
     (expensesCount ?? 0) === 0 ? "Aún no hay gastos: añade el primer gasto para ver balances." : null,
   ].filter(Boolean) as string[];
 
-  const quick = [
+  const tabs: TripSummaryTabDef[] = [
     {
       href: `/trip/${tripId}/plan`,
-      title: "Plan",
-      subtitle: "Añadir y organizar actividades",
-      icon: <CalendarDays className="h-4 w-4" aria-hidden />,
+      label: "Plan",
+      subtitle: "Itinerario, notas del viaje y actividades por día",
       metric: `${activitiesCount ?? 0} planes`,
+      iconSrc: "/brand/tabs/plan.png",
+      tone: "cyan",
     },
     {
       href: `/trip/${tripId}/map`,
-      title: "Mapa",
-      subtitle: "Rutas, trayectos y paradas",
-      icon: <MapPinned className="h-4 w-4" aria-hidden />,
+      label: "Mapa",
+      subtitle: "Rutas, trayectos y paradas sobre el mapa",
       metric: `${routesCount ?? 0} rutas`,
+      iconSrc: "/brand/tabs/map.png",
+      tone: "emerald",
     },
     {
       href: `/trip/${tripId}/expenses`,
-      title: "Gastos",
-      subtitle: "Split y balances",
-      icon: <Wallet className="h-4 w-4" aria-hidden />,
+      label: "Gastos",
+      subtitle: "Split, pagos y balances del grupo",
       metric: `${expensesCount ?? 0} gastos`,
+      iconSrc: "/brand/tabs/expenses.png",
+      tone: "amber",
+    },
+    {
+      href: `/trip/${tripId}/participants`,
+      label: "Gente",
+      subtitle: "Invitaciones, roles y permisos",
+      metric: `${participantsCount ?? 0} ${(participantsCount ?? 0) === 1 ? "persona" : "personas"}`,
+      iconSrc: "/brand/tabs/participants.png",
+      tone: "slate",
+    },
+    {
+      href: `/trip/${tripId}/resources`,
+      label: "Recursos",
+      subtitle: "Documentos, reservas y listas",
+      metric: `${resourcesCount ?? 0} ítems`,
+      iconSrc: "/brand/tabs/documents.png",
+      tone: "rose",
+    },
+    {
+      href: `/trip/${tripId}/ai-chat`,
+      label: "IA del viaje",
+      subtitle: isPremium ? "Chat con el contexto de este viaje" : "Requiere plan Premium",
+      metric: isPremium ? "Premium activo" : "Ver Premium",
+      iconSrc: "/brand/tabs/ai.png",
+      tone: "violet",
     },
   ];
 
   return (
-    <main className="space-y-6">
+    <main className="space-y-8">
       <TripBoardPageHeader
         section="Resumen del viaje"
         title={currentTrip.name}
@@ -150,56 +237,21 @@ export default async function TripSummaryPage({ params }: TripPageProps) {
         }}
       />
 
-      <section className="grid gap-3 md:grid-cols-3">
-        {quick.map((item) => (
-          <Link
-            key={item.title}
-            href={item.href}
-            className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 text-sm font-extrabold text-slate-950">
-                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700">
-                    {item.icon}
-                  </span>
-                  {item.title}
-                </div>
-                <div className="mt-1 text-xs text-slate-600">{item.subtitle}</div>
-              </div>
-              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
-                {item.metric}
-              </span>
-            </div>
-          </Link>
-        ))}
-      </section>
-
-      {nextActivity ? (
-        <section className="rounded-2xl border border-violet-200 bg-violet-50 p-5 shadow-sm">
-          <div className="text-xs font-extrabold uppercase tracking-[0.18em] text-violet-700">Próximo plan</div>
-          <div className="mt-2 text-lg font-extrabold text-slate-950">{nextActivity.title}</div>
-          <div className="mt-1 text-sm text-slate-700">
-            {(nextActivity.activity_date ? formatDate(nextActivity.activity_date) : "Sin fecha") +
-              (nextActivity.activity_time ? ` · ${nextActivity.activity_time.slice(0, 5)}` : "")}
-          </div>
-          <div className="mt-1 text-sm text-slate-600">{nextActivity.place_name || nextActivity.address || "Ubicación pendiente"}</div>
-          <div className="mt-4">
-            <Link
-              href={`/trip/${tripId}/plan`}
-              className="inline-flex min-h-11 items-center justify-center rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
-            >
-              Ir a Plan
-            </Link>
-          </div>
-        </section>
-      ) : null}
+      <TripSummaryOverview
+        tripId={tripId}
+        weather={weather}
+        weatherHint={weatherHint}
+        todayLabel={todayLabel}
+        plansToday={plansToday}
+        nextPlan={nextPlanPreview}
+        tabs={tabs}
+      />
 
       {alerts.length ? (
         <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
           <div className="text-sm font-extrabold text-amber-900">Siguientes pasos</div>
           <ul className="mt-3 space-y-2 text-sm text-amber-950">
-            {alerts.slice(0, 4).map((a) => (
+            {alerts.slice(0, 5).map((a) => (
               <li key={a} className="flex gap-2">
                 <span aria-hidden>•</span>
                 <span>{a}</span>
@@ -210,34 +262,11 @@ export default async function TripSummaryPage({ params }: TripPageProps) {
       ) : (
         <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
           <div className="text-sm font-extrabold text-emerald-900">Todo listo</div>
-          <div className="mt-1 text-sm text-emerald-950">El viaje ya tiene plan, mapa y gastos en marcha. Sigue organizando desde Plan.</div>
+          <div className="mt-1 text-sm text-emerald-950">
+            El viaje tiene contenido en las distintas áreas. Sigue desde las tarjetas de arriba o el menú lateral.
+          </div>
         </section>
       )}
-
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <div className="text-sm font-extrabold text-slate-950">Recursos</div>
-            <div className="mt-1 text-xs text-slate-600">Reservas, documentos y listas del viaje.</div>
-          </div>
-          <span className="text-sm font-semibold text-slate-700">{resourcesCount ?? 0}</span>
-        </div>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Link
-            href={`/trip/${tripId}/resources`}
-            className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-          >
-            Ver recursos
-          </Link>
-          <Link
-            href={`/trip/${tripId}/ai-chat`}
-            className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-          >
-            Abrir IA
-          </Link>
-        </div>
-      </section>
     </main>
   );
 }
-
