@@ -576,7 +576,7 @@ export default function TripPlanView({
         </div>
       </div>
 
-      <details className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <details className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="text-sm font-extrabold text-slate-950">Tipos personalizados</div>
@@ -584,8 +584,13 @@ export default function TripPlanView({
               Avanzado: crea categorías reutilizables (emoji/color) para Plan y Mapa.
             </div>
           </div>
-          <span className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-            Abrir
+          <span className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+            <span className="group-open:hidden">Abrir</span>
+            <span className="hidden group-open:inline">Cerrar</span>
+            <span className="text-slate-400" aria-hidden>
+              <span className="group-open:hidden">▾</span>
+              <span className="hidden group-open:inline">▴</span>
+            </span>
           </span>
         </summary>
 
