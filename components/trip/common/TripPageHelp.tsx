@@ -125,12 +125,12 @@ const TAB_TOUR: TourStep[] = [
   },
   {
     id: "ai",
-    title: "IA",
+    title: "Asistente personal",
     lead: "Paso 7 de 7",
     body: "Asistente con contexto de este viaje: ideas, organizar un día, dudas y sugerencias según el tipo de chat.",
     mobileTip: "En pantalla pequeña el chat va primero; en el panel lateral tienes conversaciones y «Mostrar tipos».",
     href: (id) => `/trip/${id}/ai-chat`,
-    visual: { type: "image", src: "/brand/tabs/ai.png", alt: "Chat IA" },
+    visual: { type: "image", src: "/brand/tabs/ai.png", alt: "Asistente personal" },
   },
 ];
 
@@ -146,7 +146,7 @@ const HELP: Record<string, HelpEntry> = {
         heading: "Qué puedes hacer en esta página",
         bullets: [
           "Consultar y, si tienes permiso, editar datos básicos del viaje (nombre, destino, fechas, etc.).",
-          "Ir al Plan, Mapa, Gastos, Gente, Docs o IA desde las tarjetas de accesos rápidos o desde el menú inferior.",
+          "Ir al Plan, Mapa, Gastos, Gente, Docs o asistente personal desde las tarjetas de accesos rápidos o desde el menú inferior.",
           "Leer avisos y recordatorios (clima, datos pendientes, participantes) cuando el viaje aún está incompleto.",
           "Seguir el bloque «Primeros pasos» si el viaje es nuevo: enlaces directos a las tareas más habituales.",
         ],
@@ -179,7 +179,7 @@ const HELP: Record<string, HelpEntry> = {
         bullets: [
           "Añadir, editar y ordenar actividades por día (visitas, comidas, traslados, tiempo libre).",
           "Definir horarios y detalles para que el día sea legible de principio a fin.",
-          "Guardar información que después puedes reutilizar al trazar rutas o al consultar con la IA.",
+          "Guardar información que después puedes reutilizar al trazar rutas o al consultar con el asistente personal.",
           "Revisar el plan como lista temporal: qué toca antes y qué después, sin depender de chats sueltos.",
         ],
       },
@@ -319,7 +319,7 @@ const HELP: Record<string, HelpEntry> = {
     ],
   },
   ai: {
-    title: "Asistente IA",
+    title: "Asistente personal",
     intro:
       "Un chat que conoce el contexto de este viaje: puede proponer ideas, ordenar un día o responder dudas según el modo que elijas.",
     blocks: [
@@ -327,7 +327,7 @@ const HELP: Record<string, HelpEntry> = {
         heading: "Qué puedes hacer en esta página",
         bullets: [
           "Escribir preguntas o pedidos en lenguaje natural (itinerarios, alternativas, qué ver en una zona, etc.).",
-          "Elegir o cambiar el tipo de chat para que la IA se enfoque en preguntar, preparar u otras tareas.",
+          "Elegir o cambiar el tipo de conversación para que el asistente personal se enfoque en preguntar, preparar u otras tareas.",
           "Gestionar conversaciones: retomar un hilo o empezar uno nuevo cuando el tema cambie (según tu plan).",
           "Usar sugerencias rápidas como atajos cuando no sepas cómo formular la primera pregunta.",
         ],

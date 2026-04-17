@@ -4,7 +4,8 @@ import { Check } from "lucide-react";
 
 export const metadata = {
   title: "Precios · Kaviro",
-  description: "Planes y precios de Kaviro: gratis para organizar viajes, Premium para IA y funciones avanzadas.",
+  description:
+    "Planes y precios de Kaviro: gratis para organizar viajes, Premium para el asistente personal y funciones avanzadas.",
 };
 
 const FREE_FEATURES = [
@@ -18,7 +19,7 @@ const FREE_FEATURES = [
 ];
 
 const PREMIUM_FEATURES = [
-  "Asistente IA del viaje",
+  "Asistente personal del viaje",
   "Análisis de tickets/documentos (PDF/imagen)",
   "Funciones avanzadas y mejoras continuas",
   "Soporte prioritario (cuando esté disponible)",
@@ -43,7 +44,7 @@ export default function PricingPage() {
       <TripBoardPremiumHero
         eyebrow="Precios"
         title="Elige el plan que encaje con tu viaje"
-        description="En el plan gratuito ya tienes mapa, rutas y autocompletar. Premium desbloquea IA y análisis de documentos."
+        description="En el plan gratuito ya tienes mapa, rutas y autocompletar. Premium desbloquea el asistente personal y el análisis de documentos."
         actions={
           <>
             <Link
@@ -88,7 +89,7 @@ export default function PricingPage() {
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Plan</p>
               <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-950">Premium</h2>
               <p className="mt-2 text-sm text-slate-600">
-                Para automatizar y ahorrar tiempo con IA.
+                Para automatizar y ahorrar tiempo con el asistente personal.
               </p>
             </div>
             <div className="space-y-1 text-right">
@@ -132,7 +133,7 @@ export default function PricingPage() {
           <div className="rounded-2xl border border-slate-200 bg-white p-4">
             <p className="text-sm font-semibold text-slate-950">¿Qué desbloquea Premium entonces?</p>
             <p className="mt-1 text-sm text-slate-600">
-              Principalmente IA (chat del viaje) y el análisis de documentos (tickets, PDFs e imágenes) para ahorrar tiempo.
+              Principalmente el asistente personal (conversación con contexto del viaje) y el análisis de documentos (tickets, PDFs e imágenes) para ahorrar tiempo.
             </p>
           </div>
         </div>

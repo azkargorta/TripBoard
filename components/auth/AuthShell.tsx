@@ -54,7 +54,7 @@ export default function AuthShell({
                 </h1>
 
                 <p className="mt-4 text-base leading-7 text-white/75">
-                  Gestiona itinerarios, gastos, mapa, recursos, OCR y chat desde tu panel de Kaviro.
+                  Gestiona itinerarios, gastos, mapa, recursos, OCR y asistente personal desde tu panel de Kaviro.
                 </p>
               </div>
             </div>

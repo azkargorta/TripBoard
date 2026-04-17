@@ -29,7 +29,12 @@ const NAV_ITEMS: Array<{
   { key: "expenses", label: "Gastos", icon: { type: "image", src: "/brand/tabs/expenses.png", alt: "Gastos" }, href: (id) => `/trip/${id}/expenses` },
   { key: "participants", label: "Gente", icon: { type: "image", src: "/brand/tabs/participants.png", alt: "Participantes" }, href: (id) => `/trip/${id}/participants` },
   { key: "resources", label: "Docs", icon: { type: "image", src: "/brand/tabs/documents.png", alt: "Docs" }, href: (id) => `/trip/${id}/resources` },
-  { key: "chat", label: "IA", icon: { type: "image", src: "/brand/tabs/ai.png", alt: "IA" }, href: (id) => `/trip/${id}/ai-chat` },
+  {
+    key: "chat",
+    label: "Asistente personal",
+    icon: { type: "image", src: "/brand/tabs/ai.png", alt: "Asistente personal" },
+    href: (id) => `/trip/${id}/ai-chat`,
+  },
 ];
 
 function ItemIcon({

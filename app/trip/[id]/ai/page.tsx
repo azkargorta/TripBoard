@@ -1,3 +1,3 @@
 export default function TripAIPage() {
-  return <div>IA del viaje</div>;
+  return <div>Asistente personal del viaje</div>;
 }

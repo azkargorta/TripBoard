@@ -206,8 +206,8 @@ export default function AccountSettingsForm({ initial }: Props) {
             <p className="text-2xl font-bold text-slate-950">{planLabel}</p>
             <p className="text-sm text-slate-600">
               {initial.isPremium
-                ? "Tienes acceso completo a IA, mapas, rutas y análisis."
-                : "El plan gratuito incluye mapas, rutas y autocompletar. Premium desbloquea IA y funciones avanzadas."}
+                ? "Tienes acceso completo al asistente personal, mapas, rutas y análisis."
+                : "El plan gratuito incluye mapas, rutas y autocompletar. Premium desbloquea el asistente personal y funciones avanzadas."}
             </p>
           </div>
           <div className="w-full sm:w-auto">

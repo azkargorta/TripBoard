@@ -50,7 +50,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ monthKey, rows: enriched });
   } catch (e) {
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Error al cargar uso de IA." },
+      { error: e instanceof Error ? e.message : "Error al cargar uso del asistente personal." },
       { status: 500 }
     );
   }

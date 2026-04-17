@@ -94,8 +94,8 @@ export default function PublicLanding() {
                 Organiza todo tu viaje en un solo lugar
               </h1>
               <p className="max-w-2xl text-sm leading-relaxed text-slate-700 sm:text-base md:text-lg">
-                Itinerario, gastos, rutas y planes sin caos. Gratis: mapa, plan por días y reparto de gastos. Premium: IA,
-                documentos y automatización.
+                Itinerario, gastos, rutas y planes sin caos. Gratis: mapa, plan por días y reparto de gastos. Premium:
+                asistente personal, documentos y automatización.
               </p>
 
               <div className="flex flex-wrap items-center gap-3">
@@ -119,7 +119,7 @@ export default function PublicLanding() {
                   <Feature>Plan por días con horas</Feature>
                   <Feature>Mapa y rutas entre paradas</Feature>
                   <Feature>Gastos y balances del grupo</Feature>
-                  <Feature>Premium: chat IA y OCR de reservas</Feature>
+                  <Feature>Premium: asistente personal y OCR de reservas</Feature>
                 </ul>
                 <p className="mt-3 text-center text-xs text-slate-600">
                   <Link href="/pricing" className="font-semibold text-cyan-800 hover:underline">
@@ -144,7 +144,7 @@ export default function PublicLanding() {
                       { label: "Plan e itinerario", sub: "Por días y horas", icon: CalendarDays, tone: "from-sky-400 to-cyan-300" },
                       { label: "Mapa y rutas", sub: "Paradas enlazadas", icon: MapPinned, tone: "from-emerald-400 to-teal-300" },
                       { label: "Gastos del grupo", sub: "Balances claros", icon: Wallet, tone: "from-amber-400 to-orange-300" },
-                      { label: "IA del viaje", sub: "Premium", icon: Sparkles, tone: "from-violet-400 to-fuchsia-300" },
+                      { label: "Asistente personal", sub: "Premium", icon: Sparkles, tone: "from-violet-400 to-fuchsia-300" },
                     ].map((row) => {
                       const RowIcon = row.icon;
                       return (

@@ -146,7 +146,7 @@ const MODE_OPTIONS: ModeOption[] = [
   {
     id: "actions",
     label: "Acciones",
-    useFor: "Pedir a la IA que cree o modifique actividades/rutas vía «diff» revisable.",
+    useFor: "Pedir al asistente personal que cree o modifique actividades/rutas vía «diff» revisable.",
   },
   {
     id: "day_planner",
@@ -225,11 +225,11 @@ export default function TripAiChatView({
     return (
       <main className="space-y-6">
         <TripBoardPageHeader
-          section="Asistente IA del viaje"
-          title="Chat IA"
+          section="Asistente personal del viaje"
+          title="Asistente personal"
           description="Esta página está reservada a usuarios Premium."
           iconSrc="/brand/tabs/ai.png"
-          iconAlt="Chat IA"
+          iconAlt="Asistente personal"
           actions={<TripScreenActions tripId={tripId} />}
         />
 
@@ -238,7 +238,7 @@ export default function TripAiChatView({
             Esta página está reservada a usuarios premium.
           </div>
           <div className="mt-2 text-sm text-amber-900/80">
-            Mejora a Premium para habilitar chat, memoria, acciones y optimización del viaje.
+            Mejora a Premium para habilitar el asistente personal, memoria, acciones y optimización del viaje.
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
@@ -271,7 +271,7 @@ export default function TripAiChatView({
       content:
         "Bienvenido ✈️\n\n" +
         "Escribe con naturalidad (destino, días, ritmo, qué os apetece) o pulsa arriba «Sugerir itinerario» si el plan está vacío: te preparo un borrador de varios días y lo vas afinando en esta misma conversación.\n\n" +
-        "Cuando salga el itinerario en formato ejecutable, «Ejecutar plan» lo vuelca al mapa y al plan; los retoques puntuales van con «Aplicar cambios». Para un solo día muy detallado, usa «Modo IA → Organizar día».",
+        "Cuando salga el itinerario en formato ejecutable, «Ejecutar plan» lo vuelca al mapa y al plan; los retoques puntuales van con «Aplicar cambios». Para un solo día muy detallado, usa «Modo asistente → Organizar día».",
     },
   ]);
   const [question, setQuestion] = useState("");
@@ -508,14 +508,14 @@ export default function TripAiChatView({
       };
     }
 
-    // Si la IA se sale del formato
+    // Si el asistente personal se sale del formato
     return {
       kind: "unknown",
       title: `Operación no reconocida: ${rawOp || "unknown"}`,
       subtitle: null,
       date: null,
       tone: "warn",
-      details: "La IA devolvió un formato distinto al esperado. Puedes descartarlo.",
+      details: "El asistente personal devolvió un formato distinto al esperado. Puedes descartarlo.",
       raw: op,
     };
   }
@@ -824,11 +824,11 @@ export default function TripAiChatView({
   return (
     <main className="space-y-6">
       <TripBoardPageHeader
-        section="Asistente IA del viaje"
-        title="Chat IA"
-        description="Chat libre con sugerencias y guía opcional al crear el plan. La IA usa un resumen del viaje y acciones concretas (no todo el historial) para ahorrar tokens."
+        section="Asistente personal del viaje"
+        title="Asistente personal"
+        description="Conversación libre con sugerencias y guía opcional al crear el plan. El asistente personal usa un resumen del viaje y acciones concretas (no todo el historial) para ahorrar tokens."
         iconSrc="/brand/tabs/ai.png"
-        iconAlt="Chat IA"
+        iconAlt="Asistente personal"
         actions={<TripScreenActions tripId={tripId} />}
       />
 
@@ -1040,7 +1040,7 @@ export default function TripAiChatView({
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <div className="text-sm font-semibold text-slate-950">Cambios propuestos por la IA</div>
+              <div className="text-sm font-semibold text-slate-950">Cambios propuestos por el asistente personal</div>
               <div className="mt-1 text-xs text-slate-600">
                 Revisa el “diff” antes de aplicar. Está agrupado por día y muestra antes → después cuando es posible.
               </div>
@@ -1335,13 +1335,13 @@ export default function TripAiChatView({
                 <p className="mt-1 hidden text-xs text-slate-500 xl:block">
                   {modeSource === "auto"
                     ? "Modo automático: la intención se traduce en acción y resumen del viaje (sin enviar todo el historial)."
-                    : "Modo manual: controlas el tipo de respuesta de la IA."}
+                    : "Modo manual: controlas el tipo de respuesta del asistente personal."}
                 </p>
               </div>
 
               <div className="flex flex-col items-end gap-2">
                 <label className="flex flex-col items-end gap-1 text-[11px] font-semibold text-slate-600">
-                  Modo IA
+                  Modo asistente
                   <select
                     value={modeSource === "manual" ? mode : "auto"}
                     onChange={(e) => {

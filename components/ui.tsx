@@ -153,7 +153,7 @@ export function WorkspaceTabs({
     ["lugares", "Lugares"],
     ["recursos", "Recursos"],
     ["personas", "Personas"],
-    ["ia", "IA"]
+    ["ia", "Asistente personal"]
   ] as const;
 
   return (

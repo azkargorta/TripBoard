@@ -49,7 +49,7 @@ const items: Array<{ key: string; label: string; icon: React.ReactNode; href: (i
   },
   {
     key: "chat",
-    label: "IA",
+    label: "Asistente personal",
     icon: <Image src="/brand/tabs/ai.png" alt="" width={22} height={22} className="h-[22px] w-[22px] object-contain" />,
     href: (id: string) => `/trip/${id}/ai-chat`,
   },
@@ -93,7 +93,9 @@ export default function MobileBottomNav({ tripId, isPremium }: Props) {
                   <span className="text-[1.2rem] leading-none [&_img]:shrink-0" aria-hidden>
                     {item.icon}
                   </span>
-                  <span className="max-w-[5rem] truncate">{item.label}</span>
+                  <span className="max-w-[4.5rem] whitespace-normal text-center text-[9px] font-semibold leading-[1.15] line-clamp-2">
+                    {item.label}
+                  </span>
                 </Link>
               );
             })}

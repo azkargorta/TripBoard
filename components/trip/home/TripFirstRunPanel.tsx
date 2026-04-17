@@ -18,7 +18,7 @@ export default function TripFirstRunPanel({
 }: {
   tripId: string;
   tripName: string;
-  /** Con Premium, la primera recomendación es el chat IA; sin Premium, otro orden guiado. */
+  /** Con Premium, la primera recomendación es el asistente personal; sin Premium, otro orden guiado. */
   isPremium: boolean;
   counts: {
     participants: number;
@@ -106,7 +106,7 @@ export default function TripFirstRunPanel({
   };
 
   const stepAiChat: Item = {
-    title: "Prepara el viaje con el chat IA",
+    title: "Prepara el viaje con el asistente personal",
     description:
       "Itinerarios, organizar un día completo, dudas y propuestas usando el contexto de este viaje.",
     href: `/trip/${id}/ai-chat`,

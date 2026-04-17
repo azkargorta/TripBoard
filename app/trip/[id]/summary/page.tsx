@@ -258,7 +258,9 @@ export default async function TripSummaryPage({ params }: TripPageProps) {
   const peopleHint =
     (participantsCount ?? 0) <= 1 ? "Invita al grupo con el enlace de participantes." : "Roles y permisos por persona.";
   const resourcesHint = lastResourceTitle ? `Último doc: ${truncateHint(lastResourceTitle, 44)}` : (resourcesCount ?? 0) > 0 ? "Revisa reservas y archivos." : "Sube billetes o PDFs cuando los tengas.";
-  const aiHint = isPremium ? "Pide rutas, un itinerario o cambios con contexto del viaje." : "Desbloquea el asistente con Premium.";
+  const aiHint = isPremium
+    ? "Pide rutas, un itinerario o cambios con contexto del viaje."
+    : "Desbloquea el asistente personal con Premium.";
 
   const tabs: TripSummaryTabDef[] = [
     {
@@ -308,8 +310,8 @@ export default async function TripSummaryPage({ params }: TripPageProps) {
     },
     {
       href: `/trip/${tripId}/ai-chat`,
-      label: "IA del viaje",
-      subtitle: isPremium ? "Chat con el contexto de este viaje" : "Requiere plan Premium",
+      label: "Asistente personal",
+      subtitle: isPremium ? "Conversación con el contexto de este viaje" : "Requiere plan Premium",
       metric: isPremium ? "Premium activo" : "Ver Premium",
       iconSrc: "/brand/tabs/ai.png",
       tone: "violet",

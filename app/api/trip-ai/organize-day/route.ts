@@ -588,7 +588,7 @@ export async function POST(req: Request) {
     const isPremium = await isPremiumEnabledForTrip({ supabase, userId, tripId });
     if (!isPremium) {
       return NextResponse.json(
-        { error: "Necesitas Premium (o un participante Premium en este viaje) para usar la IA.", code: "PREMIUM_REQUIRED" },
+        { error: "Necesitas Premium (o un participante Premium en este viaje) para usar el asistente personal.", code: "PREMIUM_REQUIRED" },
         { status: 402 }
       );
     }
@@ -782,7 +782,7 @@ export async function POST(req: Request) {
       entity_type: "ai_day_plan",
       entity_id: `${plan.date}`,
       action: "create",
-      summary: `IA generó propuesta de día: ${plan.date}`,
+      summary: `El asistente personal generó propuesta de día: ${plan.date}`,
       diff: { plan, items: enrichedItems },
       actor_user_id: userId,
       actor_email: null,

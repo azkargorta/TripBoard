@@ -86,7 +86,7 @@ export default function TripListsPanel({ tripId, isPremium = false, onGenerateWi
               onClick={() => setAiOpen(true)}
               className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
             >
-              Generar con IA
+              Generar con asistente personal
             </button>
           ) : (
             <button
@@ -95,7 +95,7 @@ export default function TripListsPanel({ tripId, isPremium = false, onGenerateWi
               className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-400"
               title="Disponible en Premium"
             >
-              Generar con IA (Premium)
+              Generar con asistente personal (Premium)
             </button>
           )}
         </div>

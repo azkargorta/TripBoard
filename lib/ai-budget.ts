@@ -38,8 +38,8 @@ export async function enforceAiMonthlyBudgetOrThrow(params: {
     currentEstimatedEur = usageRow?.estimated_cost_eur != null ? Number(usageRow.estimated_cost_eur) : 0;
     if (Number.isFinite(currentEstimatedEur) && currentEstimatedEur >= monthlyBudgetEur) {
       const err: any = new Error(
-        `Has alcanzado tu límite mensual de IA (${monthlyBudgetEur.toFixed(2)}€). ` +
-          `Para seguir usando IA este mes, sube el límite o espera al próximo mes.`
+        `Has alcanzado tu límite mensual del asistente personal (${monthlyBudgetEur.toFixed(2)}€). ` +
+          `Para seguir usando el asistente personal este mes, sube el límite o espera al próximo mes.`
       );
       err.code = "AI_BUDGET_EXCEEDED";
       err.httpStatus = 402;

@@ -35,7 +35,7 @@ export async function GET(request: Request) {
     const isPremium = await isPremiumEnabledForTrip({ supabase, userId: user.id, tripId });
     if (!isPremium) {
       return NextResponse.json(
-        { error: "Necesitas Premium (o un participante Premium en este viaje) para usar la IA.", code: "PREMIUM_REQUIRED" },
+        { error: "Necesitas Premium (o un participante Premium en este viaje) para usar el asistente personal.", code: "PREMIUM_REQUIRED" },
         { status: 402 }
       );
     }

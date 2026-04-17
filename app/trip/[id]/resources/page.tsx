@@ -12,8 +12,8 @@ export default async function TripResourcesPage({
 }) {
   const tripId = params.id;
 
-  // Nota: esta página NO está gated por premium, pero usamos el flag para habilitar IA si el viaje lo permite.
-  // (Si no, el endpoint IA también lo rechazará.)
+  // Nota: esta página NO está gated por premium, pero usamos el flag para habilitar el asistente personal si el viaje lo permite.
+  // (Si no, el endpoint del asistente también lo rechazará.)
   const access = await requireTripAccess(tripId);
   const supabase = await createClient();
   const aiEnabled = await isPremiumEnabledForTrip({ supabase, userId: access.userId, tripId });

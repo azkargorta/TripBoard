@@ -24,7 +24,7 @@ export function detectAction(question: string, mode: string): ParsedAction {
     const dateMatch = question.match(/(20\d{2}-\d{2}-\d{2})/);
     return {
       type: "create_activity",
-      title: titleMatch?.[1]?.trim() || "Actividad creada por IA",
+      title: titleMatch?.[1]?.trim() || "Actividad creada por el asistente personal",
       date: dateMatch?.[1],
     };
   }
@@ -45,7 +45,7 @@ async function createActivity(tripId: string, action: Extract<ParsedAction, { ty
       title: action.title,
       activity_date: action.date || null,
       location_name: action.location_name || null,
-      notes: action.notes || "Creada desde Chat IA",
+      notes: action.notes || "Creada desde el asistente personal",
       activity_type: "general",
     })
     .select("*")

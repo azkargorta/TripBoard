@@ -110,7 +110,7 @@ export default function CreateTripForm({ isPremium = false }: { isPremium?: bool
 
       setStep("done");
       if (isPremium) {
-        toast.success("Viaje creado", "Te llevamos al asistente IA para montar el viaje.");
+        toast.success("Viaje creado", "Te llevamos al asistente personal para montar el viaje.");
         router.push(`/trip/${newTripId}/ai-chat`);
       } else {
         toast.success("Viaje creado", "Te llevamos al resumen del viaje.");

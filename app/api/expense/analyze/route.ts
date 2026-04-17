@@ -48,7 +48,7 @@ export async function POST(req: Request) {
       .maybeSingle();
     if (!Boolean((profileRow as any)?.is_premium)) {
       return NextResponse.json(
-        { error: "Necesitas Premium para usar la IA.", code: "PREMIUM_REQUIRED" },
+        { error: "Necesitas Premium para usar el asistente personal.", code: "PREMIUM_REQUIRED" },
         { status: 402 }
       );
     }
@@ -123,7 +123,7 @@ export async function POST(req: Request) {
         });
         llmExpense = extractFirstJsonObject(answer);
       } catch (e) {
-        llmError = e instanceof Error ? e.message : "Error al llamar a la IA.";
+        llmError = e instanceof Error ? e.message : "Error al contactar con el asistente personal.";
       }
     }
 

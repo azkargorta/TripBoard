@@ -53,7 +53,7 @@ const items: Array<{
   { key: "expenses", label: "Gastos", icon: "💰", href: (id: string) => `/trip/${id}/expenses` },
   { key: "participants", label: "Gente", icon: "👥", href: (id: string) => `/trip/${id}/participants` },
   { key: "resources", label: "Docs", icon: "📎", href: (id: string) => `/trip/${id}/resources` },
-  { key: "chat", label: "IA", icon: "🤖", href: (id: string) => `/trip/${id}/ai-chat` },
+  { key: "chat", label: "Asistente personal", icon: "🤖", href: (id: string) => `/trip/${id}/ai-chat` },
 ];
 
 function isActivePath(pathname: string, href: string, key: string) {

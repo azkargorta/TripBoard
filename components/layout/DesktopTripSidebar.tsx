@@ -49,7 +49,7 @@ const items: Array<{ key: string; label: string; icon: React.ReactNode; href: (i
   },
   {
     key: "chat",
-    label: "IA",
+    label: "Asistente personal",
     icon: <Image src="/brand/tabs/ai.png" alt="" width={22} height={22} className="h-[22px] w-[22px] object-contain" />,
     href: (id: string) => `/trip/${id}/ai-chat`,
   },
@@ -88,7 +88,9 @@ export default function DesktopTripSidebar({ tripId, isPremium }: Props) {
                   <span className="shrink-0 text-[1.35rem] leading-none" aria-hidden>
                     {item.icon}
                   </span>
-                  <span className="w-full truncate text-center">{item.label}</span>
+                  <span className="w-full px-0.5 text-center text-[10px] font-semibold leading-tight sm:text-[11px]">
+                    {item.label}
+                  </span>
                 </Link>
               );
             })}

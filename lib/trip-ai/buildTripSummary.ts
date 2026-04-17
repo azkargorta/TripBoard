@@ -36,7 +36,7 @@ function routeLine(row: SafeRow) {
 }
 
 /**
- * Resumen compacto del viaje para prompts de IA (~300–800 tokens).
+ * Resumen compacto del viaje para prompts del asistente personal (~300–800 tokens).
  * No sustituye la lectura completa en otras herramientas; evita enviar listados enormes.
  */
 export async function buildTripSummaryForAi(tripId: string): Promise<string> {

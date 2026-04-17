@@ -140,7 +140,7 @@ export default function AiListDraftDialog({
       <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl">
         <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
           <div className="min-w-0">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">IA</div>
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Asistente personal</div>
             <div className="mt-1 truncate text-lg font-bold text-slate-950">Generar lista</div>
           </div>
           <button

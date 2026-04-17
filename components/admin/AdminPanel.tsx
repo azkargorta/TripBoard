@@ -80,7 +80,7 @@ export default function AdminPanel() {
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Administración</p>
           <h1 className="mt-1 text-3xl font-extrabold text-slate-950">Panel de administrador</h1>
           <p className="mt-2 max-w-2xl text-sm text-slate-600">
-            Uso de IA por usuario y mes, visitas a páginas (usuarios logueados) y métricas básicas de la plataforma.
+            Uso del asistente personal por usuario y mes, visitas a páginas (usuarios logueados) y métricas básicas de la plataforma.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -121,7 +121,9 @@ export default function AdminPanel() {
             <p className="mt-2 text-3xl font-bold text-slate-950">{overview.counts.pageViewsLast7Days}</p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">IA este mes ({overview.monthKey})</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+              Asistente personal este mes ({overview.monthKey})
+            </p>
             <p className="mt-2 text-lg font-bold text-slate-950">
               ~{overview.aiThisMonth.estimatedCostEurSum.toFixed(4)} €
             </p>
@@ -135,7 +137,7 @@ export default function AdminPanel() {
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h2 className="text-xl font-bold text-slate-950">Gasto IA por usuario (mes)</h2>
+            <h2 className="text-xl font-bold text-slate-950">Gasto del asistente personal por usuario (mes)</h2>
             <p className="mt-1 text-sm text-slate-600">Coste estimado a partir de tokens (Gemini Flash).</p>
           </div>
           <label className="flex flex-col gap-1 text-xs font-semibold text-slate-600">
@@ -164,7 +166,7 @@ export default function AdminPanel() {
               {aiRows.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-6 text-slate-500">
-                    Sin datos de IA para este mes.
+                    Sin datos del asistente personal para este mes.
                   </td>
                 </tr>
               ) : (

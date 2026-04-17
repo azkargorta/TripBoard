@@ -124,7 +124,7 @@ export async function POST(req: Request) {
     const isPremium = await isPremiumEnabledForTrip({ supabase, userId, tripId });
     if (!isPremium) {
       return NextResponse.json(
-        { error: "Necesitas Premium (o un participante Premium en este viaje) para generar listas con IA.", code: "PREMIUM_REQUIRED" },
+        { error: "Necesitas Premium (o un participante Premium en este viaje) para generar listas con el asistente personal.", code: "PREMIUM_REQUIRED" },
         { status: 402 }
       );
     }
@@ -145,7 +145,7 @@ export async function POST(req: Request) {
     if (!draft) {
       return NextResponse.json(
         {
-          error: "La IA no devolvió el JSON esperado para la lista. Vuelve a intentarlo con una petición más concreta.",
+          error: "El asistente personal no devolvió el JSON esperado para la lista. Vuelve a intentarlo con una petición más concreta.",
           answer,
         },
         { status: 422 }
@@ -155,7 +155,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ draft, answer });
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "No se pudo generar la lista con IA." },
+      { error: error instanceof Error ? error.message : "No se pudo generar la lista con el asistente personal." },
       { status: 500 }
     );
   }
