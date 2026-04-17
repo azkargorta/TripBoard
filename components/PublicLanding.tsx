@@ -44,7 +44,7 @@ export default function PublicLanding() {
   return (
     <main className="min-h-screen bg-gradient-to-b from-cyan-50/80 via-slate-50 to-violet-100/60">
       <header className="border-b border-cyan-200/40 bg-gradient-to-r from-white/95 via-cyan-50/90 to-violet-50/80 backdrop-blur supports-[backdrop-filter]:bg-white/70">
-        <div className="page-shell flex items-center justify-between py-4">
+        <div className="page-shell flex items-center justify-between py-2.5 sm:py-3">
           <TripBoardLogo href="/" variant="dark" size="md" withWordmark />
           <nav className="flex items-center gap-2">
             <Link
@@ -69,8 +69,8 @@ export default function PublicLanding() {
         </div>
       </header>
 
-      <section className="page-shell py-10 md:py-14">
-        <div className="relative overflow-hidden rounded-[2rem] border border-cyan-200/50 bg-gradient-to-br from-white via-cyan-50/50 to-violet-100/70 p-6 shadow-lg shadow-cyan-900/5 md:rounded-[2.25rem] md:p-10 lg:p-12">
+      <section className="page-shell pb-8 pt-3 sm:pb-10 sm:pt-4 md:pb-12 md:pt-5">
+        <div className="relative overflow-hidden rounded-[1.5rem] border border-cyan-200/50 bg-gradient-to-br from-white via-cyan-50/50 to-violet-100/70 p-5 shadow-lg shadow-cyan-900/5 sm:rounded-[2rem] sm:p-7 md:rounded-[2.25rem] md:p-9 lg:p-10">
           <div
             className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-cyan-400/25 blur-3xl"
             aria-hidden
@@ -80,9 +80,9 @@ export default function PublicLanding() {
             aria-hidden
           />
 
-          <div className="relative grid gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
-            <div className="space-y-6">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+          <div className="relative grid gap-6 sm:gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+            <div className="space-y-4 sm:space-y-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
                 <TripBoardLogo href="/" variant="dark" size="lg" withWordmark />
                 <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-300/60 bg-cyan-100/80 px-3 py-1.5 text-xs font-semibold text-cyan-950">
                   <Sparkles className="h-3.5 w-3.5 text-cyan-700" aria-hidden />
@@ -90,10 +90,10 @@ export default function PublicLanding() {
                 </div>
               </div>
 
-              <h1 className="text-4xl font-extrabold tracking-tight text-slate-950 md:text-5xl">
+              <h1 className="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl md:text-[2.65rem] md:leading-tight">
                 Organiza todo tu viaje en un solo lugar
               </h1>
-              <p className="max-w-2xl text-base leading-relaxed text-slate-700 md:text-lg">
+              <p className="max-w-2xl text-sm leading-relaxed text-slate-700 sm:text-base md:text-lg">
                 Itinerario, gastos, rutas y planes sin caos. Gratis: mapa, plan por días y reparto de gastos. Premium: IA,
                 documentos y automatización.
               </p>

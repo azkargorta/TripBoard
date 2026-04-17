@@ -10,6 +10,7 @@ import TripSummaryOverview, {
 } from "@/components/trip/summary/TripSummaryOverview";
 import { isPremiumEnabledForTrip } from "@/lib/entitlements";
 import { getTripWeatherByDestination } from "@/lib/trip-weather";
+import { parseActivityLocalMoment } from "@/lib/trip-activity-moment";
 
 type TripPageProps = {
   params: { id: string };
@@ -56,12 +57,29 @@ function calendarDayYMD(timeZone: string, d = new Date()) {
   }).format(d);
 }
 
-function parseActivityMoment(activity: ActivityRow) {
-  if (!activity.activity_date) return null;
-  const time =
-    activity.activity_time && /^\d{2}:\d{2}/.test(activity.activity_time) ? `${activity.activity_time}:00` : "23:59:59";
-  const value = new Date(`${activity.activity_date}T${time}`);
-  return Number.isNaN(value.getTime()) ? null : value;
+function pickNextPlan(activities: ActivityRow[], todayYmd: string, now: Date): ActivityRow | null {
+  const items = activities.map((a) => ({ a, when: parseActivityLocalMoment(a) }));
+  const valid = items.filter((i): i is { a: ActivityRow; when: Date } => i.when !== null);
+  const upcoming = valid.filter((i) => i.when.getTime() >= now.getTime());
+  if (upcoming.length) {
+    upcoming.sort((x, y) => x.when.getTime() - y.when.getTime());
+    return upcoming[0]!.a;
+  }
+  const futureDays = activities
+    .filter((a) => a.activity_date && a.activity_date > todayYmd)
+    .sort(
+      (a, b) =>
+        (a.activity_date || "").localeCompare(b.activity_date || "") ||
+        String(a.activity_time || "").localeCompare(String(b.activity_time || ""), "en")
+    );
+  if (futureDays.length) return futureDays[0]!;
+  return null;
+}
+
+function truncateHint(s: string, max = 52) {
+  const t = s.trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, max - 1)}…`;
 }
 
 export default async function TripSummaryPage({ params }: TripPageProps) {
@@ -77,6 +95,8 @@ export default async function TripSummaryPage({ params }: TripPageProps) {
     { count: routesCount },
     { count: expensesCount },
     { count: resourcesCount },
+    { data: lastExpenseRow },
+    { data: lastResourceRow },
   ] = await Promise.all([
     supabase.from("trips").select("id, name, destination, start_date, end_date, base_currency").eq("id", tripId).maybeSingle(),
     supabase.from("trip_participants").select("id", { count: "exact", head: true }).eq("trip_id", tripId).neq("status", "removed"),
@@ -90,6 +110,8 @@ export default async function TripSummaryPage({ params }: TripPageProps) {
     supabase.from("trip_routes").select("id", { count: "exact", head: true }).eq("trip_id", tripId),
     supabase.from("trip_expenses").select("id", { count: "exact", head: true }).eq("trip_id", tripId),
     supabase.from("trip_resources").select("id", { count: "exact", head: true }).eq("trip_id", tripId),
+    supabase.from("trip_expenses").select("title").eq("trip_id", tripId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    supabase.from("trip_resources").select("title").eq("trip_id", tripId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
 
   if (tripError || !trip) {
@@ -110,16 +132,12 @@ export default async function TripSummaryPage({ params }: TripPageProps) {
     year: "numeric",
   }).format(now);
 
-  const nextActivity =
-    activities
-      .map((activity) => ({ activity, when: parseActivityMoment(activity) }))
-      .filter((item): item is { activity: ActivityRow; when: Date } => !!item.when)
-      .find((item) => item.when.getTime() >= now.getTime())?.activity ?? null;
+  const nextActivity = pickNextPlan(activities, todayStr, now);
 
   const plansToday: Array<TripSummaryActivityPreview & { isPast: boolean }> = activities
     .filter((a) => a.activity_date === todayStr)
     .map((a) => {
-      const w = parseActivityMoment(a);
+      const w = parseActivityLocalMoment(a);
       return {
         id: a.id,
         title: a.title,
@@ -131,8 +149,8 @@ export default async function TripSummaryPage({ params }: TripPageProps) {
       };
     })
     .sort((a, b) => {
-      const wa = parseActivityMoment(a as ActivityRow);
-      const wb = parseActivityMoment(b as ActivityRow);
+      const wa = parseActivityLocalMoment(a as ActivityRow);
+      const wb = parseActivityLocalMoment(b as ActivityRow);
       if (!wa && !wb) return 0;
       if (!wa) return 1;
       if (!wb) return -1;
@@ -154,6 +172,15 @@ export default async function TripSummaryPage({ params }: TripPageProps) {
   const destTrim = (currentTrip.destination ?? "").trim();
   const weatherHint = !destTrim ? "no-destination" : !weather ? "unavailable" : "ok";
 
+  const lastExpenseTitle =
+    typeof (lastExpenseRow as { title?: string } | null)?.title === "string"
+      ? String((lastExpenseRow as { title: string }).title).trim()
+      : "";
+  const lastResourceTitle =
+    typeof (lastResourceRow as { title?: string } | null)?.title === "string"
+      ? String((lastResourceRow as { title: string }).title).trim()
+      : "";
+
   const alerts = [
     !currentTrip.destination ? "Añade el destino para activar clima y contexto." : null,
     (participantsCount ?? 0) <= 1 ? "Añade participantes si vais a viajar en grupo." : null,
@@ -161,6 +188,20 @@ export default async function TripSummaryPage({ params }: TripPageProps) {
     (routesCount ?? 0) === 0 ? "Aún no hay rutas: usa Mapa para crear trayectos." : null,
     (expensesCount ?? 0) === 0 ? "Aún no hay gastos: añade el primer gasto para ver balances." : null,
   ].filter(Boolean) as string[];
+
+  const planHint = nextActivity
+    ? `Siguiente: ${truncateHint(nextActivity.title)}`
+    : (activitiesCount ?? 0) > 0
+      ? "Hay actividades: revisa fechas en Plan si no ves un “siguiente”."
+      : null;
+  const mapHint =
+    (routesCount ?? 0) === 0 ? "Aún sin rutas: enlaza paradas del plan en el mapa." : "Edita trayectos y paradas aquí.";
+  const expensesHint =
+    lastExpenseTitle ? `Último gasto: ${truncateHint(lastExpenseTitle, 44)}` : (expensesCount ?? 0) > 0 ? "Abre Gastos para ver el detalle." : "Registra el primer gasto para balances.";
+  const peopleHint =
+    (participantsCount ?? 0) <= 1 ? "Invita al grupo con el enlace de participantes." : "Roles y permisos por persona.";
+  const resourcesHint = lastResourceTitle ? `Último doc: ${truncateHint(lastResourceTitle, 44)}` : (resourcesCount ?? 0) > 0 ? "Revisa reservas y archivos." : "Sube billetes o PDFs cuando los tengas.";
+  const aiHint = isPremium ? "Pide rutas, un itinerario o cambios con contexto del viaje." : "Desbloquea el asistente con Premium.";
 
   const tabs: TripSummaryTabDef[] = [
     {
@@ -170,6 +211,7 @@ export default async function TripSummaryPage({ params }: TripPageProps) {
       metric: `${activitiesCount ?? 0} planes`,
       iconSrc: "/brand/tabs/plan.png",
       tone: "cyan",
+      hint: planHint,
     },
     {
       href: `/trip/${tripId}/map`,
@@ -178,6 +220,7 @@ export default async function TripSummaryPage({ params }: TripPageProps) {
       metric: `${routesCount ?? 0} rutas`,
       iconSrc: "/brand/tabs/map.png",
       tone: "emerald",
+      hint: mapHint,
     },
     {
       href: `/trip/${tripId}/expenses`,
@@ -186,6 +229,7 @@ export default async function TripSummaryPage({ params }: TripPageProps) {
       metric: `${expensesCount ?? 0} gastos`,
       iconSrc: "/brand/tabs/expenses.png",
       tone: "amber",
+      hint: expensesHint,
     },
     {
       href: `/trip/${tripId}/participants`,
@@ -194,6 +238,7 @@ export default async function TripSummaryPage({ params }: TripPageProps) {
       metric: `${participantsCount ?? 0} ${(participantsCount ?? 0) === 1 ? "persona" : "personas"}`,
       iconSrc: "/brand/tabs/participants.png",
       tone: "slate",
+      hint: peopleHint,
     },
     {
       href: `/trip/${tripId}/resources`,
@@ -202,6 +247,7 @@ export default async function TripSummaryPage({ params }: TripPageProps) {
       metric: `${resourcesCount ?? 0} ítems`,
       iconSrc: "/brand/tabs/documents.png",
       tone: "rose",
+      hint: resourcesHint,
     },
     {
       href: `/trip/${tripId}/ai-chat`,
@@ -210,11 +256,12 @@ export default async function TripSummaryPage({ params }: TripPageProps) {
       metric: isPremium ? "Premium activo" : "Ver Premium",
       iconSrc: "/brand/tabs/ai.png",
       tone: "violet",
+      hint: aiHint,
     },
   ];
 
   return (
-    <main className="space-y-8">
+    <main className="space-y-5 md:space-y-6">
       <TripBoardPageHeader
         section="Resumen del viaje"
         title={currentTrip.name}

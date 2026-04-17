@@ -19,6 +19,8 @@ export type TripSummaryTabDef = {
   metric: string;
   iconSrc: string;
   tone: "cyan" | "emerald" | "amber" | "violet" | "slate" | "rose";
+  /** Una línea con contexto real (p. ej. siguiente plan, último gasto). */
+  hint?: string | null;
 };
 
 const TONE_STYLES: Record<TripSummaryTabDef["tone"], { border: string; chip: string; hover: string; accent: string }> = {
@@ -95,8 +97,8 @@ export default function TripSummaryOverview({
   const planHref = `/trip/${tripId}/plan`;
 
   return (
-    <div className="space-y-8">
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(300px,380px)] lg:items-start">
+    <div className="space-y-5 md:space-y-6">
+      <div className="grid gap-4 md:gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(300px,380px)] lg:items-start">
         <section className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-slate-900 via-slate-800 to-cyan-950 p-6 text-white shadow-lg md:p-8">
           <div
             className="pointer-events-none absolute -right-16 top-0 h-40 w-40 rounded-full bg-cyan-500/20 blur-3xl"
@@ -249,7 +251,12 @@ export default function TripSummaryOverview({
                 </div>
                 <p className="mt-4 text-lg font-extrabold text-slate-950">{tab.label}</p>
                 <p className="mt-1 text-sm text-slate-600">{tab.subtitle}</p>
-                <span className="mt-4 inline-flex items-center gap-1 text-xs font-bold text-cyan-800 group-hover:underline">
+                {tab.hint ? (
+                  <p className="mt-2 line-clamp-2 rounded-xl border border-slate-100 bg-slate-50/90 px-3 py-2 text-xs font-medium leading-snug text-slate-800">
+                    {tab.hint}
+                  </p>
+                ) : null}
+                <span className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-cyan-800 group-hover:underline">
                   Ir al módulo →
                 </span>
               </Link>
