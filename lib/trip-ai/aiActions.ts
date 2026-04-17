@@ -64,13 +64,46 @@ export function inferAIActionFromQuestion(question: string): AIActionId {
   ) {
     return "add_activity";
   }
+  // Itinerario / plan por días → modo planificación + JSON TRIPBOARD_ITINERARY (aunque el UI esté en «general»).
   if (
+    q.includes("planning") ||
+    q.includes("planificacion") ||
+    q.includes("planificar") ||
     q.includes("itinerario") ||
+    q.includes("cronograma") ||
+    q.includes("dia a dia") ||
+    q.includes("day by day") ||
+    (q.includes("schedule") && (q.includes("trip") || q.includes("days") || q.includes("itinerary"))) ||
+    q.includes("itinerary") ||
     q.includes("plan de ") ||
     q.includes("dias en") ||
-    q.includes("días en") ||
     q.includes("genera el viaje") ||
-    q.includes("organiza el viaje")
+    q.includes("generame el viaje") ||
+    q.includes("organiza el viaje") ||
+    q.includes("organiza mi viaje") ||
+    q.includes("organizame el viaje") ||
+    q.includes("organizame un viaje") ||
+    q.includes("monta el viaje") ||
+    q.includes("montame el viaje") ||
+    q.includes("programa el viaje") ||
+    q.includes("calendario del viaje") ||
+    q.includes("calendario de viaje") ||
+    q.includes("propuesta de viaje") ||
+    q.includes("borrador de itinerario") ||
+    q.includes("hazme un plan") ||
+    q.includes("dame un plan") ||
+    q.includes("crea un plan") ||
+    q.includes("creame un plan") ||
+    q.includes("quiero un plan") ||
+    q.includes("necesito un plan") ||
+    q.includes("haz un plan") ||
+    q.includes("armame un viaje") ||
+    q.includes("armame el viaje") ||
+    q.includes("disena un viaje") ||
+    q.includes("disenar un viaje") ||
+    q.includes("disena un itinerario") ||
+    q.includes("ruta por dias") ||
+    q.includes("recorrido de varios dias")
   ) {
     return "generate_trip";
   }
@@ -97,12 +130,16 @@ export function tripAiModeForAction(aiAction: AIActionId): TripAiMode {
 
 /**
  * Resuelve el modo efectivo: si el cliente envía un modo explícito (avanzado), se respeta; si no, se deriva de la acción.
+ * Si la intención es itinerario ejecutable (`generate_trip`), siempre se usa `planning` (marcadores JSON), aunque el selector manual estuviera en otro modo.
  */
 export function resolveEffectiveTripAiMode(params: {
   clientMode: TripAiMode | null | undefined;
   aiAction: AIActionId;
   respectExplicitMode: boolean;
 }): TripAiMode {
+  if (params.aiAction === "generate_trip") {
+    return "planning";
+  }
   const explicit = params.clientMode;
   if (params.respectExplicitMode && explicit && explicit !== "general") {
     return explicit;
