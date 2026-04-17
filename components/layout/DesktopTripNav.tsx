@@ -16,7 +16,12 @@ const items: Array<{
   icon: React.ReactNode;
   href: (id: string) => string;
 }> = [
-  { key: "summary", label: "Resumen", icon: "📌", href: (id: string) => `/trip/${id}/summary` },
+  {
+    key: "summary",
+    label: "Resumen",
+    icon: <Image src="/brand/tabs/calendar.png" alt="" width={22} height={22} className="h-[22px] w-[22px] object-contain" />,
+    href: (id: string) => `/trip/${id}/summary`,
+  },
   {
     key: "plan",
     label: "Plan",

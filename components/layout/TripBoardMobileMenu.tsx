@@ -21,7 +21,7 @@ const NAV_ITEMS: Array<{
   {
     key: "summary",
     label: "Resumen",
-    icon: { type: "emoji", value: "📌" },
+    icon: { type: "image", src: "/brand/tabs/calendar.png", alt: "Resumen" },
     href: (id) => `/trip/${id}/summary`,
   },
   { key: "plan", label: "Plan", icon: { type: "image", src: "/brand/tabs/plan.png", alt: "Plan" }, href: (id) => `/trip/${id}/plan` },
