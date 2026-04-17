@@ -113,6 +113,33 @@ function dbTravelMode(profile: "driving" | "walking" | "cycling") {
   return { travel_mode: "DRIVING" as const, mode: "driving" as const };
 }
 
+/** Misma tolerancia que POST /api/trip-routes (columnas opcionales / caché de esquema). */
+async function insertTripRouteRow(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  payload: Record<string, unknown>
+) {
+  let response = await supabase.from("trip_routes").insert(payload).select("id").single();
+  if (!response.error) return { ok: true as const, error: null as string | null };
+
+  const message = response.error.message.toLowerCase();
+  if (message.includes("color") && message.includes("schema cache")) {
+    const { color: _c, ...fallbackPayload } = payload as Record<string, unknown> & { color?: unknown };
+    response = await supabase.from("trip_routes").insert(fallbackPayload).select("id").single();
+    if (!response.error) return { ok: true as const, error: null };
+  }
+  if (message.includes("notes") && message.includes("schema cache")) {
+    const { notes: _n, ...fallbackPayload } = payload as Record<string, unknown> & { notes?: unknown };
+    response = await supabase.from("trip_routes").insert(fallbackPayload).select("id").single();
+    if (!response.error) return { ok: true as const, error: null };
+  }
+  if (message.includes("route_order")) {
+    const { route_order: _ro, ...fallbackPayload } = payload as Record<string, unknown> & { route_order?: unknown };
+    response = await supabase.from("trip_routes").insert(fallbackPayload).select("id").single();
+    if (!response.error) return { ok: true as const, error: null };
+  }
+  return { ok: false as const, error: response.error.message };
+}
+
 async function fetchOsrmRoute(params: {
   requestOrigin: string;
   origin: { lat: number; lng: number };
@@ -267,6 +294,7 @@ export async function POST(req: Request) {
     const { travel_mode, mode } = dbTravelMode(profile);
     let routeCalls = 0;
     const ROUTE_CALL_LIMIT = 80;
+    let lastRouteInsertError: string | null = null;
 
     for (let i = 0; i < slotMeta.length - 1; i++) {
       const a = slotMeta[i];
@@ -293,6 +321,7 @@ export async function POST(req: Request) {
         name: title,
         route_day: routeDay,
         route_date: routeDay,
+        day_date: routeDay,
         departure_time: null,
         travel_mode,
         mode,
@@ -310,6 +339,7 @@ export async function POST(req: Request) {
         stop_address: null,
         stop_latitude: null,
         stop_longitude: null,
+        waypoints: [],
         path_points: route.points,
         route_points: route.points,
         distance_text:
@@ -320,9 +350,10 @@ export async function POST(req: Request) {
         created_by_user_id: access.userId,
       };
 
-      const ins = await supabase.from("trip_routes").insert(payload).select("id").single();
-      if (ins.error) {
-        console.error("[execute-plan] trip_routes insert:", ins.error.message);
+      const ins = await insertTripRouteRow(supabase, payload);
+      if (!ins.ok) {
+        lastRouteInsertError = ins.error || "Error desconocido al guardar ruta.";
+        console.error("[execute-plan] trip_routes insert:", lastRouteInsertError);
         continue;
       }
       routesCreated += 1;
@@ -334,8 +365,12 @@ export async function POST(req: Request) {
       routesCreated,
       ...(routesCreated === 0 && access.can_manage_map
         ? {
-            routesNote:
-              "No se generaron rutas: hace falta geolocalizar al menos dos paradas seguidas el mismo día, o el cálculo OSRM falló.",
+            routesNote: [
+              "No se generaron rutas en el mapa: hace falta geolocalizar al menos dos paradas seguidas el mismo día, el cálculo OSRM falló, o la base de datos rechazó el guardado.",
+              lastRouteInsertError ? `Detalle: ${lastRouteInsertError}` : "",
+            ]
+              .filter(Boolean)
+              .join(" "),
           }
         : {}),
     });

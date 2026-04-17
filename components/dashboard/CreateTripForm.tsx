@@ -13,7 +13,7 @@ function withTimeout<T>(promiseLike: PromiseLike<T>, ms = 25000, label = "operac
   ]);
 }
 
-export default function CreateTripForm() {
+export default function CreateTripForm({ isPremium = false }: { isPremium?: boolean }) {
   const router = useRouter();
   const toast = useToast();
 
@@ -109,8 +109,13 @@ export default function CreateTripForm() {
       setBaseCurrency("EUR");
 
       setStep("done");
-      toast.success("Viaje creado", "Te llevamos al resumen del viaje.");
-      router.push(`/trip/${newTripId}`);
+      if (isPremium) {
+        toast.success("Viaje creado", "Te llevamos al asistente IA para montar el viaje.");
+        router.push(`/trip/${newTripId}/ai-chat`);
+      } else {
+        toast.success("Viaje creado", "Te llevamos al resumen del viaje.");
+        router.push(`/trip/${newTripId}`);
+      }
       router.refresh();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "No se pudo crear el viaje.";

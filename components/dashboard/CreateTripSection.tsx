@@ -43,7 +43,7 @@ export default function CreateTripSection({
         </button>
       ) : (
         <div className="space-y-4">
-          <CreateTripForm />
+          <CreateTripForm isPremium={isPremium} />
           <button
             type="button"
             onClick={() => setShowForm(false)}

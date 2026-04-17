@@ -88,73 +88,43 @@ function extractDiff(answer: string): DiffPayload | null {
   }
 }
 
-type ModeGroupId = "talk" | "write";
-
 type ModeOption = {
   id: ExtendedChatMode;
   label: string;
-  /** Una línea: para qué sirve este modo */
-  description: string;
   /** Cuándo elegirlo (texto orientativo) */
   useFor: string;
-  group: ModeGroupId;
 };
-
-const MODE_GROUPS: { id: ModeGroupId; title: string; hint: string }[] = [
-  {
-    id: "talk",
-    title: "Preguntar y analizar",
-    hint: "La IA responde y usa el contexto del viaje; no cambia datos hasta que tú apliques un plan o un diff.",
-  },
-  {
-    id: "write",
-    title: "Preparar o guardar en la app",
-    hint: "Aquí la IA puede proponer cambios concretos (actividades, rutas…) para que los revises y apliques.",
-  },
-];
 
 const MODE_OPTIONS: ModeOption[] = [
   {
     id: "general",
     label: "General",
-    description: "Dudas amplias sobre el viaje",
     useFor: "Resúmenes, qué tienes guardado, recomendaciones generales.",
-    group: "talk",
   },
   {
     id: "planning",
     label: "Planificación",
-    description: "Itinerarios por varios días",
     useFor: "Varios días, orden de visitas, propuestas de agenda (itinerario en JSON + «Ejecutar plan»).",
-    group: "talk",
   },
   {
     id: "expenses",
     label: "Gastos",
-    description: "Balances y reparto",
     useFor: "Cuánto se ha gastado, quién debe a quién, ideas para pagar.",
-    group: "talk",
   },
   {
     id: "optimizer",
     label: "Optimizador",
-    description: "Mejorar el viaje",
     useFor: "Detectar huecos, solapes o formas de aprovechar mejor el plan.",
-    group: "talk",
   },
   {
     id: "actions",
     label: "Acciones",
-    description: "Cambios puntuales en datos",
     useFor: "Pedir a la IA que cree o modifique actividades/rutas vía «diff» revisable.",
-    group: "write",
   },
   {
     id: "day_planner",
     label: "Organizar día",
-    description: "Un día completo con rutas",
     useFor: "Un solo día: horarios, comidas, desplazamientos; guardas con «Aplicar cambios» (no «Ejecutar plan»).",
-    group: "write",
   },
 ];
 
@@ -272,9 +242,16 @@ export default function TripAiChatView({
       id: "welcome",
       role: "assistant",
       content:
-        "Te ayudo con tu viaje ✈️\n\n" +
-        "Escribe abajo con libertad: optimizar rutas, gastos, ideas… Si el plan está vacío, te propondré una guía breve para arrancar.\n\n" +
-        "Cuando la IA devuelva un itinerario o cambios, revísalos y usa «Ejecutar plan» o «Aplicar cambios» para guardarlos en el mapa y el plan.",
+        "Bienvenido al asistente de tu viaje ✈️\n\n" +
+        "Para que pueda montarte el viaje en la app, me va bien tener:\n" +
+        "• Destino (ciudad o zona) y, si puedes, fechas aproximadas o número de días.\n" +
+        "• Ritmo (tranquilo / intenso), si vais en familia o pareja, y qué os importa más (cultura, comida, naturaleza…).\n" +
+        "• Si ya tienes vuelos u hoteles, dímelo para encajar el resto alrededor.\n\n" +
+        "Cómo se guarda en TripBoard:\n" +
+        "1) Si aparece un itinerario en el chat, revísalo y pulsa «Ejecutar plan» para crear actividades y rutas en el mapa (hace falta que las paradas se puedan situar en el mapa).\n" +
+        "2) Si la IA propone «cambios» puntuales (diff), revísalos y usa «Aplicar cambios».\n" +
+        "3) Para un solo día con horarios, elige arriba «Manual · Organizar día», genera el día y luego «Aplicar cambios».\n\n" +
+        "Arriba puedes dejar «Modo IA» en Automático: detecto la intención sin que tengas que pensar en modos.",
     },
   ]);
   const [question, setQuestion] = useState("");
@@ -293,8 +270,6 @@ export default function TripAiChatView({
   const [diffSelected, setDiffSelected] = useState<Set<string>>(new Set());
   const [executingPlan, setExecutingPlan] = useState(false);
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
-  /** Panel «Tipo de chat» (y pastillas en móvil): cerrado por defecto */
-  const [chatTypesOpen, setChatTypesOpen] = useState(false);
   const [modeSource, setModeSource] = useState<"auto" | "manual">("auto");
   const [planActivityCount, setPlanActivityCount] = useState<number | null>(null);
   const [onboardingBusy, setOnboardingBusy] = useState(false);
@@ -609,7 +584,7 @@ export default function TripAiChatView({
         id: crypto.randomUUID(),
         role: "assistant",
         content:
-          "Nueva conversación. Escribe con libertad o usa las sugerencias de abajo; en modo automático la IA detecta la intención.",
+          "Nueva conversación. Cuéntame destino, fechas y qué buscáis del viaje; con el modo automático iré orientando respuestas y propuestas. Cuando haya itinerario o cambios concretos, los guardas con «Ejecutar plan» o «Aplicar cambios».",
       },
     ]);
     setQuestion("");
@@ -824,7 +799,10 @@ export default function TripAiChatView({
               <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-sky-800">Guía inicial</p>
               <h2 className="mt-1 text-lg font-bold text-slate-950">Te ayudo a crear tu viaje paso a paso ✈️</h2>
               <p className="mt-2 text-sm text-slate-600">
-                Responde con los botones o escribe abajo cuando quieras. Nada es obligatorio: puedes saltar la guía en cualquier momento.
+                Necesito poco para generar un primer itinerario: destino, cuántos días (o fechas) y cuántas personas sois. Luego podrás refinar por chat. Al terminar estos pasos generaré un borrador con la IA; revísalo y usa «Ejecutar plan» para volcar actividades y rutas al mapa.
+              </p>
+              <p className="mt-2 text-sm text-slate-600">
+                Usa los botones o escribe en el cuadro de abajo. Puedes saltar la guía cuando quieras.
               </p>
             </div>
             <button
@@ -1353,89 +1331,6 @@ export default function TripAiChatView({
               )}
             </div>
           </div>
-
-          <button
-            type="button"
-            onClick={() => setChatTypesOpen((v) => !v)}
-            aria-expanded={chatTypesOpen}
-            className="flex w-full min-h-[44px] items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
-          >
-            {chatTypesOpen ? "Ocultar tipos" : "Mostrar tipos"}
-          </button>
-
-          {chatTypesOpen ? (
-            <div className="space-y-4">
-              <div
-                className="no-scrollbar flex gap-2 overflow-x-auto pb-1 xl:hidden"
-                role="tablist"
-                aria-label="Tipo de chat"
-              >
-                {MODE_OPTIONS.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={mode === item.id}
-                    onClick={() => setMode(item.id)}
-                    className={`shrink-0 rounded-full border px-3.5 py-2 text-xs font-semibold transition ${
-                      mode === item.id
-                        ? "border-violet-400 bg-violet-50 text-violet-950 shadow-sm"
-                        : item.group === "write"
-                          ? "border-amber-200/80 bg-amber-50/80 text-amber-950"
-                          : "border-slate-200 bg-white text-slate-700"
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-
-              <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
-                <h2 className="text-lg font-bold text-slate-950">Tipo de chat</h2>
-                <p className="mt-2 text-xs leading-relaxed text-slate-600">
-                  Cambia de modo antes de enviar: cada uno activa instrucciones distintas para la IA. Nada se borra:
-                  todos los modos siguen aquí.
-                </p>
-                <div className="mt-5 space-y-6">
-                  {MODE_GROUPS.map((g) => (
-                    <div key={g.id}>
-                      <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-500">{g.title}</p>
-                      <p className="mt-1 text-[11px] leading-snug text-slate-500">{g.hint}</p>
-                      <div className="mt-3 space-y-2">
-                        {MODE_OPTIONS.filter((m) => m.group === g.id).map((item) => (
-                          <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => setMode(item.id)}
-                            className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
-                              mode === item.id
-                                ? "border-violet-300 bg-violet-50 shadow-sm"
-                                : g.id === "write"
-                                  ? "border-amber-200/70 bg-amber-50/50 hover:bg-amber-50"
-                                  : "border-slate-200 bg-slate-50 hover:bg-slate-100"
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <span className="font-semibold text-slate-900">{item.label}</span>
-                              {mode === item.id ? (
-                                <span className="shrink-0 rounded-full bg-violet-200/80 px-2 py-0.5 text-[10px] font-bold text-violet-900">
-                                  Activo
-                                </span>
-                              ) : null}
-                            </div>
-                            <div className="mt-0.5 text-xs font-medium text-slate-600">{item.description}</div>
-                            <div className="mt-1.5 text-[11px] leading-snug text-slate-500">
-                              <span className="font-semibold text-slate-600">Cuándo:</span> {item.useFor}
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ) : null}
 
           <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-bold text-slate-950">Preguntas rápidas</h2>

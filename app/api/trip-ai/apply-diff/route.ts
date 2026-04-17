@@ -35,9 +35,16 @@ function asNumberOrNull(value: unknown) {
   return n;
 }
 
-function normalizeTravelMode(value: unknown) {
-  const s = typeof value === "string" ? value.trim().toUpperCase() : "";
+function normalizeTravelMode(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (!raw) return null;
+  const s = raw.toUpperCase();
   if (s === "DRIVING" || s === "WALKING" || s === "BICYCLING" || s === "TRANSIT") return s;
+  const lower = raw.toLowerCase();
+  if (lower === "driving" || lower === "car" || lower === "drive") return "DRIVING";
+  if (lower === "walking" || lower === "walk" || lower === "foot") return "WALKING";
+  if (lower === "cycling" || lower === "bicycle" || lower === "bike" || lower === "bicycling") return "BICYCLING";
   return null;
 }
 
@@ -170,16 +177,19 @@ export async function POST(req: Request) {
           const fieldsIn = opRaw?.fields || {};
           const title = typeof fieldsIn.title === "string" ? fieldsIn.title.trim() : "";
           if (!title) throw new Error("Falta title.");
+          const routeDay = fieldsIn.route_day === null ? null : asIsoDate(fieldsIn.route_day);
+          const tm = normalizeTravelMode(fieldsIn.travel_mode) ?? "DRIVING";
           const payload = {
             trip_id: tripId,
             title,
             route_name: title,
             name: title,
-            route_day: fieldsIn.route_day === null ? null : asIsoDate(fieldsIn.route_day),
-            route_date: fieldsIn.route_day === null ? null : asIsoDate(fieldsIn.route_day),
+            route_day: routeDay,
+            route_date: routeDay,
+            day_date: routeDay,
             departure_time: fieldsIn.departure_time === null ? null : asTime(fieldsIn.departure_time),
-            travel_mode: normalizeTravelMode(fieldsIn.travel_mode),
-            mode: normalizeTravelMode(fieldsIn.travel_mode)?.toLowerCase(),
+            travel_mode: tm,
+            mode: tm.toLowerCase(),
             notes: asStringOrNull(fieldsIn.notes),
             color: typeof fieldsIn.color === "string" ? fieldsIn.color.trim() : null,
             origin_name: asStringOrNull(fieldsIn.origin_name),
@@ -194,6 +204,7 @@ export async function POST(req: Request) {
             stop_address: asStringOrNull(fieldsIn.stop_address),
             stop_latitude: typeof fieldsIn.stop_latitude === "number" ? fieldsIn.stop_latitude : null,
             stop_longitude: typeof fieldsIn.stop_longitude === "number" ? fieldsIn.stop_longitude : null,
+            waypoints: Array.isArray(fieldsIn.waypoints) ? fieldsIn.waypoints : [],
             path_points: Array.isArray(fieldsIn.path_points) ? fieldsIn.path_points : [],
             route_points: Array.isArray(fieldsIn.route_points) ? fieldsIn.route_points : [],
             distance_text: asStringOrNull(fieldsIn.distance_text),
