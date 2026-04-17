@@ -16,8 +16,8 @@ type Props = {
 export default function TripScreenActions({
   tripId,
   showSummary = true,
-  summaryLabel = "Pantalla de resumen",
-  homeLabel = "Pantalla de inicio",
+  summaryLabel = "Resumen",
+  homeLabel = "Mis viajes",
   variant = "default",
   showLabels = false,
 }: Props) {

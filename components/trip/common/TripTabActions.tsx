@@ -17,15 +17,15 @@ export default function TripTabActions({ tripId, variant = "default" }: Props) {
       <Link
         href={`/trip/${tripId}/summary`}
         className={className}
-        aria-label="Pantalla de resumen"
-        title="Pantalla de resumen"
+        aria-label="Resumen"
+        title="Resumen"
       >
         <LayoutDashboard className="h-3.5 w-3.5" aria-hidden />
-        <span className="hidden sm:inline">Pantalla de resumen</span>
+        <span className="hidden sm:inline">Resumen</span>
       </Link>
-      <Link href="/dashboard" className={className} aria-label="Pantalla de inicio" title="Pantalla de inicio">
+      <Link href="/dashboard" className={className} aria-label="Mis viajes" title="Mis viajes">
         <Home className="h-3.5 w-3.5" aria-hidden />
-        <span className="hidden sm:inline">Pantalla de inicio</span>
+        <span className="hidden sm:inline">Mis viajes</span>
       </Link>
     </div>
   );
