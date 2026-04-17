@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { useEffect } from "react";
 import TripBoardLogo from "@/components/brand/TripBoardLogo";
-import TripHeroMock from "@/components/landing/TripHeroMock";
-import { ArrowRight, Check, Sparkles } from "lucide-react";
+import { ArrowRight, CalendarDays, Check, MapPinned, Sparkles, Wallet } from "lucide-react";
 
 function Feature({ children }: { children: string }) {
   return (
@@ -43,8 +42,8 @@ export default function PublicLanding() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-slate-50">
-      <header className="border-b border-slate-200/70 bg-white/75 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+    <main className="min-h-screen bg-gradient-to-b from-cyan-50/80 via-slate-50 to-violet-100/60">
+      <header className="border-b border-cyan-200/40 bg-gradient-to-r from-white/95 via-cyan-50/90 to-violet-50/80 backdrop-blur supports-[backdrop-filter]:bg-white/70">
         <div className="page-shell flex items-center justify-between py-4">
           <TripBoardLogo href="/" variant="dark" size="md" withWordmark />
           <nav className="flex items-center gap-2">
@@ -70,81 +69,132 @@ export default function PublicLanding() {
         </div>
       </header>
 
-      <section className="page-shell space-y-10 py-10 md:space-y-14 md:py-14">
-        <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
-          <div className="space-y-6">
-            <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
-              <Sparkles className="h-3.5 w-3.5 text-cyan-700" aria-hidden />
-              Menos caos, más viaje
-            </div>
+      <section className="page-shell py-10 md:py-14">
+        <div className="relative overflow-hidden rounded-[2rem] border border-cyan-200/50 bg-gradient-to-br from-white via-cyan-50/50 to-violet-100/70 p-6 shadow-lg shadow-cyan-900/5 md:rounded-[2.25rem] md:p-10 lg:p-12">
+          <div
+            className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-cyan-400/25 blur-3xl"
+            aria-hidden
+          />
+          <div
+            className="pointer-events-none absolute -bottom-20 -left-16 h-56 w-56 rounded-full bg-violet-400/20 blur-3xl"
+            aria-hidden
+          />
 
-            <h1 className="text-4xl font-extrabold tracking-tight text-slate-950 md:text-5xl">
-              Organiza todo tu viaje en un solo lugar
-            </h1>
-            <p className="max-w-2xl text-base leading-relaxed text-slate-600 md:text-lg">
-              Itinerario, gastos, rutas y planes sin caos. Gratis: mapa, plan por días y reparto de gastos. Premium: IA,
-              documentos y automatización.
-            </p>
+          <div className="relative grid gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+            <div className="space-y-6">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+                <TripBoardLogo href="/" variant="dark" size="lg" withWordmark />
+                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-300/60 bg-cyan-100/80 px-3 py-1.5 text-xs font-semibold text-cyan-950">
+                  <Sparkles className="h-3.5 w-3.5 text-cyan-700" aria-hidden />
+                  Menos caos, más viaje
+                </div>
+              </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <Link
-                href="/auth/register"
-                className="inline-flex min-h-[48px] items-center justify-center rounded-2xl bg-slate-950 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
-              >
-                Crear viaje
-                <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
-              </Link>
-              <span className="text-sm text-slate-500">
-                <Link href="/pricing" className="font-semibold text-cyan-800 underline-offset-2 hover:underline">
-                  Ver precios y planes
-                </Link>
-              </span>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 md:p-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Qué incluye</p>
-              <ul className="mt-3 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
-                <Feature>Plan por días con horas</Feature>
-                <Feature>Mapa y rutas entre paradas</Feature>
-                <Feature>Gastos y balances del grupo</Feature>
-                <Feature>Premium: chat IA y OCR de reservas</Feature>
-              </ul>
-              <p className="mt-3 text-center text-xs text-slate-500">
-                <Link href="/pricing" className="font-semibold text-cyan-800 hover:underline">
-                  Comparar planes
-                </Link>
+              <h1 className="text-4xl font-extrabold tracking-tight text-slate-950 md:text-5xl">
+                Organiza todo tu viaje en un solo lugar
+              </h1>
+              <p className="max-w-2xl text-base leading-relaxed text-slate-700 md:text-lg">
+                Itinerario, gastos, rutas y planes sin caos. Gratis: mapa, plan por días y reparto de gastos. Premium: IA,
+                documentos y automatización.
               </p>
-            </div>
-          </div>
 
-          <div className="space-y-4">
-            <TripHeroMock />
-            <aside className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">En 2 minutos</p>
-              <p className="mt-2 text-lg font-extrabold tracking-tight text-slate-950">Crea, invita, rellena</p>
-              <ol className="mt-4 list-decimal space-y-2 pl-4 text-sm text-slate-600">
-                <li>Crea el viaje (nombre obligatorio).</li>
-                <li>Invita por enlace.</li>
-                <li>Plan, mapa y gastos en el mismo sitio.</li>
-              </ol>
-              <Link
-                href="/auth/register"
-                className="mt-5 inline-flex w-full min-h-[48px] items-center justify-center rounded-2xl bg-cyan-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-cyan-800"
-              >
-                Crear cuenta
-              </Link>
-              <p className="mt-2 text-center text-xs text-slate-500">
-                ¿Ya tienes cuenta?{" "}
-                <Link href="/auth/login" className="font-semibold text-slate-700 hover:underline">
-                  Entrar
+              <div className="flex flex-wrap items-center gap-3">
+                <Link
+                  href="/auth/register"
+                  className="inline-flex min-h-[48px] items-center justify-center rounded-2xl bg-gradient-to-r from-cyan-600 to-violet-600 px-6 py-3 text-sm font-semibold text-white shadow-md shadow-cyan-600/25 transition hover:from-cyan-500 hover:to-violet-500"
+                >
+                  Crear viaje
+                  <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
                 </Link>
-              </p>
-            </aside>
+                <span className="text-sm text-slate-600">
+                  <Link href="/pricing" className="font-semibold text-violet-800 underline-offset-2 hover:underline">
+                    Ver precios y planes
+                  </Link>
+                </span>
+              </div>
+
+              <div className="rounded-2xl border border-violet-200/60 bg-gradient-to-br from-white to-violet-50/90 p-4 shadow-sm md:p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-800/90">Qué incluye</p>
+                <ul className="mt-3 grid gap-2 text-sm text-slate-800 sm:grid-cols-2">
+                  <Feature>Plan por días con horas</Feature>
+                  <Feature>Mapa y rutas entre paradas</Feature>
+                  <Feature>Gastos y balances del grupo</Feature>
+                  <Feature>Premium: chat IA y OCR de reservas</Feature>
+                </ul>
+                <p className="mt-3 text-center text-xs text-slate-600">
+                  <Link href="/pricing" className="font-semibold text-cyan-800 hover:underline">
+                    Comparar planes
+                  </Link>
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="relative overflow-hidden rounded-3xl border border-white/20 bg-gradient-to-br from-slate-900 via-cyan-900 to-violet-950 p-6 text-white shadow-xl md:p-8">
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-cyan-500/20 via-transparent to-transparent" aria-hidden />
+                <div className="relative space-y-6">
+                  <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-4">
+                    <TripBoardLogo href="/" variant="light" size="md" withWordmark />
+                  </div>
+                  <p className="text-sm font-medium leading-relaxed text-cyan-50/95">
+                    Todo lo esencial del viaje en un panel: agenda, mapa, gastos y asistente cuando tengas Premium.
+                  </p>
+                  <ul className="space-y-3">
+                    {[
+                      { label: "Plan e itinerario", sub: "Por días y horas", icon: CalendarDays, tone: "from-sky-400 to-cyan-300" },
+                      { label: "Mapa y rutas", sub: "Paradas enlazadas", icon: MapPinned, tone: "from-emerald-400 to-teal-300" },
+                      { label: "Gastos del grupo", sub: "Balances claros", icon: Wallet, tone: "from-amber-400 to-orange-300" },
+                      { label: "IA del viaje", sub: "Premium", icon: Sparkles, tone: "from-violet-400 to-fuchsia-300" },
+                    ].map((row) => {
+                      const RowIcon = row.icon;
+                      return (
+                      <li
+                        key={row.label}
+                        className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-3 backdrop-blur-sm"
+                      >
+                        <span
+                          className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${row.tone} text-slate-900 shadow-inner`}
+                        >
+                          <RowIcon className="h-5 w-5" aria-hidden />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-white">{row.label}</p>
+                          <p className="text-xs text-cyan-100/80">{row.sub}</p>
+                        </div>
+                      </li>
+                    );
+                    })}
+                  </ul>
+                </div>
+              </div>
+
+              <aside className="rounded-3xl border border-violet-200/70 bg-gradient-to-br from-violet-50 to-white p-5 shadow-md md:p-6">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-800">En 2 minutos</p>
+                <p className="mt-2 text-lg font-extrabold tracking-tight text-slate-950">Crea, invita, rellena</p>
+                <ol className="mt-4 list-decimal space-y-2 pl-4 text-sm text-slate-700">
+                  <li>Crea el viaje (nombre obligatorio).</li>
+                  <li>Invita por enlace.</li>
+                  <li>Plan, mapa y gastos en el mismo sitio.</li>
+                </ol>
+                <Link
+                  href="/auth/register"
+                  className="mt-5 inline-flex w-full min-h-[48px] items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                >
+                  Crear cuenta
+                </Link>
+                <p className="mt-2 text-center text-xs text-slate-600">
+                  ¿Ya tienes cuenta?{" "}
+                  <Link href="/auth/login" className="font-semibold text-violet-800 hover:underline">
+                    Entrar
+                  </Link>
+                </p>
+              </aside>
+            </div>
           </div>
         </div>
       </section>
 
-      <footer className="border-t border-slate-200/70 bg-white">
+      <footer className="border-t border-violet-200/40 bg-gradient-to-r from-slate-100/90 via-white to-cyan-50/80">
         <div className="page-shell flex flex-col gap-3 py-8 sm:flex-row sm:items-center sm:justify-between">
           <div className="text-sm text-slate-600">
             <span className="font-semibold text-slate-900">Kaviro</span> · Organiza viajes, gastos y rutas
