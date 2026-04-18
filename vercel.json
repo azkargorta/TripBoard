@@ -9,7 +9,7 @@
       "memory": 1024
     },
     "app/api/trip-ai/chat/route.ts": {
-      "maxDuration": 60,
+      "maxDuration": 300,
       "memory": 1024
     }
   }

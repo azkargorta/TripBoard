@@ -10,7 +10,8 @@ import { monthKeyUtc } from "@/lib/ai-usage";
 import { isPremiumEnabledForTrip } from "@/lib/entitlements";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+/** Planificaciones largas + JSON pueden superar 60s; en Vercel Pro hasta 300s. */
+export const maxDuration = 300;
 
 function clampDialogHint(input: unknown) {
   if (typeof input !== "string") return "";

@@ -802,7 +802,7 @@ export default function TripAiChatView({
       }
       if (!res.ok) {
         const fromJson = typeof data?.error === "string" ? data.error : "";
-        const fallback = rawText.trim().slice(0, 280);
+        const fallback = rawText.trim().slice(0, 800);
         throw new Error(fromJson || fallback || "No se pudo obtener respuesta.");
       }
 
@@ -861,6 +861,10 @@ export default function TripAiChatView({
       hooks?.onError?.();
       const detail = err instanceof Error ? err.message : "No se pudo obtener respuesta.";
       setError(detail);
+      const timeoutLike = /FUNCTION_INVOCATION_TIMEOUT|\b504\b|Gateway Timeout|timed out/i.test(detail);
+      const timeoutHint = timeoutLike
+        ? "\n\nSi ves timeout de despliegue: los itinerarios muy largos (muchas paradas y JSON enorme) pueden superar el límite del servidor. Prueba pedir «plan de 7 días» o «primera semana» y luego «continúa con la siguiente semana». En planes Premium de Vercel el endpoint ya admite hasta 5 minutos; en planes más bajos el tope puede ser menor."
+        : "";
       setMessages((current) => [
         ...current,
         {
@@ -869,7 +873,8 @@ export default function TripAiChatView({
           content:
             "No pude completar la respuesta del servidor.\n\n" +
             `Detalle: ${detail}\n\n` +
-            "Si habla de cuota o API (Gemini), espera un poco o revisa GEMINI_API_KEY. Si el mensaje era muy largo, prueba una petición más corta.",
+            "Si habla de cuota o API (Gemini), espera un poco o revisa GEMINI_API_KEY. Si el mensaje era muy largo, prueba una petición más corta." +
+            timeoutHint,
         },
       ]);
     } finally {
@@ -902,13 +907,25 @@ export default function TripAiChatView({
             ? `Fechas (texto del usuario): ${merged.dateNotes}.`
             : "Fechas: propón un calendario coherente si faltan datos exactos.";
 
+      let longTripHint = "";
+      if (merged.startDate && merged.endDate) {
+        const t0 = new Date(`${merged.startDate}T12:00:00`).getTime();
+        const t1 = new Date(`${merged.endDate}T12:00:00`).getTime();
+        if (!Number.isNaN(t0) && !Number.isNaN(t1) && t1 >= t0) {
+          const spanDays = Math.floor((t1 - t0) / 86400000) + 1;
+          if (spanDays > 10) {
+            longTripHint = ` El calendario del viaje son ~${spanDays} días: respeta la regla de máximo 10 días por respuesta en el JSON y explica cómo pedir la continuación.`;
+          }
+        }
+      }
+
       const prompt = [
-        `Genera un itinerario completo (varios días) para este viaje y devuelve el bloque JSON según el modo planificación.`,
+        `Genera un itinerario (varios días) para este viaje y devuelve el bloque JSON según el modo planificación.`,
         `Destino principal: ${dest}.`,
         datePart,
         merged.partySize ? `Personas aprox.: ${merged.partySize}.` : "",
         merged.tripStyle ? `Tipo de viaje: ${merged.tripStyle}.` : "",
-        `Incluye 3–6 paradas por día cuando tenga sentido, con ritmo equilibrado.`,
+        `Incluye 2–4 paradas por día cuando tenga sentido, con ritmo equilibrado.${longTripHint}`,
       ]
         .filter(Boolean)
         .join(" ");

@@ -240,33 +240,6 @@ export default async function DashboardPage() {
         </section>
       ) : null}
 
-      <details className="group rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <summary className="cursor-pointer list-none px-5 py-4 text-sm font-semibold text-slate-800 [&::-webkit-details-marker]:hidden">
-          <span className="flex items-center justify-between gap-2">
-            Resumen por estado
-            <span className="text-xs font-normal text-slate-500 group-open:hidden">en curso, futuros…</span>
-          </span>
-        </summary>
-        <div className="grid grid-cols-2 gap-3 border-t border-slate-100 px-5 pb-6 pt-4 sm:grid-cols-4">
-          <div className="rounded-2xl border border-slate-100 bg-slate-50/90 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">En curso</p>
-            <p className="mt-2 text-2xl font-bold text-slate-950">{current.length}</p>
-          </div>
-          <div className="rounded-2xl border border-slate-100 bg-slate-50/90 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Futuros</p>
-            <p className="mt-2 text-2xl font-bold text-slate-950">{future.length}</p>
-          </div>
-          <div className="rounded-2xl border border-slate-100 bg-slate-50/90 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Pasados</p>
-            <p className="mt-2 text-2xl font-bold text-slate-950">{past.length}</p>
-          </div>
-          <div className="rounded-2xl border border-slate-100 bg-slate-50/90 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Sin fecha</p>
-            <p className="mt-2 text-2xl font-bold text-slate-950">{unscheduled.length}</p>
-          </div>
-        </div>
-      </details>
-
       {trips.length === 0 ? null : (
         <div className="space-y-8">
           <DashboardTripSection
