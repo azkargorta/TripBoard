@@ -173,6 +173,7 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => null);
     const tripId = typeof body?.tripId === "string" ? body.tripId : "";
     const itinerary = body?.itinerary as ItineraryPayload | null;
+    const conflictResolution = body?.conflictResolution === "replace" ? "replace" : "add";
 
     if (!tripId) return NextResponse.json({ error: "Falta tripId" }, { status: 400 });
     if (!itinerary || itinerary.version !== 1 || !Array.isArray(itinerary.days)) {
@@ -197,6 +198,32 @@ export async function POST(req: Request) {
 
     const { data: tripRow } = await supabase.from("trips").select("destination").eq("id", tripId).single();
     const tripDestination = typeof tripRow?.destination === "string" ? tripRow.destination : null;
+
+    const itineraryDates: string[] = [];
+    for (const day of itinerary.days) {
+      const d = typeof day?.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(day.date) ? day.date : null;
+      if (d) itineraryDates.push(d);
+    }
+    const uniqueItineraryDates = Array.from(new Set(itineraryDates));
+
+    if (conflictResolution === "replace" && uniqueItineraryDates.length) {
+      const { error: delActErr } = await supabase
+        .from("trip_activities")
+        .delete()
+        .eq("trip_id", tripId)
+        .in("activity_date", uniqueItineraryDates)
+        .is("linked_reservation_id", null);
+      if (delActErr) throw new Error(delActErr.message);
+
+      if (access.can_manage_map) {
+        for (const d of uniqueItineraryDates) {
+          const { error: r1 } = await supabase.from("trip_routes").delete().eq("trip_id", tripId).eq("route_day", d);
+          if (r1) throw new Error(r1.message);
+          const { error: r2 } = await supabase.from("trip_routes").delete().eq("trip_id", tripId).eq("route_date", d);
+          if (r2) throw new Error(r2.message);
+        }
+      }
+    }
 
     const geocodeCache = new Map<string, { latitude: number | null; longitude: number | null; formattedAddress?: string | null }>();
     let geocodeCount = 0;

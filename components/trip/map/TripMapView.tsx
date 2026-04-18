@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MapContainer, Marker, Popup, Polyline, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
-import { CalendarDays, Clock, Copy, GripVertical, MapPin, Plus, RefreshCw, Save, Trash2 } from "lucide-react";
+import { CalendarDays, Check, Clock, Copy, GripVertical, MapPin, Plus, RefreshCw, Save, Trash2 } from "lucide-react";
 import PlaceAutocompleteInput from "@/components/PlaceAutocompleteInput";
 import { useTripRoutes, type RoutePoint, type SaveRouteInput } from "@/hooks/useTripRoutes";
 import { useTripActivityKinds } from "@/hooks/useTripActivityKinds";
@@ -197,6 +197,10 @@ function normalizePlanPlaces(rows: unknown[] | undefined, prefix: string): PlanP
     });
   }
   return list;
+}
+
+function tripMapRouteKey(r: TripMapRoute) {
+  return `${r.source || "trip_routes"}:${r.id}`;
 }
 
 function normalizeRoutes(rows: unknown[] | undefined, source: "trip_routes" | "legacy_routes"): TripMapRoute[] {
@@ -524,6 +528,8 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   const [calculatingRoute, setCalculatingRoute] = useState(false);
   const [isMapVisible, setIsMapVisible] = useState(true);
   const [showRoutesList, setShowRoutesList] = useState(true);
+  const [routesBulkMode, setRoutesBulkMode] = useState(false);
+  const [selectedRouteKeys, setSelectedRouteKeys] = useState<Set<string>>(new Set());
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -972,6 +978,26 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     }
   }
 
+  async function removeSelectedRoutes() {
+    const keys = [...selectedRouteKeys];
+    if (!keys.length) return;
+    const ok = window.confirm(
+      `¿Eliminar ${keys.length} ruta${keys.length === 1 ? "" : "s"} seleccionada${keys.length === 1 ? "" : "s"}? Esta acción no se puede deshacer.`
+    );
+    if (!ok) return;
+    setError(null);
+    try {
+      for (const key of keys) {
+        const r = routesForList.find((x) => tripMapRouteKey(x) === key);
+        if (r) await removeRoute(r);
+      }
+      setSelectedRouteKeys(new Set());
+      setRoutesBulkMode(false);
+    } catch {
+      // removeRoute ya rellenó setError
+    }
+  }
+
   const routesForList = useMemo(() => {
     const base = selectedDate === "all" ? routesState : routesState.filter((r) => (r.route_day || r.route_date) === selectedDate);
     return base.slice().sort((a, b) => {
@@ -982,7 +1008,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     });
   }, [routesState, selectedDate]);
 
-  const filteredRouteKeys = useMemo(() => routesForList.map((r) => `${r.source || "trip_routes"}:${r.id}`), [routesForList]);
+  const filteredRouteKeys = useMemo(() => routesForList.map((r) => tripMapRouteKey(r)), [routesForList]);
 
   const handleDragEnd = useCallback(
     async (event: DragEndEvent) => {
@@ -1032,7 +1058,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   );
 
   function SortableRouteRow({ route }: { route: TripMapRoute }) {
-    const key = `${route.source || "trip_routes"}:${route.id}`;
+    const key = tripMapRouteKey(route);
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: key });
     const style: React.CSSProperties = {
       transform: CSS.Transform.toString(transform),
@@ -1583,28 +1609,84 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
               <div className="text-sm font-extrabold text-slate-950">Rutas guardadas</div>
               <div className="mt-1 text-xs text-slate-600">Consulta, filtra y ordena tus recorridos del viaje.</div>
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setShowRoutesList((v) => !v)}
-                className={`inline-flex min-h-[34px] items-center justify-center rounded-xl border px-3 text-xs font-semibold transition ${
-                  showRoutesList
-                    ? "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                    : "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
-                }`}
-                title={showRoutesList ? "Ocultar rutas" : "Mostrar rutas"}
-              >
-                {showRoutesList ? "Ocultar rutas" : "Mostrar rutas"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setFocusedRouteKey(null)}
-                className="inline-flex min-h-[34px] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                title="Mostrar todas"
-              >
-                <RefreshCw className="h-4 w-4" aria-hidden />
-                Todas
-              </button>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {routesBulkMode ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRouteKeys(new Set(routesForList.map((r) => tripMapRouteKey(r))))}
+                    disabled={!routesForList.length || saving || savingRoute}
+                    className="inline-flex min-h-[34px] items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    Seleccionar todas
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRouteKeys(new Set())}
+                    disabled={saving || savingRoute}
+                    className="inline-flex min-h-[34px] items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    Quitar selección
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRoutesBulkMode(false);
+                      setSelectedRouteKeys(new Set());
+                    }}
+                    disabled={saving || savingRoute}
+                    className="inline-flex min-h-[34px] items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!selectedRouteKeys.size || saving || savingRoute}
+                    onClick={() => void removeSelectedRoutes()}
+                    className="inline-flex min-h-[34px] items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-800 hover:bg-rose-100 disabled:opacity-50"
+                  >
+                    <Trash2 className="h-4 w-4" aria-hidden />
+                    Eliminar{selectedRouteKeys.size > 0 ? ` (${selectedRouteKeys.size})` : ""}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRoutesBulkMode(true);
+                      setSelectedRouteKeys(new Set());
+                    }}
+                    disabled={!routesForList.length}
+                    className="inline-flex min-h-[34px] items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-800 hover:bg-rose-100 disabled:opacity-50"
+                    title="Eliminar varias rutas"
+                  >
+                    <Trash2 className="h-4 w-4" aria-hidden />
+                    Eliminar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowRoutesList((v) => !v)}
+                    className={`inline-flex min-h-[34px] items-center justify-center rounded-xl border px-3 text-xs font-semibold transition ${
+                      showRoutesList
+                        ? "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                        : "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
+                    }`}
+                    title={showRoutesList ? "Ocultar rutas" : "Mostrar rutas"}
+                  >
+                    {showRoutesList ? "Ocultar rutas" : "Mostrar rutas"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFocusedRouteKey(null)}
+                    className="inline-flex min-h-[34px] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                    title="Mostrar todas"
+                  >
+                    <RefreshCw className="h-4 w-4" aria-hidden />
+                    Todas
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
@@ -1618,17 +1700,21 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                 placeholder="Filtrar por nombre…"
               />
             </label>
-            {selectedDate !== "all" ? <div className="text-[11px] text-slate-500">Puedes reordenar rutas de este día arrastrando.</div> : null}
+            {selectedDate !== "all" && !routesBulkMode ? (
+              <div className="text-[11px] text-slate-500">Puedes reordenar rutas de este día arrastrando.</div>
+            ) : routesBulkMode ? (
+              <div className="text-[11px] text-slate-500">Toca el círculo o la fila para marcar rutas; luego pulsa Eliminar.</div>
+            ) : null}
           </div>
 
           {showRoutesList ? (
           <div className="space-y-3 px-4 pb-4">
-            {selectedDate !== "all" ? (
+            {selectedDate !== "all" && !routesBulkMode ? (
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                 <SortableContext items={filteredRouteKeys} strategy={verticalListSortingStrategy}>
                   <div className="space-y-2">
                     {routesForList.map((r) => (
-                      <SortableRouteRow key={`${r.source || "trip_routes"}:${r.id}`} route={r} />
+                      <SortableRouteRow key={tripMapRouteKey(r)} route={r} />
                     ))}
                   </div>
                 </SortableContext>
@@ -1636,63 +1722,130 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
             ) : (
               <div className="space-y-2">
                 {routesForList.map((r) => {
-                  const key = `${r.source || "trip_routes"}:${r.id}`;
+                  const key = tripMapRouteKey(r);
                   const active = focusedRouteKey === key;
+                  const bulkSelected = selectedRouteKeys.has(key);
                   const title = String(r.title || r.route_name || "Ruta");
                   const subtitle = [r.departure_time ? `Salida ${r.departure_time}` : "", r.distance_text || "", r.duration_text || ""]
                     .filter(Boolean)
                     .join(" · ");
                   return (
-                    <div key={key} className={`rounded-2xl border p-3 ${active ? "border-violet-300 bg-violet-50" : "border-slate-200 bg-white"}`}>
+                    <div
+                      key={key}
+                      role={routesBulkMode ? "button" : undefined}
+                      tabIndex={routesBulkMode ? 0 : undefined}
+                      onClick={
+                        routesBulkMode
+                          ? () =>
+                              setSelectedRouteKeys((prev) => {
+                                const n = new Set(prev);
+                                if (n.has(key)) n.delete(key);
+                                else n.add(key);
+                                return n;
+                              })
+                          : undefined
+                      }
+                      onKeyDown={
+                        routesBulkMode
+                          ? (e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                setSelectedRouteKeys((prev) => {
+                                  const n = new Set(prev);
+                                  if (n.has(key)) n.delete(key);
+                                  else n.add(key);
+                                  return n;
+                                });
+                              }
+                            }
+                          : undefined
+                      }
+                      className={`rounded-2xl border p-3 transition ${
+                        routesBulkMode
+                          ? bulkSelected
+                            ? "border-violet-500 bg-violet-50 ring-2 ring-violet-400/60"
+                            : "cursor-pointer border-slate-200 bg-white hover:border-violet-200"
+                          : active
+                            ? "border-violet-300 bg-violet-50"
+                            : "border-slate-200 bg-white"
+                      }`}
+                    >
                       <div className="flex items-start justify-between gap-3">
-                        <button
-                          type="button"
-                          onClick={() => setFocusedRouteKey((prev) => (prev === key ? null : key))}
-                          className="min-w-0 text-left"
-                          title="Enfocar/mostrar en el mapa"
-                        >
-                          <div className="flex flex-wrap items-center gap-2">
-                            <div className="text-sm font-semibold text-slate-950 line-clamp-1">{title}</div>
-                            {r.source === "legacy_routes" ? (
-                              <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.08em] text-amber-800">
-                                Legacy
-                              </span>
-                            ) : null}
-                          </div>
-                          {subtitle ? <div className="mt-1 text-xs text-slate-600 line-clamp-2">{subtitle}</div> : null}
-                        </button>
-                        <div className="flex items-center gap-2">
-                          {r.source === "trip_routes" ? (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => beginEditRoute(r)}
-                                className="inline-flex min-h-[34px] items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                              >
-                                Editar
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setDuplicateRoute(r);
-                                  setDuplicateOpen(true);
-                                }}
-                                className="inline-flex min-h-[34px] items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                                title="Duplicar ruta"
-                              >
-                                <Copy className="h-4 w-4" aria-hidden />
-                              </button>
-                            </>
+                        <div className="flex min-w-0 flex-1 items-start gap-2">
+                          {routesBulkMode ? (
+                            <button
+                              type="button"
+                              aria-label={bulkSelected ? "Quitar selección" : "Seleccionar"}
+                              className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 shadow-sm ${
+                                bulkSelected ? "border-violet-600 bg-violet-600 text-white" : "border-slate-300 bg-white text-transparent"
+                              }`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedRouteKeys((prev) => {
+                                  const n = new Set(prev);
+                                  if (n.has(key)) n.delete(key);
+                                  else n.add(key);
+                                  return n;
+                                });
+                              }}
+                            >
+                              <Check className="h-4 w-4 stroke-[3]" />
+                            </button>
                           ) : null}
                           <button
                             type="button"
-                            onClick={() => void removeRoute(r)}
-                            className="inline-flex min-h-[34px] items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-800 hover:bg-rose-100"
-                            title={r.source === "legacy_routes" ? "Eliminar ruta legacy" : "Eliminar ruta"}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setFocusedRouteKey((prev) => (prev === key ? null : key));
+                            }}
+                            className="min-w-0 flex-1 text-left"
+                            title="Enfocar/mostrar en el mapa"
                           >
-                            <Trash2 className="h-4 w-4" aria-hidden />
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="text-sm font-semibold text-slate-950 line-clamp-1">{title}</div>
+                              {r.source === "legacy_routes" ? (
+                                <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.08em] text-amber-800">
+                                  Legacy
+                                </span>
+                              ) : null}
+                            </div>
+                            {subtitle ? <div className="mt-1 text-xs text-slate-600 line-clamp-2">{subtitle}</div> : null}
                           </button>
                         </div>
+                        {!routesBulkMode ? (
+                          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                            {r.source === "trip_routes" ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => beginEditRoute(r)}
+                                  className="inline-flex min-h-[34px] items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                >
+                                  Editar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setDuplicateRoute(r);
+                                    setDuplicateOpen(true);
+                                  }}
+                                  className="inline-flex min-h-[34px] items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                  title="Duplicar ruta"
+                                >
+                                  <Copy className="h-4 w-4" aria-hidden />
+                                </button>
+                              </>
+                            ) : null}
+                            <button
+                              type="button"
+                              onClick={() => void removeRoute(r)}
+                              className="inline-flex min-h-[34px] items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-800 hover:bg-rose-100"
+                              title={r.source === "legacy_routes" ? "Eliminar ruta legacy" : "Eliminar ruta"}
+                            >
+                              <Trash2 className="h-4 w-4" aria-hidden />
+                            </button>
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   );

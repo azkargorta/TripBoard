@@ -223,6 +223,30 @@ export function useTripActivities(tripId: string) {
     [load]
   );
 
+  const deleteActivitiesBulk = useCallback(
+    async (activityIds: string[]) => {
+      if (!activityIds.length) return;
+      setSaving(true);
+      setError(null);
+      try {
+        for (const activityId of activityIds) {
+          await apiRequest<{ ok: true }>(
+            `/api/trip-activities/${activityId}`,
+            { method: "DELETE" },
+            "borrar actividad"
+          );
+        }
+        await load();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "No se pudo borrar alguna actividad.");
+        throw err;
+      } finally {
+        setSaving(false);
+      }
+    },
+    [load]
+  );
+
   return {
     trip,
     activities,
@@ -233,5 +257,6 @@ export function useTripActivities(tripId: string) {
     createActivity,
     updateActivity,
     deleteActivity,
+    deleteActivitiesBulk,
   };
 }

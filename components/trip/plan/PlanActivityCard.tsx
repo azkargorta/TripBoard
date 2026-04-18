@@ -1,6 +1,6 @@
 "use client";
 
-import { Star } from "lucide-react";
+import { Check, Star } from "lucide-react";
 import PlanCardActions from "@/components/trip/plan/PlanCardActions";
 
 type PlanActivity = {
@@ -25,6 +25,9 @@ type Props = {
   activity: PlanActivity;
   onEdit?: (activity: PlanActivity) => void;
   onDelete?: (activity: PlanActivity) => void;
+  selectable?: boolean;
+  selected?: boolean;
+  onToggleSelect?: () => void;
 };
 
 function getActivityMeta(kind?: string | null) {
@@ -84,13 +87,50 @@ function buildGoogleMapsUrl(activity: PlanActivity) {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
 
-export default function PlanActivityCard({ activity, onEdit, onDelete }: Props) {
+export default function PlanActivityCard({
+  activity,
+  onEdit,
+  onDelete,
+  selectable,
+  selected,
+  onToggleSelect,
+}: Props) {
   const meta = getActivityMeta(activity.activity_kind);
   const googleMapsUrl = buildGoogleMapsUrl(activity);
   const rating = typeof activity.rating === "number" ? Math.max(1, Math.min(5, Math.round(activity.rating))) : null;
 
   return (
-    <div className={`relative rounded-2xl border p-4 shadow-sm ${meta.card}`}>
+    <div
+      className={`relative rounded-2xl border p-4 shadow-sm ${meta.card} ${selectable ? "cursor-pointer ring-offset-2 transition hover:ring-2 hover:ring-violet-300/80" : ""} ${selected ? "ring-2 ring-violet-500" : ""}`}
+      onClick={selectable && onToggleSelect ? () => onToggleSelect() : undefined}
+      onKeyDown={
+        selectable && onToggleSelect
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onToggleSelect();
+              }
+            }
+          : undefined
+      }
+      role={selectable ? "button" : undefined}
+      tabIndex={selectable ? 0 : undefined}
+    >
+      {selectable ? (
+        <button
+          type="button"
+          className={`absolute left-3 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full border-2 shadow-sm ${
+            selected ? "border-violet-600 bg-violet-600 text-white" : "border-slate-300 bg-white text-transparent"
+          }`}
+          aria-label={selected ? "Quitar selección" : "Seleccionar"}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleSelect?.();
+          }}
+        >
+          <Check className="h-4 w-4 stroke-[3]" />
+        </button>
+      ) : null}
       <PlanCardActions
         placement="topRight"
         googleMapsUrl={googleMapsUrl}
@@ -98,6 +138,7 @@ export default function PlanActivityCard({ activity, onEdit, onDelete }: Props) 
         onDelete={onDelete}
         item={activity}
         accent="emerald"
+        stopPropagation={Boolean(selectable)}
       />
 
       <div className="flex items-start justify-between gap-3">

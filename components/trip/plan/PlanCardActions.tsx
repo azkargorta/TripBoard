@@ -13,6 +13,8 @@ type Props<T> = {
   disableDelete?: boolean;
   disabledReason?: string;
   placement?: "topRight" | "bottom";
+  /** Evita que los clics en acciones activen el contenedor (p. ej. modo selección múltiple). */
+  stopPropagation?: boolean;
 };
 
 export default function PlanCardActions<T>({
@@ -25,6 +27,7 @@ export default function PlanCardActions<T>({
   disableDelete = false,
   disabledReason,
   placement = "bottom",
+  stopPropagation = false,
 }: Props<T>) {
   const mapsClass =
     accent === "violet"
@@ -54,7 +57,11 @@ export default function PlanCardActions<T>({
     placement === "topRight" ? "hidden md:inline" : "";
 
   return (
-    <div className={containerClass}>
+    <div
+      className={containerClass}
+      onClick={stopPropagation ? (e) => e.stopPropagation() : undefined}
+      onKeyDown={stopPropagation ? (e) => e.stopPropagation() : undefined}
+    >
       {googleMapsUrl ? (
         <a
           href={googleMapsUrl}

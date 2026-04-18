@@ -6,7 +6,7 @@ import PlanActivityCard from "@/components/trip/plan/PlanActivityCard";
 import PlanLodgingCard from "@/components/trip/plan/PlanLodgingCard";
 import PlanForm, { type PlanFormValues } from "@/components/trip/plan/PlanForm";
 import { useTripActivities, type TripActivity } from "@/hooks/useTripActivities";
-import { CalendarDays, Clock, Compass, Eye, EyeOff, Filter, Plus, Search, SlidersHorizontal } from "lucide-react";
+import { CalendarDays, Clock, Compass, Eye, EyeOff, Filter, Plus, Search, SlidersHorizontal, Trash2 } from "lucide-react";
 import TripPlanCalendar from "@/components/trip/plan/TripPlanCalendar";
 import { useTripActivityKinds } from "@/hooks/useTripActivityKinds";
 import TripPlanExploreDrawer, { type ExploreCreatePlanPayload } from "@/components/trip/plan/TripPlanExploreDrawer";
@@ -85,6 +85,11 @@ function isLodgingActivity(a: TripActivity) {
   );
 }
 
+function canBulkDeletePlanActivity(a: TripActivity) {
+  if (a.linked_reservation_id) return false;
+  return true;
+}
+
 function effectiveKind(a: TripActivity) {
   if (isLodgingActivity(a)) return "lodging";
   return normalizeKind(a.activity_kind) || "visit";
@@ -159,7 +164,7 @@ export default function TripPlanView({
   canEditTripNotes?: boolean;
   initialWorkspaceTab?: "itinerary" | "notes";
 }) {
-  const { trip, activities, loading, saving, error, createActivity, updateActivity, deleteActivity } =
+  const { trip, activities, loading, saving, error, createActivity, updateActivity, deleteActivity, deleteActivitiesBulk } =
     useTripActivities(tripId);
   const {
     kinds: customKinds,
@@ -191,6 +196,8 @@ export default function TripPlanView({
   const [history, setHistory] = useState<any[]>([]);
   const [exploreOpen, setExploreOpen] = useState(initialExploreOpen);
   const [workspaceTab, setWorkspaceTab] = useState<"itinerary" | "notes">(initialWorkspaceTab);
+  const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
+  const [selectedActivityIds, setSelectedActivityIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -283,6 +290,11 @@ export default function TripPlanView({
   }, [filtered, selectedDate]);
 
   const grouped = useMemo(() => groupByDate(filteredWithCalendarDate), [filteredWithCalendarDate]);
+
+  const selectableActivityIds = useMemo(
+    () => filteredWithCalendarDate.filter(canBulkDeletePlanActivity).map((a) => a.id),
+    [filteredWithCalendarDate]
+  );
   const lodgingCount = useMemo(
     () => activities.filter((item) => isLodgingActivity(item)).length,
     [activities]
@@ -411,6 +423,71 @@ export default function TripPlanView({
           Añade planes con fecha/hora y reutilízalos en el mapa para rutas.
         </p>
         <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+          {bulkDeleteMode ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setSelectedActivityIds(new Set(selectableActivityIds))}
+                disabled={!selectableActivityIds.length || saving}
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-cyan-200 disabled:opacity-50 sm:w-auto"
+              >
+                Seleccionar todos
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedActivityIds(new Set())}
+                disabled={saving}
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 sm:w-auto"
+              >
+                Quitar selección
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setBulkDeleteMode(false);
+                  setSelectedActivityIds(new Set());
+                }}
+                disabled={saving}
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 sm:w-auto"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={saving || selectedActivityIds.size === 0}
+                onClick={() => {
+                  const ids = [...selectedActivityIds];
+                  if (!ids.length) return;
+                  const ok = window.confirm(
+                    `¿Eliminar ${ids.length} plan${ids.length === 1 ? "" : "es"} seleccionado${ids.length === 1 ? "" : "s"}? Esta acción no se puede deshacer.`
+                  );
+                  if (!ok) return;
+                  void deleteActivitiesBulk(ids).then(() => {
+                    setBulkDeleteMode(false);
+                    setSelectedActivityIds(new Set());
+                  });
+                }}
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-5 py-3 text-sm font-semibold text-rose-900 shadow-sm transition hover:bg-rose-100 focus:outline-none focus:ring-2 focus:ring-rose-200 disabled:opacity-50 sm:w-auto"
+              >
+                <Trash2 className="h-4 w-4" aria-hidden />
+                Eliminar{selectedActivityIds.size > 0 ? ` (${selectedActivityIds.size})` : ""}
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setBulkDeleteMode(true);
+                setSelectedActivityIds(new Set());
+              }}
+              disabled={!filteredWithCalendarDate.length}
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-5 py-3 text-sm font-semibold text-rose-900 shadow-sm transition hover:bg-rose-100 focus:outline-none focus:ring-2 focus:ring-rose-200 disabled:opacity-50 sm:w-auto"
+              title="Eliminar varios planes a la vez"
+            >
+              <Trash2 className="h-4 w-4" aria-hidden />
+              Eliminar
+            </button>
+          )}
           <button
             type="button"
             onClick={handleStartCreate}
@@ -922,12 +999,34 @@ export default function TripPlanView({
                       aria-hidden="true"
                     />
                     {isLodging ? (
-                      <PlanLodgingCard activity={activity} />
+                      <PlanLodgingCard
+                        activity={activity}
+                        selectable={bulkDeleteMode && canBulkDeletePlanActivity(activity)}
+                        selected={selectedActivityIds.has(activity.id)}
+                        onToggleSelect={() =>
+                          setSelectedActivityIds((prev) => {
+                            const n = new Set(prev);
+                            if (n.has(activity.id)) n.delete(activity.id);
+                            else n.add(activity.id);
+                            return n;
+                          })
+                        }
+                      />
                     ) : (
                       <PlanActivityCard
                         activity={activity}
                         onEdit={handleStartEdit}
                         onDelete={(item) => deleteActivity(item.id)}
+                        selectable={bulkDeleteMode && canBulkDeletePlanActivity(activity)}
+                        selected={selectedActivityIds.has(activity.id)}
+                        onToggleSelect={() =>
+                          setSelectedActivityIds((prev) => {
+                            const n = new Set(prev);
+                            if (n.has(activity.id)) n.delete(activity.id);
+                            else n.add(activity.id);
+                            return n;
+                          })
+                        }
                       />
                     )}
                   </div>

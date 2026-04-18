@@ -7,6 +7,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useTripData } from "@/hooks/useTripData";
+import { useTripActivities } from "@/hooks/useTripActivities";
 import { useTripAiOnboarding, type OnboardingDraft } from "@/components/trip/ai/useTripAiOnboarding";
 import type { AIActionId } from "@/lib/trip-ai/aiActions";
 import type { TripAssistantSurface } from "@/lib/trip-assistant-context";
@@ -375,6 +376,7 @@ export default function TripAiChatView({
   const [diffAllowDeletes, setDiffAllowDeletes] = useState(false);
   const [diffSelected, setDiffSelected] = useState<Set<string>>(new Set());
   const [executingPlan, setExecutingPlan] = useState(false);
+  const [planConflictOpen, setPlanConflictOpen] = useState(false);
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
   const dayStripRef = useRef<HTMLDivElement | null>(null);
   const [dayStripEdges, setDayStripEdges] = useState({ left: false, right: false });
@@ -384,6 +386,65 @@ export default function TripAiChatView({
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const { trip, reload: reloadTrip, loading: tripDataLoading } = useTripData(tripId);
+  const { activities: tripPlanActivities, reload: reloadTripPlanActivities, loading: tripPlanActivitiesLoading } =
+    useTripActivities(tripId);
+
+  const draftHasCalendarDates = useMemo(() => {
+    if (!itineraryDraft) return false;
+    return itineraryDraft.days.some((d) => typeof d.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d.date));
+  }, [itineraryDraft]);
+
+  const itineraryConflictDates = useMemo(() => {
+    if (!itineraryDraft) return [];
+    const draftDates = new Set<string>();
+    for (const day of itineraryDraft.days) {
+      const d = day.date;
+      if (typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d)) draftDates.add(d);
+    }
+    if (!draftDates.size) return [];
+    const used = new Set<string>();
+    for (const a of tripPlanActivities) {
+      const ad = a.activity_date;
+      if (typeof ad === "string" && draftDates.has(ad)) used.add(ad);
+    }
+    return Array.from(used).sort();
+  }, [itineraryDraft, tripPlanActivities]);
+
+  const runExecutePlan = useCallback(
+    async (conflictResolution: "add" | "replace") => {
+      const draft = itineraryDraft;
+      if (!draft) return;
+      setExecutingPlan(true);
+      setInfo(null);
+      setError(null);
+      setPlanConflictOpen(false);
+      try {
+        const res = await fetch("/api/trip-ai/execute-plan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tripId, itinerary: draft, conflictResolution }),
+        });
+        const payload = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(payload?.error || "No se pudo ejecutar el plan.");
+        const nAct = typeof payload?.created === "number" ? payload.created : null;
+        const nRoutes = typeof payload?.routesCreated === "number" ? payload.routesCreated : null;
+        const note = typeof payload?.routesNote === "string" ? payload.routesNote : "";
+        const actMsg = nAct != null ? `${nAct} actividades` : "varias actividades";
+        const routeMsg =
+          nRoutes != null && nRoutes > 0 ? ` y ${nRoutes} rutas en el mapa` : nRoutes === 0 ? "" : "";
+        setInfo([`Plan ejecutado: ${actMsg}${routeMsg}.`, note].filter(Boolean).join(" "));
+        setItineraryDraft(null);
+        setExpandedDay(null);
+        void reloadTrip();
+        void reloadTripPlanActivities();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "No se pudo ejecutar el plan.");
+      } finally {
+        setExecutingPlan(false);
+      }
+    },
+    [itineraryDraft, tripId, reloadTrip, reloadTripPlanActivities]
+  );
 
   const syncDayStripEdges = useCallback(() => {
     const el = dayStripRef.current;
@@ -1177,6 +1238,55 @@ export default function TripAiChatView({
         </section>
       ) : null}
 
+      {planConflictOpen && itineraryDraft ? (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 px-4 py-8 backdrop-blur-[2px]"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="plan-conflict-title"
+        >
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
+            <div id="plan-conflict-title" className="text-sm font-extrabold text-slate-950">
+              Ya hay planes en el calendario
+            </div>
+            <p className="mt-2 text-sm text-slate-600">
+              Para{" "}
+              {itineraryConflictDates.length === 1
+                ? `el día ${itineraryConflictDates[0]}`
+                : `estos días: ${itineraryConflictDates.join(", ")}`}{" "}
+              ya tienes actividades en el plan. ¿Quieres sustituirlas por el nuevo itinerario o añadir las nuevas paradas
+              a las que ya existen?
+            </p>
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+              <button
+                type="button"
+                disabled={executingPlan}
+                onClick={() => setPlanConflictOpen(false)}
+                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={executingPlan}
+                onClick={() => void runExecutePlan("add")}
+                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-semibold text-violet-900 shadow-sm transition hover:bg-violet-100 disabled:opacity-60"
+              >
+                Añadir a lo existente
+              </button>
+              <button
+                type="button"
+                disabled={executingPlan}
+                onClick={() => void runExecutePlan("replace")}
+                className="inline-flex min-h-11 items-center justify-center rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-60"
+              >
+                Sustituir
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {itineraryDraft ? (
         <section className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-sky-50 p-5 shadow-sm">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -1332,35 +1442,14 @@ export default function TripAiChatView({
             <div className="flex shrink-0 flex-col gap-2">
               <button
                 type="button"
-                disabled={executingPlan || loading}
-                onClick={async () => {
-                  setExecutingPlan(true);
-                  setInfo(null);
-                  setError(null);
-                  try {
-                    const res = await fetch("/api/trip-ai/execute-plan", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ tripId, itinerary: itineraryDraft }),
-                    });
-                    const payload = await res.json().catch(() => null);
-                    if (!res.ok) throw new Error(payload?.error || "No se pudo ejecutar el plan.");
-                    const nAct = typeof payload?.created === "number" ? payload.created : null;
-                    const nRoutes = typeof payload?.routesCreated === "number" ? payload.routesCreated : null;
-                    const note = typeof payload?.routesNote === "string" ? payload.routesNote : "";
-                    const actMsg = nAct != null ? `${nAct} actividades` : "varias actividades";
-                    const routeMsg =
-                      nRoutes != null && nRoutes > 0 ? ` y ${nRoutes} rutas en el mapa` : nRoutes === 0 ? "" : "";
-                    setInfo(
-                      [`Plan ejecutado: ${actMsg}${routeMsg}.`, note].filter(Boolean).join(" ")
-                    );
-                    setItineraryDraft(null);
-                    setExpandedDay(null);
-                  } catch (e) {
-                    setError(e instanceof Error ? e.message : "No se pudo ejecutar el plan.");
-                  } finally {
-                    setExecutingPlan(false);
+                disabled={executingPlan || loading || (draftHasCalendarDates && tripPlanActivitiesLoading)}
+                onClick={() => {
+                  if (!itineraryDraft) return;
+                  if (itineraryConflictDates.length) {
+                    setPlanConflictOpen(true);
+                    return;
                   }
+                  void runExecutePlan("add");
                 }}
                 className="inline-flex items-center justify-center rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-60"
               >
