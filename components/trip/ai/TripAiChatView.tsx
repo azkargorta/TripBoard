@@ -12,6 +12,8 @@ import { useTripActivities } from "@/hooks/useTripActivities";
 import { useTripAiOnboarding, type OnboardingDraft } from "@/components/trip/ai/useTripAiOnboarding";
 import type { AIActionId } from "@/lib/trip-ai/aiActions";
 import type { TripAssistantSurface } from "@/lib/trip-assistant-context";
+import { parseTravelDocsChecklistFromAnswer } from "@/lib/trip-ai/travelDocsChecklist";
+import TravelDocsChecklistCard from "@/components/trip/ai/TravelDocsChecklistCard";
 
 type TripAiChatLayout = "page" | "drawer";
 
@@ -274,6 +276,11 @@ function stripTripboardJsonBlocksForDisplay(content: string): string {
       start: "TRIPBOARD_DIFF_JSON_START",
       end: "TRIPBOARD_DIFF_JSON_END",
       label: "Cambios propuestos (panel «Aplicar cambios» arriba)",
+    },
+    {
+      start: "TRIPBOARD_TRAVEL_DOCS_JSON_START",
+      end: "TRIPBOARD_TRAVEL_DOCS_JSON_END",
+      label: "Checklist de documentos (tarjeta debajo del mensaje)",
     },
   ];
   let out = content;
@@ -2053,24 +2060,31 @@ export default function TripAiChatView({
                 : "max-h-[560px] space-y-5 overflow-y-auto px-5 py-5"
             }
           >
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
-              >
+            {messages.map((message) => {
+              const travelDocs =
+                message.role === "assistant" ? parseTravelDocsChecklistFromAnswer(message.content) : null;
+              return (
                 <div
-                  className={`max-w-[88%] whitespace-pre-wrap rounded-[24px] px-4 py-3 text-sm leading-7 ${
-                    message.role === "user"
-                      ? "bg-slate-950 text-white"
-                      : "border border-slate-200 bg-slate-50 text-slate-800"
-                  }`}
+                  key={message.id}
+                  className={`flex w-full min-w-0 ${message.role === "user" ? "justify-end" : "justify-start"}`}
                 >
-                  {message.role === "assistant"
-                    ? stripTripboardJsonBlocksForDisplay(message.content)
-                    : message.content}
+                  <div className={`flex max-w-full flex-col gap-3 ${message.role === "user" ? "items-end" : "items-start"}`}>
+                    <div
+                      className={`max-w-[88%] whitespace-pre-wrap rounded-[24px] px-4 py-3 text-sm leading-7 ${
+                        message.role === "user"
+                          ? "bg-slate-950 text-white"
+                          : "border border-slate-200 bg-slate-50 text-slate-800"
+                      }`}
+                    >
+                      {message.role === "assistant"
+                        ? stripTripboardJsonBlocksForDisplay(message.content)
+                        : message.content}
+                    </div>
+                    {travelDocs ? <TravelDocsChecklistCard tripId={tripId} payload={travelDocs} /> : null}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {loading ? (
               <div className="flex justify-start">
