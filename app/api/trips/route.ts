@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createTripWithOwner } from "@/lib/trips/createTripWithOwner";
+import { ensureUserCanCreateTrip } from "@/lib/trips/tripCreationLimits";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
-
-const FREE_TRIP_LIMIT = 3;
 
 export async function POST(req: Request) {
   try {
@@ -21,33 +21,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No hay sesión activa." }, { status: 401 });
     }
 
-    // Free tier: límite de viajes. Para evitar gasto/carga, bloqueamos crear más viajes sin premium.
-    const { data: profileRow } = await supabase
-      .from("profiles")
-      .select("is_premium")
-      .eq("id", user.id)
-      .maybeSingle();
-    const isPremium = Boolean((profileRow as any)?.is_premium);
-
-    if (!isPremium) {
-      const { data: existing, error: countErr } = await supabase
-        .from("trip_participants")
-        .select("trip_id")
-        .eq("user_id", user.id)
-        .neq("status", "removed");
-      if (countErr) {
-        return NextResponse.json({ error: countErr.message }, { status: 500 });
-      }
-      const existingCount = Array.isArray(existing) ? existing.length : 0;
-      if (existingCount >= FREE_TRIP_LIMIT) {
-        return NextResponse.json(
-          {
-            error: `El plan gratuito permite hasta ${FREE_TRIP_LIMIT} viajes. Hazte Premium para crear más viajes.`,
-            code: "PREMIUM_REQUIRED",
-          },
-          { status: 402 }
-        );
-      }
+    const gate = await ensureUserCanCreateTrip(supabase, user.id);
+    if ("error" in gate) {
+      return NextResponse.json({ error: gate.error, code: gate.code }, { status: 402 });
     }
 
     const body = await req.json().catch(() => null);
@@ -62,44 +38,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "La fecha de inicio no puede ser posterior a la fecha de fin." }, { status: 400 });
     }
 
-    const tripInsert = await supabase
-      .from("trips")
-      .insert({
-        name,
-        destination: destination || null,
-        start_date,
-        end_date,
-        base_currency: /^[A-Z]{3}$/.test(base_currency) ? base_currency : "EUR",
-      })
-      .select("id")
-      .single();
-
-    if (tripInsert.error || !tripInsert.data) {
-      throw new Error(tripInsert.error?.message || "No se pudo crear el viaje.");
-    }
-
-    const tripId = String(tripInsert.data.id);
-
-    const participantInsert = await supabase.from("trip_participants").insert({
-      trip_id: tripId,
-      display_name:
-        user.user_metadata?.full_name ||
-        user.user_metadata?.name ||
-        user.user_metadata?.username ||
-        user.email ||
-        "Usuario",
-      username: user.user_metadata?.username || user.email?.split("@")[0] || null,
-      joined_via: "owner",
-      user_id: user.id,
-      role: "owner",
+    const created = await createTripWithOwner(supabase, user, {
+      name,
+      destination: destination || null,
+      start_date,
+      end_date,
+      base_currency: /^[A-Z]{3}$/.test(base_currency) ? base_currency : "EUR",
     });
 
-    if (participantInsert.error) {
-      await supabase.from("trips").delete().eq("id", tripId);
-      throw new Error(participantInsert.error.message);
+    if ("error" in created) {
+      return NextResponse.json({ error: created.error }, { status: 400 });
     }
 
-    return NextResponse.json({ tripId }, { status: 201 });
+    return NextResponse.json({ tripId: created.tripId }, { status: 201 });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "No se pudo crear el viaje." },

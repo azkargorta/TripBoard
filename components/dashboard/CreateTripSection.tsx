@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import CreateTripForm from "./CreateTripForm";
+import AutoCreateTripPanel from "./AutoCreateTripPanel";
 import Link from "next/link";
 
 export default function CreateTripSection({
@@ -41,6 +42,7 @@ export default function CreateTripSection({
 
   return (
     <div className="space-y-4">
+      {isPremium && !locked ? <AutoCreateTripPanel /> : null}
       {locked ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
           <div>

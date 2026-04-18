@@ -55,6 +55,7 @@ export function actionPromptHint(aiAction: AIActionId): string {
       return [
         "Objetivo: proponer itinerario por días con JSON ejecutable según las instrucciones del modo planificación.",
         "Si el destino puede ser varios países, aclara primero con el usuario; en JSON usa siempre place_name/address con país inequívoco.",
+        "Si el usuario acaba de crear el viaje desde el dashboard con «Cuéntame tu viaje», el plan base ya puede existir: prioriza ajustes y refinamiento sin repetir todo el calendario salvo que lo pida.",
       ].join(" ");
     case "route_legs":
       return [
