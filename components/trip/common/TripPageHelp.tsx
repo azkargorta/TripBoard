@@ -48,6 +48,7 @@ function getTripPageHelpId(pathname: string | null): string | null {
   const rest = parts.slice(2);
   if (rest.length === 0 || rest[0] === "overview") return "home";
   const seg = rest[0];
+  if (seg === "summary") return "home";
   if (seg === "plan") return "plan";
   if (seg === "map") return "map";
   if (seg === "expenses") return "expenses";
@@ -71,12 +72,12 @@ type TourStep = {
 const TAB_TOUR: TourStep[] = [
   {
     id: "home",
-    title: "Inicio",
+    title: "Resumen",
     lead: "Paso 1 de 7",
     body: "Resumen del viaje: destino, fechas, accesos rápidos a cada módulo y avisos útiles para el grupo.",
     mobileTip: "Abajo tienes el menú con todas las pestañas; desliza horizontalmente si no caben en pantalla.",
-    href: (id) => `/trip/${id}`,
-    visual: { type: "emoji", value: "🏠" },
+    href: (id) => `/trip/${id}/summary`,
+    visual: { type: "image", src: "/brand/tabs/calendar.png", alt: "Resumen" },
   },
   {
     id: "plan",
@@ -138,9 +139,9 @@ const TAB_TOUR_PAGE_IDS = new Set(TAB_TOUR.map((s) => s.id));
 
 const HELP: Record<string, HelpEntry> = {
   home: {
-    title: "Inicio del viaje",
+    title: "Resumen del viaje",
     intro:
-      "Pantalla de control del viaje: ves de un vistazo el destino, las fechas, el estado del plan y atajos a cada módulo.",
+      "Pantalla de resumen del viaje: ves de un vistazo el destino, las fechas, el estado del plan y atajos a cada módulo.",
     blocks: [
       {
         heading: "Qué puedes hacer en esta página",
