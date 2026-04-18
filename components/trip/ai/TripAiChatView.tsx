@@ -288,6 +288,7 @@ export default function TripAiChatView({
   isPremium = true,
   layout = "page",
   assistantContext = null,
+  autoBootstrapItinerary = false,
 }: {
   tripId: string;
   isPremium?: boolean;
@@ -295,6 +296,11 @@ export default function TripAiChatView({
   layout?: TripAiChatLayout;
   /** Si viene del panel contextual, fija modo y mensaje inicial acorde a la pestaña. */
   assistantContext?: TripAssistantSurface | null;
+  /**
+   * Tras crear viaje con `?recien=1`: si el servidor detectó plan vacío + destino o fechas inicio/fin,
+   * se lanza una sola vez «Sugerir itinerario» equivalente (opción C conservadora).
+   */
+  autoBootstrapItinerary?: boolean;
 }) {
   const ctxPreset = assistantContext ? assistantContextPreset(assistantContext) : null;
   if (!isPremium) {
@@ -899,6 +905,41 @@ export default function TripAiChatView({
       dateNotes: null,
     });
   }
+
+  const autoBootstrapOnceRef = useRef(false);
+  useEffect(() => {
+    if (!autoBootstrapItinerary || layout !== "page") return;
+    if (!trip || tripDataLoading) return;
+    if (planActivityCount === null || planActivityCount > 0) return;
+    if (loading || onboardingBusy) return;
+
+    let allow = false;
+    try {
+      const key = `kaviro_ai_autoboot_itin:${tripId}`;
+      if (typeof window !== "undefined" && window.sessionStorage.getItem(key) === "1") return;
+      if (typeof window !== "undefined") {
+        window.sessionStorage.setItem(key, "1");
+      }
+      allow = true;
+    } catch {
+      if (autoBootstrapOnceRef.current) return;
+      autoBootstrapOnceRef.current = true;
+      allow = true;
+    }
+    if (!allow) return;
+
+    void quickBootstrapPlan();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- una sola vez al cumplir condiciones; quickBootstrapPlan es estable en intención
+  }, [
+    autoBootstrapItinerary,
+    layout,
+    trip,
+    tripDataLoading,
+    planActivityCount,
+    loading,
+    onboardingBusy,
+    tripId,
+  ]);
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();

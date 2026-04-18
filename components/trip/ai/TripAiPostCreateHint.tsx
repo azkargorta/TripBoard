@@ -4,9 +4,18 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 /**
- * Tras crear un viaje (Premium) con `?recien=1`: mensaje de “momento wow” y limpieza de la URL.
+ * Tras crear un viaje (Premium) con `?recien=1`: guía (A) o aviso de borrador automático (C conservadora).
  */
-export default function TripAiPostCreateHint({ tripId, enabled }: { tripId: string; enabled: boolean }) {
+export default function TripAiPostCreateHint({
+  tripId,
+  enabled,
+  autoBootstrap = false,
+}: {
+  tripId: string;
+  enabled: boolean;
+  /** Si true, el chat disparará solo un borrador (destino o fechas ya informadas). */
+  autoBootstrap?: boolean;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(enabled);
 
@@ -26,8 +35,18 @@ export default function TripAiPostCreateHint({ tripId, enabled }: { tripId: stri
           <div className="min-w-0">
             <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-emerald-800">¡Viaje creado!</p>
             <p className="mt-1 text-sm font-medium text-slate-900">
-              Pide un itinerario abajo (por ejemplo «4 días en…») o pulsa «Sugerir itinerario» si el plan está vacío.
-              Cuando tengas un borrador, usa «Ejecutar plan» para volcar días, actividades y rutas.
+              {autoBootstrap ? (
+                <>
+                  Ya había <span className="font-semibold">destino o fechas</span> en el viaje: vamos a lanzar{" "}
+                  <span className="font-semibold">un borrador de itinerario</span> en el chat. Luego podrás revisarlo y
+                  usar «Ejecutar plan» cuando encaje contigo.
+                </>
+              ) : (
+                <>
+                  Pide un itinerario abajo (por ejemplo «4 días en…») o pulsa «Sugerir itinerario» si el plan está
+                  vacío. Cuando tengas un borrador, usa «Ejecutar plan» para volcar días, actividades y rutas.
+                </>
+              )}
             </p>
           </div>
           <button
