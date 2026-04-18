@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useToast } from "@/components/ui/toast";
+import TripPlacesFields from "@/components/dashboard/TripPlacesFields";
+import { joinTripPlaces } from "@/lib/trip-places";
 
 function withTimeout<T>(promiseLike: PromiseLike<T>, ms = 25000, label = "operación"): Promise<T> {
   return Promise.race([
@@ -18,7 +20,7 @@ export default function CreateTripForm({ isPremium = false }: { isPremium?: bool
   const toast = useToast();
 
   const [name, setName] = useState("");
-  const [destination, setDestination] = useState("");
+  const [places, setPlaces] = useState<string[]>([""]);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [baseCurrency, setBaseCurrency] = useState("EUR");
@@ -63,7 +65,7 @@ export default function CreateTripForm({ isPremium = false }: { isPremium?: bool
     setStep("idle");
 
     const trimmedName = name.trim();
-    const trimmedDestination = destination.trim();
+    const trimmedDestination = joinTripPlaces(places);
 
     if (!trimmedName) {
       setError("El nombre del viaje es obligatorio.");
@@ -85,7 +87,7 @@ export default function CreateTripForm({ isPremium = false }: { isPremium?: bool
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             name: trimmedName,
-            destination: trimmedDestination || null,
+            destination: trimmedDestination ? trimmedDestination : null,
             start_date: startDate || null,
             end_date: endDate || null,
             base_currency: baseCurrency || "EUR",
@@ -103,7 +105,7 @@ export default function CreateTripForm({ isPremium = false }: { isPremium?: bool
       if (!newTripId) throw new Error("No se pudo crear el viaje (sin id).");
 
       setName("");
-      setDestination("");
+      setPlaces([""]);
       setStartDate("");
       setEndDate("");
       setBaseCurrency("EUR");
@@ -156,15 +158,8 @@ export default function CreateTripForm({ isPremium = false }: { isPremium?: bool
           />
         </div>
 
-        <div>
-          <label className="mb-1 block text-sm font-medium">Destino</label>
-          <input
-            type="text"
-            value={destination}
-            onChange={(e) => setDestination(e.target.value)}
-            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
-            placeholder="Ej. Tokio"
-          />
+        <div className="md:col-span-2">
+          <TripPlacesFields places={places} onChange={setPlaces} />
         </div>
 
         <div>

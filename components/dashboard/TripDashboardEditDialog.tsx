@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
+import TripPlacesFields from "@/components/dashboard/TripPlacesFields";
+import { joinTripPlaces, splitTripPlaces } from "@/lib/trip-places";
 
 export type TripEditFields = {
   id: string;
@@ -47,7 +49,7 @@ export default function TripDashboardEditDialog({
 }) {
   const toast = useToast();
   const currencyOptions = useMemo(() => buildCurrencyOptions(), []);
-  const [destination, setDestination] = useState("");
+  const [places, setPlaces] = useState<string[]>([""]);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [baseCurrency, setBaseCurrency] = useState("EUR");
@@ -61,7 +63,7 @@ export default function TripDashboardEditDialog({
 
   useEffect(() => {
     if (!trip || !open) return;
-    setDestination(trip.destination?.trim() ?? "");
+    setPlaces(splitTripPlaces(trip.destination));
     setStartDate(trip.start_date ?? "");
     setEndDate(trip.end_date ?? "");
     const cur = (trip.base_currency || "EUR").toUpperCase();
@@ -84,7 +86,7 @@ export default function TripDashboardEditDialog({
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          destination: destination.trim() || null,
+          destination: joinTripPlaces(places) || null,
           start_date: startDate || null,
           end_date: endDate || null,
           base_currency: baseCurrency || "EUR",
@@ -143,17 +145,7 @@ export default function TripDashboardEditDialog({
             <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</div>
           ) : null}
 
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Lugar / destino</label>
-            <input
-              type="text"
-              value={destination}
-              onChange={(e) => setDestination(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none ring-slate-200 focus:ring-2"
-              placeholder="Ej. Costa Rica, Tokio…"
-              autoComplete="off"
-            />
-          </div>
+          <TripPlacesFields places={places} onChange={setPlaces} />
 
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">Moneda base del viaje</label>

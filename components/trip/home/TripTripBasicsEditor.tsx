@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import PlaceAutocompleteInput from "@/components/PlaceAutocompleteInput";
+import TripPlacesFields from "@/components/dashboard/TripPlacesFields";
+import { joinTripPlaces, splitTripPlaces } from "@/lib/trip-places";
 import { Pencil, Save, X } from "lucide-react";
 
 type Props = {
@@ -31,7 +32,7 @@ export default function TripTripBasicsEditor({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [nextDestination, setNextDestination] = useState(destination ?? "");
+  const [places, setPlaces] = useState<string[]>(() => splitTripPlaces(destination));
   const [nextStart, setNextStart] = useState(startDate ?? "");
   const [nextEnd, setNextEnd] = useState(endDate ?? "");
   const [nextCurrency, setNextCurrency] = useState((baseCurrency || "EUR").toUpperCase());
@@ -47,7 +48,7 @@ export default function TripTripBasicsEditor({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          destination: nextDestination.trim() || null,
+          destination: joinTripPlaces(places) || null,
           start_date: nextStart ? asIsoDate(nextStart) : null,
           end_date: nextEnd ? asIsoDate(nextEnd) : null,
           base_currency: nextCurrency.trim().toUpperCase() || null,
@@ -71,7 +72,7 @@ export default function TripTripBasicsEditor({
       <button
         type="button"
         onClick={() => {
-          setNextDestination(destination ?? "");
+          setPlaces(splitTripPlaces(destination));
           setNextStart(startDate ?? "");
           setNextEnd(endDate ?? "");
           setNextCurrency((baseCurrency || "EUR").toUpperCase());
@@ -113,13 +114,7 @@ export default function TripTripBasicsEditor({
             ) : null}
 
             <div className="mt-4 grid gap-4">
-              <PlaceAutocompleteInput
-                value={nextDestination}
-                onChange={setNextDestination}
-                label="Lugar / destino"
-                placeholder="Ciudad, región o país"
-                onPlaceSelect={(p) => setNextDestination(p.address)}
-              />
+              <TripPlacesFields places={places} onChange={setPlaces} />
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="space-y-2">

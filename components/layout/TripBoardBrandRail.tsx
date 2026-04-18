@@ -10,9 +10,11 @@ import TripBoardMobileMenu from "@/components/layout/TripBoardMobileMenu";
 type Props = {
   tripId: string;
   tripName: string;
+  /** Rango de fechas del viaje (ej. desde layout del servidor). */
+  dateRangeLabel?: string | null;
 };
 
-export default function TripBoardBrandRail({ tripId, tripName }: Props) {
+export default function TripBoardBrandRail({ tripId, tripName, dateRangeLabel }: Props) {
   const { header } = useTripBoardHeader();
   const section = header.section?.trim() || "";
   const iconSrc = header.iconSrc?.trim() || "";
@@ -49,23 +51,30 @@ export default function TripBoardBrandRail({ tripId, tripName }: Props) {
               />
             )}
             <div className="min-w-0">
-              <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                <Link
-                  href={`/trip/${tripId}/summary`}
-                  className="min-w-0 truncate text-xs font-bold text-slate-900 transition hover:text-cyan-700 md:text-sm md:font-semibold"
-                  title="Ir al resumen del viaje"
-                >
-                  {tripName}
-                </Link>
-                {section ? (
-                  <>
-                    <span className="text-[10px] font-semibold text-slate-300 md:text-xs" aria-hidden>
-                      /
-                    </span>
-                    <span className="min-w-0 max-w-[min(52vw,14rem)] truncate text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500 md:max-w-none md:text-[11px] md:tracking-[0.12em]">
-                      {section}
-                    </span>
-                  </>
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                  <Link
+                    href={`/trip/${tripId}/summary`}
+                    className="min-w-0 truncate text-xs font-bold text-slate-900 transition hover:text-cyan-700 md:text-sm md:font-semibold"
+                    title="Ir al resumen del viaje"
+                  >
+                    {tripName}
+                  </Link>
+                  {section ? (
+                    <>
+                      <span className="text-[10px] font-semibold text-slate-300 md:text-xs" aria-hidden>
+                        /
+                      </span>
+                      <span className="min-w-0 max-w-[min(52vw,14rem)] truncate text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500 md:max-w-none md:text-[11px] md:tracking-[0.12em]">
+                        {section}
+                      </span>
+                    </>
+                  ) : null}
+                </div>
+                {dateRangeLabel ? (
+                  <p className="truncate text-[10px] font-medium leading-tight text-slate-500 md:text-[11px]">
+                    {dateRangeLabel}
+                  </p>
                 ) : null}
               </div>
             </div>

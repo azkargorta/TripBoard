@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getTripWeatherByDestination } from "@/lib/trip-weather";
+import { primaryTripPlace } from "@/lib/trip-places";
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
@@ -16,7 +17,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   }
 
   try {
-    const result = await getTripWeatherByDestination(String(trip.destination));
+    const result = await getTripWeatherByDestination(primaryTripPlace(String(trip.destination)));
     if (!result) {
       return NextResponse.json(
         { error: "No se pudo localizar ese destino para obtener el clima." },
