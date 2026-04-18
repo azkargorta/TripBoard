@@ -53,9 +53,9 @@ export default function CreateTripSection({
           type="button"
           onClick={() => setShowForm(true)}
           disabled={locked}
-          className="inline-flex min-h-[48px] items-center justify-center rounded-2xl border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex min-h-[48px] w-full items-center justify-center rounded-2xl border border-violet-200/80 bg-violet-50/50 px-6 py-3 text-sm font-semibold text-violet-950 shadow-sm transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
         >
-          Mostrar formulario de creación
+          Abrir formulario de creación
         </button>
       ) : (
         <div className="space-y-4">

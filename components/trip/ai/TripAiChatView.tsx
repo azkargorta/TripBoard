@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import TripScreenActions from "@/components/trip/common/TripScreenActions";
 import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { useTripData } from "@/hooks/useTripData";
 import { useTripAiOnboarding, type OnboardingDraft } from "@/components/trip/ai/useTripAiOnboarding";
 import type { AIActionId } from "@/lib/trip-ai/aiActions";
@@ -289,6 +290,7 @@ export default function TripAiChatView({
   layout = "page",
   assistantContext = null,
   autoBootstrapItinerary = false,
+  launchIntent = null,
 }: {
   tripId: string;
   isPremium?: boolean;
@@ -301,8 +303,12 @@ export default function TripAiChatView({
    * se lanza una sola vez «Sugerir itinerario» equivalente (opción C conservadora).
    */
   autoBootstrapItinerary?: boolean;
+  /** Atajos desde el dashboard: envía un primer mensaje y limpia la URL al terminar bien. */
+  launchIntent?: "optimize" | "auto_plans" | null;
 }) {
   const ctxPreset = assistantContext ? assistantContextPreset(assistantContext) : null;
+  const router = useRouter();
+  const pathname = usePathname();
   if (!isPremium) {
     return (
       <main className="space-y-6">
@@ -689,7 +695,7 @@ export default function TripAiChatView({
   async function sendMessage(
     customQuestion?: string,
     forcedAiAction?: AIActionId | null,
-    hooks?: { onSuccess?: () => void }
+    hooks?: { onSuccess?: () => void; onError?: () => void }
   ) {
     if (!isPremium) return;
     const clean = (customQuestion ?? question).trim();
@@ -810,6 +816,7 @@ export default function TripAiChatView({
       if (onboardingActive) markOnboardingComplete();
       hooks?.onSuccess?.();
     } catch (err) {
+      hooks?.onError?.();
       const detail = err instanceof Error ? err.message : "No se pudo obtener respuesta.";
       setError(detail);
       setMessages((current) => [
@@ -941,6 +948,102 @@ export default function TripAiChatView({
     tripId,
   ]);
 
+  useEffect(() => {
+    if (!launchIntent || layout !== "page" || !isPremium) return;
+    if (!trip || tripDataLoading) return;
+    if (loading || onboardingBusy) return;
+
+    const storageKey = `kaviro_dash_launch:${tripId}:${launchIntent}`;
+    let timeoutId = 0;
+    let cancelled = false;
+
+    try {
+      const st = typeof window !== "undefined" ? window.sessionStorage.getItem(storageKey) : null;
+      if (st === "done" || st === "inflight") return;
+      if (typeof window !== "undefined") window.sessionStorage.setItem(storageKey, "inflight");
+    } catch {
+      /* ignore */
+    }
+
+    skipOnboarding();
+
+    const run = () => {
+      if (cancelled) return;
+      if (launchIntent === "optimize") {
+        setMode("optimizer");
+        setModeSource("manual");
+        void sendMessage("Optimiza el viaje: detecta huecos, solapes y mejoras prácticas.", "optimize_route", {
+          onSuccess: () => {
+            try {
+              if (typeof window !== "undefined") window.sessionStorage.setItem(storageKey, "done");
+            } catch {
+              /* ignore */
+            }
+            router.replace(pathname);
+          },
+          onError: () => {
+            try {
+              if (typeof window !== "undefined") window.sessionStorage.removeItem(storageKey);
+            } catch {
+              /* ignore */
+            }
+          },
+        });
+      } else {
+        setMode("planning");
+        setModeSource("manual");
+        void sendMessage(
+          "Completa el itinerario con propuestas concretas (visitas, comidas, desplazamientos) alineadas con destino, fechas y lo ya planificado. Si hay días vacíos o poco cubiertos, rellénalos; si casi no hay planes, propon un calendario por días ejecutable cuando aplique.",
+          null,
+          {
+            onSuccess: () => {
+              try {
+                if (typeof window !== "undefined") window.sessionStorage.setItem(storageKey, "done");
+              } catch {
+                /* ignore */
+              }
+              router.replace(pathname);
+            },
+            onError: () => {
+              try {
+                if (typeof window !== "undefined") window.sessionStorage.removeItem(storageKey);
+              } catch {
+                /* ignore */
+              }
+            },
+          }
+        );
+      }
+    };
+
+    timeoutId = window.setTimeout(run, 0);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+      try {
+        if (typeof window !== "undefined" && window.sessionStorage.getItem(storageKey) === "inflight") {
+          window.sessionStorage.removeItem(storageKey);
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- disparo único desde URL; sendMessage evoluciona cada render
+  }, [
+    launchIntent,
+    layout,
+    isPremium,
+    trip,
+    tripDataLoading,
+    loading,
+    onboardingBusy,
+    tripId,
+    pathname,
+    router,
+    skipOnboarding,
+  ]);
+
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     const clean = question.trim();
@@ -1038,13 +1141,18 @@ export default function TripAiChatView({
               <div className="mt-1 text-xs text-slate-600">
                 Revisa en el chat y, cuando estés conforme, ejecútalo para añadirlo al Plan.
               </div>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {itineraryDraft.days.slice(0, 6).map((d) => (
+              {itineraryDraft.days.length > 6 ? (
+                <p className="mt-2 text-[11px] font-medium text-slate-500">
+                  Desliza horizontalmente para ver los {itineraryDraft.days.length} días.
+                </p>
+              ) : null}
+              <div className="mt-3 flex gap-2 overflow-x-auto pb-1 pt-0.5 [-ms-overflow-style:none] [scrollbar-width:thin] sm:snap-x sm:snap-mandatory [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-violet-200">
+                {itineraryDraft.days.map((d) => (
                   <button
                     key={d.day}
                     type="button"
                     onClick={() => setExpandedDay((prev) => (prev === d.day ? null : d.day))}
-                    className={`rounded-xl border px-3 py-2 text-left text-xs transition ${
+                    className={`min-w-[148px] shrink-0 snap-start rounded-xl border px-3 py-2 text-left text-xs transition sm:min-w-[160px] ${
                       expandedDay === d.day
                         ? "border-violet-300 bg-violet-50"
                         : "border-slate-200 bg-white hover:bg-slate-50"

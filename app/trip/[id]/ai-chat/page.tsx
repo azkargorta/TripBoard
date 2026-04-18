@@ -10,6 +10,15 @@ function parseRecien(searchParams: Record<string, string | string[] | undefined>
   return v === "1" || v.toLowerCase() === "true";
 }
 
+function parseLaunchIntent(
+  searchParams: Record<string, string | string[] | undefined> | undefined
+): "optimize" | "auto_plans" | null {
+  const raw = searchParams?.intent;
+  const v = typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] : "";
+  if (v === "optimize" || v === "auto_plans") return v;
+  return null;
+}
+
 export default async function Page({
   params,
   searchParams,
@@ -22,6 +31,7 @@ export default async function Page({
   const supabase = await createClient();
   const isPremium = await isPremiumEnabledForTrip({ supabase, userId: access.userId, tripId });
   const recien = parseRecien(searchParams);
+  const launchIntent = parseLaunchIntent(searchParams);
 
   let autoBootstrapItinerary = false;
   if (isPremium && recien) {
@@ -47,7 +57,12 @@ export default async function Page({
       {isPremium && recien ? (
         <TripAiPostCreateHint tripId={tripId} enabled autoBootstrap={autoBootstrapItinerary} />
       ) : null}
-      <TripAiChatPageClient tripId={tripId} isPremium={isPremium} autoBootstrapItinerary={autoBootstrapItinerary} />
+      <TripAiChatPageClient
+        tripId={tripId}
+        isPremium={isPremium}
+        autoBootstrapItinerary={autoBootstrapItinerary}
+        launchIntent={launchIntent}
+      />
     </>
   );
 }

@@ -5,6 +5,7 @@ import SignOutButton from "@/components/auth/SignOutButton";
 import CreateTripSection from "@/components/dashboard/CreateTripSection";
 import TripCardItem from "@/components/dashboard/TripCardItem";
 import OnboardingNudge from "@/components/dashboard/OnboardingNudge";
+import DashboardAiShortcuts from "@/components/dashboard/DashboardAiShortcuts";
 import { isPlatformAdmin } from "@/lib/platform-admin";
 
 type Trip = {
@@ -109,13 +110,13 @@ function TripSection({
   lockedTripIds: Set<string>;
 }) {
   return (
-    <section className="space-y-5">
+    <section className="space-y-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
         <div className="min-w-0">
           <h2 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">{title}</h2>
           <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
         </div>
-        <div className="shrink-0 self-start rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm sm:self-auto">
+        <div className="shrink-0 self-start rounded-full border border-slate-200/80 bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm sm:self-auto">
           {trips.length} viaje{trips.length === 1 ? "" : "s"}
         </div>
       </div>
@@ -125,16 +126,18 @@ function TripSection({
           No hay viajes en esta categoría.
         </div>
       ) : (
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {trips.map((trip) => (
-            <TripCard
-              key={trip.id}
-              trip={trip}
-              badge={badge}
-              accent={accent}
-              locked={lockedTripIds.has(String(trip.id))}
-            />
-          ))}
+        <div className="rounded-[28px] border border-slate-200/80 bg-gradient-to-b from-white to-slate-50/90 p-5 shadow-sm sm:p-7 md:p-8">
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {trips.map((trip) => (
+              <TripCard
+                key={trip.id}
+                trip={trip}
+                badge={badge}
+                accent={accent}
+                locked={lockedTripIds.has(String(trip.id))}
+              />
+            ))}
+          </div>
         </div>
       )}
     </section>
@@ -192,14 +195,17 @@ export default async function DashboardPage() {
 
   const { current, future, past, unscheduled } = categorizeTrips(trips);
   const lockedTripIds = new Set<string>();
-  const recentTripId = trips[0]?.id ?? null;
-  const recentChatHref = recentTripId ? `/trip/${encodeURIComponent(recentTripId)}/ai-chat` : null;
 
   return (
     <main className="page-shell space-y-12 pb-16 md:space-y-16 md:pb-20">
       <OnboardingNudge hasTrips={trips.length > 0} />
 
-      <header className="flex flex-col gap-6 border-b border-slate-200/90 pb-10 md:flex-row md:items-start md:justify-between">
+      <header className="relative overflow-hidden rounded-[28px] border border-slate-200/80 bg-gradient-to-br from-white via-slate-50/40 to-cyan-50/50 px-6 py-8 shadow-sm md:px-10 md:py-10">
+        <div
+          className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-cyan-400/15 blur-3xl"
+          aria-hidden
+        />
+        <div className="relative flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0 max-w-2xl space-y-3">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Dashboard</p>
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-950 md:text-4xl">Tus viajes</h1>
@@ -232,6 +238,7 @@ export default async function DashboardPage() {
           </Link>
           <SignOutButton />
         </nav>
+        </div>
       </header>
 
       <section className="rounded-[28px] border border-slate-200/90 bg-white px-6 py-10 shadow-sm md:px-12 md:py-12">
@@ -263,7 +270,6 @@ export default async function DashboardPage() {
           >
             Crear viaje
           </a>
-          <p className="text-center text-xs text-slate-500">Nombre obligatorio; destino y fechas cuando quieras.</p>
         </div>
 
         <div className="mx-auto mt-10 max-w-2xl border-t border-slate-100 pt-10">
@@ -272,68 +278,20 @@ export default async function DashboardPage() {
             Tras crear el viaje, el asistente te guía con propuestas. También puedes abrirlo en cualquier viaje desde la
             pestaña del mismo nombre.
           </p>
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-center">
-            {isPremium ? (
-              <>
-                <a
-                  href="#create-trip"
-                  className="inline-flex min-h-[48px] flex-1 items-center justify-center rounded-2xl border-2 border-violet-300 bg-violet-50/80 px-4 py-3 text-center text-sm font-semibold text-violet-950 shadow-sm transition hover:bg-violet-50 sm:min-w-[220px] sm:flex-none"
-                  title="Al guardar, abrimos el asistente para montar el viaje"
-                >
-                  ✨ Crear viaje con asistente personal
-                </a>
-                {recentChatHref ? (
-                  <>
-                    <Link
-                      href={recentChatHref}
-                      className="inline-flex min-h-[48px] flex-1 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 sm:min-w-[200px] sm:flex-none"
-                    >
-                      Optimizar viaje
-                    </Link>
-                    <Link
-                      href={recentChatHref}
-                      className="inline-flex min-h-[48px] flex-1 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 sm:min-w-[220px] sm:flex-none"
-                    >
-                      Añadir planes automáticamente
-                    </Link>
-                  </>
-                ) : (
-                  <p className="w-full text-center text-sm text-slate-500">
-                    Crea un viaje y estos atajos usarán tu último viaje para abrir el asistente con contexto.
-                  </p>
-                )}
-              </>
-            ) : (
+          {isPremium ? (
+            <DashboardAiShortcuts trips={trips} isPremium />
+          ) : (
+            <div className="mt-6 flex justify-center">
               <Link
                 href="/account?upgrade=premium&focus=premium#premium-plans"
                 className="inline-flex min-h-[48px] w-full items-center justify-center rounded-2xl border-2 border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm font-semibold text-amber-950 transition hover:bg-amber-100 sm:w-auto sm:min-w-[280px]"
               >
                 ✨ Crear con asistente personal (Premium)
               </Link>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </section>
-
-      <details className="rounded-2xl border border-dashed border-slate-200 bg-white/80 px-5 py-2 shadow-sm">
-        <summary className="cursor-pointer py-3 text-sm font-semibold text-slate-800 [&::-webkit-details-marker]:hidden">
-          Ideas para empezar (ejemplos)
-        </summary>
-        <ul className="space-y-2 border-t border-slate-100 pb-4 pt-3 text-sm text-slate-600">
-          <li>
-            <span className="font-medium text-slate-800">Fin de semana urbano:</span> nombre del viaje + ciudad; luego
-            pide «2 días tranquilos con museo y gastronomía» al asistente.
-          </li>
-          <li>
-            <span className="font-medium text-slate-800">Road trip:</span> fechas aproximadas y región; el asistente
-            puede proponer orden de etapas y tú ajustas en Plan y Rutas.
-          </li>
-          <li>
-            <span className="font-medium text-slate-800">Grupo y gastos:</span> tras crear, invita en Gente y registra
-            el primer gasto para ver balances al instante.
-          </li>
-        </ul>
-      </details>
 
       {!isPremium ? (
         <section className="rounded-2xl border border-slate-200 bg-slate-50/80 px-6 py-5 text-sm text-slate-700">
@@ -369,14 +327,21 @@ export default async function DashboardPage() {
         </div>
       </details>
 
-      <section id="create-trip" className="rounded-[28px] border border-slate-200/90 bg-white px-6 py-8 shadow-sm md:px-10 md:py-10">
-        <h2 className="text-xl font-bold text-slate-950 md:text-2xl">Datos del viaje</h2>
-        <p className="mt-2 text-sm text-slate-600">
-          Rellena el formulario y guarda. Si tienes Premium, después te llevamos al asistente para generar o pulir el
-          plan.
-        </p>
-        <div className="mt-8">
-          <CreateTripSection isPremium={isPremium} tripCount={trips.length} startWithFormOpen={trips.length === 0} />
+      <section
+        id="create-trip"
+        className="relative overflow-hidden rounded-[28px] border border-slate-200/90 bg-gradient-to-br from-white via-violet-50/30 to-sky-50/40 px-6 py-9 shadow-md md:px-10 md:py-11"
+      >
+        <div className="pointer-events-none absolute -left-16 bottom-0 h-48 w-48 rounded-full bg-violet-300/10 blur-3xl" aria-hidden />
+        <div className="relative">
+          <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-violet-700">Nuevo viaje</p>
+          <h2 className="mt-2 text-xl font-bold tracking-tight text-slate-950 md:text-2xl">Crear viaje</h2>
+          <p className="mt-2 max-w-xl text-sm text-slate-600">
+            Nombre obligatorio; destino y fechas cuando quieras. Con Premium, al guardar puedes seguir en el asistente
+            personal.
+          </p>
+          <div className="mt-8 rounded-2xl border border-white/60 bg-white/90 p-5 shadow-sm backdrop-blur-sm md:p-7">
+            <CreateTripSection isPremium={isPremium} tripCount={trips.length} startWithFormOpen={trips.length === 0} />
+          </div>
         </div>
       </section>
 

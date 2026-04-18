@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, Trash2 } from "lucide-react";
+import { MapPin, Pencil, Trash2 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import TripDashboardEditDialog from "@/components/dashboard/TripDashboardEditDialog";
 
@@ -99,7 +99,10 @@ export default function TripCardItem({
           </div>
           <div>
             <h3 className="text-2xl font-bold tracking-tight text-slate-950">{trip.name}</h3>
-            <p className="mt-1 text-sm text-slate-600">{trip.destination || "Destino pendiente"}</p>
+            <p className="mt-1 flex items-start gap-1.5 text-sm text-slate-600">
+              <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" aria-hidden />
+              <span>{trip.destination || "Destino pendiente"}</span>
+            </p>
           </div>
         </div>
 

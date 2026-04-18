@@ -14,11 +14,21 @@ export default function TripAiChatPageClient({
   tripId,
   isPremium,
   autoBootstrapItinerary = false,
+  launchIntent = null,
 }: {
   tripId: string;
   isPremium: boolean;
   /** Solo con `?recien=1`, plan vacío y destino o rango de fechas (regla conservadora). */
   autoBootstrapItinerary?: boolean;
+  /** Atajos del dashboard: `?intent=optimize` o `?intent=auto_plans`. */
+  launchIntent?: "optimize" | "auto_plans" | null;
 }) {
-  return <TripAiChatView tripId={tripId} isPremium={isPremium} autoBootstrapItinerary={autoBootstrapItinerary} />;
+  return (
+    <TripAiChatView
+      tripId={tripId}
+      isPremium={isPremium}
+      autoBootstrapItinerary={autoBootstrapItinerary}
+      launchIntent={launchIntent}
+    />
+  );
 }
