@@ -208,3 +208,22 @@ textarea.input {
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* Un solo pulso suave en el CTA principal del dashboard (respeta prefers-reduced-motion vía Tailwind motion-reduce) */
+@keyframes dash-primary-once {
+  0% {
+    box-shadow: 0 4px 14px -4px rgba(15, 23, 42, 0.35);
+  }
+  45% {
+    box-shadow: 0 10px 28px -6px rgba(15, 23, 42, 0.45);
+  }
+  100% {
+    box-shadow: 0 4px 14px -4px rgba(15, 23, 42, 0.35);
+  }
+}
+
+@layer utilities {
+  .animate-dash-primary-once {
+    animation: dash-primary-once 2.4s ease-in-out 1;
+  }
+}

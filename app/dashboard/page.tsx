@@ -259,7 +259,7 @@ export default async function DashboardPage() {
         <div className="mx-auto max-w-xl space-y-4">
           <a
             href="#create-trip"
-            className="flex min-h-[56px] w-full items-center justify-center rounded-2xl bg-slate-950 px-6 py-4 text-center text-lg font-bold text-white shadow-md transition hover:bg-slate-800 md:min-h-[64px] md:text-xl"
+            className="animate-dash-primary-once flex min-h-[56px] w-full items-center justify-center rounded-2xl bg-slate-950 px-6 py-4 text-center text-lg font-bold text-white shadow-md transition hover:bg-slate-800 motion-reduce:animate-none md:min-h-[64px] md:text-xl"
           >
             Crear viaje
           </a>
@@ -314,6 +314,26 @@ export default async function DashboardPage() {
           </div>
         </div>
       </section>
+
+      <details className="rounded-2xl border border-dashed border-slate-200 bg-white/80 px-5 py-2 shadow-sm">
+        <summary className="cursor-pointer py-3 text-sm font-semibold text-slate-800 [&::-webkit-details-marker]:hidden">
+          Ideas para empezar (ejemplos)
+        </summary>
+        <ul className="space-y-2 border-t border-slate-100 pb-4 pt-3 text-sm text-slate-600">
+          <li>
+            <span className="font-medium text-slate-800">Fin de semana urbano:</span> nombre del viaje + ciudad; luego
+            pide «2 días tranquilos con museo y gastronomía» al asistente.
+          </li>
+          <li>
+            <span className="font-medium text-slate-800">Road trip:</span> fechas aproximadas y región; el asistente
+            puede proponer orden de etapas y tú ajustas en Plan y Rutas.
+          </li>
+          <li>
+            <span className="font-medium text-slate-800">Grupo y gastos:</span> tras crear, invita en Gente y registra
+            el primer gasto para ver balances al instante.
+          </li>
+        </ul>
+      </details>
 
       {!isPremium ? (
         <section className="rounded-2xl border border-slate-200 bg-slate-50/80 px-6 py-5 text-sm text-slate-700">

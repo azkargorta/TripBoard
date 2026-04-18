@@ -1,6 +1,6 @@
 # Kaviro (TripBoard)
 
-Kaviro es una web app para **organizar viajes en grupo**: plan/itinerario, mapa + rutas, gastos + balances, documentos/recursos, participantes y (en Premium) IA + análisis de documentos.
+Kaviro es una web app para **organizar viajes en grupo**: plan/itinerario, rutas sobre mapa, gastos + balances, documentos/recursos, participantes y (en Premium) **asistente personal** + análisis de documentos.
 
 ## Stack
 
@@ -8,7 +8,7 @@ Kaviro es una web app para **organizar viajes en grupo**: plan/itinerario, mapa 
 - **Supabase** (Auth + DB + Storage)
 - **Stripe** (suscripciones Premium)
 - **Mapas**: OpenStreetMap + Leaflet + OSRM + Photon (Komoot)
-- **IA**: Gemini (y opción local con Ollama)
+- **Asistente / modelo**: Gemini (y opción local con Ollama)
 - **OCR**: OCR.Space (opcional)
 
 ## Rutas importantes
@@ -49,7 +49,7 @@ Consulta `.env.example`. Mínimo para que la app funcione:
 
 - Supabase: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
 - (Opcional) Stripe/Premium: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID_MONTHLY`, `STRIPE_PRICE_ID_YEARLY`
-- (Opcional) IA: `AI_PROVIDER`, `GEMINI_API_KEY`
+- (Opcional) Asistente: `AI_PROVIDER`, `GEMINI_API_KEY`
 - (Opcional) OCR: `OCR_SPACE_API_KEY`
 
 ## Precios mostrados en la UI

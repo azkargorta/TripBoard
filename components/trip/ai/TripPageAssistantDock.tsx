@@ -1,11 +1,18 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
 import { MessageCircle, X } from "lucide-react";
-import TripAiChatView from "@/components/trip/ai/TripAiChatView";
 import { tripAssistantSurfaceFromPathname, tripAssistantSurfaceLabel } from "@/lib/trip-assistant-context";
+
+const TripAiChatView = dynamic(() => import("@/components/trip/ai/TripAiChatView"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex min-h-[220px] items-center justify-center text-sm text-slate-500">Cargando asistente…</div>
+  ),
+});
 
 type Props = {
   tripId: string;

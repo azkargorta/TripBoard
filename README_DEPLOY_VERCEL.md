@@ -25,7 +25,7 @@
    - `STRIPE_PRICE_ID_YEARLY`
    - `OCR_SPACE_API_KEY`
    - `AI_PROVIDER` (opcional; por defecto `gemini`)
-   - `GEMINI_API_KEY` (si usas IA con Gemini)
+   - `GEMINI_API_KEY` (si usas el asistente con Gemini)
    - `GEMINI_MODEL` (opcional)
    - `AI_USER_MONTHLY_BUDGET_EUR` (opcional)
    - `AI_ENHANCE_ANALYSIS` (opcional)
