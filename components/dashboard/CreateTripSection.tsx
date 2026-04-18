@@ -15,11 +15,13 @@ export default function CreateTripSection({
   startWithFormOpen?: boolean;
 }) {
   const [showForm, setShowForm] = useState(startWithFormOpen);
+  const FREE_TRIP_LIMIT = 3;
+  const locked = !isPremium && tripCount >= FREE_TRIP_LIMIT;
 
   useEffect(() => {
     const openFromHash = () => {
       try {
-        if (window.location.hash === "#create-trip") setShowForm(true);
+        if (window.location.hash === "#create-trip" && !locked) setShowForm(true);
       } catch {
         /* */
       }
@@ -27,9 +29,15 @@ export default function CreateTripSection({
     openFromHash();
     window.addEventListener("hashchange", openFromHash);
     return () => window.removeEventListener("hashchange", openFromHash);
-  }, []);
-  const FREE_TRIP_LIMIT = 3;
-  const locked = !isPremium && tripCount >= FREE_TRIP_LIMIT;
+  }, [locked]);
+
+  useEffect(() => {
+    const open = () => {
+      if (!locked) setShowForm(true);
+    };
+    window.addEventListener("kaviro:open-create-trip", open);
+    return () => window.removeEventListener("kaviro:open-create-trip", open);
+  }, [locked]);
 
   return (
     <div className="space-y-4">

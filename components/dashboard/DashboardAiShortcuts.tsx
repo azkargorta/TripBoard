@@ -38,6 +38,20 @@ function tripSubtitle(t: DashboardAiTrip) {
 
 type Intent = "optimize" | "auto_plans";
 
+function openDashboardCreateTripForm() {
+  try {
+    window.dispatchEvent(new CustomEvent("kaviro:open-create-trip"));
+    if (window.location.hash !== "#create-trip") {
+      window.location.hash = "create-trip";
+    }
+    window.requestAnimationFrame(() => {
+      document.getElementById("create-trip")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  } catch {
+    /* */
+  }
+}
+
 export default function DashboardAiShortcuts({
   trips,
   isPremium,
@@ -97,14 +111,15 @@ export default function DashboardAiShortcuts({
   return (
     <>
       <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-center">
-        <Link
-          href="#create-trip"
+        <button
+          type="button"
+          onClick={openDashboardCreateTripForm}
           className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-2xl border-2 border-violet-300 bg-violet-50/80 px-4 py-3 text-center text-sm font-semibold text-violet-950 shadow-sm transition hover:bg-violet-50 sm:min-w-[220px] sm:flex-none"
-          title="Al guardar, abrimos el asistente para montar el viaje"
+          title="Abre el formulario para crear un viaje; al guardar con Premium puedes seguir en el asistente"
         >
           <Sparkles className="h-4 w-4 shrink-0 text-violet-700" aria-hidden />
           Crear viaje con asistente personal
-        </Link>
+        </button>
         {trips.length === 1 ? (
           <>
             <Link
