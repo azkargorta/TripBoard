@@ -129,8 +129,7 @@ export default function PublicLanding() {
               </div>
             </div>
 
-            <div className="space-y-4">
-              <div className="relative overflow-hidden rounded-3xl border border-white/20 bg-gradient-to-br from-slate-900 via-cyan-900 to-violet-950 p-6 text-white shadow-xl md:p-8">
+            <div className="relative overflow-hidden rounded-3xl border border-white/20 bg-gradient-to-br from-slate-900 via-cyan-900 to-violet-950 p-6 text-white shadow-xl md:p-8">
                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-cyan-500/20 via-transparent to-transparent" aria-hidden />
                 <div className="relative space-y-6">
                   <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-4">
@@ -167,29 +166,6 @@ export default function PublicLanding() {
                   </ul>
                 </div>
               </div>
-
-              <aside className="rounded-3xl border border-violet-200/70 bg-gradient-to-br from-violet-50 to-white p-5 shadow-md md:p-6">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-800">En 2 minutos</p>
-                <p className="mt-2 text-lg font-extrabold tracking-tight text-slate-950">Crea, invita, rellena</p>
-                <ol className="mt-4 list-decimal space-y-2 pl-4 text-sm text-slate-700">
-                  <li>Crea el viaje (nombre obligatorio).</li>
-                  <li>Invita por enlace.</li>
-                  <li>Plan, rutas y gastos en el mismo sitio.</li>
-                </ol>
-                <Link
-                  href="/auth/register"
-                  className="mt-5 inline-flex w-full min-h-[48px] items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-                >
-                  Crear cuenta
-                </Link>
-                <p className="mt-2 text-center text-xs text-slate-600">
-                  ¿Ya tienes cuenta?{" "}
-                  <Link href="/auth/login" className="font-semibold text-violet-800 hover:underline">
-                    Entrar
-                  </Link>
-                </p>
-              </aside>
-            </div>
           </div>
         </div>
       </section>
