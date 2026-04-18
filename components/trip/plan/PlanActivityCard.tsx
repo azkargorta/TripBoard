@@ -1,7 +1,8 @@
 "use client";
 
-import { Check, Star } from "lucide-react";
+import { Check, ExternalLink, Star, Ticket } from "lucide-react";
 import PlanCardActions from "@/components/trip/plan/PlanCardActions";
+import { activityLikelyNeedsTicket, buildTicketOfficialSearchUrl } from "@/lib/trip-plan-ticket-hints";
 
 type PlanActivity = {
   trip_id?: string;
@@ -28,6 +29,8 @@ type Props = {
   selectable?: boolean;
   selected?: boolean;
   onToggleSelect?: () => void;
+  /** Premium: aviso de entradas y botón para buscar venta oficial. */
+  premiumEnabled?: boolean;
 };
 
 function getActivityMeta(kind?: string | null) {
@@ -94,10 +97,13 @@ export default function PlanActivityCard({
   selectable,
   selected,
   onToggleSelect,
+  premiumEnabled = false,
 }: Props) {
   const meta = getActivityMeta(activity.activity_kind);
   const googleMapsUrl = buildGoogleMapsUrl(activity);
   const rating = typeof activity.rating === "number" ? Math.max(1, Math.min(5, Math.round(activity.rating))) : null;
+  const showTicketCta = Boolean(premiumEnabled && activityLikelyNeedsTicket(activity));
+  const ticketSearchUrl = showTicketCta ? buildTicketOfficialSearchUrl(activity) : null;
 
   return (
     <div
@@ -177,6 +183,25 @@ export default function PlanActivityCard({
               <p className="mt-2 line-clamp-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
                 {activity.comment}
               </p>
+            ) : null}
+            {showTicketCta && ticketSearchUrl ? (
+              <div className="mt-3">
+                <a
+                  href={ticketSearchUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  title="Abre una búsqueda para localizar la web oficial de entradas; revisa que el dominio sea el del recinto."
+                  className="inline-flex min-h-[36px] items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-extrabold text-amber-950 shadow-sm transition hover:bg-amber-100"
+                  onClick={selectable ? (e) => e.stopPropagation() : undefined}
+                >
+                  <Ticket className="h-4 w-4 shrink-0" aria-hidden />
+                  Entrada
+                  <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
+                </a>
+                <p className="mt-1 text-[10px] leading-snug text-slate-500">
+                  Búsqueda orientada a la venta oficial; comprueba siempre la URL antes de pagar.
+                </p>
+              </div>
             ) : null}
           </div>
         </div>

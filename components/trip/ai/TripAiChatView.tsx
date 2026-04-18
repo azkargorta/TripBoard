@@ -92,10 +92,30 @@ const DAY_FOCUS_WELCOME =
   "Pensado para **un día concreto**: horarios, comidas y cómo moveros (andando, coche, etc.). Las respuestas pasan por el motor de **Organizar día**; luego podrás **Aplicar cambios** en el plan.\n\n" +
   "Indica la **fecha (YYYY-MM-DD)**, ciudad con **país** y el ritmo que buscáis.";
 
-const TRAVEL_DOCS_WELCOME =
-  "Modo **Documentos del viaje**\n\n" +
-  "Dime la **nacionalidad** del pasaporte con el que viajas y confirma los **países** que visitarás (si el viaje ya tiene destino, lo usaré). Te devolveré una **lista** con visados o autorizaciones (ETIAS, ESTA, eTA…), seguros, tasas, carnets de conducir o sanidad cuando aplique.\n\n" +
-  "No sustituye al consulado: revisa siempre en **fuentes oficiales** antes de reservar.";
+/** Apertura al entrar en modo documentos (cambio manual o `?modo=travel_docs`). */
+const OPENING_TRAVEL_DOCS =
+  "Dime tu nacionalidad y qué países vas a visitar o en los que harás escala, y miraré qué documentos o seguros necesitas.";
+
+function getManualModeWelcome(next: TripAiMode): string {
+  switch (next) {
+    case "travel_docs":
+      return OPENING_TRAVEL_DOCS;
+    case "planning":
+      return PLANNER_FOCUS_WELCOME;
+    case "day_planner":
+      return DAY_FOCUS_WELCOME;
+    case "general":
+      return "Modo **chat general**. Cuéntame en qué puedo ayudarte con este viaje (resumen, dudas, recomendaciones).";
+    case "expenses":
+      return "Modo **gastos**. Pregunta por totales, balances, quién debe a quién o qué conviene registrar.";
+    case "optimizer":
+      return "Modo **optimizador**. Pide huecos en el plan, orden geográfico del día o ideas para aprovechar mejor el tiempo y las rutas.";
+    case "actions":
+      return "Modo **acciones**. Pide cambios concretos en actividades o rutas; si el asistente devuelve el bloque adecuado, podrás usar **«Aplicar cambios»**.";
+    default:
+      return DEFAULT_PAGE_WELCOME;
+  }
+}
 
 const KNOWN_TRIP_AI_MODES = new Set<string>([
   "general",
@@ -126,7 +146,7 @@ function buildInitialWelcomeMessages(params: {
     return [{ id: "welcome", role: "assistant", content: DAY_FOCUS_WELCOME }];
   }
   if (params.defaultAssistantMode === "travel_docs") {
-    return [{ id: "welcome", role: "assistant", content: TRAVEL_DOCS_WELCOME }];
+    return [{ id: "welcome", role: "assistant", content: OPENING_TRAVEL_DOCS }];
   }
   return [{ id: "welcome", role: "assistant", content: DEFAULT_PAGE_WELCOME }];
 }
@@ -613,6 +633,67 @@ export default function TripAiChatView({
     tripLoaded: !tripDataLoading && planActivityCount !== null && Boolean(trip),
     planActivityCount,
   });
+
+  const beginNewChatForMode = useCallback(
+    (next: TripAiMode | "auto", opts?: { onlyIfChanged?: boolean }) => {
+      if (opts?.onlyIfChanged) {
+        if (next === "auto" && modeSource === "auto") return;
+        if (next !== "auto" && modeSource === "manual" && mode === next) return;
+      }
+
+      setConversationId(null);
+      setItineraryDraft(null);
+      setPlanConflictOpen(false);
+      setDiffDraft(null);
+      setDiffContext(null);
+      setDiffContextLoading(false);
+      setDiffSelected(new Set());
+      setDiffAllowDeletes(false);
+      setApplyingDiff(false);
+      setExpandedDay(null);
+      setQuestion("");
+      setInfo(null);
+      setError(null);
+
+      if (next === "auto") {
+        if (layout === "drawer" && ctxPreset?.welcome) {
+          setModeSource(ctxPreset.modeSource);
+          setMode(ctxPreset.mode);
+          setMessages([
+            {
+              id: crypto.randomUUID(),
+              role: "assistant",
+              content: ctxPreset.welcome,
+            },
+          ]);
+        } else {
+          setModeSource("auto");
+          setMode("general");
+          setMessages([
+            {
+              id: crypto.randomUUID(),
+              role: "assistant",
+              content: DEFAULT_PAGE_WELCOME,
+            },
+          ]);
+        }
+        return;
+      }
+
+      if (onboardingActive) skipOnboarding();
+
+      setModeSource("manual");
+      setMode(next);
+      setMessages([
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: getManualModeWelcome(next),
+        },
+      ]);
+    },
+    [ctxPreset, layout, mode, modeSource, onboardingActive, skipOnboarding]
+  );
 
   const patchTripMeta = useCallback(
     async (payload: Record<string, unknown>) => {
@@ -1894,10 +1975,7 @@ export default function TripAiChatView({
                     key={preset.id}
                     type="button"
                     disabled={loading}
-                    onClick={() => {
-                      setMode(preset.id);
-                      setModeSource("manual");
-                    }}
+                    onClick={() => beginNewChatForMode(preset.id, { onlyIfChanged: true })}
                     className={`flex min-h-[88px] flex-col items-start gap-1.5 rounded-2xl border px-3 py-2.5 text-left transition disabled:opacity-50 ${
                       selected
                         ? "border-violet-400 bg-violet-50 text-violet-950 shadow-sm ring-1 ring-violet-200"
@@ -1915,10 +1993,7 @@ export default function TripAiChatView({
             <button
               type="button"
               disabled={loading}
-              onClick={() => {
-                setModeSource("auto");
-                setMode("general");
-              }}
+              onClick={() => beginNewChatForMode("auto", { onlyIfChanged: true })}
               className={`mt-2 w-full rounded-xl border px-3 py-2 text-xs font-semibold transition disabled:opacity-50 ${
                 modeSource === "auto"
                   ? "border-cyan-400 bg-cyan-50 text-cyan-950 ring-1 ring-cyan-200"
@@ -1939,11 +2014,10 @@ export default function TripAiChatView({
                   onChange={(e) => {
                     const v = e.target.value as "auto" | TripAiMode;
                     if (v === "auto") {
-                      setModeSource("auto");
+                      beginNewChatForMode("auto", { onlyIfChanged: true });
                       return;
                     }
-                    setModeSource("manual");
-                    setMode(v);
+                    beginNewChatForMode(v, { onlyIfChanged: true });
                   }}
                   className="rounded-xl border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800 shadow-sm"
                 >

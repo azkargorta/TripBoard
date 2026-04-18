@@ -11,6 +11,7 @@ import TripPlanCalendar from "@/components/trip/plan/TripPlanCalendar";
 import { useTripActivityKinds } from "@/hooks/useTripActivityKinds";
 import TripPlanExploreDrawer, { type ExploreCreatePlanPayload } from "@/components/trip/plan/TripPlanExploreDrawer";
 import TripPlanNotesPanel from "@/components/trip/plan/TripPlanNotesPanel";
+import { activityLikelyNeedsTicket } from "@/lib/trip-plan-ticket-hints";
 
 const COMMON_KIND_ICONS: Array<{ emoji: string; label: string }> = [
   { emoji: "📍", label: "Visita" },
@@ -304,6 +305,11 @@ export default function TripPlanView({
     [activities]
   );
 
+  const ticketHintCount = useMemo(
+    () => activities.filter((a) => !isLodgingActivity(a) && activityLikelyNeedsTicket(a)).length,
+    [activities]
+  );
+
   const isEditing = Boolean(editingActivity?.id);
   const showForm = isFormOpen || isEditing;
 
@@ -416,6 +422,19 @@ export default function TripPlanView({
 
       {workspaceTab === "itinerary" ? (
         <>
+          {premiumEnabled && ticketHintCount > 0 && !isEmpty ? (
+            <div className="rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 via-white to-amber-50/40 px-4 py-3 text-sm text-amber-950 shadow-sm">
+              <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-amber-800">Entradas · Premium</p>
+              <p className="mt-1.5 leading-relaxed text-amber-950/95">
+                Hay <strong>{ticketHintCount}</strong>{" "}
+                {ticketHintCount === 1 ? "actividad marcada" : "actividades marcadas"} como{" "}
+                <strong>probables entradas o reservas</strong>. En cada tarjeta usa el botón{" "}
+                <span className="font-bold">«Entrada»</span> para abrir una búsqueda orientada a la{" "}
+                <strong>web oficial</strong> (verifica siempre la URL y el dominio antes de pagar).
+              </p>
+            </div>
+          ) : null}
+
           <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <p className="text-sm text-slate-600">
           <span className="font-semibold text-slate-900">{trip?.name || trip?.destination || "Este viaje"}</span>
@@ -1027,6 +1046,7 @@ export default function TripPlanView({
                             return n;
                           })
                         }
+                        premiumEnabled={premiumEnabled}
                       />
                     )}
                   </div>
