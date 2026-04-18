@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useToast } from "@/components/ui/toast";
 import TripPlacesFields from "@/components/dashboard/TripPlacesFields";
 import { joinTripPlaces } from "@/lib/trip-places";
+import { buildTravelCurrencySelectOptions } from "@/lib/travel-currencies";
 
 function withTimeout<T>(promiseLike: PromiseLike<T>, ms = 25000, label = "operación"): Promise<T> {
   return Promise.race([
@@ -29,25 +30,18 @@ export default function CreateTripForm({ isPremium = false }: { isPremium?: bool
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<"idle" | "trip" | "participant" | "done">("idle");
 
-  const currencyOptions = useMemo(() => {
-    const values: string[] =
-      typeof Intl !== "undefined" && typeof (Intl as any).supportedValuesOf === "function"
-        ? ((Intl as any).supportedValuesOf("currency") as string[])
-        : ["EUR", "USD", "GBP", "JPY", "CHF"];
+  const destinationHint = useMemo(() => joinTripPlaces(places), [places]);
+  const currencyOptions = useMemo(
+    () => buildTravelCurrencySelectOptions(destinationHint),
+    [destinationHint]
+  );
 
-    const dn =
-      typeof Intl !== "undefined" && typeof (Intl as any).DisplayNames === "function"
-        ? new (Intl as any).DisplayNames(["es-ES"], { type: "currency" })
-        : null;
-
-    return values
-      .filter((c) => typeof c === "string" && /^[A-Z]{3}$/.test(c))
-      .sort()
-      .map((code) => ({
-        code,
-        label: dn ? `${code} · ${dn.of(code)}` : code,
-      }));
-  }, []);
+  useEffect(() => {
+    const valid = new Set(currencyOptions.map((o) => o.code));
+    if (!valid.has(baseCurrency)) {
+      setBaseCurrency(currencyOptions[0]?.code ?? "EUR");
+    }
+  }, [currencyOptions, baseCurrency]);
 
   useEffect(() => {
     if (!startDate) return;
@@ -162,7 +156,29 @@ export default function CreateTripForm({ isPremium = false }: { isPremium?: bool
           <TripPlacesFields places={places} onChange={setPlaces} />
         </div>
 
-        <div>
+        <div className="md:col-span-2 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-sm font-medium">Fecha inicio</label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">Fecha fin</label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              min={startDate || undefined}
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
+            />
+          </div>
+        </div>
+
+        <div className="md:col-span-2 max-w-xl">
           <label className="mb-1 block text-sm font-medium">Moneda base</label>
           <select
             value={baseCurrency}
@@ -175,27 +191,6 @@ export default function CreateTripForm({ isPremium = false }: { isPremium?: bool
               </option>
             ))}
           </select>
-        </div>
-
-        <div>
-          <label className="mb-1 block text-sm font-medium">Fecha inicio</label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
-          />
-        </div>
-
-        <div>
-          <label className="mb-1 block text-sm font-medium">Fecha fin</label>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            min={startDate || undefined}
-            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
-          />
         </div>
       </div>
 

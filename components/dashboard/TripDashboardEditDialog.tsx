@@ -6,6 +6,7 @@ import { X } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import TripPlacesFields from "@/components/dashboard/TripPlacesFields";
 import { joinTripPlaces, splitTripPlaces } from "@/lib/trip-places";
+import { buildTravelCurrencySelectOptions, coerceTravelCurrencyCode } from "@/lib/travel-currencies";
 
 export type TripEditFields = {
   id: string;
@@ -15,26 +16,6 @@ export type TripEditFields = {
   end_date: string | null;
   base_currency: string | null;
 };
-
-function buildCurrencyOptions() {
-  const values: string[] =
-    typeof Intl !== "undefined" && typeof (Intl as any).supportedValuesOf === "function"
-      ? ((Intl as any).supportedValuesOf("currency") as string[])
-      : ["EUR", "USD", "GBP", "JPY", "CHF"];
-
-  const dn =
-    typeof Intl !== "undefined" && typeof (Intl as any).DisplayNames === "function"
-      ? new (Intl as any).DisplayNames(["es-ES"], { type: "currency" })
-      : null;
-
-  return values
-    .filter((c) => typeof c === "string" && /^[A-Z]{3}$/.test(c))
-    .sort()
-    .map((code) => ({
-      code,
-      label: dn ? `${code} · ${dn.of(code)}` : code,
-    }));
-}
 
 export default function TripDashboardEditDialog({
   trip,
@@ -48,8 +29,12 @@ export default function TripDashboardEditDialog({
   onSaved: () => void;
 }) {
   const toast = useToast();
-  const currencyOptions = useMemo(() => buildCurrencyOptions(), []);
   const [places, setPlaces] = useState<string[]>([""]);
+  const destinationHint = useMemo(() => joinTripPlaces(places), [places]);
+  const currencyOptions = useMemo(
+    () => buildTravelCurrencySelectOptions(destinationHint),
+    [destinationHint]
+  );
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [baseCurrency, setBaseCurrency] = useState("EUR");
@@ -67,9 +52,16 @@ export default function TripDashboardEditDialog({
     setStartDate(trip.start_date ?? "");
     setEndDate(trip.end_date ?? "");
     const cur = (trip.base_currency || "EUR").toUpperCase();
-    setBaseCurrency(/^[A-Z]{3}$/.test(cur) ? cur : "EUR");
+    setBaseCurrency(coerceTravelCurrencyCode(/^[A-Z]{3}$/.test(cur) ? cur : "EUR", "EUR"));
     setError(null);
   }, [trip, open]);
+
+  useEffect(() => {
+    const valid = new Set(currencyOptions.map((o) => o.code));
+    if (!valid.has(baseCurrency)) {
+      setBaseCurrency(currencyOptions[0]?.code ?? "EUR");
+    }
+  }, [currencyOptions, baseCurrency]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -147,21 +139,6 @@ export default function TripDashboardEditDialog({
 
           <TripPlacesFields places={places} onChange={setPlaces} />
 
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Moneda base del viaje</label>
-            <select
-              value={baseCurrency}
-              onChange={(e) => setBaseCurrency(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none ring-slate-200 focus:ring-2"
-            >
-              {currencyOptions.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-700">Fecha inicio</label>
@@ -182,6 +159,21 @@ export default function TripDashboardEditDialog({
                 className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none ring-slate-200 focus:ring-2"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Moneda base del viaje</label>
+            <select
+              value={baseCurrency}
+              onChange={(e) => setBaseCurrency(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none ring-slate-200 focus:ring-2"
+            >
+              {currencyOptions.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
