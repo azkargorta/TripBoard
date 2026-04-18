@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import SignOutButton from "@/components/auth/SignOutButton";
 import CreateTripSection from "@/components/dashboard/CreateTripSection";
+import DashboardCreateTripCta from "@/components/dashboard/DashboardCreateTripCta";
 import OnboardingNudge from "@/components/dashboard/OnboardingNudge";
 import DashboardAiShortcuts from "@/components/dashboard/DashboardAiShortcuts";
 import DashboardTripSection from "@/components/dashboard/DashboardTripSection";
@@ -131,21 +132,22 @@ export default async function DashboardPage() {
 
   const { current, future, past, unscheduled } = categorizeTrips(trips);
   const lockedTripIds = new Set<string>();
+  const freeTripLimitReached = !isPremium && trips.length >= 3;
 
   return (
-    <main className="page-shell space-y-12 pb-16 md:space-y-16 md:pb-20">
+    <main className="page-shell space-y-6 pb-10 md:space-y-8 md:pb-14">
       <OnboardingNudge hasTrips={trips.length > 0} />
 
-      <header className="relative overflow-hidden rounded-[28px] border border-slate-200/80 bg-gradient-to-br from-white via-slate-50/40 to-cyan-50/50 px-6 py-8 shadow-sm md:px-10 md:py-10">
+      <header className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white via-slate-50/40 to-cyan-50/50 px-5 py-5 shadow-sm md:rounded-[24px] md:px-8 md:py-6">
         <div
           className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-cyan-400/15 blur-3xl"
           aria-hidden
         />
-        <div className="relative flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
-        <div className="min-w-0 max-w-2xl space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Dashboard</p>
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-950 md:text-4xl">Tus viajes</h1>
-          <p className="text-base leading-relaxed text-slate-600 md:text-lg">
+        <div className="relative flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div className="min-w-0 max-w-2xl space-y-2">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Dashboard</p>
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-950 md:text-3xl">Tus viajes</h1>
+          <p className="text-sm leading-relaxed text-slate-600 md:text-base">
             Un solo camino: <span className="font-semibold text-slate-800">crear el viaje</span>, dejar que el{" "}
             <span className="font-semibold text-slate-800">asistente personal</span> proponga plan y rutas (Premium), y{" "}
             <span className="font-semibold text-slate-800">editar</span> cuando quieras en Plan, Rutas o Gastos.
@@ -177,50 +179,45 @@ export default async function DashboardPage() {
         </div>
       </header>
 
-      <section className="rounded-[28px] border border-slate-200/90 bg-white px-6 py-10 shadow-sm md:px-12 md:py-12">
-        <ol className="mb-8 flex flex-wrap gap-6 text-sm text-slate-500 md:gap-10">
-          <li className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-950 text-xs font-bold text-white">
+      <section className="rounded-2xl border border-slate-200/90 bg-white px-5 py-6 shadow-sm md:rounded-[24px] md:px-8 md:py-7">
+        <ol className="mb-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-500 md:gap-x-8">
+          <li className="flex items-center gap-1.5">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-950 text-[11px] font-bold text-white">
               1
             </span>
             <span className="font-medium text-slate-800">Crear viaje</span>
           </li>
-          <li className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 bg-slate-50 text-xs font-bold text-slate-600">
+          <li className="flex items-center gap-1.5">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-300 bg-slate-50 text-[11px] font-bold text-slate-600">
               2
             </span>
             <span>Asistente (borrador)</span>
           </li>
-          <li className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 bg-slate-50 text-xs font-bold text-slate-600">
+          <li className="flex items-center gap-1.5">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-300 bg-slate-50 text-[11px] font-bold text-slate-600">
               3
             </span>
             <span>Editar a tu gusto</span>
           </li>
         </ol>
 
-        <div className="mx-auto max-w-xl space-y-4">
-          <a
-            href="#create-trip"
-            className="animate-dash-primary-once flex min-h-[56px] w-full items-center justify-center rounded-2xl bg-slate-950 px-6 py-4 text-center text-lg font-bold text-white shadow-md transition hover:bg-slate-800 motion-reduce:animate-none md:min-h-[64px] md:text-xl"
-          >
-            Crear viaje
-          </a>
+        <div className="mx-auto max-w-xl">
+          <DashboardCreateTripCta disabled={freeTripLimitReached} />
         </div>
 
-        <div className="mx-auto mt-10 max-w-2xl border-t border-slate-100 pt-10">
-          <p className="text-center text-xs font-bold uppercase tracking-[0.18em] text-violet-700">Asistente personal</p>
-          <p className="mx-auto mt-2 max-w-lg text-center text-sm text-slate-600">
+        <div className="mx-auto mt-6 max-w-2xl border-t border-slate-100 pt-6">
+          <p className="text-center text-[11px] font-bold uppercase tracking-[0.16em] text-violet-700">Asistente personal</p>
+          <p className="mx-auto mt-1 max-w-lg text-center text-xs text-slate-600 md:text-sm">
             Tras crear el viaje, el asistente te guía con propuestas. También puedes abrirlo en cualquier viaje desde la
             pestaña del mismo nombre.
           </p>
           {isPremium ? (
             <DashboardAiShortcuts trips={trips} isPremium />
           ) : (
-            <div className="mt-6 flex justify-center">
+            <div className="mt-4 flex justify-center">
               <Link
                 href="/account?upgrade=premium&focus=premium#premium-plans"
-                className="inline-flex min-h-[48px] w-full items-center justify-center rounded-2xl border-2 border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm font-semibold text-amber-950 transition hover:bg-amber-100 sm:w-auto sm:min-w-[280px]"
+                className="inline-flex min-h-[44px] w-full items-center justify-center rounded-xl border-2 border-amber-200 bg-amber-50 px-3 py-2.5 text-center text-xs font-semibold text-amber-950 transition hover:bg-amber-100 sm:w-auto sm:min-w-[260px] sm:text-sm"
               >
                 ✨ Crear con asistente personal (Premium)
               </Link>
@@ -228,20 +225,20 @@ export default async function DashboardPage() {
           )}
         </div>
 
-        <div id="create-trip" className="mx-auto mt-10 max-w-2xl scroll-mt-24 border-t border-slate-100 pt-10">
+        <div id="create-trip" className="mx-auto mt-6 max-w-2xl scroll-mt-20 border-t border-slate-100 pt-6">
           <CreateTripSection isPremium={isPremium} tripCount={trips.length} />
         </div>
       </section>
 
       {!isPremium ? (
-        <section className="rounded-2xl border border-slate-200 bg-slate-50/80 px-6 py-5 text-sm text-slate-700">
+        <section className="rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-xs text-slate-700 md:text-sm">
           <span className="font-semibold text-slate-900">Plan gratuito:</span> hasta 3 viajes. Premium desbloquea el
           asistente personal y el análisis de documentos.
         </section>
       ) : null}
 
       {trips.length === 0 ? null : (
-        <div className="space-y-8">
+        <div className="space-y-5">
           <DashboardTripSection
             title="En curso"
             subtitle="Lo que estás viviendo ahora."

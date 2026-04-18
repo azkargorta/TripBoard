@@ -40,6 +40,7 @@ type Intent = "optimize" | "auto_plans";
 
 function openDashboardCreateTripForm() {
   try {
+    window.dispatchEvent(new CustomEvent("kaviro:open-create-trip"));
     if (window.location.hash !== "#create-trip") {
       window.location.hash = "create-trip";
     }
@@ -84,7 +85,7 @@ export default function DashboardAiShortcuts({
 
   if (trips.length === 0) {
     return (
-      <p className="w-full text-center text-sm text-slate-500">
+      <p className="w-full text-center text-xs text-slate-500 sm:text-sm">
         Crea un viaje y podrás abrir el asistente con un clic desde aquí.
       </p>
     );
@@ -109,11 +110,11 @@ export default function DashboardAiShortcuts({
 
   return (
     <>
-      <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-center">
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-center">
         <button
           type="button"
           onClick={openDashboardCreateTripForm}
-          className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-2xl border-2 border-violet-300 bg-violet-50/80 px-4 py-3 text-center text-sm font-semibold text-violet-950 shadow-sm transition hover:bg-violet-50 sm:min-w-[220px] sm:flex-none"
+          className="inline-flex min-h-[40px] flex-1 items-center justify-center gap-2 rounded-xl border-2 border-violet-300 bg-violet-50/80 px-3 py-2 text-center text-xs font-semibold text-violet-950 shadow-sm transition hover:bg-violet-50 sm:min-w-[200px] sm:flex-none sm:text-sm"
           title="Abre el formulario para crear un viaje; al guardar con Premium puedes seguir en el asistente"
         >
           <Sparkles className="h-4 w-4 shrink-0 text-violet-700" aria-hidden />
@@ -123,13 +124,13 @@ export default function DashboardAiShortcuts({
           <>
             <Link
               href={hrefFor(trips[0].id, "optimize")}
-              className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 sm:min-w-[200px] sm:flex-none"
+              className="inline-flex min-h-[40px] flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 sm:min-w-[180px] sm:flex-none sm:text-sm"
             >
               Optimizar viaje
             </Link>
             <Link
               href={hrefFor(trips[0].id, "auto_plans")}
-              className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 sm:min-w-[220px] sm:flex-none"
+              className="inline-flex min-h-[40px] flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 sm:min-w-[200px] sm:flex-none sm:text-sm"
             >
               <Wand2 className="h-4 w-4 shrink-0 text-slate-600" aria-hidden />
               Añadir planes automáticamente
@@ -140,14 +141,14 @@ export default function DashboardAiShortcuts({
             <button
               type="button"
               onClick={() => openPicker("optimize")}
-              className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 sm:min-w-[200px] sm:flex-none"
+              className="inline-flex min-h-[40px] flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 sm:min-w-[180px] sm:flex-none sm:text-sm"
             >
               Optimizar viaje…
             </button>
             <button
               type="button"
               onClick={() => openPicker("auto_plans")}
-              className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 sm:min-w-[220px] sm:flex-none"
+              className="inline-flex min-h-[40px] flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 sm:min-w-[200px] sm:flex-none sm:text-sm"
             >
               <Wand2 className="h-4 w-4 shrink-0 text-slate-600" aria-hidden />
               Añadir planes automáticamente…
