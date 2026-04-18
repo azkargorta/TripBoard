@@ -40,7 +40,6 @@ type Intent = "optimize" | "auto_plans";
 
 function openDashboardCreateTripForm() {
   try {
-    window.dispatchEvent(new CustomEvent("kaviro:open-create-trip"));
     if (window.location.hash !== "#create-trip") {
       window.location.hash = "create-trip";
     }

@@ -50,7 +50,7 @@ export default function AuthShell({
                 </div>
 
                 <h1 className="mt-5 text-4xl font-extrabold leading-tight tracking-tight">
-                  Entra en tu espacio de viajes con una experiencia más visual y cuidada.
+                  Organiza y disfruta de tu viaje gracias a tu planificador personal.
                 </h1>
 
                 <p className="mt-4 text-base leading-7 text-white/75">

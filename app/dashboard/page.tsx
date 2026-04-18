@@ -229,7 +229,7 @@ export default async function DashboardPage() {
         </div>
 
         <div id="create-trip" className="mx-auto mt-10 max-w-2xl scroll-mt-24 border-t border-slate-100 pt-10">
-          <CreateTripSection isPremium={isPremium} tripCount={trips.length} startWithFormOpen={trips.length === 0} />
+          <CreateTripSection isPremium={isPremium} tripCount={trips.length} />
         </div>
       </section>
 
