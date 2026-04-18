@@ -3,9 +3,9 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import SignOutButton from "@/components/auth/SignOutButton";
 import CreateTripSection from "@/components/dashboard/CreateTripSection";
-import TripCardItem from "@/components/dashboard/TripCardItem";
 import OnboardingNudge from "@/components/dashboard/OnboardingNudge";
 import DashboardAiShortcuts from "@/components/dashboard/DashboardAiShortcuts";
+import DashboardTripSection from "@/components/dashboard/DashboardTripSection";
 import { isPlatformAdmin } from "@/lib/platform-admin";
 
 type Trip = {
@@ -78,70 +78,6 @@ function categorizeTrips(trips: Trip[]) {
   }
 
   return { current, future, past, unscheduled };
-}
-
-function TripCard({
-  trip,
-  badge,
-  accent,
-  locked,
-}: {
-  trip: Trip;
-  badge: string;
-  accent: string;
-  locked: boolean;
-}) {
-  return <TripCardItem trip={trip} badge={badge} accent={accent} locked={locked} />;
-}
-
-function TripSection({
-  title,
-  subtitle,
-  trips,
-  badge,
-  accent,
-  lockedTripIds,
-}: {
-  title: string;
-  subtitle: string;
-  trips: Trip[];
-  badge: string;
-  accent: string;
-  lockedTripIds: Set<string>;
-}) {
-  return (
-    <section className="space-y-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
-        <div className="min-w-0">
-          <h2 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">{title}</h2>
-          <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
-        </div>
-        <div className="shrink-0 self-start rounded-full border border-slate-200/80 bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm sm:self-auto">
-          {trips.length} viaje{trips.length === 1 ? "" : "s"}
-        </div>
-      </div>
-
-      {trips.length === 0 ? (
-        <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50/80 px-6 py-10 text-center text-sm text-slate-500">
-          No hay viajes en esta categoría.
-        </div>
-      ) : (
-        <div className="rounded-[28px] border border-slate-200/80 bg-gradient-to-b from-white to-slate-50/90 p-5 shadow-sm sm:p-7 md:p-8">
-          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {trips.map((trip) => (
-              <TripCard
-                key={trip.id}
-                trip={trip}
-                badge={badge}
-                accent={accent}
-                locked={lockedTripIds.has(String(trip.id))}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-    </section>
-  );
 }
 
 export default async function DashboardPage() {
@@ -291,6 +227,10 @@ export default async function DashboardPage() {
             </div>
           )}
         </div>
+
+        <div id="create-trip" className="mx-auto mt-10 max-w-2xl scroll-mt-24 border-t border-slate-100 pt-10">
+          <CreateTripSection isPremium={isPremium} tripCount={trips.length} startWithFormOpen={trips.length === 0} />
+        </div>
       </section>
 
       {!isPremium ? (
@@ -327,58 +267,40 @@ export default async function DashboardPage() {
         </div>
       </details>
 
-      <section
-        id="create-trip"
-        className="relative overflow-hidden rounded-[28px] border border-slate-200/90 bg-gradient-to-br from-white via-violet-50/30 to-sky-50/40 px-6 py-9 shadow-md md:px-10 md:py-11"
-      >
-        <div className="pointer-events-none absolute -left-16 bottom-0 h-48 w-48 rounded-full bg-violet-300/10 blur-3xl" aria-hidden />
-        <div className="relative">
-          <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-violet-700">Nuevo viaje</p>
-          <h2 className="mt-2 text-xl font-bold tracking-tight text-slate-950 md:text-2xl">Crear viaje</h2>
-          <p className="mt-2 max-w-xl text-sm text-slate-600">
-            Nombre obligatorio; destino y fechas cuando quieras. Con Premium, al guardar puedes seguir en el asistente
-            personal.
-          </p>
-          <div className="mt-8 rounded-2xl border border-white/60 bg-white/90 p-5 shadow-sm backdrop-blur-sm md:p-7">
-            <CreateTripSection isPremium={isPremium} tripCount={trips.length} startWithFormOpen={trips.length === 0} />
-          </div>
-        </div>
-      </section>
-
       {trips.length === 0 ? null : (
-        <div className="space-y-14">
-          <TripSection
+        <div className="space-y-8">
+          <DashboardTripSection
             title="En curso"
             subtitle="Lo que estás viviendo ahora."
             trips={current}
             badge="En curso"
             accent="from-emerald-100 to-teal-50 border-emerald-200"
-            lockedTripIds={lockedTripIds}
+            lockedTripIds={Array.from(lockedTripIds)}
           />
-          <TripSection
+          <DashboardTripSection
             title="Próximos"
             subtitle="Viajes con fecha futura."
             trips={future}
             badge="Próximo"
             accent="from-sky-100 to-cyan-50 border-sky-200"
-            lockedTripIds={lockedTripIds}
+            lockedTripIds={Array.from(lockedTripIds)}
           />
-          <TripSection
+          <DashboardTripSection
             title="Pasados"
             subtitle="Viajes ya cerrados en el calendario."
             trips={past}
             badge="Finalizado"
             accent="from-slate-100 to-slate-50 border-slate-200"
-            lockedTripIds={lockedTripIds}
+            lockedTripIds={Array.from(lockedTripIds)}
           />
           {unscheduled.length > 0 ? (
-            <TripSection
+            <DashboardTripSection
               title="Sin fechas cerradas"
               subtitle="Define inicio y fin cuando puedas."
               trips={unscheduled}
               badge="Pendiente"
               accent="from-amber-100 to-orange-50 border-amber-200"
-              lockedTripIds={lockedTripIds}
+              lockedTripIds={Array.from(lockedTripIds)}
             />
           ) : null}
         </div>

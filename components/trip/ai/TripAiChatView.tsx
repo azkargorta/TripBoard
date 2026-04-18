@@ -5,6 +5,7 @@ import TripScreenActions from "@/components/trip/common/TripScreenActions";
 import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useTripData } from "@/hooks/useTripData";
 import { useTripAiOnboarding, type OnboardingDraft } from "@/components/trip/ai/useTripAiOnboarding";
 import type { AIActionId } from "@/lib/trip-ai/aiActions";
@@ -375,12 +376,53 @@ export default function TripAiChatView({
   const [diffSelected, setDiffSelected] = useState<Set<string>>(new Set());
   const [executingPlan, setExecutingPlan] = useState(false);
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
+  const dayStripRef = useRef<HTMLDivElement | null>(null);
+  const [dayStripEdges, setDayStripEdges] = useState({ left: false, right: false });
   const [modeSource, setModeSource] = useState<"auto" | "manual">(() => ctxPreset?.modeSource ?? "auto");
   const [planActivityCount, setPlanActivityCount] = useState<number | null>(null);
   const [onboardingBusy, setOnboardingBusy] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const { trip, reload: reloadTrip, loading: tripDataLoading } = useTripData(tripId);
+
+  const syncDayStripEdges = useCallback(() => {
+    const el = dayStripRef.current;
+    if (!el) return;
+    const maxScroll = el.scrollWidth - el.clientWidth;
+    if (maxScroll <= 2) {
+      setDayStripEdges({ left: false, right: false });
+      return;
+    }
+    setDayStripEdges({
+      left: el.scrollLeft > 4,
+      right: el.scrollLeft < maxScroll - 4,
+    });
+  }, []);
+
+  const scrollDayStrip = useCallback((dir: "left" | "right") => {
+    const el = dayStripRef.current;
+    if (!el) return;
+    const step = Math.max(200, Math.floor(el.clientWidth * 0.72));
+    el.scrollBy({ left: dir === "left" ? -step : step, behavior: "smooth" });
+  }, []);
+
+  useEffect(() => {
+    if (!itineraryDraft) {
+      setDayStripEdges({ left: false, right: false });
+      return;
+    }
+    const el = dayStripRef.current;
+    if (!el) return;
+    const onScroll = () => syncDayStripEdges();
+    const ro = new ResizeObserver(() => syncDayStripEdges());
+    ro.observe(el);
+    el.addEventListener("scroll", onScroll, { passive: true });
+    requestAnimationFrame(() => syncDayStripEdges());
+    return () => {
+      ro.disconnect();
+      el.removeEventListener("scroll", onScroll);
+    };
+  }, [itineraryDraft, itineraryDraft?.days?.length, syncDayStripEdges]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1141,27 +1183,80 @@ export default function TripAiChatView({
               <div className="mt-1 text-xs text-slate-600">
                 Revisa en el chat y, cuando estés conforme, ejecútalo para añadirlo al Plan.
               </div>
+              {dayStripEdges.right || dayStripEdges.left ? (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {dayStripEdges.right ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-300/80 bg-violet-100/90 px-2.5 py-1 text-[11px] font-semibold text-violet-950 shadow-sm">
+                      <ChevronRight className="h-3.5 w-3.5 shrink-0 motion-safe:animate-pulse" aria-hidden />
+                      Hay más días a la derecha (desliza o usa las flechas)
+                    </span>
+                  ) : null}
+                  {dayStripEdges.left ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700">
+                      <ChevronLeft className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                      También hay días a la izquierda
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
               {itineraryDraft.days.length > 6 ? (
-                <p className="mt-2 text-[11px] font-medium text-slate-500">
-                  Desliza horizontalmente para ver los {itineraryDraft.days.length} días.
+                <p className="mt-1.5 text-[11px] font-medium text-slate-500">
+                  Total {itineraryDraft.days.length} días: usa la barra de desplazamiento inferior o las flechas laterales.
                 </p>
               ) : null}
-              <div className="mt-3 flex gap-2 overflow-x-auto pb-1 pt-0.5 [-ms-overflow-style:none] [scrollbar-width:thin] sm:snap-x sm:snap-mandatory [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-violet-200">
-                {itineraryDraft.days.map((d) => (
+              <div className="relative mt-3 min-w-0">
+                {dayStripEdges.left ? (
+                  <div
+                    className="pointer-events-none absolute inset-y-0 left-0 z-10 w-12 rounded-l-lg bg-gradient-to-r from-violet-50 via-violet-50/75 to-transparent sm:w-16"
+                    aria-hidden
+                  />
+                ) : null}
+                {dayStripEdges.right ? (
+                  <div
+                    className="pointer-events-none absolute inset-y-0 right-0 z-10 w-12 rounded-r-lg bg-gradient-to-l from-violet-50 via-violet-50/75 to-transparent sm:w-16"
+                    aria-hidden
+                  />
+                ) : null}
+                {dayStripEdges.left ? (
                   <button
-                    key={d.day}
                     type="button"
-                    onClick={() => setExpandedDay((prev) => (prev === d.day ? null : d.day))}
-                    className={`min-w-[148px] shrink-0 snap-start rounded-xl border px-3 py-2 text-left text-xs transition sm:min-w-[160px] ${
-                      expandedDay === d.day
-                        ? "border-violet-300 bg-violet-50"
-                        : "border-slate-200 bg-white hover:bg-slate-50"
-                    }`}
+                    aria-label="Ver días anteriores"
+                    onClick={() => scrollDayStrip("left")}
+                    className="absolute left-1 top-1/2 z-20 -translate-y-1/2 rounded-full border border-violet-200/90 bg-white p-1.5 text-violet-800 shadow-md transition hover:bg-violet-50 sm:left-2 sm:p-2"
                   >
-                    <div className="font-extrabold text-slate-900">Día {d.day}{d.date ? ` · ${d.date}` : ""}</div>
-                    <div className="mt-0.5 text-slate-600">{d.items.length} paradas</div>
+                    <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden />
                   </button>
-                ))}
+                ) : null}
+                {dayStripEdges.right ? (
+                  <button
+                    type="button"
+                    aria-label="Ver más días"
+                    onClick={() => scrollDayStrip("right")}
+                    className="absolute right-1 top-1/2 z-20 -translate-y-1/2 rounded-full border border-violet-200/90 bg-white p-1.5 text-violet-800 shadow-md transition hover:bg-violet-50 sm:right-2 sm:p-2"
+                  >
+                    <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden />
+                  </button>
+                ) : null}
+                <div
+                  ref={dayStripRef}
+                  className="flex gap-2 overflow-x-auto overflow-y-visible py-1 pl-2 pr-2 pt-0.5 [scrollbar-color:rgba(139,92,246,0.45)_transparent] [scrollbar-width:thin] sm:snap-x sm:snap-mandatory sm:pl-10 sm:pr-10 [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-violet-300/80 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-violet-100/50"
+                >
+                  {itineraryDraft.days.map((d) => (
+                    <button
+                      key={d.day}
+                      type="button"
+                      onClick={() => setExpandedDay((prev) => (prev === d.day ? null : d.day))}
+                      className={`min-w-[148px] shrink-0 snap-start rounded-xl border px-3 py-2 text-left text-xs transition sm:min-w-[160px] ${
+                        expandedDay === d.day
+                          ? "border-violet-300 bg-violet-50"
+                          : "border-slate-200 bg-white hover:bg-slate-50"
+                      }`}
+                    >
+                      <div className="font-extrabold text-slate-900">Día {d.day}{d.date ? ` · ${d.date}` : ""}</div>
+                      <div className="mt-0.5 text-slate-600">{d.items.length} paradas</div>
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {expandedDay ? (
