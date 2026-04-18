@@ -13,7 +13,7 @@ import { generateExecutableItineraryFromIntent } from "@/lib/trip-ai/generateIti
 import { executePlanOnTrip } from "@/lib/trip-ai/executePlanOnTrip";
 import { createTripWithOwner } from "@/lib/trips/createTripWithOwner";
 import { ensureUserCanCreateTrip } from "@/lib/trips/tripCreationLimits";
-import { requireTripAccess } from "@/lib/trip-access";
+import { getTripAccessForApi } from "@/lib/trip-access";
 import { isPremiumEnabledForTrip } from "@/lib/entitlements";
 import type { TripAiUsage } from "@/lib/trip-ai/providers";
 
@@ -129,7 +129,16 @@ export async function POST(req: Request) {
 
     const tripId = tripRes.tripId;
 
-    const access = await requireTripAccess(tripId);
+    const accessResult = await getTripAccessForApi(supabase, tripId);
+    if (!accessResult.ok) {
+      return NextResponse.json({
+        status: "partial",
+        tripId,
+        error: accessResult.error,
+        draftIntent: intent,
+      });
+    }
+    const access = accessResult.access;
     const premiumTrip = await isPremiumEnabledForTrip({ supabase, userId, tripId });
     if (!premiumTrip || !access.can_manage_plan) {
       return NextResponse.json(

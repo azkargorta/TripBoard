@@ -5,6 +5,13 @@ import { useRouter } from "next/navigation";
 import { Loader2, Sparkles } from "lucide-react";
 import type { TripCreationIntent } from "@/lib/trip-ai/tripCreationTypes";
 
+/** Alineado con `maxDuration` del endpoint (300s); margen para red + JSON. */
+const AUTO_CREATE_FETCH_MS = 180_000;
+
+function isAbortError(e: unknown): boolean {
+  return typeof e === "object" && e !== null && "name" in e && (e as { name: string }).name === "AbortError";
+}
+
 const CHIPS = [
   "Escapada romántica a Florencia 3 días",
   "Viaje barato 5 días con amigos, playa y comida local",
@@ -27,13 +34,20 @@ export default function AutoCreateTripPanel() {
     setLoading(true);
     setError(null);
     setInfo(null);
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), AUTO_CREATE_FETCH_MS);
     try {
       const res = await fetch("/api/trips/auto-create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
+        signal: controller.signal,
       });
-      const data = await res.json().catch(() => null);
+      const ct = res.headers.get("content-type") || "";
+      const data =
+        ct.includes("application/json") || ct.includes("text/json")
+          ? await res.json().catch(() => null)
+          : null;
       if (!res.ok) {
         throw new Error(data?.error || "No se pudo procesar la solicitud.");
       }
@@ -68,8 +82,15 @@ export default function AutoCreateTripPanel() {
       router.push(`/trip/${encodeURIComponent(tripId)}/ai-chat?recien=1`);
       router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error inesperado.");
+      if (isAbortError(e)) {
+        setError(
+          "La generación tardó demasiado (el servidor puede estar ocupado). Prueba con menos días o inténtalo de nuevo en unos minutos."
+        );
+      } else {
+        setError(e instanceof Error ? e.message : "Error inesperado.");
+      }
     } finally {
+      window.clearTimeout(timeoutId);
       setLoading(false);
     }
   }
@@ -84,7 +105,7 @@ export default function AutoCreateTripPanel() {
       </div>
       <h2 className="mt-3 text-lg font-extrabold tracking-tight text-slate-950 md:text-xl">Cuéntame tu viaje y te lo organizo</h2>
       <p className="mt-1 text-sm text-slate-600">
-        Una frase basta: destino, días o fechas, ritmo y presupuesto. Si falta algo clave, te haré una sola pregunta corta.
+        Una frase basta: destino, días o fechas, ritmo y presupuesto. Si falta algo clave, te haré una sola pregunta corta. Con muchos días y rutas puede tardar hasta un par de minutos.
       </p>
 
       {error ? (
@@ -174,6 +195,9 @@ export default function AutoCreateTripPanel() {
             {loading ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : <Sparkles className="h-5 w-5" aria-hidden />}
             {loading ? "Creando viaje…" : "Crear viaje automático"}
           </button>
+          <p className="mt-2 text-[11px] text-slate-500">
+            Si el botón sigue cargando mucho rato, en cuanto termine verás un mensaje o te redirigiré al viaje.
+          </p>
         </>
       )}
     </div>
