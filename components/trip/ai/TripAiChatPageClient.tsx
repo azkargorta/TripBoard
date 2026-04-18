@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import type { TripAiMode } from "@/lib/trip-ai/buildPrompt";
 
 const TripAiChatView = dynamic(() => import("@/components/trip/ai/TripAiChatView"), {
   loading: () => (
@@ -15,6 +16,7 @@ export default function TripAiChatPageClient({
   isPremium,
   autoBootstrapItinerary = false,
   launchIntent = null,
+  defaultAssistantMode = null,
 }: {
   tripId: string;
   isPremium: boolean;
@@ -22,6 +24,8 @@ export default function TripAiChatPageClient({
   autoBootstrapItinerary?: boolean;
   /** Atajos del dashboard: `?intent=optimize` o `?intent=auto_plans`. */
   launchIntent?: "optimize" | "auto_plans" | null;
+  /** Desde `?modo=…` (p. ej. planificador al crear viaje). */
+  defaultAssistantMode?: TripAiMode | null;
 }) {
   return (
     <TripAiChatView
@@ -29,6 +33,7 @@ export default function TripAiChatPageClient({
       isPremium={isPremium}
       autoBootstrapItinerary={autoBootstrapItinerary}
       launchIntent={launchIntent}
+      defaultAssistantMode={defaultAssistantMode}
     />
   );
 }

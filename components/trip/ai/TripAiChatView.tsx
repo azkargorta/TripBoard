@@ -5,7 +5,8 @@ import TripScreenActions from "@/components/trip/common/TripScreenActions";
 import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, FileText, MessageCircle, Route } from "lucide-react";
+import type { TripAiMode } from "@/lib/trip-ai/buildPrompt";
 import { useTripData } from "@/hooks/useTripData";
 import { useTripActivities } from "@/hooks/useTripActivities";
 import { useTripAiOnboarding, type OnboardingDraft } from "@/components/trip/ai/useTripAiOnboarding";
@@ -14,11 +15,8 @@ import type { TripAssistantSurface } from "@/lib/trip-assistant-context";
 
 type TripAiChatLayout = "page" | "drawer";
 
-type ChatMode = "general" | "planning" | "expenses" | "optimizer" | "actions";
-type ExtendedChatMode = ChatMode | "day_planner";
-
 type AssistantContextPreset = {
-  mode: ExtendedChatMode;
+  mode: TripAiMode;
   modeSource: "auto" | "manual";
   welcome: string;
 };
@@ -80,13 +78,97 @@ function assistantContextPreset(surface: TripAssistantSurface): AssistantContext
 
 const DEFAULT_PAGE_WELCOME =
   "Bienvenido ✈️\n\n" +
-  "Escribe con naturalidad (destino, días, ritmo, qué os apetece) o pulsa arriba «Sugerir itinerario» si el plan está vacío: te preparo un borrador de varios días y lo vas afinando en esta misma conversación.\n\n" +
-  "Cuando salga el itinerario en formato ejecutable, «Ejecutar plan» lo vuelca al mapa y al plan; los retoques puntuales van con «Aplicar cambios». Para un solo día muy detallado, usa «Modo asistente → Organizar día».";
+  "Elige abajo el **foco** del asistente (planificador, un día y desplazamientos, chat general o documentos). Escribe con naturalidad o pulsa «Sugerir itinerario» si el plan está vacío.\n\n" +
+  "Cuando salga el itinerario en formato ejecutable, «Ejecutar plan» lo vuelca al mapa y al plan; los retoques puntuales van con «Aplicar cambios».";
+
+const PLANNER_FOCUS_WELCOME =
+  "Modo **Planificador (todo el viaje)**\n\n" +
+  "Aquí preparo un itinerario que cubre **cada día del calendario** de este viaje (con actividades o, si toca, días de traslado/descanso explícitos), no solo un resumen.\n\n" +
+  "Cuando el JSON esté listo, usa **«Ejecutar plan»** para volcarlo al Plan y al mapa. Si faltan país inequívoco o fechas, te preguntaré antes.\n\n" +
+  "Puedes describir ritmo y prioridades, o pulsar «Sugerir itinerario» si el plan está vacío.";
+
+const DAY_FOCUS_WELCOME =
+  "Modo **Desplazamientos y un día**\n\n" +
+  "Pensado para **un día concreto**: horarios, comidas y cómo moveros (andando, coche, etc.). Las respuestas pasan por el motor de **Organizar día**; luego podrás **Aplicar cambios** en el plan.\n\n" +
+  "Indica la **fecha (YYYY-MM-DD)**, ciudad con **país** y el ritmo que buscáis.";
+
+const TRAVEL_DOCS_WELCOME =
+  "Modo **Documentos del viaje**\n\n" +
+  "Dime la **nacionalidad** del pasaporte con el que viajas y confirma los **países** que visitarás (si el viaje ya tiene destino, lo usaré). Te devolveré una **lista** con visados o autorizaciones (ETIAS, ESTA, eTA…), seguros, tasas, carnets de conducir o sanidad cuando aplique.\n\n" +
+  "No sustituye al consulado: revisa siempre en **fuentes oficiales** antes de reservar.";
+
+const KNOWN_TRIP_AI_MODES = new Set<string>([
+  "general",
+  "planning",
+  "expenses",
+  "optimizer",
+  "actions",
+  "day_planner",
+  "travel_docs",
+]);
+
+function coerceTripAiMode(value: unknown): TripAiMode {
+  return typeof value === "string" && KNOWN_TRIP_AI_MODES.has(value) ? (value as TripAiMode) : "general";
+}
+
+function buildInitialWelcomeMessages(params: {
+  layout: TripAiChatLayout;
+  ctxPreset: AssistantContextPreset | null;
+  defaultAssistantMode: TripAiMode | null;
+}): Message[] {
+  if (params.layout === "drawer" && params.ctxPreset?.welcome) {
+    return [{ id: "welcome", role: "assistant", content: params.ctxPreset.welcome }];
+  }
+  if (params.defaultAssistantMode === "planning") {
+    return [{ id: "welcome", role: "assistant", content: PLANNER_FOCUS_WELCOME }];
+  }
+  if (params.defaultAssistantMode === "day_planner") {
+    return [{ id: "welcome", role: "assistant", content: DAY_FOCUS_WELCOME }];
+  }
+  if (params.defaultAssistantMode === "travel_docs") {
+    return [{ id: "welcome", role: "assistant", content: TRAVEL_DOCS_WELCOME }];
+  }
+  return [{ id: "welcome", role: "assistant", content: DEFAULT_PAGE_WELCOME }];
+}
+
+type LucideIcon = typeof MessageCircle;
+
+const ASSISTANT_FOCUS_PRESETS: Array<{
+  id: TripAiMode;
+  label: string;
+  description: string;
+  Icon: LucideIcon;
+}> = [
+  {
+    id: "planning",
+    label: "Planificador",
+    description: "Todos los días del viaje. Itinerario + «Ejecutar plan».",
+    Icon: CalendarDays,
+  },
+  {
+    id: "day_planner",
+    label: "Desplazamientos",
+    description: "Un día con horarios y cómo moveros.",
+    Icon: Route,
+  },
+  {
+    id: "general",
+    label: "Chat general",
+    description: "Resúmenes, dudas amplias y recomendaciones.",
+    Icon: MessageCircle,
+  },
+  {
+    id: "travel_docs",
+    label: "Documentos",
+    description: "Visados, seguros, tasas según nacionalidad y países.",
+    Icon: FileText,
+  },
+];
 
 type Conversation = {
   id: string;
   title: string;
-  mode: ExtendedChatMode;
+  mode: TripAiMode;
   updated_at?: string;
 };
 
@@ -188,7 +270,7 @@ function stripTripboardJsonBlocksForDisplay(content: string): string {
 }
 
 type ModeOption = {
-  id: ExtendedChatMode;
+  id: TripAiMode;
   label: string;
   /** Cuándo elegirlo (texto orientativo) */
   useFor: string;
@@ -225,18 +307,24 @@ const MODE_OPTIONS: ModeOption[] = [
     label: "Organizar día",
     useFor: "Un solo día: horarios, comidas, desplazamientos; guardas con «Aplicar cambios» (no «Ejecutar plan»).",
   },
+  {
+    id: "travel_docs",
+    label: "Documentos del viaje",
+    useFor: "Visados, seguros, tasas y requisitos según nacionalidad y países a visitar.",
+  },
 ];
 
-const MODE_LABELS: Record<ExtendedChatMode, string> = {
+const MODE_LABELS: Record<TripAiMode, string> = {
   general: "General",
   planning: "Planificación",
   expenses: "Gastos",
   optimizer: "Optimizador",
   actions: "Acciones",
   day_planner: "Organizar día",
+  travel_docs: "Documentos",
 };
 
-const PLACEHOLDERS: Record<ExtendedChatMode, string> = {
+const PLACEHOLDERS: Record<TripAiMode, string> = {
   general: "Ej.: hazme un resumen del viaje o qué documentos conviene llevar…",
   planning: "Ej.: dame un plan de 3 días en Roma o reorganiza mis visitas…",
   expenses: "Ej.: ¿cuánto llevamos gastado? ¿quién debe a quién?…",
@@ -244,6 +332,8 @@ const PLACEHOLDERS: Record<ExtendedChatMode, string> = {
   actions: "Ej.: añade una cena el viernes en el plan o crea una ruta entre dos puntos…",
   day_planner:
     "Ej.: organízame el 2026-06-15 en Ámsterdam, andando, de 10:00 a 21:00… (luego «Aplicar cambios» para guardar)",
+  travel_docs:
+    "Ej.: pasaporte español, viajo a Marruecos y Turquía en junio — ¿qué documentos y trámites necesito?",
 };
 
 const SMART_CHIPS: Array<{ label: string; prompt: string; action: AIActionId }> = [
@@ -253,7 +343,7 @@ const SMART_CHIPS: Array<{ label: string; prompt: string; action: AIActionId }> 
   { label: "🍽️ Añadir restaurantes", prompt: "Sugiere restaurantes que encajen y, si aplica, añade actividades tipo restaurante al plan.", action: "add_activity" },
 ];
 
-const SUGGESTIONS: Record<ExtendedChatMode, string[]> = {
+const SUGGESTIONS: Record<TripAiMode, string[]> = {
   general: [
     "Hazme un resumen del viaje",
     "¿Qué reservas tengo confirmadas?",
@@ -284,6 +374,11 @@ const SUGGESTIONS: Record<ExtendedChatMode, string[]> = {
     "Hazme un día completo mañana. Ritmo tranquilo, comida informal y cena reservable. En coche.",
     "Quiero visitar lo imprescindible en un día y que me lo guardes con rutas.",
   ],
+  travel_docs: [
+    "Pasaporte colombiano: voy 10 días a España y Francia en verano. ¿Qué necesito?",
+    "Nacionalidad mexicana, solo Reino Unido 1 semana. Lista de documentos y seguros.",
+    "¿ETIAS o visado si entro en Grecia y luego Croacia con pasaporte argentino?",
+  ],
 };
 
 export default function TripAiChatView({
@@ -293,6 +388,7 @@ export default function TripAiChatView({
   assistantContext = null,
   autoBootstrapItinerary = false,
   launchIntent = null,
+  defaultAssistantMode = null,
 }: {
   tripId: string;
   isPremium?: boolean;
@@ -307,6 +403,8 @@ export default function TripAiChatView({
   autoBootstrapItinerary?: boolean;
   /** Atajos desde el dashboard: envía un primer mensaje y limpia la URL al terminar bien. */
   launchIntent?: "optimize" | "auto_plans" | null;
+  /** Desde `?modo=…` en la URL (p. ej. planificador al crear viaje). Ignorado si hay `assistantContext` en drawer. */
+  defaultAssistantMode?: TripAiMode | null;
 }) {
   const ctxPreset = assistantContext ? assistantContextPreset(assistantContext) : null;
   const router = useRouter();
@@ -350,17 +448,17 @@ export default function TripAiChatView({
     );
   }
 
-  const [mode, setMode] = useState<ExtendedChatMode>(() => ctxPreset?.mode ?? "general");
+  const [mode, setMode] = useState<TripAiMode>(() => ctxPreset?.mode ?? defaultAssistantMode ?? "general");
   const [provider, setProvider] = useState<"auto" | "gemini" | "ollama">("auto");
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>(() => [
-    {
-      id: "welcome",
-      role: "assistant",
-      content: layout === "drawer" && ctxPreset?.welcome ? ctxPreset.welcome : DEFAULT_PAGE_WELCOME,
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>(() =>
+    buildInitialWelcomeMessages({
+      layout,
+      ctxPreset,
+      defaultAssistantMode: ctxPreset ? null : defaultAssistantMode ?? null,
+    })
+  );
   const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -380,7 +478,9 @@ export default function TripAiChatView({
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
   const dayStripRef = useRef<HTMLDivElement | null>(null);
   const [dayStripEdges, setDayStripEdges] = useState({ left: false, right: false });
-  const [modeSource, setModeSource] = useState<"auto" | "manual">(() => ctxPreset?.modeSource ?? "auto");
+  const [modeSource, setModeSource] = useState<"auto" | "manual">(() =>
+    ctxPreset?.modeSource ?? (defaultAssistantMode ? "manual" : "auto")
+  );
   const [planActivityCount, setPlanActivityCount] = useState<number | null>(null);
   const [onboardingBusy, setOnboardingBusy] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
@@ -743,7 +843,13 @@ export default function TripAiChatView({
     const res = await fetch(`/api/trip-ai/conversations?tripId=${encodeURIComponent(tripId)}`);
     const data = await res.json().catch(() => null);
     if (res.ok) {
-      setConversations(Array.isArray(data?.conversations) ? data.conversations : []);
+      const raw = Array.isArray(data?.conversations) ? data.conversations : [];
+      setConversations(
+        raw.map((c: Conversation) => ({
+          ...c,
+          mode: coerceTripAiMode((c as Conversation).mode),
+        }))
+      );
     }
   }
 
@@ -757,7 +863,7 @@ export default function TripAiChatView({
       if (!res.ok) throw new Error(data?.error || "No se pudo abrir la conversación.");
       setConversationId(id);
       setMessages(data?.messages?.length ? data.messages : []);
-      if (data?.conversation?.mode) setMode(data.conversation.mode);
+      if (data?.conversation?.mode) setMode(coerceTripAiMode(data.conversation.mode));
       setInfo(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo abrir la conversación.");
@@ -779,14 +885,14 @@ export default function TripAiChatView({
         },
       ]);
     } else {
-      setModeSource("auto");
-      setMode("general");
+      const def = defaultAssistantMode ?? null;
+      setModeSource(def ? "manual" : "auto");
+      setMode(def ?? "general");
       setMessages([
         {
           id: crypto.randomUUID(),
           role: "assistant",
-          content:
-            "Nueva conversación. Cuéntame destino, fechas y qué buscáis del viaje; con el modo automático iré orientando respuestas y propuestas. Cuando haya itinerario o cambios concretos, los guardas con «Ejecutar plan» o «Aplicar cambios».",
+          content: buildInitialWelcomeMessages({ layout, ctxPreset: null, defaultAssistantMode: def })[0]?.content ?? DEFAULT_PAGE_WELCOME,
         },
       ]);
     }
@@ -1725,7 +1831,7 @@ export default function TripAiChatView({
                 >
                   <div className="font-semibold">{item.title || "Sin título"}</div>
                   <div className="mt-1 text-xs opacity-70">
-                    {MODE_LABELS[item.mode as ExtendedChatMode] || item.mode}
+                    {MODE_LABELS[item.mode as TripAiMode] || item.mode}
                   </div>
                 </button>
               )) : (
@@ -1754,14 +1860,14 @@ export default function TripAiChatView({
         ) : null}
 
         <section className="chat-panel order-1 min-w-0 rounded-[28px] border border-slate-200 bg-white shadow-sm xl:order-2">
-          <div className="border-b border-slate-200 px-5 py-4">
-            <div className="flex items-center justify-between gap-3">
+          <div className="border-b border-slate-200 px-4 py-3 sm:px-5 sm:py-4">
+            <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <h2 className="text-lg font-bold text-slate-950">Conversación</h2>
                 <p className="mt-1 text-sm text-slate-500">
                   Modo:{" "}
                   <span className="font-semibold text-slate-800">
-                    {modeSource === "auto" ? "Automático" : activeMode?.label || mode}
+                    {modeSource === "auto" ? "Automático" : activeMode?.label || MODE_LABELS[mode] || mode}
                   </span>
                   {modeSource === "manual" && activeMode ? (
                     <span className="mt-0.5 block text-xs text-slate-500 xl:hidden">{activeMode.useFor}</span>
@@ -1773,37 +1879,85 @@ export default function TripAiChatView({
                     : "Modo manual: controlas el tipo de respuesta del asistente personal."}
                 </p>
               </div>
-
-              <div className="flex flex-col items-end gap-2">
-                <label className="flex flex-col items-end gap-1 text-[11px] font-semibold text-slate-600">
-                  Modo asistente
-                  <select
-                    value={modeSource === "manual" ? mode : "auto"}
-                    onChange={(e) => {
-                      const v = e.target.value as "auto" | ExtendedChatMode;
-                      if (v === "auto") {
-                        setModeSource("auto");
-                      } else {
-                        setModeSource("manual");
-                        setMode(v);
-                      }
-                    }}
-                    className="rounded-xl border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800 shadow-sm"
-                  >
-                    <option value="auto">Automático (recomendado)</option>
-                    <option value="general">Manual · General</option>
-                    <option value="planning">Manual · Planificación</option>
-                    <option value="expenses">Manual · Gastos</option>
-                    <option value="optimizer">Manual · Optimizador</option>
-                    <option value="actions">Manual · Acciones</option>
-                    <option value="day_planner">Manual · Organizar día</option>
-                  </select>
-                </label>
-                <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                  {loading ? "Pensando..." : "Listo"}
-                </div>
+              <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                {loading ? "Pensando..." : "Listo"}
               </div>
             </div>
+
+            <p className="mt-3 text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-500">Elige el foco</p>
+            <div className="mt-2 grid grid-cols-2 gap-2 lg:grid-cols-4">
+              {ASSISTANT_FOCUS_PRESETS.map((preset) => {
+                const selected = modeSource === "manual" && mode === preset.id;
+                const Icon = preset.Icon;
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    disabled={loading}
+                    onClick={() => {
+                      setMode(preset.id);
+                      setModeSource("manual");
+                    }}
+                    className={`flex min-h-[88px] flex-col items-start gap-1.5 rounded-2xl border px-3 py-2.5 text-left transition disabled:opacity-50 ${
+                      selected
+                        ? "border-violet-400 bg-violet-50 text-violet-950 shadow-sm ring-1 ring-violet-200"
+                        : "border-slate-200 bg-slate-50/80 text-slate-800 hover:border-slate-300 hover:bg-white"
+                    }`}
+                  >
+                    <Icon className={`h-4 w-4 shrink-0 ${selected ? "text-violet-700" : "text-slate-500"}`} aria-hidden />
+                    <span className="text-xs font-bold leading-tight">{preset.label}</span>
+                    <span className="text-[10px] font-medium leading-snug text-slate-600">{preset.description}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => {
+                setModeSource("auto");
+                setMode("general");
+              }}
+              className={`mt-2 w-full rounded-xl border px-3 py-2 text-xs font-semibold transition disabled:opacity-50 ${
+                modeSource === "auto"
+                  ? "border-cyan-400 bg-cyan-50 text-cyan-950 ring-1 ring-cyan-200"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              Automático (detectar intención del mensaje)
+            </button>
+
+            <details className="mt-3 rounded-xl border border-slate-100 bg-slate-50/90 px-3 py-2">
+              <summary className="cursor-pointer text-xs font-semibold text-slate-700">
+                Lista completa de modos (incl. gastos, optimizador, acciones)
+              </summary>
+              <label className="mt-2 flex flex-col gap-1 text-[11px] font-semibold text-slate-600">
+                Selector avanzado
+                <select
+                  value={modeSource === "manual" ? mode : "auto"}
+                  onChange={(e) => {
+                    const v = e.target.value as "auto" | TripAiMode;
+                    if (v === "auto") {
+                      setModeSource("auto");
+                      return;
+                    }
+                    setModeSource("manual");
+                    setMode(v);
+                  }}
+                  className="rounded-xl border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800 shadow-sm"
+                >
+                  <option value="auto">Automático</option>
+                  <option value="general">General</option>
+                  <option value="planning">Planificación (planificador)</option>
+                  <option value="day_planner">Organizar día (desplazamientos)</option>
+                  <option value="travel_docs">Documentos del viaje</option>
+                  <option value="expenses">Gastos</option>
+                  <option value="optimizer">Optimizador</option>
+                  <option value="actions">Acciones</option>
+                </select>
+              </label>
+            </details>
           </div>
 
           {error ? (

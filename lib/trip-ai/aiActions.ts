@@ -166,13 +166,19 @@ export function resolveEffectiveTripAiMode(params: {
   aiAction: AIActionId;
   respectExplicitMode: boolean;
 }): TripAiMode {
+  const explicit = params.clientMode;
+
+  /** Modo documentación: no forzar itinerario aunque el texto parezca un «plan». */
+  if (params.respectExplicitMode && explicit === "travel_docs") {
+    return "travel_docs";
+  }
+
   if (params.aiAction === "generate_trip") {
     return "planning";
   }
   if (params.aiAction === "route_legs") {
     return "optimizer";
   }
-  const explicit = params.clientMode;
   if (params.respectExplicitMode && explicit && explicit !== "general") {
     return explicit;
   }

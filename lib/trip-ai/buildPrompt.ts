@@ -1,4 +1,11 @@
-export type TripAiMode = "general" | "planning" | "expenses" | "optimizer" | "actions" | "day_planner";
+export type TripAiMode =
+  | "general"
+  | "planning"
+  | "expenses"
+  | "optimizer"
+  | "actions"
+  | "day_planner"
+  | "travel_docs";
 
 export function buildTripPrompt(context: string, question: string, mode: TripAiMode) {
   const modeInstructions: Record<TripAiMode, string> = {
@@ -41,7 +48,7 @@ export function buildTripPrompt(context: string, question: string, mode: TripAiM
         "- No incluyas comentarios ni markdown dentro del JSON.",
         "- Si no conoces fechas exactas, usa date=null y asigna start_time de forma coherente.",
         "- Usa 2-5 items por día (calidad > cantidad). En viajes largos (>14 días) prioriza 2-3 items por día salvo que el usuario pida más densidad, para cubrir todo el calendario sin inflar tokens.",
-        "- Alcance del JSON: salvo que el usuario pida explícitamente solo un tramo (ej. «solo los primeros 5 días», «del día 10 al 15», «una semana»), el array `days` debe cubrir TODOS los días del viaje: tantos elementos como días de calendario entre inicio y fin del resumen del viaje, o exactamente N si el usuario dijo «N días» sin fechas (numeración day 1…N, sin saltos). No partas el itinerario en varias respuestas por tu cuenta.",
+        "- Alcance del JSON: salvo que el usuario pida explícitamente solo un tramo (ej. «solo los primeros 5 días», «del día 10 al 15», «una semana»), el array `days` debe cubrir TODOS los días del viaje: tantos elementos como días de calendario entre inicio y fin del resumen del viaje, o exactamente N si el usuario dijo «N días» sin fechas (numeración day 1…N, sin saltos). Cada día del calendario del viaje debe aparecer como un objeto en `days` (un día = un bloque con sus items); no omitas días «vacíos»: si un día es de traslado o descanso, indícalo con 1–2 items ligeros. No partas el itinerario en varias respuestas por tu cuenta salvo que el usuario pida continuar en otro mensaje.",
         "- Si el usuario sí acota días o semanas concretas, limita el JSON a ese rango y dilo en el texto.",
         "- No repitas la misma visita o atracción principal en días distintos sin motivo (evita duplicados); avanza el recorrido de forma coherente.",
         "- En place_name y address de cada item incluye país o región inequívoca para geocodificar bien (ej. «Tower of London, London, United Kingdom»). Evita topónimos sueltos tipo solo «Londres» si pueden confundirse con homónimos en otros países.",
@@ -146,6 +153,19 @@ export function buildTripPrompt(context: string, question: string, mode: TripAiM
         "- Si el usuario ya respondió con fecha (YYYY-MM-DD), horarios y transporte, emite el bloque TRIPBOARD_DAYPLAN_JSON en la misma respuesta (marcadores literales, sin envolver en ```).",
         "- Reglas mixtas andar/bici: elige travelMode cycling o walking según predomine y explícalo en el texto.",
       ].join("\n"),
+    travel_docs: [
+      "Modo «documentos y requisitos del viaje» (no eres abogado ni consulado).",
+      "Objetivo: ayudar al usuario a no olvidar trámites antes de viajar.",
+      "Si en el CONTEXTO DEL VIAJE ya constan destino, fechas y países o regiones, úsalos. Si falta la nacionalidad del viajero (pasaporte que usará), pregúntala de forma breve antes de cerrar la lista.",
+      "Si faltan países concretos a visitar y el contexto no los deja claro, pregunta en una sola frase.",
+      "Responde SIEMPRE con una lista clara y accionable en español, usando markdown:",
+      "- Secciones por país (## País) cuando haya varios.",
+      "Dentro de cada país, tabla o lista con columnas conceptuales: Requisito | Obligatorio/Recomendado | Notas (plazos, enlaces tipo «comprobar en web oficial», tasas aproximadas solo como orientación).",
+      "Cubre cuando aplique: visados o autorizaciones de tránsito (ETIAS/ESTA/eTA, etc.), seguro de viaje, sanidad (vacunas recomendadas, EHIC/GHIC si Europa), conducir (IDP), documentos ID, menores, mascotas, dinero/aranceles, roaming.",
+      "Indica explícitamente que los requisitos cambian y deben verificarse en fuentes oficiales (ministerio de exteriores, consulado, IATA Timatic como referencia técnica) antes de reservar.",
+      "No inventes que un visado «existe» con certeza si no estás seguro: di «verificar según nacionalidad».",
+      "No uses bloques TRIPBOARD_ITINERARY ni JSON ejecutable de plan en este modo.",
+    ].join("\n"),
   };
 
   return [

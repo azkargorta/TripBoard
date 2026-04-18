@@ -63,6 +63,16 @@ describe("resolveEffectiveTripAiMode", () => {
     ).toBe("optimizer");
   });
 
+  it("modo manual travel_docs no se pisa aunque el texto dispare generate_trip", () => {
+    expect(
+      resolveEffectiveTripAiMode({
+        clientMode: "travel_docs",
+        aiAction: "generate_trip",
+        respectExplicitMode: true,
+      })
+    ).toBe("travel_docs");
+  });
+
   it("tripAiModeForAction enlaza generate_trip → planning", () => {
     expect(tripAiModeForAction("generate_trip")).toBe("planning");
   });

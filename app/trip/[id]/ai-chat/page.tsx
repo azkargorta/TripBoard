@@ -3,6 +3,7 @@ import { requireTripAccess } from "@/lib/trip-access";
 import { isPremiumEnabledForTrip } from "@/lib/entitlements";
 import TripAiPostCreateHint from "@/components/trip/ai/TripAiPostCreateHint";
 import TripAiChatPageClient from "@/components/trip/ai/TripAiChatPageClient";
+import type { TripAiMode } from "@/lib/trip-ai/buildPrompt";
 
 function parseRecien(searchParams: Record<string, string | string[] | undefined> | undefined) {
   const raw = searchParams?.recien;
@@ -19,6 +20,20 @@ function parseLaunchIntent(
   return null;
 }
 
+/** `?modo=planificador|desplazamientos|general|documentos` para abrir el chat con un foco claro. */
+function parseAssistantModo(
+  searchParams: Record<string, string | string[] | undefined> | undefined
+): TripAiMode | null {
+  const raw = searchParams?.modo;
+  const v = (typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] : "").trim().toLowerCase();
+  if (!v) return null;
+  if (v === "planificador" || v === "planning" || v === "plan") return "planning";
+  if (v === "desplazamientos" || v === "desplazamiento" || v === "dia" || v === "day" || v === "day_planner") return "day_planner";
+  if (v === "documentos" || v === "docs" || v === "travel_docs" || v === "visados" || v === "papeles") return "travel_docs";
+  if (v === "general" || v === "chat") return "general";
+  return null;
+}
+
 export default async function Page({
   params,
   searchParams,
@@ -32,6 +47,9 @@ export default async function Page({
   const isPremium = await isPremiumEnabledForTrip({ supabase, userId: access.userId, tripId });
   const recien = parseRecien(searchParams);
   const launchIntent = parseLaunchIntent(searchParams);
+  const assistantModo = parseAssistantModo(searchParams);
+  const defaultAssistantMode: TripAiMode | null =
+    assistantModo ?? (isPremium && recien ? "planning" : null);
 
   let autoBootstrapItinerary = false;
   if (isPremium && recien) {
@@ -62,6 +80,7 @@ export default async function Page({
         isPremium={isPremium}
         autoBootstrapItinerary={autoBootstrapItinerary}
         launchIntent={launchIntent}
+        defaultAssistantMode={defaultAssistantMode}
       />
     </>
   );

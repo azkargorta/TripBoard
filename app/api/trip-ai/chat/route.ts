@@ -78,7 +78,7 @@ export async function POST(req: Request) {
     const parsedClientAction = parseClientAIAction(body?.aiAction);
     const aiAction: AIActionId = parsedClientAction ?? inferAIActionFromQuestion(question);
     const effectiveMode = resolveEffectiveTripAiMode({
-      clientMode: clientMode === "day_planner" ? "general" : clientMode,
+      clientMode,
       aiAction,
       respectExplicitMode: modeSource === "manual",
     });
@@ -109,6 +109,11 @@ export async function POST(req: Request) {
         ? "\nDebes proponer mejoras concretas del viaje, huecos, conflictos, y una mini hoja de ruta priorizada."
         : "";
 
+    const travelDocsHint =
+      effectiveMode === "travel_docs"
+        ? "\nEstás en modo documentación: prioriza lista de requisitos por país; pregunta nacionalidad si falta; recuerda verificar en fuentes oficiales."
+        : "";
+
     const actionHint =
       actionResult
         ? `\nAcción ejecutada en la app: ${actionResult}\nExplícale al usuario qué has hecho y qué conviene revisar ahora.`
@@ -119,7 +124,7 @@ export async function POST(req: Request) {
       .join("\n\n");
 
     const prompt = buildTripPrompt(
-      `${tripSummary}${hintBlock ? `\n\n${hintBlock}` : ""}${optimizerHint}${actionHint}`,
+      `${tripSummary}${hintBlock ? `\n\n${hintBlock}` : ""}${optimizerHint}${travelDocsHint}${actionHint}`,
       question,
       effectiveMode
     );

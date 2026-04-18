@@ -108,7 +108,7 @@ export default function CreateTripForm({ isPremium = false }: { isPremium?: bool
       setStep("done");
       if (isPremium) {
         toast.success("Viaje creado", "Te llevamos al asistente personal para montar el viaje.");
-        router.push(`/trip/${newTripId}/ai-chat?recien=1`);
+        router.push(`/trip/${newTripId}/ai-chat?recien=1&modo=planificador`);
       } else {
         toast.success("Viaje creado", "Te llevamos al resumen del viaje.");
         router.push(`/trip/${newTripId}`);

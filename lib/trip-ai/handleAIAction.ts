@@ -4,6 +4,9 @@ import type { AIActionId } from "@/lib/trip-ai/aiActions";
 import type { TripAiMode } from "@/lib/trip-ai/buildPrompt";
 
 function mapToParsedAction(aiAction: AIActionId, question: string, mode: TripAiMode): ParsedAction {
+  if (mode === "travel_docs") {
+    return { type: "none" };
+  }
   if (aiAction === "route_legs") {
     return { type: "none" };
   }

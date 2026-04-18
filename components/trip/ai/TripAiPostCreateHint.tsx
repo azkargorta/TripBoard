@@ -21,7 +21,7 @@ export default function TripAiPostCreateHint({
 
   useEffect(() => {
     if (!enabled) return;
-    const path = `/trip/${encodeURIComponent(tripId)}/ai-chat`;
+    const path = `/trip/${encodeURIComponent(tripId)}/ai-chat?recien=1&modo=planificador`;
     router.replace(path, { scroll: false });
   }, [enabled, tripId, router]);
 
