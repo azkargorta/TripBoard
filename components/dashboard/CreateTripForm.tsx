@@ -6,6 +6,7 @@ import { useToast } from "@/components/ui/toast";
 import TripPlacesFields from "@/components/dashboard/TripPlacesFields";
 import { joinTripPlaces } from "@/lib/trip-places";
 import { buildTravelCurrencySelectOptions } from "@/lib/travel-currencies";
+import { FREE_PLAN_CREATION_STEPS } from "@/lib/dashboard-creation-flow";
 
 function withTimeout<T>(promiseLike: PromiseLike<T>, ms = 25000, label = "operación"): Promise<T> {
   return Promise.race([
@@ -131,6 +132,27 @@ export default function CreateTripForm({ isPremium = false }: { isPremium?: bool
           Crea un viaje y automáticamente quedarás añadido como owner.
         </p>
       </div>
+
+      {!isPremium ? (
+        <div className="mb-5 rounded-xl border border-slate-200 bg-slate-50/90 p-4">
+          <p className="text-sm font-semibold text-slate-900">Guía paso a paso (plan gratuito)</p>
+          <p className="mt-1 text-xs text-slate-600">
+            Después de guardar, en el viaje usa las pestañas en este orden para sacarle el máximo partido.
+          </p>
+          <ol className="mt-3 space-y-2.5 border-t border-slate-200/80 pt-3 text-xs text-slate-700 sm:text-sm">
+            {FREE_PLAN_CREATION_STEPS.map((step, i) => (
+              <li key={step.label} className="flex gap-2">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-950 text-[11px] font-bold text-white">
+                  {i + 1}
+                </span>
+                <span>
+                  <span className="font-semibold text-slate-900">{step.label}.</span> {step.hint}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      ) : null}
 
       {error ? (
         <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

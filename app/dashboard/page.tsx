@@ -7,6 +7,7 @@ import DashboardCreateTripCta from "@/components/dashboard/DashboardCreateTripCt
 import OnboardingNudge from "@/components/dashboard/OnboardingNudge";
 import DashboardAiShortcuts from "@/components/dashboard/DashboardAiShortcuts";
 import DashboardTripSection from "@/components/dashboard/DashboardTripSection";
+import DashboardCreateFlowStepper from "@/components/dashboard/DashboardCreateFlowStepper";
 import { isPlatformAdmin } from "@/lib/platform-admin";
 
 type Trip = {
@@ -180,48 +181,40 @@ export default async function DashboardPage() {
       </header>
 
       <section className="rounded-2xl border border-slate-200/90 bg-white px-5 py-6 shadow-sm md:rounded-[24px] md:px-8 md:py-7">
-        <ol className="mb-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-500 md:gap-x-8">
-          <li className="flex items-center gap-1.5">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-950 text-[11px] font-bold text-white">
-              1
-            </span>
-            <span className="font-medium text-slate-800">Crear viaje</span>
-          </li>
-          <li className="flex items-center gap-1.5">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-300 bg-slate-50 text-[11px] font-bold text-slate-600">
-              2
-            </span>
-            <span>Asistente (borrador)</span>
-          </li>
-          <li className="flex items-center gap-1.5">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-300 bg-slate-50 text-[11px] font-bold text-slate-600">
-              3
-            </span>
-            <span>Editar a tu gusto</span>
-          </li>
-        </ol>
+        <DashboardCreateFlowStepper isPremium={isPremium} />
 
         <div className="mx-auto max-w-xl">
           <DashboardCreateTripCta disabled={freeTripLimitReached} />
         </div>
 
         <div className="mx-auto mt-6 max-w-2xl border-t border-slate-100 pt-6">
-          <p className="text-center text-[11px] font-bold uppercase tracking-[0.16em] text-violet-700">Asistente personal</p>
-          <p className="mx-auto mt-1 max-w-lg text-center text-xs text-slate-600 md:text-sm">
-            Tras crear el viaje, el asistente te guía con propuestas. También puedes abrirlo en cualquier viaje desde la
-            pestaña del mismo nombre.
-          </p>
           {isPremium ? (
-            <DashboardAiShortcuts trips={trips} isPremium />
+            <>
+              <p className="text-center text-[11px] font-bold uppercase tracking-[0.16em] text-violet-700">
+                Asistente personal
+              </p>
+              <p className="mx-auto mt-1 max-w-lg text-center text-xs text-slate-600 md:text-sm">
+                Tras crear el viaje, el asistente te guía con propuestas. También puedes abrirlo en cualquier viaje desde
+                la pestaña del mismo nombre.
+              </p>
+              <DashboardAiShortcuts trips={trips} isPremium />
+            </>
           ) : (
-            <div className="mt-4 flex justify-center">
-              <Link
-                href="/account?upgrade=premium&focus=premium#premium-plans"
-                className="inline-flex min-h-[44px] w-full items-center justify-center rounded-xl border-2 border-amber-200 bg-amber-50 px-3 py-2.5 text-center text-xs font-semibold text-amber-950 transition hover:bg-amber-100 sm:w-auto sm:min-w-[260px] sm:text-sm"
-              >
-                ✨ Crear con asistente personal (Premium)
-              </Link>
-            </div>
+            <>
+              <p className="text-center text-[11px] font-bold uppercase tracking-[0.16em] text-slate-600">Plan gratuito</p>
+              <p className="mx-auto mt-1 max-w-lg text-center text-xs text-slate-600 md:text-sm">
+                Sigue los 6 pasos del recuadro superior. Al pulsar <strong className="text-slate-800">Crear viaje</strong> y abrir el
+                formulario verás una guía detallada en el mismo orden.
+              </p>
+              <div className="mt-4 flex justify-center">
+                <Link
+                  href="/account?upgrade=premium&focus=premium#premium-plans"
+                  className="inline-flex min-h-[44px] w-full items-center justify-center rounded-xl border-2 border-amber-200 bg-amber-50 px-3 py-2.5 text-center text-xs font-semibold text-amber-950 transition hover:bg-amber-100 sm:w-auto sm:min-w-[260px] sm:text-sm"
+                >
+                  ✨ Asistente personal y más con Premium
+                </Link>
+              </div>
+            </>
           )}
         </div>
 
