@@ -80,7 +80,7 @@ export default function PublicLanding() {
             aria-hidden
           />
 
-          <div className="relative grid gap-6 sm:gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+          <div className="relative grid gap-6 sm:gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
             <div className="space-y-4 sm:space-y-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
                 <TripBoardLogo href="/" variant="dark" size="lg" withWordmark />
