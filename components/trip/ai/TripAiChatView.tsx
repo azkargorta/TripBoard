@@ -1356,7 +1356,11 @@ export default function TripAiChatView({
   const showPageHeader = layout === "page";
   const showConvSidebar = layout === "page";
   const Root = layout === "drawer" ? "div" : "main";
-  const rootClass = layout === "drawer" ? "h-full min-h-0 space-y-3 overflow-y-auto pr-0.5" : "space-y-6";
+  /** En drawer el panel tiene altura fija: columna flex + scroll solo en mensajes para que el envío quede visible. */
+  const rootClass =
+    layout === "drawer"
+      ? "flex min-h-0 flex-1 flex-col gap-3 overflow-hidden pr-0.5"
+      : "space-y-6";
 
   return (
     <Root className={rootClass}>
@@ -1887,7 +1891,13 @@ export default function TripAiChatView({
       ) : null}
 
       <section
-        className={showConvSidebar ? "grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]" : "grid grid-cols-1 gap-3"}
+        className={
+          showConvSidebar
+            ? "grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]"
+            : layout === "drawer"
+              ? "flex min-h-0 flex-1 flex-col gap-3 overflow-hidden"
+              : "grid grid-cols-1 gap-3"
+        }
       >
         {showConvSidebar ? (
         <aside className="order-2 space-y-5 xl:order-1 xl:space-y-6">
@@ -1947,8 +1957,18 @@ export default function TripAiChatView({
         </aside>
         ) : null}
 
-        <section className="chat-panel order-1 min-w-0 rounded-[28px] border border-slate-200 bg-white shadow-sm xl:order-2">
-          <div className="border-b border-slate-200 px-4 py-3 sm:px-5 sm:py-4">
+        <section
+          className={`chat-panel order-1 min-w-0 rounded-[28px] border border-slate-200 bg-white shadow-sm xl:order-2 ${
+            layout === "drawer" ? "flex min-h-0 flex-1 flex-col overflow-hidden" : ""
+          }`}
+        >
+          <div
+            className={`border-b border-slate-200 px-4 py-3 sm:px-5 sm:py-4 ${
+              layout === "drawer"
+                ? "max-h-[min(34dvh,300px)] shrink-0 overflow-y-auto overscroll-y-contain"
+                : ""
+            }`}
+          >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <h2 className="text-lg font-bold text-slate-950">Conversación</h2>
@@ -1973,7 +1993,13 @@ export default function TripAiChatView({
             </div>
 
             <p className="mt-3 text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-500">Elige el foco</p>
-            <div className="mt-2 grid grid-cols-2 gap-2 lg:grid-cols-4">
+            <div
+              className={
+                layout === "drawer"
+                  ? "mt-2 grid grid-cols-2 gap-1.5 sm:gap-2 lg:grid-cols-4"
+                  : "mt-2 grid grid-cols-2 gap-2 lg:grid-cols-4"
+              }
+            >
               {ASSISTANT_FOCUS_PRESETS.map((preset) => {
                 const selected = modeSource === "manual" && mode === preset.id;
                 const Icon = preset.Icon;
@@ -1983,7 +2009,9 @@ export default function TripAiChatView({
                     type="button"
                     disabled={loading}
                     onClick={() => beginNewChatForMode(preset.id, { onlyIfChanged: true })}
-                    className={`flex min-h-[88px] flex-col items-start gap-1.5 rounded-2xl border px-3 py-2.5 text-left transition disabled:opacity-50 ${
+                    className={`flex flex-col items-start gap-1 rounded-2xl border px-2.5 py-2 text-left transition disabled:opacity-50 sm:gap-1.5 sm:px-3 sm:py-2.5 ${
+                      layout === "drawer" ? "min-h-[64px]" : "min-h-[88px]"
+                    } ${
                       selected
                         ? "border-violet-400 bg-violet-50 text-violet-950 shadow-sm ring-1 ring-violet-200"
                         : "border-slate-200 bg-slate-50/80 text-slate-800 hover:border-slate-300 hover:bg-white"
@@ -2042,13 +2070,21 @@ export default function TripAiChatView({
           </div>
 
           {error ? (
-            <div className="mx-5 mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <div
+              className={`mx-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 ${
+                layout === "drawer" ? "mt-2 shrink-0" : "mt-5"
+              }`}
+            >
               {error}
             </div>
           ) : null}
 
           {info ? (
-            <div className="mx-5 mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+            <div
+              className={`mx-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 ${
+                layout === "drawer" ? "mt-2 shrink-0" : "mt-5"
+              }`}
+            >
               {info}
             </div>
           ) : null}
@@ -2056,7 +2092,7 @@ export default function TripAiChatView({
           <div
             className={
               layout === "drawer"
-                ? "max-h-[min(52dvh,440px)] space-y-5 overflow-y-auto px-5 py-4"
+                ? "min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-y-contain px-5 py-3"
                 : "max-h-[560px] space-y-5 overflow-y-auto px-5 py-5"
             }
           >
@@ -2097,7 +2133,7 @@ export default function TripAiChatView({
             <div ref={bottomRef} />
           </div>
 
-          <div className="border-t border-slate-200 px-5 py-3">
+          <div className={`border-t border-slate-200 px-5 py-3 ${layout === "drawer" ? "shrink-0" : ""}`}>
             <p className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-500">Sugerencias</p>
             <div className="flex flex-wrap gap-2">
               {SMART_CHIPS.map((c) => (
@@ -2114,15 +2150,20 @@ export default function TripAiChatView({
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="border-t border-slate-200 p-5">
+          <form
+            onSubmit={handleSubmit}
+            className={`border-t border-slate-200 p-4 sm:p-5 ${layout === "drawer" ? "shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]" : ""}`}
+          >
             <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-3">
               <textarea
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
-                rows={4}
+                rows={layout === "drawer" ? 3 : 4}
                 placeholder={placeholder}
                 disabled={!isPremium}
-                className="min-h-[120px] w-full resize-none rounded-2xl border-0 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                className={`w-full resize-none rounded-2xl border-0 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 ${
+                  layout === "drawer" ? "min-h-[72px]" : "min-h-[120px]"
+                }`}
               />
 
               <div className="flex flex-col gap-3 border-t border-slate-200 px-2 pt-3 md:flex-row md:items-center md:justify-between">
