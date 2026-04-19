@@ -172,7 +172,7 @@ export default function TripListsPanel({ tripId, isPremium = false, onGenerateWi
                       }`}
                     >
                       <div className="min-w-0 flex-1">
-                        <div className="truncate font-semibold text-slate-900">{l.title}</div>
+                        <div className="whitespace-normal break-words font-semibold leading-snug text-slate-900">{l.title}</div>
                         <div className="mt-0.5 break-words text-xs leading-snug text-slate-500">
                           {l.visibility === "private" ? "Privada" : "Compartida"}
                           {l.visibility === "shared" ? (l.editable_by_all ? " · editable por todos" : " · editable por roles") : ""}
@@ -200,7 +200,9 @@ export default function TripListsPanel({ tripId, isPremium = false, onGenerateWi
                 <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-3">
                   <div className="min-w-0 max-w-full flex-1">
                     <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Lista</div>
-                    <div className="mt-1 break-words text-lg font-bold text-slate-950 sm:truncate">{selected.title}</div>
+                    <div className="mt-1 whitespace-normal break-words text-lg font-bold leading-snug text-slate-950">
+                      {selected.title}
+                    </div>
                     <div className="mt-1 break-words text-xs leading-snug text-slate-500">
                       {selected.visibility === "private" ? "Privada" : "Compartida"} ·{" "}
                       {selected.visibility === "shared"
@@ -304,11 +306,12 @@ export default function TripListsPanel({ tripId, isPremium = false, onGenerateWi
                                 onChange={(e) => void itemsApi.updateItem(it.id, { is_done: e.target.checked })}
                                 className="mt-1"
                               />
-                              <div className="min-w-0">
-                                <input
+                              <div className="min-w-0 w-full">
+                                <textarea
                                   value={it.text}
+                                  rows={2}
                                   onChange={(e) => void itemsApi.updateItem(it.id, { text: e.target.value })}
-                                  className={`min-w-0 max-w-full break-all rounded-lg border border-transparent bg-transparent px-2 py-1 text-sm font-semibold outline-none focus:border-slate-200 focus:bg-white ${
+                                  className={`w-full min-w-0 max-w-full resize-y whitespace-pre-wrap break-words rounded-lg border border-transparent bg-transparent px-2 py-1 text-sm font-semibold outline-none focus:border-slate-200 focus:bg-white ${
                                     it.is_done ? "line-through text-slate-400" : "text-slate-900"
                                   }`}
                                 />
@@ -366,11 +369,12 @@ export default function TripListsPanel({ tripId, isPremium = false, onGenerateWi
 
                   <div className="border-t border-slate-200 bg-slate-50 px-3 py-4 sm:px-4">
                     <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-                      <input
+                      <textarea
                         value={newItemText}
                         onChange={(e) => setNewItemText(e.target.value)}
                         placeholder="Añadir elemento…"
-                        className="min-w-0 max-w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                        rows={2}
+                        className="min-h-[2.75rem] min-w-0 max-w-full resize-y whitespace-pre-wrap break-words rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
                       />
                       <div className="flex min-w-0 flex-wrap items-stretch gap-2 sm:flex-nowrap sm:items-center">
                         <input

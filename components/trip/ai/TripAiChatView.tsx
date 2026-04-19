@@ -363,51 +363,6 @@ const PLACEHOLDERS: Record<TripAiMode, string> = {
     "Ej.: pasaporte español, viajo a Marruecos y Turquía en junio — ¿qué documentos y trámites necesito?",
 };
 
-const SMART_CHIPS: Array<{ label: string; prompt: string; action: AIActionId }> = [
-  { label: "✨ Optimizar viaje", prompt: "Optimiza el viaje: detecta huecos, solapes y mejoras prácticas.", action: "optimize_route" },
-  { label: "🗺️ Mejorar rutas", prompt: "Mejora el orden geográfico y las rutas entre paradas para desperdiciar menos tiempo.", action: "optimize_route" },
-  { label: "💸 Ajustar presupuesto", prompt: "Ayúdame a revisar el presupuesto y el reparto de gastos con lo que ya tenemos.", action: "adjust_budget" },
-  { label: "🍽️ Añadir restaurantes", prompt: "Sugiere restaurantes que encajen y, si aplica, añade actividades tipo restaurante al plan.", action: "add_activity" },
-];
-
-const SUGGESTIONS: Record<TripAiMode, string[]> = {
-  general: [
-    "Hazme un resumen del viaje",
-    "¿Qué reservas tengo confirmadas?",
-    "¿Qué documentos importantes tengo guardados?",
-  ],
-  planning: [
-    "Dame un plan para 4 días",
-    "¿Qué actividades tengo por día?",
-    "Organiza un recorrido lógico con lo que ya tengo",
-  ],
-  expenses: [
-    "¿Cuánto llevamos gastado?",
-    "¿Quién debe dinero ahora mismo?",
-    "¿Qué pagos siguen pendientes?",
-  ],
-  optimizer: [
-    "Optimiza mi viaje y dime mejoras",
-    "Detecta huecos y conflictos",
-    "¿Qué cambiarías para aprovechar mejor el viaje?",
-  ],
-  actions: [
-    "Añade actividad cena en Honfleur 2026-04-02",
-    "Marca como pagado el siguiente balance pendiente",
-    "Crea una actividad paseo por Caen 2026-04-03",
-  ],
-  day_planner: [
-    "Organízame el día 2026-04-02 en París. Vamos andando. Queremos 2 museos y un mirador.",
-    "Hazme un día completo mañana. Ritmo tranquilo, comida informal y cena reservable. En coche.",
-    "Quiero visitar lo imprescindible en un día y que me lo guardes con rutas.",
-  ],
-  travel_docs: [
-    "Pasaporte colombiano: voy 10 días a España y Francia en verano. ¿Qué necesito?",
-    "Nacionalidad mexicana, solo Reino Unido 1 semana. Lista de documentos y seguros.",
-    "¿ETIAS o visado si entro en Grecia y luego Croacia con pasaporte argentino?",
-  ],
-};
-
 export default function TripAiChatView({
   tripId,
   isPremium = true,
@@ -895,8 +850,6 @@ export default function TripAiChatView({
       raw: op,
     };
   }
-
-  const currentSuggestions = useMemo(() => SUGGESTIONS[mode], [mode]);
 
   const placeholder = useMemo(() => PLACEHOLDERS[mode], [mode]);
 
@@ -1937,23 +1890,6 @@ export default function TripAiChatView({
               )}
             </div>
           </div>
-
-          <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-950">Preguntas rápidas</h2>
-            <div className="mt-4 space-y-2">
-              {currentSuggestions.map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() => void sendMessage(item)}
-                  disabled={loading || !isPremium}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-sm text-slate-700 transition hover:bg-slate-100 disabled:opacity-60"
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
-          </div>
         </aside>
         ) : null}
 
@@ -2131,23 +2067,6 @@ export default function TripAiChatView({
             ) : null}
 
             <div ref={bottomRef} />
-          </div>
-
-          <div className={`min-w-0 max-w-full border-t border-slate-200 px-4 py-3 sm:px-5 ${layout === "drawer" ? "shrink-0" : ""}`}>
-            <p className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-500">Sugerencias</p>
-            <div className="flex flex-wrap gap-2">
-              {SMART_CHIPS.map((c) => (
-                <button
-                  key={c.label}
-                  type="button"
-                  disabled={loading || !isPremium}
-                  onClick={() => void sendMessage(c.prompt, c.action)}
-                  className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
-                >
-                  {c.label}
-                </button>
-              ))}
-            </div>
           </div>
 
           <form

@@ -54,19 +54,19 @@ export default function TripPageAssistantDock({ tripId, isPremium }: Props) {
             aria-modal="true"
             aria-labelledby="trip-assistant-dock-title"
           >
-            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
-              <div className="min-w-0">
-                <p id="trip-assistant-dock-title" className="truncate text-sm font-bold text-slate-950">
+            <div className="flex min-w-0 flex-col gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+              <div className="min-w-0 pr-1">
+                <p id="trip-assistant-dock-title" className="break-words text-sm font-bold text-slate-950">
                   Asistente personal · {surfaceLabel}
                 </p>
-                <p className="truncate text-xs text-slate-600">
+                <p className="mt-0.5 break-words text-xs leading-snug text-slate-600">
                   Modo alineado con esta pestaña; puedes cambiar el modo manual si lo necesitas.
                 </p>
               </div>
-              <div className="flex shrink-0 items-center gap-2">
+              <div className="flex min-w-0 shrink-0 items-stretch justify-end gap-2 sm:items-center">
                 <Link
                   href={`/trip/${encodeURIComponent(tripId)}/ai-chat`}
-                  className="inline-flex max-w-[42%] shrink-0 items-center justify-center truncate rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 sm:max-w-none sm:px-3 sm:text-xs"
+                  className="inline-flex min-h-10 min-w-0 flex-1 items-center justify-center whitespace-normal rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-xs font-semibold leading-snug text-slate-800 shadow-sm transition hover:bg-slate-50 sm:flex-none sm:min-w-[9.5rem]"
                   onClick={() => setOpen(false)}
                 >
                   Pantalla completa
@@ -74,7 +74,7 @@ export default function TripPageAssistantDock({ tripId, isPremium }: Props) {
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50"
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center self-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50"
                   aria-label="Cerrar"
                 >
                   <X className="h-5 w-5" />

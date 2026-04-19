@@ -30,7 +30,9 @@ export default function ReservationList({
             <div key={reservation.id} className="min-w-0 rounded-2xl border border-slate-200 p-3 sm:p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-3">
                 <div className="min-w-0 max-w-full flex-1 break-words">
-                  <div className="font-semibold text-slate-900">{reservation.reservation_name}</div>
+                  <div className="whitespace-normal break-words font-semibold leading-snug text-slate-900">
+                    {reservation.reservation_name}
+                  </div>
                   <div className="mt-1 break-words text-sm text-slate-500">
                     {reservation.provider_name || "Sin proveedor"} · {reservation.check_in_date || "Sin entrada"} →{" "}
                     {reservation.check_out_date || "Sin salida"}
