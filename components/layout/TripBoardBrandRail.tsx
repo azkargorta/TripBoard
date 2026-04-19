@@ -42,13 +42,7 @@ export default function TripBoardBrandRail({ tripId, tripName, dateRangeLabel }:
                 />
               </Link>
             ) : (
-              <TripBoardLogo
-                href="/dashboard"
-                variant="dark"
-                size="sm"
-                className="shrink-0"
-                imageClassName="h-6 w-auto max-w-none md:h-5"
-              />
+              <TripBoardLogo href="/dashboard" variant="dark" size="sm" className="shrink-0" />
             )}
             <div className="min-w-0">
               <div className="flex min-w-0 flex-col gap-0.5">

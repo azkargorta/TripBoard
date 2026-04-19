@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import Image from "next/image";
 import Link from "next/link";
+import TripBoardLogo from "@/components/brand/TripBoardLogo";
 
 type AuthShellProps = {
   title: string;
@@ -22,24 +22,9 @@ export default function AuthShell({
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.14),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(34,211,238,0.22),transparent_30%)]" />
 
             <div className="relative z-10">
-              <div className="flex items-center gap-4">
-                <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-white p-1 shadow-lg ring-1 ring-white/40">
-                  <Image
-                    src="/brand/kaviro-globe-pin.png"
-                    alt="Kaviro logo"
-                    width={88}
-                    height={88}
-                    className="h-full w-full object-contain"
-                    priority
-                  />
-                </div>
-
-                <div>
-                  <p className="text-3xl font-extrabold tracking-tight text-white">Kaviro</p>
-                  <p className="text-sm text-white/70">
-                    Organiza tus viajes en un solo lugar
-                  </p>
-                </div>
+              <div className="max-w-md">
+                <TripBoardLogo variant="light" size="md" withWordmark />
+                <p className="mt-3 text-sm text-white/70">Organiza tus viajes en un solo lugar</p>
               </div>
 
               <div className="mt-12 max-w-md">

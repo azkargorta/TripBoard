@@ -46,15 +46,13 @@ const items: Array<{ key: string; label: string; icon: React.ReactNode; href: (i
     key: "resources",
     label: "Docs",
     icon: (
-      <span className="inline-flex h-[22px] w-[22px] items-center justify-center overflow-hidden rounded-md">
-        <Image
-          src="/brand/tabs/documents.png"
-          alt=""
-          width={28}
-          height={28}
-          className={`h-[26px] w-[26px] max-w-none ${tripTabDocsImageClass}`}
-        />
-      </span>
+      <Image
+        src="/brand/tabs/documents.png"
+        alt=""
+        width={32}
+        height={32}
+        className={`h-[22px] w-[22px] max-h-full max-w-full ${tripTabDocsImageClass}`}
+      />
     ),
     href: (id: string) => `/trip/${id}/resources`,
   },
@@ -96,7 +94,10 @@ export default function DesktopTripSidebar({ tripId, isPremium }: Props) {
                       : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
                   }`}
                 >
-                  <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center" aria-hidden>
+                  <span
+                    className="relative flex h-[22px] w-[22px] shrink-0 items-center justify-center overflow-hidden rounded-md bg-transparent"
+                    aria-hidden
+                  >
                     {item.icon}
                   </span>
                   <span className="w-full px-0.5 text-center text-[10px] font-semibold leading-tight sm:text-[11px]">

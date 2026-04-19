@@ -59,15 +59,13 @@ const items: Array<{
     key: "resources",
     label: "Docs",
     icon: (
-      <span className="inline-flex h-5 w-5 items-center justify-center overflow-hidden rounded-md">
-        <Image
-          src="/brand/tabs/documents.png"
-          alt=""
-          width={26}
-          height={26}
-          className={`h-[22px] w-[22px] max-w-none ${tripTabDocsImageClass}`}
-        />
-      </span>
+      <Image
+        src="/brand/tabs/documents.png"
+        alt=""
+        width={32}
+        height={32}
+        className={`h-[22px] w-[22px] max-h-full max-w-full ${tripTabDocsImageClass}`}
+      />
     ),
     href: (id: string) => `/trip/${id}/resources`,
   },

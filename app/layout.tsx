@@ -1,8 +1,10 @@
 import "./globals.css";
 import "leaflet/dist/leaflet.css";
 import type { Metadata, Viewport } from "next";
+import Link from "next/link";
 import AuthListener from "@/components/auth/AuthListener";
 import AnalyticsRoot from "@/components/analytics/AnalyticsRoot";
+import TripBoardLogo from "@/components/brand/TripBoardLogo";
 import { createClient } from "@/lib/supabase/server";
 import { ToastProvider } from "@/components/ui/toast";
 
@@ -64,7 +66,14 @@ export default async function RootLayout({
           {isPremium !== null ? (
             <div className="sticky top-0 z-50">
               <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-cyan-900">
-                <div className="mx-auto flex max-w-[1200px] items-center justify-end py-1.5 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] sm:py-2 sm:pl-6 sm:pr-6">
+                <div className="mx-auto flex max-w-[1200px] items-center justify-between gap-3 py-1.5 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] sm:py-2 sm:pl-6 sm:pr-6">
+                  <Link
+                    href="/dashboard"
+                    className="min-w-0 shrink outline-none ring-white/0 transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-cyan-300/70"
+                    aria-label="Ir al panel de viajes"
+                  >
+                    <TripBoardLogo variant="light" size="sm" withWordmark />
+                  </Link>
                   <div
                     className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold ${
                       isPremium
