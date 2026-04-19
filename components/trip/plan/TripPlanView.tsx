@@ -10,6 +10,7 @@ import {
   CalendarDays,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   Clock,
   Compass,
   Eye,
@@ -214,7 +215,7 @@ export default function TripPlanView({
   const [query, setQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<Set<string>>(new Set());
   const [showLodging, setShowLodging] = useState(true);
-  const [showManual, setShowManual] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [kindsOpen, setKindsOpen] = useState(false);
@@ -302,7 +303,6 @@ export default function TripPlanView({
       .filter((a) => {
         const isLodging = isLodgingActivity(a);
         if (!showLodging && isLodging) return false;
-        if (!showManual && !isLodging) return false;
         return true;
       })
       .filter((a) => {
@@ -315,7 +315,7 @@ export default function TripPlanView({
         const hay = `${a.title || ""} ${a.place_name || ""} ${a.address || ""} ${a.description || ""}`.toLowerCase();
         return hay.includes(q);
       });
-  }, [activities, kindFilter, query, showLodging, showManual]);
+  }, [activities, kindFilter, query, showLodging]);
 
   const filteredWithCalendarDate = useMemo(() => {
     if (!selectedDate) return filtered;
@@ -332,10 +332,6 @@ export default function TripPlanView({
   );
   const lodgingCount = useMemo(
     () => activities.filter((item) => isLodgingActivity(item)).length,
-    [activities]
-  );
-  const manualCount = useMemo(
-    () => activities.filter((item) => !isLodgingActivity(item)).length,
     [activities]
   );
 
@@ -626,127 +622,129 @@ export default function TripPlanView({
         </div>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
-          <p className="text-sm text-slate-500">Actividades totales</p>
-          <p className="mt-2 text-3xl font-bold text-slate-950">{activities.length}</p>
+      <div className="grid grid-cols-2 gap-2 md:gap-4">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 shadow-sm md:p-4">
+          <p className="text-[11px] font-semibold leading-tight text-slate-500 md:text-sm">Actividades totales</p>
+          <p className="mt-0.5 text-2xl font-bold leading-none text-slate-950 md:mt-2 md:text-3xl">{activities.length}</p>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
-          <p className="text-sm text-slate-500">Planes manuales</p>
-          <p className="mt-2 text-3xl font-bold text-slate-950">{manualCount}</p>
-        </div>
-        <div className="rounded-2xl border border-cyan-200 bg-cyan-50 p-4 shadow-sm">
-          <p className="text-sm text-cyan-700">Alojamientos</p>
-          <p className="mt-2 text-3xl font-bold text-cyan-950">{lodgingCount}</p>
+        <div className="rounded-2xl border border-cyan-200 bg-cyan-50 px-3 py-2 shadow-sm md:p-4">
+          <p className="text-[11px] font-semibold leading-tight text-cyan-800 md:text-sm">Alojamientos</p>
+          <p className="mt-0.5 text-2xl font-bold leading-none text-cyan-950 md:mt-2 md:text-3xl">{lodgingCount}</p>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-sm font-extrabold text-slate-950">
-            <SlidersHorizontal className="h-4 w-4 text-slate-700" />
-            Filtros
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <div className="mr-2 inline-flex overflow-hidden rounded-xl border border-slate-200 bg-white">
-              <button
-                type="button"
-                onClick={() => setViewMode("list")}
-                className={`inline-flex min-h-[36px] items-center gap-2 px-3 text-xs font-extrabold transition ${
-                  viewMode === "list" ? "bg-slate-950 text-white" : "text-slate-700 hover:bg-slate-50"
-                }`}
-                title="Vista de lista"
-              >
-                Lista
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode("calendar")}
-                className={`inline-flex min-h-[36px] items-center gap-2 px-3 text-xs font-extrabold transition ${
-                  viewMode === "calendar" ? "bg-slate-950 text-white" : "text-slate-700 hover:bg-slate-50"
-                }`}
-                title="Vista calendario"
-              >
-                Calendario
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowManual((v) => !v)}
-              className={`inline-flex min-h-[36px] items-center gap-2 rounded-xl border px-3 text-xs font-extrabold transition focus:outline-none focus:ring-2 focus:ring-cyan-200 ${
-                showManual ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-              }`}
-              title="Mostrar/ocultar planes manuales"
-            >
-              {showManual ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-              Manual
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowLodging((v) => !v)}
-              className={`inline-flex min-h-[36px] items-center gap-2 rounded-xl border px-3 text-xs font-extrabold transition focus:outline-none focus:ring-2 focus:ring-cyan-200 ${
-                showLodging ? "border-cyan-200 bg-cyan-50 text-cyan-950" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-              }`}
-              title="Mostrar/ocultar alojamientos"
-            >
-              {showLodging ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-              Alojamiento
-            </button>
-          </div>
-        </div>
+      <div className="space-y-2">
+        <button
+          type="button"
+          onClick={() => setFiltersOpen((v) => !v)}
+          aria-expanded={filtersOpen}
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-900 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-cyan-200 sm:w-auto sm:justify-start"
+        >
+          <SlidersHorizontal className="h-4 w-4 shrink-0 text-slate-700" aria-hidden />
+          Filtros
+          {filtersOpen ? (
+            <ChevronUp className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />
+          ) : (
+            <ChevronDown className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />
+          )}
+        </button>
 
-        <div className="mt-4 grid gap-3">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar por título, lugar o dirección…"
-              className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white pl-10 pr-4 text-sm font-semibold text-slate-900 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
-            />
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-700">
-              <Filter className="h-4 w-4" />
-              Tipos:
+        {filtersOpen ? (
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-sm font-extrabold text-slate-950">
+                <SlidersHorizontal className="h-4 w-4 text-slate-700" aria-hidden />
+                Vista y alojamientos
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <div className="mr-0 inline-flex overflow-hidden rounded-xl border border-slate-200 bg-white sm:mr-2">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("list")}
+                    className={`inline-flex min-h-[36px] items-center gap-2 px-3 text-xs font-extrabold transition ${
+                      viewMode === "list" ? "bg-slate-950 text-white" : "text-slate-700 hover:bg-slate-50"
+                    }`}
+                    title="Vista de lista"
+                  >
+                    Lista
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("calendar")}
+                    className={`inline-flex min-h-[36px] items-center gap-2 px-3 text-xs font-extrabold transition ${
+                      viewMode === "calendar" ? "bg-slate-950 text-white" : "text-slate-700 hover:bg-slate-50"
+                    }`}
+                    title="Vista calendario"
+                  >
+                    Calendario
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowLodging((v) => !v)}
+                  className={`inline-flex min-h-[36px] items-center gap-2 rounded-xl border px-3 text-xs font-extrabold transition focus:outline-none focus:ring-2 focus:ring-cyan-200 ${
+                    showLodging ? "border-cyan-200 bg-cyan-50 text-cyan-950" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                  title="Mostrar/ocultar alojamientos"
+                >
+                  {showLodging ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                  Alojamiento
+                </button>
+              </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setKindFilter(new Set())}
-              className={`inline-flex min-h-[36px] items-center gap-2 rounded-full border px-3 py-2 text-xs font-extrabold transition focus:outline-none focus:ring-2 focus:ring-violet-200 ${
-                kindFilter.size === 0 ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-              }`}
-              title="Todos los tipos"
-            >
-              <CalendarDays className="h-4 w-4" />
-              Todos
-            </button>
-
-            {availableKinds.map((k) => {
-              const active = kindFilter.has(k);
-              const meta = kindMeta(k, customByKey);
-              return (
-                <Chip
-                  key={k}
-                  active={active}
-                  onClick={() => {
-                    setKindFilter((prev) => {
-                      // Selección única: al elegir un tipo, se limpian los demás.
-                      // Si vuelves a pulsar el mismo, se quita el filtro (equivale a "Todos").
-                      if (prev.has(k) && prev.size === 1) return new Set();
-                      return new Set([k]);
-                    });
-                  }}
-                  label={meta.label}
-                  glyph={meta.glyph}
-                  color={meta.color}
+            <div className="mt-4 grid gap-3">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Buscar por título, lugar o dirección…"
+                  className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white pl-10 pr-4 text-sm font-semibold text-slate-900 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
                 />
-              );
-            })}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-700">
+                  <Filter className="h-4 w-4" />
+                  Tipos:
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setKindFilter(new Set())}
+                  className={`inline-flex min-h-[36px] items-center gap-2 rounded-full border px-3 py-2 text-xs font-extrabold transition focus:outline-none focus:ring-2 focus:ring-violet-200 ${
+                    kindFilter.size === 0 ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                  title="Todos los tipos"
+                >
+                  <CalendarDays className="h-4 w-4" />
+                  Todos
+                </button>
+
+                {availableKinds.map((k) => {
+                  const active = kindFilter.has(k);
+                  const meta = kindMeta(k, customByKey);
+                  return (
+                    <Chip
+                      key={k}
+                      active={active}
+                      onClick={() => {
+                        setKindFilter((prev) => {
+                          if (prev.has(k) && prev.size === 1) return new Set();
+                          return new Set([k]);
+                        });
+                      }}
+                      label={meta.label}
+                      glyph={meta.glyph}
+                      color={meta.color}
+                    />
+                  );
+                })}
+              </div>
+            </div>
           </div>
-        </div>
+        ) : null}
       </div>
 
       <details className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
