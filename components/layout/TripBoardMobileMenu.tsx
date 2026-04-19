@@ -4,8 +4,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { createPortal } from "react-dom";
 import { useEffect, useMemo, useState } from "react";
-import { Menu, X } from "lucide-react";
+import { Menu, User, X } from "lucide-react";
 import TripScreenActions from "@/components/trip/common/TripScreenActions";
+import SignOutButton from "@/components/auth/SignOutButton";
 
 type Props = {
   tripId: string;
@@ -169,6 +170,23 @@ export default function TripBoardMobileMenu({ tripId, isPremium = true }: Props)
                         </span>
                       </Link>
                     ))}
+                  </div>
+                </div>
+
+                <div className="mt-6 border-t border-slate-100 px-5 pb-6 pt-5">
+                  <div className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">Cuenta</div>
+                  <div className="mt-3 space-y-2">
+                    <Link
+                      href="/account"
+                      onClick={() => setOpen(false)}
+                      className="flex min-h-[52px] items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-50"
+                    >
+                      <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
+                        <User className="h-4 w-4" aria-hidden />
+                      </span>
+                      Cuenta
+                    </Link>
+                    <SignOutButton className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-50" />
                   </div>
                 </div>
               </div>
