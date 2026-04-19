@@ -43,7 +43,7 @@ type Props = {
 
 export default function ReservationTemplateSelector({ value, onChange }: Props) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+    <div className="min-w-0 max-w-full space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
       <div>
         <h3 className="text-lg font-semibold text-slate-900">Tipo de formulario</h3>
         <p className="mt-1 text-sm text-slate-500">
@@ -51,7 +51,7 @@ export default function ReservationTemplateSelector({ value, onChange }: Props) 
         </p>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
         {OPTIONS.map((option) => {
           const active = value === option.value;
 
@@ -60,21 +60,25 @@ export default function ReservationTemplateSelector({ value, onChange }: Props) 
               key={option.value}
               type="button"
               onClick={() => onChange(option.value)}
-              className={`rounded-2xl border px-4 py-4 text-left transition ${
+              className={`min-w-0 max-w-full rounded-2xl border px-3 py-3 text-left transition sm:px-4 sm:py-4 ${
                 active
                   ? option.activeClasses
                   : "border-slate-200 bg-white text-slate-900 hover:border-slate-400"
               }`}
             >
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-2xl">{option.icon}</div>
-                <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${active ? option.pillClasses : "bg-slate-100 text-slate-600"}`}>
+              <div className="flex min-w-0 items-center justify-between gap-2 sm:gap-3">
+                <div className="shrink-0 text-2xl">{option.icon}</div>
+                <span
+                  className={`min-w-0 truncate rounded-full px-2 py-1 text-[10px] font-semibold sm:px-2.5 sm:text-[11px] ${
+                    active ? option.pillClasses : "bg-slate-100 text-slate-600"
+                  }`}
+                >
                   {option.title}
                 </span>
               </div>
 
-              <div className="mt-3 text-sm font-semibold">{option.title}</div>
-              <div className={`mt-1 text-xs ${active ? "text-slate-700" : "text-slate-500"}`}>
+              <div className="mt-2 break-words text-sm font-semibold sm:mt-3">{option.title}</div>
+              <div className={`mt-1 break-words text-xs ${active ? "text-slate-700" : "text-slate-500"}`}>
                 {option.description}
               </div>
             </button>

@@ -132,12 +132,12 @@ export default function TripExpensesView({
 
   const topButtons = useMemo(() => {
     const base =
-      "inline-flex items-center justify-center gap-2 rounded-full border bg-white px-4 py-2 text-sm font-semibold shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60";
+      "inline-flex min-w-0 max-w-full items-center justify-center gap-2 whitespace-normal rounded-full border bg-white px-3 py-2 text-sm font-semibold shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60 sm:px-4";
     const primary = `${base} border-violet-200 text-violet-800 hover:border-violet-300 hover:bg-violet-50`;
     const secondary = `${base} border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50`;
 
     return (
-      <div className="flex flex-wrap gap-2">
+      <div className="flex min-w-0 max-w-full flex-wrap gap-2">
         <button
           type="button"
           className={secondary}
@@ -194,9 +194,9 @@ export default function TripExpensesView({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 max-w-full space-y-6 overflow-x-hidden">
       {error ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="break-words rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           <div className="font-semibold">No se pudieron cargar bien los gastos.</div>
           <div className="mt-1">{error}</div>
           <button
@@ -210,7 +210,7 @@ export default function TripExpensesView({
       ) : null}
 
       <div className="card-soft p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
               <Wallet className="h-4 w-4 text-violet-700" aria-hidden />
@@ -220,7 +220,7 @@ export default function TripExpensesView({
               Mantén el balance al día: añade tickets, analiza PDFs/imágenes y comparte pagos pendientes.
             </div>
           </div>
-          {topButtons}
+          <div className="min-w-0 max-w-full">{topButtons}</div>
         </div>
       </div>
 
@@ -348,22 +348,22 @@ export default function TripExpensesView({
         </div>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-        <div className="space-y-4">
+      <div className="grid min-w-0 max-w-full gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+        <div className="min-w-0 space-y-4">
           <details
             className="rounded-2xl border border-slate-200 bg-white shadow-sm open:shadow-md"
             open={isAnalyzeOpen}
             onToggle={(e) => setIsAnalyzeOpen((e.currentTarget as HTMLDetailsElement).open)}
           >
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4">
-              <div className="flex items-center gap-2">
-                <ScanText className="h-4 w-4 text-slate-700" aria-hidden />
-                <div>
+            <summary className="flex min-w-0 cursor-pointer list-none items-center justify-between gap-3 px-4 py-4 sm:px-5">
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <ScanText className="h-4 w-4 shrink-0 text-slate-700" aria-hidden />
+                <div className="min-w-0">
                   <div className="text-sm font-semibold text-slate-950">Analizar ticket</div>
                   <div className="text-xs text-slate-600">Sube un PDF/imagen y rellena el gasto automáticamente.</div>
                 </div>
               </div>
-              <ChevronDown className="h-4 w-4 text-slate-500 transition group-open:rotate-180" aria-hidden />
+              <ChevronDown className="h-4 w-4 shrink-0 text-slate-500 transition group-open:rotate-180" aria-hidden />
             </summary>
             <div className="border-t border-slate-200 px-5 py-5">
               {isPremium ? (
@@ -406,15 +406,15 @@ export default function TripExpensesView({
               }
             }}
           >
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4">
-              <div className="flex items-center gap-2">
-                <Plus className="h-4 w-4 text-violet-700" aria-hidden />
-                <div>
+            <summary className="flex min-w-0 cursor-pointer list-none items-center justify-between gap-3 px-4 py-4 sm:px-5">
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <Plus className="h-4 w-4 shrink-0 text-violet-700" aria-hidden />
+                <div className="min-w-0">
                   <div className="text-sm font-semibold text-slate-950">{editingExpense ? "Editar gasto" : "Añadir gasto"}</div>
                   <div className="text-xs text-slate-600">Define importe, participantes, categoría y notas.</div>
                 </div>
               </div>
-              <ChevronDown className="h-4 w-4 text-slate-500 transition group-open:rotate-180" aria-hidden />
+              <ChevronDown className="h-4 w-4 shrink-0 text-slate-500 transition group-open:rotate-180" aria-hidden />
             </summary>
             <div className="border-t border-slate-200 px-5 py-5">
               <ExpenseForm
@@ -448,12 +448,12 @@ export default function TripExpensesView({
             open={isConverterOpen}
             onToggle={(e) => setIsConverterOpen((e.currentTarget as HTMLDetailsElement).open)}
           >
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4">
-              <div>
+            <summary className="flex min-w-0 cursor-pointer list-none items-center justify-between gap-3 px-4 py-4 sm:px-5">
+              <div className="min-w-0 flex-1">
                 <div className="text-sm font-semibold text-slate-950">Convertidor de moneda</div>
                 <div className="text-xs text-slate-600">Convierte importes y ajusta la moneda de balance.</div>
               </div>
-              <ChevronDown className="h-4 w-4 text-slate-500 transition group-open:rotate-180" aria-hidden />
+              <ChevronDown className="h-4 w-4 shrink-0 text-slate-500 transition group-open:rotate-180" aria-hidden />
             </summary>
             <div className="border-t border-slate-200 px-5 py-5">
               <CurrencyConverterCard
@@ -494,7 +494,7 @@ export default function TripExpensesView({
           </div>
         </div>
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-200 px-5 py-4">
               <div className="text-sm font-semibold text-slate-950">Balances y pagos</div>

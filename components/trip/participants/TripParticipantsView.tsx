@@ -282,7 +282,7 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
   }
 
   return (
-    <main className="space-y-8">
+    <main className="min-w-0 max-w-full space-y-8 overflow-x-hidden">
       <TripBoardPageHeader
         section="Pasajeros del viaje"
         title="Participantes"
@@ -335,8 +335,8 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
         </div>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
-        <section className="space-y-4">
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
+        <section className="min-w-0 space-y-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <h2 className="text-lg font-bold text-slate-900">Lista de pasajeros</h2>
           <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center">
@@ -346,7 +346,7 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Buscar por nombre, @usuario, email o teléfono…"
-                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 shadow-sm outline-none ring-violet-200 transition focus:border-violet-300 focus:ring-2"
+                className="min-w-0 max-w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 shadow-sm outline-none ring-violet-200 transition focus:border-violet-300 focus:ring-2"
               />
             </div>
           </div>
@@ -424,7 +424,7 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
                   }`}
                 >
                   <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                    <div className="flex gap-4">
+                    <div className="flex min-w-0 flex-1 gap-4">
                       <div
                         className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-lg font-black text-white shadow-inner ${
                           participant.role === "owner"
@@ -438,7 +438,7 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
                       </div>
                       <div className="min-w-0 space-y-2">
                         <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="truncate text-lg font-bold text-slate-900">{participant.display_name}</h3>
+                          <h3 className="min-w-0 max-w-full break-words text-lg font-bold text-slate-900">{participant.display_name}</h3>
                           {isYou ? (
                             <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-violet-800">
                               Tú
@@ -461,7 +461,7 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
                           </span>
                         </div>
 
-                        <dl className="grid gap-1 text-sm text-slate-600 sm:grid-cols-2">
+                        <dl className="grid min-w-0 grid-cols-1 gap-1 text-sm text-slate-600 sm:grid-cols-2">
                           {participant.username ? (
                             <div>
                               <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Usuario</dt>
@@ -471,7 +471,7 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
                           {participant.email ? (
                             <div>
                               <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Email</dt>
-                              <dd className="truncate font-medium text-slate-800">{participant.email}</dd>
+                              <dd className="break-all font-medium text-slate-800">{participant.email}</dd>
                             </div>
                           ) : null}
                           {participant.phone ? (
@@ -538,7 +538,7 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
         )}
         </section>
 
-        <aside className="space-y-4 lg:sticky lg:top-3 lg:self-start">
+        <aside className="min-w-0 space-y-4 lg:sticky lg:top-3 lg:self-start">
           {canManageParticipants ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">

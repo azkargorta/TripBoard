@@ -432,13 +432,15 @@ function MapSurface({
   if (!visible) return null;
 
   return (
-    <section className="lg:sticky lg:top-4 lg:self-start overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-4">
-        <div>
+    <section className="min-w-0 max-w-full overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm lg:sticky lg:top-4 lg:self-start">
+      <div className="flex min-w-0 flex-col gap-2 border-b border-slate-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+        <div className="min-w-0">
           <div className="text-sm font-extrabold text-slate-950">Vista del mapa</div>
           <div className="mt-1 text-xs text-slate-600">Recorridos, focos y lugares del plan en tiempo real.</div>
         </div>
-        <StatusChip active>{lines.length ? `${lines.length} ruta${lines.length === 1 ? "" : "s"}` : "Sin rutas visibles"}</StatusChip>
+        <div className="shrink-0">
+          <StatusChip active>{lines.length ? `${lines.length} ruta${lines.length === 1 ? "" : "s"}` : "Sin rutas visibles"}</StatusChip>
+        </div>
       </div>
       <div className="h-[640px] w-full bg-slate-100 lg:h-[calc(100vh-7.5rem)]">
         <MapContainer center={DEFAULT_CENTER} zoom={4} style={{ height: "100%", width: "100%" }} scrollWheelZoom>
@@ -1136,9 +1138,11 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   }
 
   return (
-    <div className="space-y-4">
-      <div className={`grid gap-6 ${isMapVisible ? "xl:grid-cols-[420px_minmax(0,1fr)]" : "grid-cols-1"}`}>
-        <aside className="space-y-4">
+    <div className="min-w-0 max-w-full space-y-4 overflow-x-hidden">
+      <div
+        className={`grid min-w-0 gap-6 ${isMapVisible ? "xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]" : "grid-cols-1"}`}
+      >
+        <aside className="min-w-0 space-y-4">
         {error ? (
           <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</div>
         ) : null}
@@ -1147,16 +1151,16 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
         ) : null}
 
         <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-4">
-            <div>
+          <div className="flex min-w-0 flex-col gap-3 border-b border-slate-100 px-4 py-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
               <div className="text-sm font-extrabold text-slate-950">Filtros y contexto</div>
               <div className="mt-1 text-xs text-slate-600">Controla lo que ves en el mapa y cambia entre vista general y rutas concretas.</div>
             </div>
-            <div className="flex flex-col gap-2">
+            <div className="flex shrink-0 flex-col gap-2 sm:items-end">
               <button
                 type="button"
                 onClick={() => setIsMapVisible((v) => !v)}
-                className={`inline-flex min-h-[36px] items-center justify-center rounded-xl border px-3 text-xs font-semibold transition ${
+                className={`inline-flex min-h-[36px] whitespace-normal break-words text-center items-center justify-center rounded-xl border px-3 text-xs font-semibold transition ${
                   isMapVisible
                     ? "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                     : "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
@@ -1168,7 +1172,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
               <button
                 type="button"
                 onClick={() => setShowPlanMarkers((v) => !v)}
-                className={`inline-flex min-h-[36px] items-center justify-center gap-2 rounded-xl border px-3 text-xs font-semibold transition ${
+                className={`inline-flex min-h-[36px] items-center justify-center gap-2 whitespace-normal rounded-xl border px-3 text-xs font-semibold transition ${
                   showPlanMarkers
                     ? "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                     : "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
@@ -1604,12 +1608,12 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
         </section>
 
         <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-4">
-            <div>
+          <div className="flex min-w-0 flex-col gap-3 border-b border-slate-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
               <div className="text-sm font-extrabold text-slate-950">Rutas guardadas</div>
               <div className="mt-1 text-xs text-slate-600">Consulta, filtra y ordena tus recorridos del viaje.</div>
             </div>
-            <div className="flex flex-wrap items-center justify-end gap-2">
+            <div className="flex min-w-0 flex-wrap items-center justify-start gap-2 sm:justify-end">
               {routesBulkMode ? (
                 <>
                   <button

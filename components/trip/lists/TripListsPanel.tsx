@@ -73,18 +73,18 @@ export default function TripListsPanel({ tripId, isPremium = false, onGenerateWi
   const canManageResources = access?.canManageResources ?? true;
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+    <section className="min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-3">
+        <div className="min-w-0 max-w-full flex-1">
           <h3 className="text-lg font-semibold text-slate-900">Listas</h3>
           <p className="mt-1 text-sm text-slate-500">Crea listas privadas o compartidas (compra, maleta, documentos…).</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex min-w-0 flex-wrap gap-2">
           {canAi ? (
             <button
               type="button"
               onClick={() => setAiOpen(true)}
-              className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+              className="whitespace-normal rounded-xl bg-slate-950 px-3 py-2 text-center text-xs font-semibold text-white hover:bg-slate-800 sm:px-4 sm:text-sm"
             >
               Generar con asistente personal
             </button>
@@ -92,7 +92,7 @@ export default function TripListsPanel({ tripId, isPremium = false, onGenerateWi
             <button
               type="button"
               disabled
-              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-400"
+              className="whitespace-normal rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs font-semibold text-slate-400 sm:px-4 sm:text-sm"
               title="Disponible en Premium"
             >
               Generar con asistente personal (Premium)
@@ -102,21 +102,21 @@ export default function TripListsPanel({ tripId, isPremium = false, onGenerateWi
       </div>
 
       {error ? (
-        <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        <div className="mt-4 break-words rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
       ) : null}
 
-      <div className="mt-5 grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
-        <aside className="space-y-4">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+      <div className="mt-5 grid min-w-0 max-w-full gap-5 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
+        <aside className="min-w-0 space-y-4">
+          <div className="min-w-0 max-w-full rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Crear lista</div>
-            <div className="mt-3 space-y-2">
+            <div className="mt-3 min-w-0 space-y-2">
               <input
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
                 placeholder="Ej: Lista de la compra"
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-cyan-200"
+                className="min-w-0 max-w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-cyan-200"
               />
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
                 <select
                   value={newVisibility}
                   onChange={(e) => setNewVisibility(e.target.value === "private" ? "private" : "shared")}
@@ -167,13 +167,13 @@ export default function TripListsPanel({ tripId, isPremium = false, onGenerateWi
                       key={l.id}
                       type="button"
                       onClick={() => setSelectedId(l.id)}
-                      className={`flex w-full items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 text-left text-sm transition hover:bg-slate-50 ${
+                      className={`flex w-full min-w-0 items-center justify-between gap-2 border-b border-slate-100 px-3 py-3 text-left text-sm transition hover:bg-slate-50 sm:gap-3 sm:px-4 ${
                         active ? "bg-slate-50" : "bg-white"
                       }`}
                     >
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <div className="truncate font-semibold text-slate-900">{l.title}</div>
-                        <div className="mt-0.5 text-xs text-slate-500">
+                        <div className="mt-0.5 break-words text-xs leading-snug text-slate-500">
                           {l.visibility === "private" ? "Privada" : "Compartida"}
                           {l.visibility === "shared" ? (l.editable_by_all ? " · editable por todos" : " · editable por roles") : ""}
                         </div>
@@ -189,7 +189,7 @@ export default function TripListsPanel({ tripId, isPremium = false, onGenerateWi
           </div>
         </aside>
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           {!selected ? (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-5 py-8 text-sm text-slate-500">
               Selecciona una lista para ver sus elementos.
@@ -197,11 +197,11 @@ export default function TripListsPanel({ tripId, isPremium = false, onGenerateWi
           ) : (
             <>
               <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
+                <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-3">
+                  <div className="min-w-0 max-w-full flex-1">
                     <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Lista</div>
-                    <div className="mt-1 truncate text-lg font-bold text-slate-950">{selected.title}</div>
-                    <div className="mt-1 text-xs text-slate-500">
+                    <div className="mt-1 break-words text-lg font-bold text-slate-950 sm:truncate">{selected.title}</div>
+                    <div className="mt-1 break-words text-xs leading-snug text-slate-500">
                       {selected.visibility === "private" ? "Privada" : "Compartida"} ·{" "}
                       {selected.visibility === "shared"
                         ? selected.editable_by_all
@@ -211,14 +211,14 @@ export default function TripListsPanel({ tripId, isPremium = false, onGenerateWi
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex min-w-0 flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={() => {
                         setAuditTarget({ entityType: "list", entityId: selected.id, title: selected.title });
                         setAuditOpen(true);
                       }}
-                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      className="whitespace-normal rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 sm:px-3"
                       disabled={saving}
                     >
                       Historial
@@ -230,7 +230,7 @@ export default function TripListsPanel({ tripId, isPremium = false, onGenerateWi
                         if (!title) return;
                         void updateList(selected.id, { title });
                       }}
-                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      className="whitespace-normal rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 sm:px-3"
                       disabled={saving}
                     >
                       Renombrar
@@ -241,7 +241,7 @@ export default function TripListsPanel({ tripId, isPremium = false, onGenerateWi
                         const next = selected.visibility === "private" ? "shared" : "private";
                         void updateList(selected.id, { visibility: next });
                       }}
-                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      className="max-w-full whitespace-normal rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 sm:px-3"
                       disabled={saving}
                     >
                       {selected.visibility === "private" ? "Hacer compartida" : "Hacer privada"}
@@ -251,7 +251,7 @@ export default function TripListsPanel({ tripId, isPremium = false, onGenerateWi
                       onClick={() => {
                         void deleteList(selected.id);
                       }}
-                      className="rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50"
+                      className="whitespace-normal rounded-xl border border-red-200 bg-white px-2.5 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 sm:px-3"
                       disabled={saving}
                     >
                       Eliminar
@@ -295,9 +295,9 @@ export default function TripListsPanel({ tripId, isPremium = false, onGenerateWi
                         itemsApi.items.map((it) => (
                           <div
                             key={it.id}
-                            className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-start sm:justify-between"
+                            className="flex w-full min-w-0 max-w-full flex-col gap-2 px-3 py-3 sm:flex-row sm:items-start sm:justify-between sm:px-4"
                           >
-                            <div className="flex min-w-0 items-start gap-3">
+                            <div className="flex min-w-0 max-w-full flex-1 items-start gap-3">
                               <input
                                 type="checkbox"
                                 checked={it.is_done}
@@ -308,11 +308,11 @@ export default function TripListsPanel({ tripId, isPremium = false, onGenerateWi
                                 <input
                                   value={it.text}
                                   onChange={(e) => void itemsApi.updateItem(it.id, { text: e.target.value })}
-                                  className={`w-full rounded-lg border border-transparent bg-transparent px-2 py-1 text-sm font-semibold outline-none focus:border-slate-200 focus:bg-white ${
+                                  className={`min-w-0 max-w-full break-all rounded-lg border border-transparent bg-transparent px-2 py-1 text-sm font-semibold outline-none focus:border-slate-200 focus:bg-white ${
                                     it.is_done ? "line-through text-slate-400" : "text-slate-900"
                                   }`}
                                 />
-                                <div className="mt-1 grid gap-2 sm:grid-cols-2">
+                                <div className="mt-1 grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
                                   <input
                                     value={it.qty ?? ""}
                                     onChange={(e) =>
@@ -322,19 +322,19 @@ export default function TripListsPanel({ tripId, isPremium = false, onGenerateWi
                                     }
                                     type="number"
                                     step="0.5"
-                                    className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700"
+                                    className="min-w-0 max-w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700"
                                     placeholder="Cantidad"
                                   />
                                   <input
                                     value={it.note ?? ""}
                                     onChange={(e) => void itemsApi.updateItem(it.id, { note: e.target.value || null })}
-                                    className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700"
+                                    className="min-w-0 max-w-full break-words rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700"
                                     placeholder="Nota"
                                   />
                                 </div>
                               </div>
                             </div>
-                            <div className="flex shrink-0 items-center justify-end gap-2">
+                            <div className="flex min-w-0 shrink-0 flex-wrap items-center justify-end gap-2">
                               <button
                                 type="button"
                                 onClick={() => {
@@ -364,28 +364,28 @@ export default function TripListsPanel({ tripId, isPremium = false, onGenerateWi
                     </div>
                   )}
 
-                  <div className="border-t border-slate-200 bg-slate-50 px-4 py-4">
-                    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_140px]">
+                  <div className="border-t border-slate-200 bg-slate-50 px-3 py-4 sm:px-4">
+                    <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
                       <input
                         value={newItemText}
                         onChange={(e) => setNewItemText(e.target.value)}
                         placeholder="Añadir elemento…"
-                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                        className="min-w-0 max-w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
                       />
-                      <div className="flex gap-2">
+                      <div className="flex min-w-0 flex-wrap items-stretch gap-2 sm:flex-nowrap sm:items-center">
                         <input
                           value={newItemQty}
                           onChange={(e) => setNewItemQty(e.target.value)}
                           placeholder="Cantidad"
                           type="number"
                           step="0.5"
-                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                          className="min-w-0 max-w-full flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm sm:max-w-[140px] sm:flex-none"
                         />
                         <button
                           type="button"
                           onClick={handleAddItem}
                           disabled={itemsApi.saving || !newItemText.trim()}
-                          className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                          className="shrink-0 rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
                         >
                           Añadir
                         </button>
@@ -395,7 +395,7 @@ export default function TripListsPanel({ tripId, isPremium = false, onGenerateWi
                       value={newItemNote}
                       onChange={(e) => setNewItemNote(e.target.value)}
                       placeholder="Nota (opcional)…"
-                      className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                      className="mt-2 min-w-0 max-w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
                     />
                   </div>
                 </div>

@@ -64,16 +64,16 @@ export default function TripResourcesView({ tripId, aiEnabled = false }: { tripI
   }
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 max-w-full space-y-6">
       {error ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="break-words rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
       ) : null}
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
+      <section className="min-w-0 max-w-full rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-4">
+          <div className="min-w-0 max-w-full flex-1">
             <h3 className="text-lg font-semibold text-slate-900">Listas</h3>
             <p className="mt-1 text-sm text-slate-500">
               Crea listas privadas o compartidas (compra, maleta, documentos…).
@@ -82,7 +82,7 @@ export default function TripResourcesView({ tripId, aiEnabled = false }: { tripI
           <button
             type="button"
             onClick={() => setShowLists((v) => !v)}
-            className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+            className="shrink-0 whitespace-normal rounded-xl bg-slate-950 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-slate-800"
           >
             {showLists ? "Cerrar listas" : "Crear/ver listas"}
           </button>
@@ -91,10 +91,10 @@ export default function TripResourcesView({ tripId, aiEnabled = false }: { tripI
         {showLists ? <TripListsPanel tripId={tripId} isPremium={aiEnabled} /> : null}
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-start justify-between gap-4">
-            <div>
+      <div className="grid min-w-0 max-w-full gap-6 xl:grid-cols-2">
+        <div className="min-w-0 max-w-full rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+            <div className="min-w-0 max-w-full flex-1">
               <h3 className="text-lg font-semibold text-slate-900">Adjuntar documento</h3>
               <p className="mt-1 text-sm text-slate-500">
                 Sube imágenes o PDFs de reservas, tickets o documentos del viaje.
@@ -104,7 +104,7 @@ export default function TripResourcesView({ tripId, aiEnabled = false }: { tripI
             <button
               type="button"
               onClick={() => setShowUploadForm((current) => !current)}
-              className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
+              className="shrink-0 whitespace-normal rounded-xl bg-slate-950 px-4 py-2 text-center text-sm font-semibold text-white"
             >
               {showUploadForm ? "Cerrar" : "Adjuntar documento"}
             </button>
@@ -131,9 +131,9 @@ export default function TripResourcesView({ tripId, aiEnabled = false }: { tripI
           ) : null}
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-start justify-between gap-4">
-            <div>
+        <div className="min-w-0 max-w-full rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+            <div className="min-w-0 max-w-full flex-1">
               <h3 className="text-lg font-semibold text-slate-900">Analizador de documento</h3>
               <p className="mt-1 text-sm text-slate-500">
                 Analiza PDFs e imágenes para rellenar formularios automáticamente.
@@ -143,7 +143,7 @@ export default function TripResourcesView({ tripId, aiEnabled = false }: { tripI
             <button
               type="button"
               onClick={() => setShowAnalyzerForm((current) => !current)}
-              className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
+              className="shrink-0 whitespace-normal rounded-xl bg-slate-950 px-4 py-2 text-center text-sm font-semibold text-white"
             >
               {showAnalyzerForm ? "Cerrar" : "Analizar documento"}
             </button>
@@ -343,7 +343,7 @@ export default function TripResourcesView({ tripId, aiEnabled = false }: { tripI
         />
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="grid min-w-0 max-w-full gap-6 xl:grid-cols-2">
         <ReservationList
           reservations={reservations}
           onEdit={(reservation) => {

@@ -312,16 +312,16 @@ export default function TripExploreView({
   const pointsKey = useMemo(() => mapPoints.map((p) => p.key).join("|"), [mapPoints]);
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
-      <aside className="space-y-4">
+    <div className="grid min-w-0 max-w-full gap-6 overflow-x-hidden lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
+      <aside className="min-w-0 space-y-4">
         {error ? (
           <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
         ) : null}
 
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-sm font-extrabold text-slate-950">Planes</div>
-            <div className="flex items-center gap-2">
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+            <div className="min-w-0 text-sm font-extrabold text-slate-950">Planes</div>
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => setShowPlans((v) => !v)}
@@ -547,8 +547,8 @@ export default function TripExploreView({
         </div>
       </aside>
 
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="h-[520px] w-full">
+      <section className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="h-[520px] w-full min-w-0">
           <MapContainer center={[40.4168, -3.7038]} zoom={4} style={{ height: "100%", width: "100%" }} scrollWheelZoom>
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'

@@ -176,7 +176,9 @@ function Chip({
       <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-white/70" style={{ backgroundColor: color }}>
         <span className="text-[11px] font-black text-white">{glyph}</span>
       </span>
-      <span className="max-w-[160px] truncate">{label}</span>
+      <span className="min-w-0 max-w-[min(11rem,78vw)] whitespace-normal break-words text-left leading-tight sm:max-w-[10rem] md:max-w-[160px]">
+        {label}
+      </span>
     </button>
   );
 }
