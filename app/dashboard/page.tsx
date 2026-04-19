@@ -135,28 +135,20 @@ export default async function DashboardPage() {
   const lockedTripIds = new Set<string>();
   const freeTripLimitReached = !isPremium && trips.length >= 3;
 
-  const dashboardIntro = (
-    <>
-      Un solo camino: <span className="font-semibold text-slate-800">crear el viaje</span>, dejar que el{" "}
-      <span className="font-semibold text-slate-800">asistente personal</span> proponga plan y rutas (Premium), y{" "}
-      <span className="font-semibold text-slate-800">editar</span> cuando quieras en Plan, Rutas o Gastos.
-    </>
-  );
-
   return (
     <main className="page-shell space-y-6 pb-10 md:space-y-8 md:pb-14">
       <OnboardingNudge hasTrips={trips.length > 0} />
 
-      <DashboardPageHeader isAdmin={isAdmin} intro={dashboardIntro} />
+      <DashboardPageHeader isAdmin={isAdmin} />
 
-      <section className="rounded-2xl border border-slate-200/90 bg-white px-5 py-6 shadow-sm md:rounded-[24px] md:px-8 md:py-7">
+      <section className="mx-auto max-w-2xl rounded-2xl border border-slate-200/90 bg-white px-4 py-4 shadow-sm ring-1 ring-slate-900/[0.03] md:rounded-[20px] md:px-5 md:py-5">
         <DashboardCreateFlowStepper isPremium={isPremium} />
 
-        <div className="mx-auto max-w-xl">
+        <div className="mx-auto max-w-md">
           <DashboardCreateTripCta disabled={freeTripLimitReached} />
         </div>
 
-        <div className="mx-auto mt-6 max-w-2xl border-t border-slate-100 pt-6">
+        <div className="mx-auto mt-4 max-w-2xl border-t border-slate-100 pt-4 md:mt-5 md:pt-5">
           {isPremium ? (
             <>
               <p className="text-center text-[11px] font-bold uppercase tracking-[0.16em] text-violet-700">
@@ -187,7 +179,7 @@ export default async function DashboardPage() {
           )}
         </div>
 
-        <div id="create-trip" className="mx-auto mt-6 max-w-2xl scroll-mt-20 border-t border-slate-100 pt-6">
+        <div id="create-trip" className="mx-auto mt-4 max-w-2xl scroll-mt-20 border-t border-slate-100 pt-4 md:mt-5 md:pt-5">
           <CreateTripSection isPremium={isPremium} tripCount={trips.length} />
         </div>
       </section>
@@ -200,14 +192,7 @@ export default async function DashboardPage() {
       ) : null}
 
       {trips.length === 0 ? null : (
-        <section className="space-y-5 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.03] md:rounded-[24px] md:p-6">
-          <header className="border-b border-slate-100 pb-4 md:pb-5">
-            <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-slate-500">Tus viajes</p>
-            <p className="mt-1 text-xs leading-relaxed text-slate-600 md:text-sm">
-              En curso, próximos y pasados: despliega cada bloque con «Mostrar viajes». Lista en una columna.
-            </p>
-          </header>
-          <div className="mt-4 space-y-5 md:mt-5">
+        <div className="space-y-5">
           <DashboardTripSection
             title="En curso"
             subtitle="Lo que estás viviendo ahora."
@@ -242,8 +227,7 @@ export default async function DashboardPage() {
               lockedTripIds={Array.from(lockedTripIds)}
             />
           ) : null}
-          </div>
-        </section>
+        </div>
       )}
     </main>
   );
