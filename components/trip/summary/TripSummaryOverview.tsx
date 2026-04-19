@@ -97,9 +97,9 @@ export default function TripSummaryOverview({
   const planHref = `/trip/${tripId}/plan`;
 
   return (
-    <div className="space-y-5 md:space-y-6">
-      <div className="grid gap-4 md:gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(300px,380px)] lg:items-start">
-        <section className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-slate-900 via-slate-800 to-cyan-950 p-6 text-white shadow-lg md:p-8">
+    <div className="w-full min-w-0 space-y-5 md:space-y-6">
+      <div className="grid min-w-0 gap-4 md:gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(300px,380px)] lg:items-start">
+        <section className="relative min-w-0 overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-slate-900 via-slate-800 to-cyan-950 p-6 text-white shadow-lg md:p-8">
           <div
             className="pointer-events-none absolute -right-16 top-0 h-40 w-40 rounded-full bg-cyan-500/20 blur-3xl"
             aria-hidden
@@ -166,7 +166,7 @@ export default function TripSummaryOverview({
           </div>
         </section>
 
-        <section className="rounded-3xl border border-sky-200/70 bg-gradient-to-b from-sky-50 via-white to-violet-50/80 p-5 shadow-md md:p-6">
+        <section className="min-w-0 rounded-3xl border border-sky-200/70 bg-gradient-to-b from-sky-50 via-white to-violet-50/80 p-5 shadow-md md:p-6">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-sky-800">Clima en el destino</p>
@@ -184,9 +184,9 @@ export default function TripSummaryOverview({
               No se pudo obtener la previsión. Revisa que el destino sea reconocible o inténtalo más tarde.
             </p>
           ) : weather && weather.days.length ? (
-            <div className="mt-4 space-y-4">
+            <div className="mt-4 min-w-0 space-y-4">
               <p className="text-xs font-semibold text-slate-600">{weather.locationLabel}</p>
-              <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex min-w-0 gap-2 overflow-x-auto overscroll-x-contain pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {weather.days.slice(0, 6).map((day) => {
                   const vis = wmoWeatherVisual(day.code);
                   return (
@@ -221,7 +221,7 @@ export default function TripSummaryOverview({
         </section>
       </div>
 
-      <section className="space-y-4">
+      <section className="min-w-0 space-y-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">Navegación rápida</p>
@@ -230,7 +230,7 @@ export default function TripSummaryOverview({
           </div>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {tabs.map((tab) => {
             const st = TONE_STYLES[tab.tone];
             return (

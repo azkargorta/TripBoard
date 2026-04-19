@@ -6,7 +6,20 @@ import PlanActivityCard from "@/components/trip/plan/PlanActivityCard";
 import PlanLodgingCard from "@/components/trip/plan/PlanLodgingCard";
 import PlanForm, { type PlanFormValues } from "@/components/trip/plan/PlanForm";
 import { useTripActivities, type TripActivity } from "@/hooks/useTripActivities";
-import { CalendarDays, Clock, Compass, Eye, EyeOff, Filter, Plus, Search, SlidersHorizontal, Trash2 } from "lucide-react";
+import {
+  CalendarDays,
+  ChevronDown,
+  ChevronRight,
+  Clock,
+  Compass,
+  Eye,
+  EyeOff,
+  Filter,
+  Plus,
+  Search,
+  SlidersHorizontal,
+  Trash2,
+} from "lucide-react";
 import TripPlanCalendar from "@/components/trip/plan/TripPlanCalendar";
 import { useTripActivityKinds } from "@/hooks/useTripActivityKinds";
 import TripPlanExploreDrawer, { type ExploreCreatePlanPayload } from "@/components/trip/plan/TripPlanExploreDrawer";
@@ -54,6 +67,23 @@ function groupByDate(activities: TripActivity[]) {
   }
 
   return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
+}
+
+function formatPlanDayHeading(dateKey: string) {
+  if (dateKey === "Sin fecha") return "Sin fecha";
+  const d = new Date(`${dateKey}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return dateKey;
+  return new Intl.DateTimeFormat("es-ES", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(d);
+}
+
+function activityCountLabel(n: number) {
+  if (n === 1) return "1 actividad";
+  return `${n} actividades`;
 }
 
 function normalizeKind(kind: unknown) {
@@ -199,6 +229,8 @@ export default function TripPlanView({
   const [workspaceTab, setWorkspaceTab] = useState<"itinerary" | "notes">(initialWorkspaceTab);
   const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
   const [selectedActivityIds, setSelectedActivityIds] = useState<Set<string>>(new Set());
+  /** Días expandidos en la lista; vacío = todos colapsados (salvo un solo día visible). */
+  const [expandedDayKeys, setExpandedDayKeys] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -291,6 +323,8 @@ export default function TripPlanView({
   }, [filtered, selectedDate]);
 
   const grouped = useMemo(() => groupByDate(filteredWithCalendarDate), [filteredWithCalendarDate]);
+
+  const singleDayList = grouped.length === 1;
 
   const selectableActivityIds = useMemo(
     () => filteredWithCalendarDate.filter(canBulkDeletePlanActivity).map((a) => a.id),
@@ -992,69 +1026,99 @@ export default function TripPlanView({
         </div>
       ) : null}
 
-      <div className="space-y-6">
-        {grouped.map(([date, items]) => (
-          <section key={date} className="space-y-3">
-            <div className="flex items-center gap-3 px-1">
-              <div className="flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700">
-                <CalendarDays className="h-4 w-4" />
-              </div>
-              <div className="flex-1">
-                <div className="text-xs font-extrabold text-slate-900">{date}</div>
-                <div className="text-[11px] text-slate-500">{items.length} items</div>
-              </div>
-              <div className="h-px flex-1 bg-slate-200" />
-            </div>
+      <div className="space-y-3">
+        {grouped.map(([date, items]) => {
+          const expanded = singleDayList || expandedDayKeys.has(date);
+          const heading = formatPlanDayHeading(date);
+          return (
+            <section key={date} className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <button
+                type="button"
+                disabled={singleDayList}
+                onClick={() => {
+                  if (singleDayList) return;
+                  setExpandedDayKeys((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(date)) next.delete(date);
+                    else next.add(date);
+                    return next;
+                  });
+                }}
+                className={`flex w-full items-center gap-3 px-4 py-3 text-left transition ${
+                  singleDayList ? "cursor-default" : "cursor-pointer hover:bg-slate-50"
+                }`}
+                aria-expanded={expanded}
+              >
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-700">
+                  <CalendarDays className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-extrabold text-slate-950">{heading}</div>
+                  <div className="text-xs font-semibold text-slate-500">{activityCountLabel(items.length)}</div>
+                </div>
+                {singleDayList ? (
+                  <ChevronDown className="h-5 w-5 shrink-0 text-slate-300" aria-hidden />
+                ) : expanded ? (
+                  <ChevronDown className="h-5 w-5 shrink-0 text-slate-500" aria-hidden />
+                ) : (
+                  <ChevronRight className="h-5 w-5 shrink-0 text-slate-500" aria-hidden />
+                )}
+              </button>
 
-            <div className="space-y-3 border-l border-slate-200 pl-4">
-              {items.map((activity) => {
-                const isLodging = isLodgingActivity(activity);
-                const meta = kindMeta(isLodging ? "lodging" : activity.activity_kind, customByKey);
-                return (
-                  <div key={activity.id} className="relative">
-                    <span
-                      className="absolute -left-[21px] top-6 h-3 w-3 rounded-full border border-white"
-                      style={{ backgroundColor: meta.color }}
-                      aria-hidden="true"
-                    />
-                    {isLodging ? (
-                      <PlanLodgingCard
-                        activity={activity}
-                        selectable={bulkDeleteMode && canBulkDeletePlanActivity(activity)}
-                        selected={selectedActivityIds.has(activity.id)}
-                        onToggleSelect={() =>
-                          setSelectedActivityIds((prev) => {
-                            const n = new Set(prev);
-                            if (n.has(activity.id)) n.delete(activity.id);
-                            else n.add(activity.id);
-                            return n;
-                          })
-                        }
-                      />
-                    ) : (
-                      <PlanActivityCard
-                        activity={activity}
-                        onEdit={handleStartEdit}
-                        onDelete={(item) => deleteActivity(item.id)}
-                        selectable={bulkDeleteMode && canBulkDeletePlanActivity(activity)}
-                        selected={selectedActivityIds.has(activity.id)}
-                        onToggleSelect={() =>
-                          setSelectedActivityIds((prev) => {
-                            const n = new Set(prev);
-                            if (n.has(activity.id)) n.delete(activity.id);
-                            else n.add(activity.id);
-                            return n;
-                          })
-                        }
-                        premiumEnabled={premiumEnabled}
-                      />
-                    )}
+              {expanded ? (
+                <div className="space-y-3 border-t border-slate-100 px-4 pb-4 pt-3">
+                  <div className="space-y-3 border-l border-slate-200 pl-4">
+                    {items.map((activity) => {
+                      const isLodging = isLodgingActivity(activity);
+                      const meta = kindMeta(isLodging ? "lodging" : activity.activity_kind, customByKey);
+                      return (
+                        <div key={activity.id} className="relative">
+                          <span
+                            className="absolute -left-[21px] top-6 h-3 w-3 rounded-full border border-white"
+                            style={{ backgroundColor: meta.color }}
+                            aria-hidden="true"
+                          />
+                          {isLodging ? (
+                            <PlanLodgingCard
+                              activity={activity}
+                              selectable={bulkDeleteMode && canBulkDeletePlanActivity(activity)}
+                              selected={selectedActivityIds.has(activity.id)}
+                              onToggleSelect={() =>
+                                setSelectedActivityIds((prev) => {
+                                  const n = new Set(prev);
+                                  if (n.has(activity.id)) n.delete(activity.id);
+                                  else n.add(activity.id);
+                                  return n;
+                                })
+                              }
+                            />
+                          ) : (
+                            <PlanActivityCard
+                              activity={activity}
+                              onEdit={handleStartEdit}
+                              onDelete={(item) => deleteActivity(item.id)}
+                              selectable={bulkDeleteMode && canBulkDeletePlanActivity(activity)}
+                              selected={selectedActivityIds.has(activity.id)}
+                              onToggleSelect={() =>
+                                setSelectedActivityIds((prev) => {
+                                  const n = new Set(prev);
+                                  if (n.has(activity.id)) n.delete(activity.id);
+                                  else n.add(activity.id);
+                                  return n;
+                                })
+                              }
+                              premiumEnabled={premiumEnabled}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-            </div>
-          </section>
-        ))}
+                </div>
+              ) : null}
+            </section>
+          );
+        })}
       </div>
         </>
       ) : null}

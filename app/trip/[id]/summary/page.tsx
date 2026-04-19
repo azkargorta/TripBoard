@@ -320,7 +320,7 @@ export default async function TripSummaryPage({ params }: TripPageProps) {
   ];
 
   return (
-    <main className="space-y-5 md:space-y-6">
+    <main className="w-full min-w-0 max-w-full space-y-5 md:space-y-6">
       <TripBoardPageHeader
         section="Resumen del viaje"
         title={currentTrip.name}

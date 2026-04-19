@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Share2, Link as LinkIcon, Ban } from "lucide-react";
+import { Copy, Link as LinkIcon, Ban } from "lucide-react";
 import { writeTextToClipboard } from "@/lib/clipboard";
 import { useToast } from "@/components/ui/toast";
 
@@ -30,9 +30,17 @@ export default function TripShareButton({
       if (!token) throw new Error("No se pudo crear el enlace.");
 
       const url = `${window.location.origin}/share/${token}`;
-      const copied = await writeTextToClipboard(url);
+      let copied = await writeTextToClipboard(url);
+      if (!copied && typeof window !== "undefined") {
+        try {
+          window.prompt("Copia el enlace público (solo lectura). Selecciónalo y usa «Copiar» del sistema:", url);
+        } catch {
+          /* */
+        }
+      }
       if (!copied) {
-        throw new Error("No se pudo copiar al portapapeles. Copia manualmente el enlace si aparece en pantalla.");
+        toast.info("Copia el enlace a mano", url);
+        return;
       }
       toast.success("Enlace copiado al portapapeles", "Pégalo donde quieras compartirlo. El enlace es de solo lectura.");
     } catch (e) {
@@ -67,11 +75,11 @@ export default function TripShareButton({
         type="button"
         onClick={createAndCopy}
         disabled={busy}
-        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 py-2 text-[10px] font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60 disabled:opacity-60 sm:min-h-0 sm:min-w-0 sm:py-1"
-        title="Crear enlace público (solo lectura) y copiar"
+        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-2 text-[10px] font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60 disabled:opacity-60 sm:min-h-0 sm:min-w-0 sm:px-2 sm:py-1"
+        title="Crear enlace público (solo lectura) y copiarlo al portapapeles"
       >
-        <Share2 className="h-3.5 w-3.5" aria-hidden />
-        <span className={showLabels ? "inline" : "hidden sm:inline"}>Compartir</span>
+        <Copy className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        <span className="inline max-w-[9rem] truncate sm:max-w-none">Copiar enlace</span>
       </button>
 
       <button
