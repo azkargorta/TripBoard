@@ -6,6 +6,7 @@ import { Copy } from "lucide-react";
 import { writeTextToClipboard } from "@/lib/clipboard";
 import { useToast } from "@/components/ui/toast";
 import { mobileMenuRowBase, mobileMenuRowIconWrap } from "@/components/ui/mobileMenuStyles";
+import { iconInline16 } from "@/components/ui/iconTokens";
 
 function isMobileViewport() {
   if (typeof window === "undefined") return false;
@@ -178,10 +179,10 @@ export default function TripShareButton({
         >
           {menuRow ? (
             <span className={mobileMenuRowIconWrap}>
-              <Copy className="h-4 w-4 shrink-0 text-cyan-700" aria-hidden />
+              <Copy className="text-cyan-700" aria-hidden />
             </span>
           ) : (
-            <Copy className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <Copy className={iconInline16} aria-hidden />
           )}
           <span className={menuRow || showLabels ? "inline" : "inline max-w-[9rem] truncate sm:max-w-none"}>Copiar enlace</span>
         </button>

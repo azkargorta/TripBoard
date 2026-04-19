@@ -7,6 +7,7 @@ import { createPortal } from "react-dom";
 import { useParams, usePathname } from "next/navigation";
 import { ChevronLeft, ChevronRight, HelpCircle, X } from "lucide-react";
 import TripBoardLogo from "@/components/brand/TripBoardLogo";
+import { iconInline16, iconSlotFill40, iconSlotFill44 } from "@/components/ui/iconTokens";
 
 type HelpBlock = { heading: string; bullets: string[] };
 
@@ -572,10 +573,10 @@ export default function TripPageHelp() {
                         <button
                           type="button"
                           onClick={finishTour}
-                          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white transition hover:bg-white/15"
+                          className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white transition hover:bg-white/15 ${iconSlotFill40}`}
                           aria-label="Cerrar"
                         >
-                          <X className="h-5 w-5" aria-hidden />
+                          <X aria-hidden />
                         </button>
                       </div>
                       <p className="mt-2 text-xs leading-relaxed text-white/80">
@@ -626,10 +627,10 @@ export default function TripPageHelp() {
                             type="button"
                             disabled={tourStep <= 0}
                             onClick={() => setTourStep((s) => Math.max(0, s - 1))}
-                            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:pointer-events-none disabled:opacity-35"
+                            className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:pointer-events-none disabled:opacity-35 ${iconSlotFill44}`}
                             aria-label="Paso anterior"
                           >
-                            <ChevronLeft className="h-5 w-5" aria-hidden />
+                            <ChevronLeft aria-hidden />
                           </button>
                           {isLastTourStep ? (
                             <button
@@ -646,7 +647,7 @@ export default function TripPageHelp() {
                               className="inline-flex min-h-[48px] items-center justify-center gap-1 rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
                             >
                               Siguiente
-                              <ChevronRight className="h-4 w-4" aria-hidden />
+                              <ChevronRight className={iconInline16} aria-hidden />
                             </button>
                           )}
                         </div>
@@ -680,10 +681,10 @@ export default function TripPageHelp() {
                       <button
                         type="button"
                         onClick={closePageHelp}
-                        className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:bg-slate-50"
+                        className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:bg-slate-50 ${iconSlotFill40}`}
                         aria-label="Cerrar"
                       >
-                        <X className="h-5 w-5" aria-hidden />
+                        <X aria-hidden />
                       </button>
                     </div>
                     <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">

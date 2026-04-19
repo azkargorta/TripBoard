@@ -3,6 +3,7 @@
 import { createPortal } from "react-dom";
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
+import { iconSlotFill40 } from "@/components/ui/iconTokens";
 
 type Variant = "block" | "link";
 
@@ -71,10 +72,10 @@ export default function LongTextSheet({
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-cyan-200 hover:bg-cyan-50/80"
+              className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-cyan-200 hover:bg-cyan-50/80 ${iconSlotFill40}`}
               aria-label="Cerrar"
             >
-              <X className="h-5 w-5" aria-hidden />
+              <X aria-hidden />
             </button>
           </div>
           <div className="max-h-[min(70dvh,520px)] overflow-y-auto overscroll-y-contain px-4 py-4">

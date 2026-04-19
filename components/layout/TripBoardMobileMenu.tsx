@@ -15,6 +15,7 @@ import {
   mobileMenuRowVioletIcon,
   mobileMenuRowSignOut,
 } from "@/components/ui/mobileMenuStyles";
+import { iconSlotFill40 } from "@/components/ui/iconTokens";
 
 type Props = {
   tripId: string;
@@ -53,7 +54,7 @@ function ItemIcon({
 }) {
   if (icon.type === "emoji") {
     return (
-      <span className="text-lg leading-none" aria-hidden>
+      <span className="text-[1.75rem] leading-none" aria-hidden>
         {icon.value}
       </span>
     );
@@ -62,9 +63,9 @@ function ItemIcon({
     <Image
       src={icon.src}
       alt={icon.alt}
-      width={20}
-      height={20}
-      className="h-5 w-5 object-contain"
+      width={32}
+      height={32}
+      className="object-contain"
     />
   );
 }
@@ -104,11 +105,11 @@ export default function TripBoardMobileMenu({ tripId, isPremium = true }: Props)
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex min-h-[40px] min-w-[40px] shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60 md:hidden"
+        className={`inline-flex min-h-[40px] min-w-[40px] shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60 md:hidden ${iconSlotFill40}`}
         aria-label="Abrir menú"
         title="Menú"
       >
-        <Menu className="h-[1.15rem] w-[1.15rem]" strokeWidth={2.25} aria-hidden />
+        <Menu strokeWidth={2.25} aria-hidden />
       </button>
 
       {mounted && open
@@ -137,10 +138,10 @@ export default function TripBoardMobileMenu({ tripId, isPremium = true }: Props)
                   <button
                     type="button"
                     onClick={() => setOpen(false)}
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50"
+                    className={`inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 ${iconSlotFill40}`}
                     aria-label="Cerrar"
                   >
-                    <X className="h-5 w-5" aria-hidden />
+                    <X aria-hidden />
                   </button>
                 </div>
 
@@ -186,7 +187,7 @@ export default function TripBoardMobileMenu({ tripId, isPremium = true }: Props)
                       className={mobileMenuRowViolet}
                     >
                       <span className={mobileMenuRowVioletIcon}>
-                        <User className="h-4 w-4" aria-hidden />
+                        <User aria-hidden />
                       </span>
                       Cuenta
                     </Link>

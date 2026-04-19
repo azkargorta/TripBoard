@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { NotebookPen } from "lucide-react";
+import { iconSlotFill40 } from "@/components/ui/iconTokens";
 
 const MAX_LEN = 10_000;
 
@@ -45,8 +46,10 @@ export default function TripPlanNotesPanel({
   return (
     <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
       <div className="flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-violet-100 bg-violet-50 text-violet-800">
-          <NotebookPen className="h-5 w-5" aria-hidden />
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-violet-100 bg-violet-50 text-violet-800 ${iconSlotFill40}`}
+        >
+          <NotebookPen aria-hidden />
         </div>
         <div className="min-w-0 space-y-1">
           <h2 className="text-lg font-extrabold tracking-tight text-slate-950">Notas del viaje</h2>

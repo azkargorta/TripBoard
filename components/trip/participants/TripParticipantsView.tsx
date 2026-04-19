@@ -14,6 +14,7 @@ import { supabase } from "@/lib/supabase";
 import ParticipantLinkProfilePanel from "./ParticipantLinkProfilePanel";
 import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
 import LongTextSheet from "@/components/ui/LongTextSheet";
+import { iconSlotFill40 } from "@/components/ui/iconTokens";
 import { getRoleLabel, getStatusLabel } from "@/lib/participants";
 import {
   Info,
@@ -321,8 +322,10 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
       {serverAccessLoaded && !canManageParticipants ? (
         <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-white px-5 py-4 shadow-sm">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:gap-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-amber-800">
-              <Info className="h-5 w-5" aria-hidden />
+            <div
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-amber-800 ${iconSlotFill40}`}
+            >
+              <Info aria-hidden />
             </div>
             <div className="space-y-1">
               <p className="font-semibold text-amber-950">Vista de solo lectura</p>

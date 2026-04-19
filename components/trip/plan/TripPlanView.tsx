@@ -841,7 +841,7 @@ export default function TripPlanView({
                             setNewKind((s) => ({ ...s, emoji: item.emoji }));
                             setIconPickerOpen(false);
                           }}
-                          className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border text-lg transition hover:bg-slate-50 ${
+                          className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border text-2xl leading-none transition hover:bg-slate-50 ${
                             newKind.emoji === item.emoji ? "border-violet-300 bg-violet-50" : "border-slate-200 bg-white"
                           }`}
                           title={item.label}
@@ -944,7 +944,7 @@ export default function TripPlanView({
                               void updateKind(k.id, { emoji: item.emoji });
                               setEditIconPickerId(null);
                             }}
-                            className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border text-lg transition hover:bg-white ${
+                            className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border text-2xl leading-none transition hover:bg-white ${
                               (k.emoji || "") === item.emoji ? "border-violet-300 bg-violet-50" : "border-slate-200 bg-white"
                             }`}
                             title={item.label}

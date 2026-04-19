@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import TripExploreView from "@/components/trip/explore/TripExploreView";
+import { iconSlotFill40 } from "@/components/ui/iconTokens";
 
 export type ExploreCreatePlanPayload = {
   title: string;
@@ -76,10 +77,10 @@ export default function TripPlanExploreDrawer({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50"
+            className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 ${iconSlotFill40}`}
             aria-label="Cerrar"
           >
-            <X className="h-5 w-5" aria-hidden />
+            <X aria-hidden />
           </button>
         </div>
 

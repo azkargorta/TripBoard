@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
 import { MessageCircle, X } from "lucide-react";
 import { tripAssistantSurfaceFromPathname, tripAssistantSurfaceLabel } from "@/lib/trip-assistant-context";
+import { iconSlotFab56, iconSlotFill40 } from "@/components/ui/iconTokens";
 
 const TripAiChatView = dynamic(() => import("@/components/trip/ai/TripAiChatView"), {
   ssr: false,
@@ -33,11 +34,11 @@ export default function TripPageAssistantDock({ tripId, isPremium }: Props) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] right-4 z-[1090] inline-flex h-14 w-14 items-center justify-center rounded-full bg-slate-950 text-white shadow-lg ring-2 ring-white/20 transition hover:bg-slate-800 md:bottom-8 md:right-6"
+        className={`fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] right-4 z-[1090] inline-flex h-14 w-14 items-center justify-center rounded-full bg-slate-950 text-white shadow-lg ring-2 ring-white/20 transition hover:bg-slate-800 md:bottom-8 md:right-6 ${iconSlotFab56}`}
         aria-label={`Abrir asistente personal (${surfaceLabel})`}
         title={`Asistente personal · ${surfaceLabel}`}
       >
-        <MessageCircle className="h-6 w-6" aria-hidden />
+        <MessageCircle aria-hidden />
       </button>
 
       {open ? (
@@ -74,10 +75,10 @@ export default function TripPageAssistantDock({ tripId, isPremium }: Props) {
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center self-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50"
+                  className={`inline-flex h-10 w-10 shrink-0 items-center justify-center self-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 ${iconSlotFill40}`}
                   aria-label="Cerrar"
                 >
-                  <X className="h-5 w-5" />
+                  <X aria-hidden />
                 </button>
               </div>
             </div>

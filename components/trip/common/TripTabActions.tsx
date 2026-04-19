@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Home, LayoutDashboard } from "lucide-react";
+import { iconInline16 } from "@/components/ui/iconTokens";
 
 type Props = {
   tripId: string;
@@ -20,11 +21,11 @@ export default function TripTabActions({ tripId, variant = "default" }: Props) {
         aria-label="Resumen"
         title="Resumen"
       >
-        <LayoutDashboard className="h-3.5 w-3.5" aria-hidden />
+        <LayoutDashboard className={iconInline16} aria-hidden />
         <span className="hidden sm:inline">Resumen</span>
       </Link>
       <Link href="/dashboard" className={className} aria-label="Mis viajes" title="Mis viajes">
-        <Home className="h-3.5 w-3.5" aria-hidden />
+        <Home className={iconInline16} aria-hidden />
         <span className="hidden sm:inline">Mis viajes</span>
       </Link>
     </div>

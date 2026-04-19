@@ -7,6 +7,7 @@ import {
   levelLabel,
   type TravelDocsChecklistPayload,
 } from "@/lib/trip-ai/travelDocsChecklist";
+import { iconSlotFill40 } from "@/components/ui/iconTokens";
 
 function levelBadgeClass(level: TravelDocsChecklistPayload["items"][number]["level"]) {
   switch (level) {
@@ -96,8 +97,10 @@ export default function TravelDocsChecklistCard({
   return (
     <div className="w-full max-w-[88%] rounded-2xl border border-cyan-200/80 bg-gradient-to-br from-cyan-50/90 via-white to-sky-50/50 p-4 shadow-sm ring-1 ring-cyan-100">
       <div className="flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-600 text-white shadow-sm">
-          <ClipboardList className="h-5 w-5" aria-hidden />
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-600 text-white shadow-sm ${iconSlotFill40}`}
+        >
+          <ClipboardList aria-hidden />
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-cyan-900">Checklist documentos</p>

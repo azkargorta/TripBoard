@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import PlaceAutocompleteInput from "@/components/PlaceAutocompleteInput";
 import { Check, Star, X } from "lucide-react";
+import { iconInline16, iconSlotFill40 } from "@/components/ui/iconTokens";
 
 export type ActivityKind =
   | "visit"
@@ -199,7 +200,7 @@ export default function PlanForm({
               onClick={onCancelEdit}
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-violet-200"
             >
-              <X className="h-4 w-4" />
+              <X className={iconInline16} />
               {isEditing ? "Cancelar edición" : "Cerrar"}
             </button>
           ) : null}
@@ -365,13 +366,13 @@ export default function PlanForm({
                     key={n}
                     type="button"
                     onClick={() => update("rating", form.rating === n ? 0 : n)}
-                    className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border transition focus:outline-none focus:ring-2 focus:ring-violet-200 ${
+                    className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border transition focus:outline-none focus:ring-2 focus:ring-violet-200 ${iconSlotFill40} ${
                       active ? "border-amber-200 bg-amber-50 text-amber-600" : "border-slate-200 bg-white text-slate-400 hover:bg-slate-50"
                     }`}
                     aria-label={`Valorar con ${n} estrellas`}
                     title={`${n} estrellas`}
                   >
-                    <Star className={`h-5 w-5 ${active ? "fill-current" : ""}`} aria-hidden />
+                    <Star className={active ? "fill-current" : ""} aria-hidden />
                   </button>
                 );
               })}
@@ -413,7 +414,7 @@ export default function PlanForm({
               saving ? "bg-slate-200 text-slate-500" : "bg-slate-950 text-white hover:bg-slate-800"
             }`}
           >
-            <Check className="h-4 w-4" />
+            <Check className={iconInline16} />
             {saving ? "Guardando..." : isEditing ? "Guardar cambios" : "Guardar actividad"}
           </button>
 
@@ -423,7 +424,7 @@ export default function PlanForm({
               onClick={onCancelEdit}
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-violet-200"
             >
-              <X className="h-4 w-4" />
+              <X className={iconInline16} />
               Cancelar
             </button>
           ) : null}

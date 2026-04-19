@@ -4,6 +4,7 @@ import type React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { iconSlotNavBottom } from "@/components/ui/iconTokens";
 
 type Props = {
   tripId: string;
@@ -14,43 +15,43 @@ const items: Array<{ key: string; label: string; icon: React.ReactNode; href: (i
   {
     key: "summary",
     label: "Resumen",
-    icon: <Image src="/brand/tabs/calendar.png" alt="" width={22} height={22} className="h-[22px] w-[22px] object-contain" />,
+    icon: <Image src="/brand/tabs/calendar.png" alt="" width={32} height={32} className="object-contain" />,
     href: (id: string) => `/trip/${id}/summary`,
   },
   {
     key: "plan",
     label: "Plan",
-    icon: <Image src="/brand/tabs/plan.png" alt="" width={22} height={22} className="h-[22px] w-[22px] object-contain" />,
+    icon: <Image src="/brand/tabs/plan.png" alt="" width={32} height={32} className="object-contain" />,
     href: (id: string) => `/trip/${id}/plan`,
   },
   {
     key: "map",
     label: "Rutas",
-    icon: <Image src="/brand/tabs/map.png" alt="" width={22} height={22} className="h-[22px] w-[22px] object-contain" />,
+    icon: <Image src="/brand/tabs/map.png" alt="" width={32} height={32} className="object-contain" />,
     href: (id: string) => `/trip/${id}/map`,
   },
   {
     key: "expenses",
     label: "Gastos",
-    icon: <Image src="/brand/tabs/expenses.png" alt="" width={22} height={22} className="h-[22px] w-[22px] object-contain" />,
+    icon: <Image src="/brand/tabs/expenses.png" alt="" width={32} height={32} className="object-contain" />,
     href: (id: string) => `/trip/${id}/expenses`,
   },
   {
     key: "participants",
     label: "Gente",
-    icon: <Image src="/brand/tabs/participants.png" alt="" width={22} height={22} className="h-[22px] w-[22px] object-contain" />,
+    icon: <Image src="/brand/tabs/participants.png" alt="" width={32} height={32} className="object-contain" />,
     href: (id: string) => `/trip/${id}/participants`,
   },
   {
     key: "resources",
     label: "Docs",
-    icon: <Image src="/brand/tabs/documents.png" alt="" width={22} height={22} className="h-[22px] w-[22px] object-contain" />,
+    icon: <Image src="/brand/tabs/documents.png" alt="" width={32} height={32} className="object-contain" />,
     href: (id: string) => `/trip/${id}/resources`,
   },
   {
     key: "chat",
     label: "Asistente personal",
-    icon: <Image src="/brand/tabs/ai.png" alt="" width={22} height={22} className="h-[22px] w-[22px] object-contain" />,
+    icon: <Image src="/brand/tabs/ai.png" alt="" width={32} height={32} className="object-contain" />,
     href: (id: string) => `/trip/${id}/ai-chat`,
   },
 ];
@@ -90,7 +91,7 @@ export default function MobileBottomNav({ tripId, isPremium }: Props) {
                       : "text-slate-500 active:bg-slate-100"
                   }`}
                 >
-                  <span className="text-[1.2rem] leading-none [&_img]:shrink-0" aria-hidden>
+                  <span className={iconSlotNavBottom} aria-hidden>
                     {item.icon}
                   </span>
                   <span className="max-w-[4.5rem] whitespace-normal text-center text-[9px] font-semibold leading-[1.15] line-clamp-2">

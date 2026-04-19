@@ -48,7 +48,7 @@ export default function SignOutButton({ className, showIcon = false }: SignOutBu
       disabled={loading}
       className={mergedClass}
     >
-      {showIcon ? <LogOut className="h-4 w-4 shrink-0 opacity-90" aria-hidden /> : null}
+      {showIcon ? <LogOut className="size-8 shrink-0 opacity-90" aria-hidden /> : null}
       {loading ? "Saliendo..." : "Cerrar sesión"}
     </button>
   );

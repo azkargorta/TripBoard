@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Sparkles, Wand2, X } from "lucide-react";
+import { iconInline16, iconSlotFill40 } from "@/components/ui/iconTokens";
 
 export type DashboardAiTrip = {
   id: string;
@@ -117,7 +118,7 @@ export default function DashboardAiShortcuts({
           className="inline-flex min-h-[40px] flex-1 items-center justify-center gap-2 rounded-xl border-2 border-violet-300 bg-violet-50/80 px-3 py-2 text-center text-xs font-semibold text-violet-950 shadow-sm transition hover:bg-violet-50 sm:min-w-[200px] sm:flex-none sm:text-sm"
           title="Abre el formulario para crear un viaje; al guardar con Premium puedes seguir en el asistente"
         >
-          <Sparkles className="h-4 w-4 shrink-0 text-violet-700" aria-hidden />
+          <Sparkles className={`${iconInline16} text-violet-700`} aria-hidden />
           Crear viaje con asistente personal
         </button>
         {trips.length === 1 ? (
@@ -132,7 +133,7 @@ export default function DashboardAiShortcuts({
               href={hrefFor(trips[0].id, "auto_plans")}
               className="inline-flex min-h-[40px] flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 sm:min-w-[200px] sm:flex-none sm:text-sm"
             >
-              <Wand2 className="h-4 w-4 shrink-0 text-slate-600" aria-hidden />
+              <Wand2 className={`${iconInline16} text-slate-600`} aria-hidden />
               Añadir planes automáticamente
             </Link>
           </>
@@ -150,7 +151,7 @@ export default function DashboardAiShortcuts({
               onClick={() => openPicker("auto_plans")}
               className="inline-flex min-h-[40px] flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 sm:min-w-[200px] sm:flex-none sm:text-sm"
             >
-              <Wand2 className="h-4 w-4 shrink-0 text-slate-600" aria-hidden />
+              <Wand2 className={`${iconInline16} text-slate-600`} aria-hidden />
               Añadir planes automáticamente…
             </button>
           </>
@@ -181,10 +182,10 @@ export default function DashboardAiShortcuts({
               <button
                 type="button"
                 onClick={closePicker}
-                className="shrink-0 rounded-full border border-slate-200 p-2 text-slate-600 transition hover:bg-slate-50"
+                className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:bg-slate-50 ${iconSlotFill40}`}
                 aria-label="Cerrar"
               >
-                <X className="h-4 w-4" aria-hidden />
+                <X aria-hidden />
               </button>
             </div>
             <ul className="max-h-[min(400px,60vh)] overflow-y-auto p-2">

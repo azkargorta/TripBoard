@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Home, LayoutDashboard } from "lucide-react";
 import TripShareButton from "@/components/trip/common/TripShareButton";
 import { mobileMenuRowBase, mobileMenuRowIconWrap } from "@/components/ui/mobileMenuStyles";
+import { iconInline16 } from "@/components/ui/iconTokens";
 
 type Props = {
   tripId: string;
@@ -45,14 +46,14 @@ export default function TripScreenActions({
             title={summaryLabel}
           >
             <span className={iconWrap}>
-              <LayoutDashboard className="h-4 w-4 shrink-0 text-violet-700" aria-hidden />
+              <LayoutDashboard className="text-violet-700" aria-hidden />
             </span>
             {summaryLabel}
           </Link>
         ) : null}
         <Link href="/dashboard" className={row} aria-label={homeLabel} title={homeLabel}>
           <span className={iconWrap}>
-            <Home className="h-4 w-4 shrink-0 text-cyan-700" aria-hidden />
+            <Home className="text-cyan-700" aria-hidden />
           </span>
           {homeLabel}
         </Link>
@@ -70,13 +71,13 @@ export default function TripScreenActions({
           aria-label={summaryLabel}
           title={summaryLabel}
         >
-          <LayoutDashboard className="h-3.5 w-3.5" aria-hidden />
+          <LayoutDashboard className={iconInline16} aria-hidden />
           <span className={showLabels ? "inline" : "hidden sm:inline"}>{summaryLabel}</span>
         </Link>
       ) : null}
 
       <Link href="/dashboard" className={btn} aria-label={homeLabel} title={homeLabel}>
-        <Home className="h-3.5 w-3.5" aria-hidden />
+        <Home className={iconInline16} aria-hidden />
         <span className={showLabels ? "inline" : "hidden sm:inline"}>{homeLabel}</span>
       </Link>
     </div>

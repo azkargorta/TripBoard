@@ -15,6 +15,7 @@ import {
   mobileMenuRowVioletIcon,
   mobileMenuRowSignOut,
 } from "@/components/ui/mobileMenuStyles";
+import { iconSlotFill40 } from "@/components/ui/iconTokens";
 
 type Props = {
   isAdmin: boolean;
@@ -50,12 +51,12 @@ export default function DashboardPageHeader({ isAdmin, intro }: Props) {
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-800 transition hover:bg-slate-100"
+            className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-800 transition hover:bg-slate-100 ${iconSlotFill40}`}
             aria-expanded={open}
             aria-controls="dashboard-mobile-drawer"
             aria-label="Abrir menú"
           >
-            <Menu className="h-5 w-5" aria-hidden />
+            <Menu aria-hidden />
           </button>
         </div>
 
@@ -83,10 +84,10 @@ export default function DashboardPageHeader({ isAdmin, intro }: Props) {
                 <button
                   type="button"
                   onClick={close}
-                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50"
+                  className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 ${iconSlotFill40}`}
                   aria-label="Cerrar menú"
                 >
-                  <X className="h-5 w-5" aria-hidden />
+                  <X aria-hidden />
                 </button>
               </div>
 
@@ -105,20 +106,20 @@ export default function DashboardPageHeader({ isAdmin, intro }: Props) {
                   {isAdmin ? (
                     <Link href="/dashboard/admin" className={mobileMenuRowAdmin} onClick={close}>
                       <span className={mobileMenuRowAdminIcon}>
-                        <Shield className="h-4 w-4" aria-hidden />
+                        <Shield aria-hidden />
                       </span>
                       Admin
                     </Link>
                   ) : null}
                   <Link href="/pricing" className={mobileMenuRowPricing} onClick={close}>
                     <span className={mobileMenuRowPricingIcon}>
-                      <Tag className="h-4 w-4" aria-hidden />
+                      <Tag aria-hidden />
                     </span>
                     Precios
                   </Link>
                   <Link href="/account" className={mobileMenuRowViolet} onClick={close}>
                     <span className={mobileMenuRowVioletIcon}>
-                      <User className="h-4 w-4" aria-hidden />
+                      <User aria-hidden />
                     </span>
                     Cuenta
                   </Link>

@@ -5,6 +5,7 @@ import { MapContainer, Marker, Popup, Polyline, TileLayer, useMap } from "react-
 import L from "leaflet";
 import { CalendarDays, Check, Clock, Copy, GripVertical, MapPin, Plus, RefreshCw, Save, Trash2 } from "lucide-react";
 import PlaceAutocompleteInput from "@/components/PlaceAutocompleteInput";
+import { iconSlotFill40 } from "@/components/ui/iconTokens";
 import { useTripRoutes, type RoutePoint, type SaveRouteInput } from "@/hooks/useTripRoutes";
 import { useTripActivityKinds } from "@/hooks/useTripActivityKinds";
 import DuplicateRouteDialog from "@/components/trip/map/DuplicateRouteDialog";
@@ -392,8 +393,10 @@ function defaultRouteForm(date: string): RouteFormState {
 
 function SortHandle() {
   return (
-    <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600">
-      <GripVertical className="h-4 w-4" aria-hidden />
+    <span
+      className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 ${iconSlotFill40}`}
+    >
+      <GripVertical aria-hidden />
     </span>
   );
 }
