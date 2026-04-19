@@ -160,14 +160,6 @@ const HELP: Record<string, HelpEntry> = {
           "Sirve de “tablero” antes y durante el viaje: vuelves aquí para orientarte y repartir tareas.",
         ],
       },
-      {
-        heading: "En el móvil",
-        bullets: [
-          "El menú inferior agrupa las mismas pestañas; desliza horizontalmente si no ves todas.",
-          "Parte del contenido puede ir colapsado para ganar espacio; ábrelo para ver fechas, notas o enlaces.",
-          "El icono «?» arriba a la derecha vuelve a abrir esta ayuda cuando quieras.",
-        ],
-      },
     ],
   },
   plan: {
@@ -190,13 +182,6 @@ const HELP: Record<string, HelpEntry> = {
           "Un solo plan compartido: todo el mundo ve la misma versión del día.",
           "Menos improvisación last minute: el grupo llega al destino con expectativas alineadas.",
           "Encaja con Rutas y Gastos: lo que planificas aquí da contexto al resto de herramientas.",
-        ],
-      },
-      {
-        heading: "En el móvil",
-        bullets: [
-          "Suele mostrarse un día a la vez: desplázate dentro del día para ver todas las actividades.",
-          "Si hay muchas visitas, usa el resumen del día o el título de cada bloque para ubicarte rápido.",
         ],
       },
     ],
@@ -223,13 +208,6 @@ const HELP: Record<string, HelpEntry> = {
           "Complementa el Plan: lo que escribiste en agenda cobra sentido sobre el terreno.",
         ],
       },
-      {
-        heading: "En el móvil",
-        bullets: [
-          "Usa pellizco para zoom y arrastre para moverte; los paneles suelen poder cerrarse o deslizarse.",
-          "Si la barra inferior o el teclado tapan contenido, cierra paneles auxiliares o desplázate dentro del mapa.",
-        ],
-      },
     ],
   },
   expenses: {
@@ -254,13 +232,6 @@ const HELP: Record<string, HelpEntry> = {
           "Útil en viajes largos o con mucha gente: el saldo se mantiene claro día a día.",
         ],
       },
-      {
-        heading: "En el móvil",
-        bullets: [
-          "Empieza por el resumen superior; el detalle de cada gasto suele ir debajo en lista o tabla.",
-          "Desplázate en vertical: en pantallas estrechas es más cómodo leer bloque a bloque.",
-        ],
-      },
     ],
   },
   participants: {
@@ -283,12 +254,6 @@ const HELP: Record<string, HelpEntry> = {
           "Facilita la coordinación: sabes a quién pedir cada cosa.",
         ],
       },
-      {
-        heading: "En el móvil",
-        bullets: [
-          "Las personas suelen mostrarse en lista; toca una fila si hay más datos o acciones.",
-        ],
-      },
     ],
   },
   resources: {
@@ -309,12 +274,6 @@ const HELP: Record<string, HelpEntry> = {
           "Menos estrés: no dependes de reenviar el mismo correo diez veces.",
           "Historial compartido: si alguien pierde el móvil, el grupo sigue teniendo copia en la nube del viaje.",
           "Complementa el Plan: lo administrativo vive aquí, lo horario en Plan.",
-        ],
-      },
-      {
-        heading: "En el móvil",
-        bullets: [
-          "Los enlaces y archivos se abren con el navegador o apps del sistema; guarda lo crítico donde te sea cómodo.",
         ],
       },
     ],
@@ -341,13 +300,6 @@ const HELP: Record<string, HelpEntry> = {
           "Encaja con Plan y Rutas: puedes pasar de la idea al calendario o al mapa con menos saltos mentales.",
         ],
       },
-      {
-        heading: "En el móvil",
-        bullets: [
-          "En pantallas pequeñas el chat suele ir primero; el panel lateral guarda conversaciones y «Mostrar tipos».",
-          "Si el teclado tapa el campo de texto, cierra paneles o desplázate para ver la última respuesta.",
-        ],
-      },
     ],
   },
   settings: {
@@ -366,12 +318,6 @@ const HELP: Record<string, HelpEntry> = {
         bullets: [
           "Control centralizado: evitas cambiar el mismo dato en varios sitios.",
           "Quien administra el viaje puede dejarlo fino sin tocar el plan día a día.",
-        ],
-      },
-      {
-        heading: "En el móvil",
-        bullets: [
-          "Los formularios largos siguen el scroll vertical; confirma o guarda antes de salir si hay botón explícito.",
         ],
       },
     ],
@@ -591,7 +537,7 @@ export default function TripPageHelp() {
             <>
               {tourOpen && tourStepData ? (
                 <div
-                  className="fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto overscroll-contain px-3 py-[max(10px,env(safe-area-inset-top))] pb-[max(12px,env(safe-area-inset-bottom))] sm:p-4"
+                  className="fixed inset-0 z-[1180] flex items-center justify-center overflow-y-auto overscroll-contain px-3 py-[max(10px,env(safe-area-inset-top))] pb-[max(12px,env(safe-area-inset-bottom))] sm:p-4"
                   role="dialog"
                   aria-modal="true"
                   aria-labelledby="trip-tab-tour-title"
@@ -644,10 +590,7 @@ export default function TripPageHelp() {
                         <p className="mt-4 text-xs font-bold uppercase tracking-[0.14em] text-cyan-800">{tourStepData.lead}</p>
                         <h3 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-950">{tourStepData.title}</h3>
                         <p className="mt-3 max-w-sm text-sm leading-relaxed text-slate-600">{tourStepData.body}</p>
-                        <div className="mt-5 w-full max-w-sm rounded-2xl border border-cyan-200/80 bg-cyan-50/90 px-4 py-3 text-left">
-                          <p className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-cyan-900/80">En el móvil</p>
-                          <p className="mt-1.5 text-sm leading-relaxed text-cyan-950/90">{tourStepData.mobileTip}</p>
-                        </div>
+                        <p className="mt-4 max-w-sm text-sm leading-relaxed text-slate-600">{tourStepData.mobileTip}</p>
                         <Link
                           href={tourStepData.href(tripId)}
                           onClick={finishTour}
@@ -704,7 +647,7 @@ export default function TripPageHelp() {
 
               {pageHelpOpen ? (
                 <div
-                  className="fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto overscroll-contain px-3 py-[max(10px,env(safe-area-inset-top))] pb-[max(12px,env(safe-area-inset-bottom))] sm:p-4"
+                  className="fixed inset-0 z-[1180] flex items-center justify-center overflow-y-auto overscroll-contain px-3 py-[max(10px,env(safe-area-inset-top))] pb-[max(12px,env(safe-area-inset-bottom))] sm:p-4"
                   role="dialog"
                   aria-modal="true"
                   aria-labelledby="trip-page-help-title"

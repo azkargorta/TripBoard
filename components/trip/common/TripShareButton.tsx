@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Share2, Link as LinkIcon, Ban } from "lucide-react";
+import { writeTextToClipboard } from "@/lib/clipboard";
 import { useToast } from "@/components/ui/toast";
 
 export default function TripShareButton({
@@ -29,8 +30,11 @@ export default function TripShareButton({
       if (!token) throw new Error("No se pudo crear el enlace.");
 
       const url = `${window.location.origin}/share/${token}`;
-      await navigator.clipboard.writeText(url);
-      toast.success("Enlace público copiado", "Es de solo lectura.");
+      const copied = await writeTextToClipboard(url);
+      if (!copied) {
+        throw new Error("No se pudo copiar al portapapeles. Copia manualmente el enlace si aparece en pantalla.");
+      }
+      toast.success("Enlace copiado al portapapeles", "Pégalo donde quieras compartirlo. El enlace es de solo lectura.");
     } catch (e) {
       toast.error("No se pudo compartir", e instanceof Error ? e.message : "Error desconocido");
     } finally {

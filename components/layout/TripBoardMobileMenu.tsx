@@ -105,7 +105,7 @@ export default function TripBoardMobileMenu({ tripId, isPremium = true }: Props)
       {mounted && open
         ? createPortal(
             <div
-              className="fixed inset-0 z-[110] md:hidden"
+              className="fixed inset-0 z-[1150] md:hidden"
               role="dialog"
               aria-modal="true"
               aria-label="Menú del viaje"
@@ -118,10 +118,9 @@ export default function TripBoardMobileMenu({ tripId, isPremium = true }: Props)
               />
 
               <div
-                className="pointer-events-auto absolute right-0 top-0 h-full w-[min(92vw,420px)] overflow-y-auto border-l border-slate-200 bg-white shadow-2xl"
+                className="pointer-events-auto absolute right-0 top-0 h-full w-[min(92vw,420px)] overflow-y-auto border-l border-slate-200 bg-white shadow-2xl pb-[max(0.75rem,calc(5.5rem+env(safe-area-inset-bottom,0px)))]"
                 style={{
                   paddingTop: "max(env(safe-area-inset-top), 12px)",
-                  paddingBottom: "max(env(safe-area-inset-bottom), 12px)",
                 }}
               >
                 <div className="flex items-center justify-between gap-3 px-5">

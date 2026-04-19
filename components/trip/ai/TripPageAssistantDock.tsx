@@ -33,7 +33,7 @@ export default function TripPageAssistantDock({ tripId, isPremium }: Props) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] right-4 z-[55] inline-flex h-14 w-14 items-center justify-center rounded-full bg-slate-950 text-white shadow-lg ring-2 ring-white/20 transition hover:bg-slate-800 md:bottom-8 md:right-6"
+        className="fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] right-4 z-[1090] inline-flex h-14 w-14 items-center justify-center rounded-full bg-slate-950 text-white shadow-lg ring-2 ring-white/20 transition hover:bg-slate-800 md:bottom-8 md:right-6"
         aria-label={`Abrir asistente personal (${surfaceLabel})`}
         title={`Asistente personal · ${surfaceLabel}`}
       >
@@ -41,7 +41,7 @@ export default function TripPageAssistantDock({ tripId, isPremium }: Props) {
       </button>
 
       {open ? (
-        <div className="fixed inset-0 z-[60] flex items-end justify-center md:items-center md:justify-end md:p-6">
+        <div className="fixed inset-0 z-[1100] flex items-end justify-center md:items-center md:justify-end md:p-6">
           <button
             type="button"
             className="absolute inset-0 bg-slate-950/45 backdrop-blur-[2px]"

@@ -227,3 +227,9 @@ textarea.input {
     animation: dash-primary-once 2.4s ease-in-out 1;
   }
 }
+
+/* Leaflet usa z-index altos (hasta ~1000) en capas internas; aislamos el mapa para que no tape
+   modales, asistente o menús de la app que viven fuera del contenedor. */
+.leaflet-container {
+  isolation: isolate;
+}
