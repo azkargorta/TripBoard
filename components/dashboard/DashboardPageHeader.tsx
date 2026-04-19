@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Shield, Tag, User } from "lucide-react";
 import SignOutButton from "@/components/auth/SignOutButton";
+import TripBoardLogo from "@/components/brand/TripBoardLogo";
 import { iconInline16 } from "@/components/ui/iconTokens";
 
 type Props = {
@@ -42,28 +43,28 @@ export default function DashboardPageHeader({ isAdmin }: Props) {
     "flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-900 transition hover:bg-slate-50";
 
   return (
-    <div ref={rootRef} className="relative flex items-center justify-between gap-3 py-1">
-      <h1 className="min-w-0 truncate text-lg font-extrabold tracking-tight text-slate-950 md:text-xl">Tus viajes</h1>
-
-      <div className="relative shrink-0">
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm ring-1 ring-slate-900/[0.04] transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60"
-          aria-expanded={open}
-          aria-haspopup="menu"
-          aria-controls="dashboard-account-menu"
-          aria-label="Cuenta y accesos"
-        >
-          <User className="size-[1.15rem] shrink-0" strokeWidth={2.25} aria-hidden />
-        </button>
-
-        {open ? (
-          <div
-            id="dashboard-account-menu"
-            role="menu"
-            className="absolute right-0 top-[calc(100%+0.35rem)] z-[100] w-max min-w-[13.5rem] max-w-[min(calc(100vw-1.5rem),17rem)] rounded-2xl border border-slate-200/90 bg-white py-1.5 shadow-xl ring-1 ring-slate-900/[0.06]"
+    <div ref={rootRef} className="relative -mt-2 pb-1 md:-mt-3 md:pb-2">
+      {/* Perfil: esquina superior derecha, sin descentrar el bloque marca + título */}
+      <div className="absolute right-0 top-0 z-10 sm:top-0.5">
+        <div className="relative shrink-0">
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm ring-1 ring-slate-900/[0.04] transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60"
+            aria-expanded={open}
+            aria-haspopup="menu"
+            aria-controls="dashboard-account-menu"
+            aria-label="Cuenta y accesos"
           >
+            <User className="size-[1.15rem] shrink-0" strokeWidth={2.25} aria-hidden />
+          </button>
+
+          {open ? (
+            <div
+              id="dashboard-account-menu"
+              role="menu"
+              className="absolute right-0 top-[calc(100%+0.35rem)] z-[100] w-max min-w-[13.5rem] max-w-[min(calc(100vw-1.5rem),17rem)] rounded-2xl border border-slate-200/90 bg-white py-1.5 shadow-xl ring-1 ring-slate-900/[0.06]"
+            >
               <div className="px-1.5" onClick={() => setOpen(false)}>
                 {isAdmin ? (
                   <Link href="/dashboard/admin" role="menuitem" className={`${dropItem} text-amber-950`}>
@@ -93,7 +94,17 @@ export default function DashboardPageHeader({ isAdmin }: Props) {
                 />
               </div>
             </div>
-        ) : null}
+          ) : null}
+        </div>
+      </div>
+
+      <div className="mx-auto flex w-full max-w-xl flex-col items-center px-12 text-center sm:max-w-2xl sm:px-16 md:px-20">
+        <div className="flex justify-center">
+          <TripBoardLogo href="/dashboard" size="sm" className="justify-center" />
+        </div>
+        <h1 className="mt-2 text-xl font-extrabold tracking-tight text-slate-950 md:mt-2.5 md:text-2xl">
+          Tus viajes
+        </h1>
       </div>
     </div>
   );
