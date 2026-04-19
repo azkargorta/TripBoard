@@ -52,7 +52,7 @@ export default function LongTextSheet({
   const modal =
     mounted && open ? (
       <div
-        className="fixed inset-0 z-[2100] flex items-end justify-center p-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:items-center sm:p-6"
+        className="fixed inset-0 z-[2100] flex items-center justify-center p-3 py-[max(1rem,env(safe-area-inset-bottom))] sm:p-6"
         role="dialog"
         aria-modal="true"
         aria-labelledby="long-text-sheet-title"
@@ -63,15 +63,15 @@ export default function LongTextSheet({
           aria-label="Cerrar"
           onClick={() => setOpen(false)}
         />
-        <div className="relative max-h-[min(85dvh,640px)] w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-          <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
+        <div className="relative max-h-[min(85dvh,640px)] w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-2xl ring-1 ring-slate-900/[0.06]">
+          <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-cyan-50/40 px-4 py-3">
             <h2 id="long-text-sheet-title" className="min-w-0 truncate text-base font-extrabold text-slate-950">
               {modalTitle}
             </h2>
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50"
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-cyan-200 hover:bg-cyan-50/80"
               aria-label="Cerrar"
             >
               <X className="h-5 w-5" aria-hidden />

@@ -3,19 +3,24 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Menu, X } from "lucide-react";
+import { Menu, Shield, Tag, User, X } from "lucide-react";
 import SignOutButton from "@/components/auth/SignOutButton";
+import {
+  mobileMenuSectionTitle,
+  mobileMenuRowAdmin,
+  mobileMenuRowAdminIcon,
+  mobileMenuRowPricing,
+  mobileMenuRowPricingIcon,
+  mobileMenuRowViolet,
+  mobileMenuRowVioletIcon,
+  mobileMenuRowSignOut,
+} from "@/components/ui/mobileMenuStyles";
 
 type Props = {
   isAdmin: boolean;
   /** Intro (puede incluir <span> en negrita); en móvil se muestra dentro del panel lateral. */
   intro: ReactNode;
 };
-
-const linkClass =
-  "inline-flex min-h-[44px] w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50";
-const adminLinkClass =
-  "inline-flex min-h-[44px] w-full items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-950 transition hover:bg-amber-100";
 
 export default function DashboardPageHeader({ isAdmin, intro }: Props) {
   const [open, setOpen] = useState(false);
@@ -90,23 +95,35 @@ export default function DashboardPageHeader({ isAdmin, intro }: Props) {
               </div>
 
               <nav
-                className="shrink-0 space-y-2 border-t border-slate-100 p-4"
+                className="shrink-0 border-t border-slate-100 p-4"
                 onClick={(e) => {
                   if ((e.target as HTMLElement).closest("a")) close();
                 }}
               >
-                {isAdmin ? (
-                  <Link href="/dashboard/admin" className={adminLinkClass}>
-                    Admin
+                <div className={mobileMenuSectionTitle}>Accesos</div>
+                <div className="mt-3 space-y-2">
+                  {isAdmin ? (
+                    <Link href="/dashboard/admin" className={mobileMenuRowAdmin} onClick={close}>
+                      <span className={mobileMenuRowAdminIcon}>
+                        <Shield className="h-4 w-4" aria-hidden />
+                      </span>
+                      Admin
+                    </Link>
+                  ) : null}
+                  <Link href="/pricing" className={mobileMenuRowPricing} onClick={close}>
+                    <span className={mobileMenuRowPricingIcon}>
+                      <Tag className="h-4 w-4" aria-hidden />
+                    </span>
+                    Precios
                   </Link>
-                ) : null}
-                <Link href="/pricing" className={linkClass}>
-                  Precios
-                </Link>
-                <Link href="/account" className={linkClass}>
-                  Cuenta
-                </Link>
-                <SignOutButton className="min-h-[44px] w-full rounded-xl shadow-sm" />
+                  <Link href="/account" className={mobileMenuRowViolet} onClick={close}>
+                    <span className={mobileMenuRowVioletIcon}>
+                      <User className="h-4 w-4" aria-hidden />
+                    </span>
+                    Cuenta
+                  </Link>
+                  <SignOutButton showIcon className={mobileMenuRowSignOut} />
+                </div>
               </nav>
             </aside>
           </div>

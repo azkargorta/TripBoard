@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { Compass, Home, LayoutDashboard } from "lucide-react";
+import { Home, LayoutDashboard } from "lucide-react";
 import TripShareButton from "@/components/trip/common/TripShareButton";
+import { mobileMenuRowBase, mobileMenuRowIconWrap } from "@/components/ui/mobileMenuStyles";
 
 type Props = {
   tripId: string;
@@ -11,6 +12,8 @@ type Props = {
   variant?: "default" | "inverse";
   /** En móvil, mostrar texto junto al icono. */
   showLabels?: boolean;
+  /** Filas apiladas estilo menú hamburguesa (viaje). */
+  menuStack?: boolean;
 };
 
 export default function TripScreenActions({
@@ -20,11 +23,42 @@ export default function TripScreenActions({
   homeLabel = "Mis viajes",
   variant = "default",
   showLabels = false,
+  menuStack = false,
 }: Props) {
   const btn =
     variant === "inverse"
       ? "inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-2 py-2 text-[10px] font-semibold text-white shadow-sm transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 sm:min-h-0 sm:min-w-0 sm:px-2 sm:py-1"
       : "inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 py-2 text-[10px] font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60 sm:min-h-0 sm:min-w-0 sm:px-2 sm:py-1";
+
+  const row = mobileMenuRowBase;
+  const iconWrap = mobileMenuRowIconWrap;
+
+  if (menuStack && variant === "default") {
+    return (
+      <div className="flex w-full flex-col gap-2">
+        <TripShareButton tripId={tripId} showLabels menuRow />
+        {showSummary ? (
+          <Link
+            href={`/trip/${tripId}/summary`}
+            className={row}
+            aria-label={summaryLabel}
+            title={summaryLabel}
+          >
+            <span className={iconWrap}>
+              <LayoutDashboard className="h-4 w-4 shrink-0 text-violet-700" aria-hidden />
+            </span>
+            {summaryLabel}
+          </Link>
+        ) : null}
+        <Link href="/dashboard" className={row} aria-label={homeLabel} title={homeLabel}>
+          <span className={iconWrap}>
+            <Home className="h-4 w-4 shrink-0 text-cyan-700" aria-hidden />
+          </span>
+          {homeLabel}
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-w-0 max-w-full flex-wrap gap-2">

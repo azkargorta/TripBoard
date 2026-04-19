@@ -7,6 +7,14 @@ import { useEffect, useMemo, useState } from "react";
 import { Menu, User, X } from "lucide-react";
 import TripScreenActions from "@/components/trip/common/TripScreenActions";
 import SignOutButton from "@/components/auth/SignOutButton";
+import {
+  mobileMenuSectionTitle,
+  mobileMenuRowBase,
+  mobileMenuRowIconWrap,
+  mobileMenuRowViolet,
+  mobileMenuRowVioletIcon,
+  mobileMenuRowSignOut,
+} from "@/components/ui/mobileMenuStyles";
 
 type Props = {
   tripId: string;
@@ -119,7 +127,7 @@ export default function TripBoardMobileMenu({ tripId, isPremium = true }: Props)
               />
 
               <div
-                className="pointer-events-auto absolute right-0 top-0 h-full w-[min(92vw,420px)] overflow-y-auto border-l border-slate-200 bg-white shadow-2xl pb-[max(0.75rem,calc(5.5rem+env(safe-area-inset-bottom,0px)))]"
+                className="pointer-events-auto absolute right-0 top-0 h-full w-[min(92vw,420px)] overflow-y-auto border-l border-slate-200/90 bg-gradient-to-b from-white via-white to-slate-50/60 shadow-2xl pb-[max(0.75rem,calc(5.5rem+env(safe-area-inset-bottom,0px)))]"
                 style={{
                   paddingTop: "max(env(safe-area-inset-top), 12px)",
                 }}
@@ -137,35 +145,31 @@ export default function TripBoardMobileMenu({ tripId, isPremium = true }: Props)
                 </div>
 
                 <div className="mt-4 px-5">
-                  <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">
-                      Acciones rápidas
-                    </div>
+                  <div className="rounded-3xl border border-slate-200/80 bg-gradient-to-br from-slate-50/90 via-white to-cyan-50/25 p-4 shadow-sm ring-1 ring-slate-900/[0.04]">
+                    <div className={mobileMenuSectionTitle}>Acciones rápidas</div>
                     <div className="mt-3">
-                      <TripScreenActions tripId={tripId} showLabels variant="default" />
+                      <TripScreenActions tripId={tripId} showLabels variant="default" menuStack />
                     </div>
                   </div>
                 </div>
 
                 <div className="mt-5 px-5">
-                  <div className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">
-                    Secciones del viaje
-                  </div>
+                  <div className={mobileMenuSectionTitle}>Secciones del viaje</div>
                   <div className="mt-3 space-y-2">
                     {visibleNavItems.map((item) => (
                       <Link
                         key={item.key}
                         href={item.href(tripId)}
                         onClick={() => setOpen(false)}
-                        className="flex min-h-[52px] items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-50"
+                        className={`${mobileMenuRowBase} justify-between`}
                       >
-                        <span className="flex items-center gap-3">
-                          <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100">
+                        <span className="flex min-w-0 items-center gap-3">
+                          <span className={mobileMenuRowIconWrap}>
                             <ItemIcon icon={item.icon} />
                           </span>
-                          <span>{item.label}</span>
+                          <span className="truncate">{item.label}</span>
                         </span>
-                        <span className="text-slate-400" aria-hidden>
+                        <span className="shrink-0 text-slate-400" aria-hidden>
                           →
                         </span>
                       </Link>
@@ -174,19 +178,19 @@ export default function TripBoardMobileMenu({ tripId, isPremium = true }: Props)
                 </div>
 
                 <div className="mt-6 border-t border-slate-100 px-5 pb-6 pt-5">
-                  <div className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">Cuenta</div>
+                  <div className={mobileMenuSectionTitle}>Cuenta</div>
                   <div className="mt-3 space-y-2">
                     <Link
                       href="/account"
                       onClick={() => setOpen(false)}
-                      className="flex min-h-[52px] items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-50"
+                      className={mobileMenuRowViolet}
                     >
-                      <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
+                      <span className={mobileMenuRowVioletIcon}>
                         <User className="h-4 w-4" aria-hidden />
                       </span>
                       Cuenta
                     </Link>
-                    <SignOutButton className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-50" />
+                    <SignOutButton showIcon className={mobileMenuRowSignOut} />
                   </div>
                 </div>
               </div>

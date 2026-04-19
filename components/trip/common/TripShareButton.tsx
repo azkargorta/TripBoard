@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Copy } from "lucide-react";
 import { writeTextToClipboard } from "@/lib/clipboard";
 import { useToast } from "@/components/ui/toast";
+import { mobileMenuRowBase, mobileMenuRowIconWrap } from "@/components/ui/mobileMenuStyles";
 
 function isMobileViewport() {
   if (typeof window === "undefined") return false;
@@ -14,9 +15,12 @@ function isMobileViewport() {
 export default function TripShareButton({
   tripId,
   showLabels = false,
+  menuRow = false,
 }: {
   tripId: string;
   showLabels?: boolean;
+  /** Fila ancha tipo menú móvil (viaje). */
+  menuRow?: boolean;
 }) {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
@@ -106,7 +110,7 @@ export default function TripShareButton({
   const modal =
     mounted && shareModalUrl ? (
       <div
-        className="fixed inset-0 z-[2000] flex items-end justify-center p-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:items-center sm:p-6"
+        className="fixed inset-0 z-[2000] flex items-center justify-center p-3 py-[max(1rem,env(safe-area-inset-bottom))] sm:p-6"
         role="dialog"
         aria-modal="true"
         aria-labelledby="trip-share-modal-title"
@@ -157,18 +161,29 @@ export default function TripShareButton({
       </div>
     ) : null;
 
+  const compactBtn =
+    "inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-2 text-[10px] font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60 disabled:opacity-60 sm:min-h-0 sm:min-w-0 sm:px-2 sm:py-1";
+
+  const menuBtn = `${mobileMenuRowBase} text-left disabled:opacity-60`;
+
   return (
     <>
-      <div className="flex flex-wrap gap-2">
+      <div className={menuRow ? "w-full" : "flex flex-wrap gap-2"}>
         <button
           type="button"
           onClick={() => void createAndCopy()}
           disabled={busy}
-          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-2 text-[10px] font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60 disabled:opacity-60 sm:min-h-0 sm:min-w-0 sm:px-2 sm:py-1"
+          className={menuRow ? menuBtn : compactBtn}
           title="Crear enlace público (solo lectura) y copiarlo al portapapeles"
         >
-          <Copy className="h-3.5 w-3.5 shrink-0" aria-hidden />
-          <span className={showLabels ? "inline" : "inline max-w-[9rem] truncate sm:max-w-none"}>Copiar enlace</span>
+          {menuRow ? (
+            <span className={mobileMenuRowIconWrap}>
+              <Copy className="h-4 w-4 shrink-0 text-cyan-700" aria-hidden />
+            </span>
+          ) : (
+            <Copy className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          )}
+          <span className={menuRow || showLabels ? "inline" : "inline max-w-[9rem] truncate sm:max-w-none"}>Copiar enlace</span>
         </button>
       </div>
 
