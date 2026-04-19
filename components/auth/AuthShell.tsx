@@ -23,13 +23,13 @@ export default function AuthShell({
 
             <div className="relative z-10">
               <div className="flex items-center gap-4">
-                <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-3xl bg-white/95 p-2 shadow-lg">
+                <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-white p-1 shadow-lg ring-1 ring-white/40">
                   <Image
-                    src="/brand/icon.png"
+                    src="/brand/kaviro-globe-pin.png"
                     alt="Kaviro logo"
                     width={88}
                     height={88}
-                    className="h-full w-full object-contain scale-[1.12]"
+                    className="h-full w-full object-contain"
                     priority
                   />
                 </div>

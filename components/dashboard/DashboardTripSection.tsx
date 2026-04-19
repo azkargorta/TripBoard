@@ -28,13 +28,14 @@ export default function DashboardTripSection({
   /** Lista serializable (p. ej. desde el servidor). */
   lockedTripIds: string[];
 }) {
-  const [open, setOpen] = useState(false);
+  /** Abierto por defecto: misma experiencia que en móvil (lista visible al entrar). */
+  const [open, setOpen] = useState(true);
   const count = trips.length;
   const countLabel = `${count} viaje${count === 1 ? "" : "s"}`;
 
   return (
     <section className="space-y-3">
-      <div className="flex flex-col gap-2 rounded-2xl border border-slate-200/80 bg-white p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:p-4">
+      <div className="flex flex-col gap-2 rounded-2xl border border-slate-200/90 bg-white p-3 shadow-sm ring-1 ring-slate-900/[0.03] sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:p-4">
         <div className="min-w-0 flex-1">
           <h2 className="text-base font-bold tracking-tight text-slate-950 sm:text-lg">{title}</h2>
           <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">{subtitle}</p>
@@ -56,8 +57,8 @@ export default function DashboardTripSection({
             No hay viajes en esta categoría.
           </div>
         ) : (
-          <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-b from-white to-slate-50/90 p-3 shadow-sm sm:p-4 md:p-5">
-            <div className="grid gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="rounded-2xl border border-slate-200/90 bg-gradient-to-b from-white to-slate-50/90 p-3 shadow-sm ring-1 ring-slate-900/[0.03] sm:p-4">
+            <div className="grid grid-cols-1 gap-3 sm:gap-4">
               {trips.map((trip) => (
                 <TripCardItem
                   key={trip.id}

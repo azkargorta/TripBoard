@@ -34,18 +34,18 @@ export default function TripBoardLogo({
   const mark = (
     <span className={`inline-flex items-center gap-2 ${className}`}>
       <span
-        className={`inline-flex items-center justify-center overflow-hidden rounded-2xl ${
-          isLight ? "bg-white/10 ring-1 ring-white/15" : "bg-slate-900/5 ring-1 ring-slate-200"
+        className={`inline-flex items-center justify-center overflow-hidden rounded-full ${
+          isLight ? "bg-white ring-1 ring-white/30" : "bg-white ring-1 ring-slate-200"
         }`}
         style={{ width: box, height: box }}
         aria-hidden
       >
         <Image
-          src="/brand/icon.png"
+          src="/brand/kaviro-globe-pin.png"
           width={px}
           height={px}
           alt=""
-          className="h-full w-full object-contain scale-[1.18]"
+          className="h-full w-full object-contain"
           priority
         />
       </span>

@@ -70,6 +70,9 @@ type TourStep = {
   visual: { type: "emoji"; value: string } | { type: "image"; src: string; alt: string };
 };
 
+/** Marca Kaviro (globo + pin) con fondo sólido en el recurso; misma pieza en todos los pasos del tour/ayuda. */
+const HELP_BRAND_MARK_SRC = "/brand/kaviro-globe-pin.png";
+
 const TAB_TOUR: TourStep[] = [
   {
     id: "home",
@@ -78,7 +81,7 @@ const TAB_TOUR: TourStep[] = [
     body: "Resumen del viaje: destino, fechas, accesos rápidos a cada módulo y avisos útiles para el grupo.",
     mobileTip: "Abajo tienes el menú con todas las pestañas; desliza horizontalmente si no caben en pantalla.",
     href: (id) => `/trip/${id}/summary`,
-    visual: { type: "image", src: "/brand/tabs/calendar.png", alt: "Resumen" },
+    visual: { type: "image", src: HELP_BRAND_MARK_SRC, alt: "Resumen" },
   },
   {
     id: "plan",
@@ -87,7 +90,7 @@ const TAB_TOUR: TourStep[] = [
     body: "La agenda por días: actividades, horarios y visitas. Es la referencia compartida de qué hace el grupo y cuándo.",
     mobileTip: "Suele organizarse por día; desplázate dentro de cada día para ver todas las actividades.",
     href: (id) => `/trip/${id}/plan`,
-    visual: { type: "image", src: "/brand/tabs/plan.png", alt: "Plan" },
+    visual: { type: "image", src: HELP_BRAND_MARK_SRC, alt: "Plan" },
   },
   {
     id: "map",
@@ -96,7 +99,7 @@ const TAB_TOUR: TourStep[] = [
     body: "Rutas y trayectos del viaje sobre el mapa: paradas, orden del día y vistas para explorar el entorno o ver el plan georreferenciado.",
     mobileTip: "Gestos de pellizco para zoom; los paneles laterales o inferiores se pueden deslizar o cerrar.",
     href: (id) => `/trip/${id}/map`,
-    visual: { type: "image", src: "/brand/tabs/map.png", alt: "Rutas" },
+    visual: { type: "image", src: HELP_BRAND_MARK_SRC, alt: "Rutas" },
   },
   {
     id: "expenses",
@@ -105,7 +108,7 @@ const TAB_TOUR: TourStep[] = [
     body: "Quién pagó qué, cómo repartirlo y balances para saldar cuentas sin líos al final del viaje.",
     mobileTip: "Mira primero el resumen arriba; el detalle de cada gasto va debajo en lista o tabla.",
     href: (id) => `/trip/${id}/expenses`,
-    visual: { type: "image", src: "/brand/tabs/expenses.png", alt: "Gastos" },
+    visual: { type: "image", src: HELP_BRAND_MARK_SRC, alt: "Gastos" },
   },
   {
     id: "participants",
@@ -114,7 +117,7 @@ const TAB_TOUR: TourStep[] = [
     body: "Participantes, invitaciones y permisos. Cuanto mejor definido esté el grupo, mejor cuadran plan y gastos.",
     mobileTip: "Usa el mismo nombre en gastos que en participantes para que los balances te reconozcan bien.",
     href: (id) => `/trip/${id}/participants`,
-    visual: { type: "image", src: "/brand/tabs/participants.png", alt: "Participantes" },
+    visual: { type: "image", src: HELP_BRAND_MARK_SRC, alt: "Participantes" },
   },
   {
     id: "resources",
@@ -123,7 +126,7 @@ const TAB_TOUR: TourStep[] = [
     body: "Billetes, reservas, PDFs y enlaces en un solo sitio para que nadie pierda el correo de confirmación.",
     mobileTip: "En móvil, enlaces y archivos se abren con el navegador; guarda lo crítico donde te sea cómodo.",
     href: (id) => `/trip/${id}/resources`,
-    visual: { type: "image", src: "/brand/tabs/resources.png", alt: "Recursos y listas" },
+    visual: { type: "image", src: HELP_BRAND_MARK_SRC, alt: "Recursos y listas" },
   },
   {
     id: "ai",
@@ -132,7 +135,7 @@ const TAB_TOUR: TourStep[] = [
     body: "Asistente con contexto de este viaje: ideas, organizar un día, dudas y sugerencias según el tipo de chat.",
     mobileTip: "En pantalla pequeña el chat va primero; en el panel lateral tienes conversaciones y «Mostrar tipos».",
     href: (id) => `/trip/${id}/ai-chat`,
-    visual: { type: "image", src: "/brand/tabs/ai.png", alt: "Asistente personal" },
+    visual: { type: "image", src: HELP_BRAND_MARK_SRC, alt: "Asistente personal" },
   },
 ];
 
@@ -370,13 +373,13 @@ function HelpVisualBadge({
           </span>
         </div>
       ) : (
-        <div className={`relative h-full w-full ${innerRound} bg-slate-50`}>
+        <div className={`relative h-full w-full ${innerRound} bg-white`}>
           <Image
             src={visual.src}
             alt={visual.alt}
             fill
             sizes={fillSizes}
-            className="object-contain object-center scale-[1.24]"
+            className="object-contain object-center"
             priority={false}
           />
         </div>

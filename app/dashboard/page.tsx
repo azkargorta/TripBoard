@@ -200,7 +200,14 @@ export default async function DashboardPage() {
       ) : null}
 
       {trips.length === 0 ? null : (
-        <div className="space-y-5">
+        <section className="space-y-5 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.03] md:rounded-[24px] md:p-6">
+          <header className="border-b border-slate-100 pb-4 md:pb-5">
+            <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-slate-500">Tus viajes</p>
+            <p className="mt-1 text-xs leading-relaxed text-slate-600 md:text-sm">
+              Listas por estado, tarjeta blanca y una columna como en el móvil.
+            </p>
+          </header>
+          <div className="mt-4 space-y-5 md:mt-5">
           <DashboardTripSection
             title="En curso"
             subtitle="Lo que estás viviendo ahora."
@@ -235,7 +242,8 @@ export default async function DashboardPage() {
               lockedTripIds={Array.from(lockedTripIds)}
             />
           ) : null}
-        </div>
+          </div>
+        </section>
       )}
     </main>
   );
