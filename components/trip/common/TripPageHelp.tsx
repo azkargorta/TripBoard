@@ -348,18 +348,18 @@ function HelpVisualBadge({
   visual: TourStep["visual"];
   size?: "md" | "lg";
 }) {
+  /** Mismo tamaño en tour y en ayuda por pantalla; sin padding externo para que el pictograma llene el marco. */
   const frameClass =
     size === "lg"
-      ? "h-[5.5rem] w-[5.5rem] rounded-[1.75rem] p-1.5"
-      : "h-20 w-20 rounded-3xl p-1.5";
-  /** Mismo criterio que las pestañas del viaje: tile slate + icono que llene el tile. */
-  const innerRound = size === "lg" ? "rounded-[1.15rem]" : "rounded-2xl";
-  const imageSize = size === "lg" ? 96 : 80;
-  const emojiClass = size === "lg" ? "text-[3.25rem]" : "text-[2.75rem]";
+      ? "h-[5.5rem] w-[5.5rem] rounded-[1.75rem]"
+      : "h-20 w-20 rounded-3xl";
+  const innerRound = size === "lg" ? "rounded-[1.35rem]" : "rounded-2xl";
+  const fillSizes = size === "lg" ? "88px" : "80px";
+  const emojiClass = size === "lg" ? "text-[3.35rem]" : "text-[2.95rem]";
 
   return (
     <div
-      className={`flex ${frameClass} items-center justify-center overflow-hidden border border-slate-200 bg-white shadow-sm ring-1 ring-slate-200/90`}
+      className={`relative flex shrink-0 ${frameClass} items-center justify-center overflow-hidden border border-slate-200 bg-white shadow-sm ring-1 ring-slate-200/90`}
     >
       {visual.type === "emoji" ? (
         <div
@@ -370,15 +370,14 @@ function HelpVisualBadge({
           </span>
         </div>
       ) : (
-        <div
-          className={`flex h-full w-full items-center justify-center ${innerRound} bg-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] ring-1 ring-slate-200/70`}
-        >
+        <div className={`relative h-full w-full ${innerRound} bg-slate-50`}>
           <Image
             src={visual.src}
             alt={visual.alt}
-            width={imageSize}
-            height={imageSize}
-            className="h-[88%] w-[88%] max-h-full max-w-full object-contain object-center"
+            fill
+            sizes={fillSizes}
+            className="object-contain object-center scale-[1.24]"
+            priority={false}
           />
         </div>
       )}
@@ -390,13 +389,7 @@ function PageHelpVisualHeader({ pageId }: { pageId: string }) {
   if (pageId === "settings") {
     return (
       <div className="mb-5 flex flex-col items-center text-center">
-        <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-3xl border border-slate-200 bg-white p-1.5 shadow-sm ring-1 ring-slate-200/90">
-          <div className="flex h-full w-full items-center justify-center rounded-2xl bg-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] ring-1 ring-slate-200/70">
-            <span className="text-[2.5rem] leading-none" aria-hidden>
-              ⚙️
-            </span>
-          </div>
-        </div>
+        <HelpVisualBadge visual={{ type: "emoji", value: "⚙️" }} />
         <p className="mt-3 text-xs font-extrabold uppercase tracking-[0.14em] text-cyan-800/90">Estás en</p>
         <p className="text-lg font-bold text-slate-950">Ajustes</p>
       </div>
