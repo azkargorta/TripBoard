@@ -1359,8 +1359,8 @@ export default function TripAiChatView({
   /** En drawer el panel tiene altura fija: columna flex + scroll solo en mensajes para que el envío quede visible. */
   const rootClass =
     layout === "drawer"
-      ? "flex min-h-0 flex-1 flex-col gap-3 overflow-hidden pr-0.5"
-      : "space-y-6";
+      ? "flex min-h-0 w-full min-w-0 max-w-full flex-1 flex-col gap-3 overflow-x-hidden overflow-y-hidden"
+      : "w-full min-w-0 max-w-full space-y-6 overflow-x-hidden";
 
   return (
     <Root className={rootClass}>
@@ -1869,7 +1869,7 @@ export default function TripAiChatView({
                                   <div className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">
                                     Detalle técnico (JSON)
                                   </div>
-                                  <pre className="mt-2 whitespace-pre-wrap text-xs text-slate-700">
+                                  <pre className="mt-2 max-w-full overflow-x-auto break-all whitespace-pre-wrap text-xs text-slate-700">
 {JSON.stringify(it.raw, null, 2)}
                                   </pre>
                                 </div>
@@ -1958,8 +1958,8 @@ export default function TripAiChatView({
         ) : null}
 
         <section
-          className={`chat-panel order-1 min-w-0 rounded-[28px] border border-slate-200 bg-white shadow-sm xl:order-2 ${
-            layout === "drawer" ? "flex min-h-0 flex-1 flex-col overflow-hidden" : ""
+          className={`chat-panel order-1 min-w-0 max-w-full rounded-[28px] border border-slate-200 bg-white shadow-sm xl:order-2 ${
+            layout === "drawer" ? "flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-hidden" : "overflow-x-hidden"
           }`}
         >
           <div
@@ -2071,7 +2071,7 @@ export default function TripAiChatView({
 
           {error ? (
             <div
-              className={`mx-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 ${
+              className={`mx-4 min-w-0 max-w-full break-words rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 sm:mx-5 ${
                 layout === "drawer" ? "mt-2 shrink-0" : "mt-5"
               }`}
             >
@@ -2081,7 +2081,7 @@ export default function TripAiChatView({
 
           {info ? (
             <div
-              className={`mx-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 ${
+              className={`mx-4 min-w-0 max-w-full break-words rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 sm:mx-5 ${
                 layout === "drawer" ? "mt-2 shrink-0" : "mt-5"
               }`}
             >
@@ -2092,8 +2092,8 @@ export default function TripAiChatView({
           <div
             className={
               layout === "drawer"
-                ? "min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-y-contain px-5 py-3"
-                : "max-h-[560px] space-y-5 overflow-y-auto px-5 py-5"
+                ? "min-h-0 min-w-0 max-w-full flex-1 space-y-5 overflow-y-auto overflow-x-hidden overscroll-y-contain px-4 py-3 sm:px-5"
+                : "max-h-[560px] min-w-0 max-w-full space-y-5 overflow-y-auto overflow-x-hidden px-4 py-5 sm:px-5"
             }
           >
             {messages.map((message) => {
@@ -2106,7 +2106,7 @@ export default function TripAiChatView({
                 >
                   <div className={`flex max-w-full flex-col gap-3 ${message.role === "user" ? "items-end" : "items-start"}`}>
                     <div
-                      className={`max-w-[88%] whitespace-pre-wrap rounded-[24px] px-4 py-3 text-sm leading-7 ${
+                      className={`max-w-[min(88%,100%)] min-w-0 break-words whitespace-pre-wrap rounded-[24px] px-4 py-3 text-sm leading-7 ${
                         message.role === "user"
                           ? "bg-slate-950 text-white"
                           : "border border-slate-200 bg-slate-50 text-slate-800"
@@ -2133,7 +2133,7 @@ export default function TripAiChatView({
             <div ref={bottomRef} />
           </div>
 
-          <div className={`border-t border-slate-200 px-5 py-3 ${layout === "drawer" ? "shrink-0" : ""}`}>
+          <div className={`min-w-0 max-w-full border-t border-slate-200 px-4 py-3 sm:px-5 ${layout === "drawer" ? "shrink-0" : ""}`}>
             <p className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-500">Sugerencias</p>
             <div className="flex flex-wrap gap-2">
               {SMART_CHIPS.map((c) => (
@@ -2152,9 +2152,9 @@ export default function TripAiChatView({
 
           <form
             onSubmit={handleSubmit}
-            className={`border-t border-slate-200 p-4 sm:p-5 ${layout === "drawer" ? "shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]" : ""}`}
+            className={`min-w-0 max-w-full border-t border-slate-200 p-4 sm:p-5 ${layout === "drawer" ? "shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]" : ""}`}
           >
-            <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-3">
+            <div className="min-w-0 max-w-full rounded-[24px] border border-slate-200 bg-slate-50 p-3">
               <textarea
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}

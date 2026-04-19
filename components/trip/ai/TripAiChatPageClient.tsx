@@ -28,12 +28,14 @@ export default function TripAiChatPageClient({
   defaultAssistantMode?: TripAiMode | null;
 }) {
   return (
-    <TripAiChatView
-      tripId={tripId}
-      isPremium={isPremium}
-      autoBootstrapItinerary={autoBootstrapItinerary}
-      launchIntent={launchIntent}
-      defaultAssistantMode={defaultAssistantMode}
-    />
+    <div className="w-full min-w-0 max-w-full">
+      <TripAiChatView
+        tripId={tripId}
+        isPremium={isPremium}
+        autoBootstrapItinerary={autoBootstrapItinerary}
+        launchIntent={launchIntent}
+        defaultAssistantMode={defaultAssistantMode}
+      />
+    </div>
   );
 }

@@ -41,7 +41,7 @@ export default function TripPageAssistantDock({ tripId, isPremium }: Props) {
       </button>
 
       {open ? (
-        <div className="fixed inset-0 z-[1100] flex items-end justify-center md:items-center md:justify-end md:p-6">
+        <div className="fixed inset-0 z-[1100] flex w-full min-w-0 items-end justify-center overflow-x-hidden px-2 pb-0 pt-0 md:items-center md:justify-end md:p-6 md:px-6">
           <button
             type="button"
             className="absolute inset-0 bg-slate-950/45 backdrop-blur-[2px]"
@@ -49,7 +49,7 @@ export default function TripPageAssistantDock({ tripId, isPremium }: Props) {
             onClick={() => setOpen(false)}
           />
           <div
-            className="relative flex max-h-[min(92dvh,880px)] w-full max-w-[560px] flex-col overflow-hidden rounded-t-3xl border border-slate-200 bg-white shadow-2xl md:max-h-[min(88dvh,820px)] md:rounded-3xl"
+            className="relative flex max-h-[min(92dvh,880px)] w-full min-w-0 max-w-full flex-col overflow-x-hidden overflow-y-hidden rounded-t-3xl border border-slate-200 bg-white shadow-2xl sm:max-w-[560px] md:max-h-[min(88dvh,820px)] md:rounded-3xl"
             role="dialog"
             aria-modal="true"
             aria-labelledby="trip-assistant-dock-title"
@@ -82,7 +82,7 @@ export default function TripPageAssistantDock({ tripId, isPremium }: Props) {
               </div>
             </div>
 
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-3 sm:p-4">
+            <div className="flex min-h-0 min-w-0 max-w-full flex-1 flex-col overflow-x-hidden overflow-y-hidden p-3 sm:p-4">
               <TripAiChatView
                 key={surface}
                 tripId={tripId}
