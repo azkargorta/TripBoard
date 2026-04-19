@@ -1,6 +1,7 @@
 "use client";
 
 import { getCurrencyMeta } from "@/lib/currencies";
+import LongTextSheet from "@/components/ui/LongTextSheet";
 
 type Expense = {
   id: string;
@@ -55,7 +56,15 @@ export default function ExpenseList({
               <div key={expense.id} className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                   <div className="min-w-0 max-w-full flex-1">
-                    <h4 className="break-words text-base font-semibold text-slate-900">{expense.title || "Gasto sin título"}</h4>
+                    <div className="text-base font-semibold text-slate-900" role="heading" aria-level={4}>
+                      <LongTextSheet
+                        text={expense.title || "Gasto sin título"}
+                        modalTitle="Gasto"
+                        minLength={40}
+                        lineClamp={3}
+                        className="font-semibold text-slate-900"
+                      />
+                    </div>
                     <div className="mt-2 space-y-1 break-words text-sm text-slate-600">
                       <p>Pagador principal: {expense.payer_name || "Sin indicar"}</p>
                       <p>Viajeros implicados: {participants.length ? participants.join(", ") : "Sin viajeros"}</p>
@@ -72,7 +81,17 @@ export default function ExpenseList({
                   </div>
                 </div>
 
-                {expense.notes ? <p className="mt-3 break-words text-sm text-slate-600">{expense.notes}</p> : null}
+                {expense.notes ? (
+                  <div className="mt-3 text-sm text-slate-600">
+                    <LongTextSheet
+                      text={expense.notes}
+                      modalTitle="Notas del gasto"
+                      minLength={48}
+                      lineClamp={4}
+                      className="text-sm text-slate-600"
+                    />
+                  </div>
+                ) : null}
 
                 <div className="mt-4 flex flex-wrap gap-2">
                   <button type="button" onClick={() => onEdit(expense)} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900">Editar</button>

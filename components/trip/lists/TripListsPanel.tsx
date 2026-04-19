@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTripLists, useTripListItems, type TripList } from "@/hooks/useTripLists";
 import AuditLogDialog from "@/components/trip/lists/AuditLogDialog";
 import AiListDraftDialog from "@/components/trip/lists/AiListDraftDialog";
+import LongTextSheet from "@/components/ui/LongTextSheet";
 
 function fmtCount(counts: { total: number; done: number } | undefined) {
   const total = counts?.total ?? 0;
@@ -163,16 +164,29 @@ export default function TripListsPanel({ tripId, isPremium = false, onGenerateWi
                   const active = l.id === selectedId;
                   const counts = countsByList[String(l.id)];
                   return (
-                    <button
+                    <div
                       key={l.id}
-                      type="button"
+                      role="button"
+                      tabIndex={0}
                       onClick={() => setSelectedId(l.id)}
-                      className={`flex w-full min-w-0 items-center justify-between gap-2 border-b border-slate-100 px-3 py-3 text-left text-sm transition hover:bg-slate-50 sm:gap-3 sm:px-4 ${
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setSelectedId(l.id);
+                        }
+                      }}
+                      className={`flex w-full min-w-0 cursor-pointer items-center justify-between gap-2 border-b border-slate-100 px-3 py-3 text-left text-sm transition hover:bg-slate-50 sm:gap-3 sm:px-4 ${
                         active ? "bg-slate-50" : "bg-white"
                       }`}
                     >
                       <div className="min-w-0 flex-1">
-                        <div className="whitespace-normal break-words font-semibold leading-snug text-slate-900">{l.title}</div>
+                        <LongTextSheet
+                          text={l.title}
+                          modalTitle="Lista"
+                          minLength={36}
+                          lineClamp={4}
+                          className="font-semibold leading-snug text-slate-900"
+                        />
                         <div className="mt-0.5 break-words text-xs leading-snug text-slate-500">
                           {l.visibility === "private" ? "Privada" : "Compartida"}
                           {l.visibility === "shared" ? (l.editable_by_all ? " · editable por todos" : " · editable por roles") : ""}
@@ -181,7 +195,7 @@ export default function TripListsPanel({ tripId, isPremium = false, onGenerateWi
                       <div className="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">
                         {fmtCount(counts)}
                       </div>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
@@ -200,8 +214,14 @@ export default function TripListsPanel({ tripId, isPremium = false, onGenerateWi
                 <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-3">
                   <div className="min-w-0 max-w-full flex-1">
                     <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Lista</div>
-                    <div className="mt-1 whitespace-normal break-words text-lg font-bold leading-snug text-slate-950">
-                      {selected.title}
+                    <div className="mt-1 text-lg font-bold leading-snug text-slate-950">
+                      <LongTextSheet
+                        text={selected.title}
+                        modalTitle="Nombre de la lista"
+                        minLength={36}
+                        lineClamp={4}
+                        className="font-bold text-slate-950"
+                      />
                     </div>
                     <div className="mt-1 break-words text-xs leading-snug text-slate-500">
                       {selected.visibility === "private" ? "Privada" : "Compartida"} ·{" "}
@@ -315,6 +335,13 @@ export default function TripListsPanel({ tripId, isPremium = false, onGenerateWi
                                     it.is_done ? "line-through text-slate-400" : "text-slate-900"
                                   }`}
                                 />
+                                <LongTextSheet
+                                  text={it.text}
+                                  variant="link"
+                                  modalTitle="Elemento de la lista"
+                                  minLength={48}
+                                  linkLabel="Ver texto completo"
+                                />
                                 <div className="mt-1 grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
                                   <input
                                     value={it.qty ?? ""}
@@ -328,12 +355,23 @@ export default function TripListsPanel({ tripId, isPremium = false, onGenerateWi
                                     className="min-w-0 max-w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700"
                                     placeholder="Cantidad"
                                   />
-                                  <input
-                                    value={it.note ?? ""}
-                                    onChange={(e) => void itemsApi.updateItem(it.id, { note: e.target.value || null })}
-                                    className="min-w-0 max-w-full break-words rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700"
-                                    placeholder="Nota"
-                                  />
+                                  <div className="min-w-0">
+                                    <input
+                                      value={it.note ?? ""}
+                                      onChange={(e) => void itemsApi.updateItem(it.id, { note: e.target.value || null })}
+                                      className="min-w-0 max-w-full break-words rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700"
+                                      placeholder="Nota"
+                                    />
+                                    {it.note && it.note.trim().length >= 40 ? (
+                                      <LongTextSheet
+                                        text={it.note}
+                                        variant="link"
+                                        modalTitle="Nota"
+                                        minLength={40}
+                                        linkLabel="Ver nota completa"
+                                      />
+                                    ) : null}
+                                  </div>
                                 </div>
                               </div>
                             </div>

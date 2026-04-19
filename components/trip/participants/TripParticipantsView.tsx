@@ -13,6 +13,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import ParticipantLinkProfilePanel from "./ParticipantLinkProfilePanel";
 import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
+import LongTextSheet from "@/components/ui/LongTextSheet";
 import { getRoleLabel, getStatusLabel } from "@/lib/participants";
 import {
   Info,
@@ -438,7 +439,15 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
                       </div>
                       <div className="min-w-0 space-y-2">
                         <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="min-w-0 max-w-full break-words text-lg font-bold text-slate-900">{participant.display_name}</h3>
+                          <div className="min-w-0 max-w-full text-lg font-bold text-slate-900" role="heading" aria-level={3}>
+                            <LongTextSheet
+                              text={participant.display_name}
+                              modalTitle="Participante"
+                              minLength={36}
+                              lineClamp={3}
+                              className="font-bold text-slate-900"
+                            />
+                          </div>
                           {isYou ? (
                             <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-violet-800">
                               Tú

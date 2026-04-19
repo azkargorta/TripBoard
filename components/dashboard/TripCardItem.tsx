@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { MapPin, Pencil, Trash2 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
+import LongTextSheet from "@/components/ui/LongTextSheet";
 import TripDashboardEditDialog from "@/components/dashboard/TripDashboardEditDialog";
 
 type Trip = {
@@ -98,10 +99,20 @@ export default function TripCardItem({
             {badge}
           </div>
           <div>
-            <h3 className="text-2xl font-bold tracking-tight text-slate-950">{trip.name}</h3>
+            <div className="text-2xl font-bold tracking-tight text-slate-950" role="heading" aria-level={3}>
+              <LongTextSheet text={trip.name} modalTitle="Viaje" minLength={40} lineClamp={3} className="font-bold text-slate-950" />
+            </div>
             <p className="mt-1 flex items-start gap-1.5 text-sm text-slate-600">
               <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" aria-hidden />
-              <span>{trip.destination || "Destino pendiente"}</span>
+              <span className="min-w-0 flex-1">
+                <LongTextSheet
+                  text={trip.destination || "Destino pendiente"}
+                  modalTitle="Destino"
+                  minLength={48}
+                  lineClamp={3}
+                  className="text-sm text-slate-600"
+                />
+              </span>
             </p>
           </div>
         </div>

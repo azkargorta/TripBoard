@@ -2,6 +2,7 @@
 
 import { Check, ExternalLink, Star, Ticket } from "lucide-react";
 import PlanCardActions from "@/components/trip/plan/PlanCardActions";
+import LongTextSheet from "@/components/ui/LongTextSheet";
 import { activityLikelyNeedsTicket, buildTicketOfficialSearchUrl } from "@/lib/trip-plan-ticket-hints";
 
 type PlanActivity = {
@@ -154,7 +155,15 @@ export default function PlanActivityCard({
             <span>{meta.label}</span>
           </div>
 
-          <h4 className="mt-3 text-base font-semibold text-slate-900">{activity.title}</h4>
+          <div className="mt-3 text-base font-semibold text-slate-900" role="heading" aria-level={4}>
+            <LongTextSheet
+              text={activity.title}
+              modalTitle="Actividad"
+              minLength={40}
+              lineClamp={3}
+              className="font-semibold text-slate-900"
+            />
+          </div>
 
           <div className="mt-2 space-y-1 text-sm text-slate-700">
             {activity.activity_date || activity.activity_time ? (
@@ -164,7 +173,11 @@ export default function PlanActivityCard({
               </p>
             ) : null}
             {activity.place_name ? <p>{activity.place_name}</p> : null}
-            {activity.address ? <p className="line-clamp-2">{activity.address}</p> : null}
+            {activity.address ? (
+              <div className="text-sm text-slate-700">
+                <LongTextSheet text={activity.address} modalTitle="Dirección" minLength={48} lineClamp={2} />
+              </div>
+            ) : null}
             {rating ? (
               <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-amber-200/70 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">
                 <div className="flex items-center gap-1" aria-label={`${rating} de 5`}>
@@ -180,9 +193,9 @@ export default function PlanActivityCard({
               </div>
             ) : null}
             {activity.comment ? (
-              <p className="mt-2 line-clamp-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                {activity.comment}
-              </p>
+              <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                <LongTextSheet text={activity.comment} modalTitle="Comentario" minLength={48} lineClamp={2} />
+              </div>
             ) : null}
             {showTicketCta && ticketSearchUrl ? (
               <div className="mt-3">
