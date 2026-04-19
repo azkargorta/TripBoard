@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { iconSlotNavBottom } from "@/components/ui/iconTokens";
+import { TRIP_TAB_SUMMARY_SRC, tripTabDocsImageClass } from "@/lib/trip-tab-assets";
 
 type Props = {
   tripId: string;
@@ -15,7 +16,7 @@ const items: Array<{ key: string; label: string; icon: React.ReactNode; href: (i
   {
     key: "summary",
     label: "Resumen",
-    icon: <Image src="/brand/tabs/calendar.png" alt="" width={32} height={32} className="object-contain" />,
+    icon: <Image src={TRIP_TAB_SUMMARY_SRC} alt="" width={32} height={32} className="object-contain" />,
     href: (id: string) => `/trip/${id}/summary`,
   },
   {
@@ -45,7 +46,9 @@ const items: Array<{ key: string; label: string; icon: React.ReactNode; href: (i
   {
     key: "resources",
     label: "Docs",
-    icon: <Image src="/brand/tabs/documents.png" alt="" width={32} height={32} className="object-contain" />,
+    icon: (
+      <Image src="/brand/tabs/documents.png" alt="" width={32} height={32} className={tripTabDocsImageClass} />
+    ),
     href: (id: string) => `/trip/${id}/resources`,
   },
   {
@@ -58,7 +61,7 @@ const items: Array<{ key: string; label: string; icon: React.ReactNode; href: (i
 
 export default function MobileBottomNav({ tripId, isPremium }: Props) {
   const pathname = usePathname();
-  const visibleItems = items;
+  const visibleItems = isPremium ? items : items.filter((i) => i.key !== "chat");
 
   function isActivePath(href: string, key: string) {
     if (pathname === href) return true;

@@ -4,6 +4,7 @@ import type React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { TRIP_TAB_SUMMARY_SRC, tripTabDocsImageClass } from "@/lib/trip-tab-assets";
 
 type Props = {
   tripId: string;
@@ -14,7 +15,7 @@ const items: Array<{ key: string; label: string; icon: React.ReactNode; href: (i
   {
     key: "summary",
     label: "Resumen",
-    icon: <Image src="/brand/tabs/calendar.png" alt="" width={22} height={22} className="h-[22px] w-[22px] object-contain" />,
+    icon: <Image src={TRIP_TAB_SUMMARY_SRC} alt="" width={22} height={22} className="h-[22px] w-[22px] object-contain" />,
     href: (id: string) => `/trip/${id}/summary`,
   },
   {
@@ -44,7 +45,17 @@ const items: Array<{ key: string; label: string; icon: React.ReactNode; href: (i
   {
     key: "resources",
     label: "Docs",
-    icon: <Image src="/brand/tabs/documents.png" alt="" width={22} height={22} className="h-[22px] w-[22px] object-contain" />,
+    icon: (
+      <span className="inline-flex h-[22px] w-[22px] items-center justify-center overflow-hidden rounded-md">
+        <Image
+          src="/brand/tabs/documents.png"
+          alt=""
+          width={28}
+          height={28}
+          className={`h-[26px] w-[26px] max-w-none ${tripTabDocsImageClass}`}
+        />
+      </span>
+    ),
     href: (id: string) => `/trip/${id}/resources`,
   },
   {
@@ -85,7 +96,7 @@ export default function DesktopTripSidebar({ tripId, isPremium }: Props) {
                       : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
                   }`}
                 >
-                  <span className="shrink-0 text-[1.35rem] leading-none" aria-hidden>
+                  <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center" aria-hidden>
                     {item.icon}
                   </span>
                   <span className="w-full px-0.5 text-center text-[10px] font-semibold leading-tight sm:text-[11px]">

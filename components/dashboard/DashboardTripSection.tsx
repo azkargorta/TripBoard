@@ -28,8 +28,7 @@ export default function DashboardTripSection({
   /** Lista serializable (p. ej. desde el servidor). */
   lockedTripIds: string[];
 }) {
-  /** Abierto por defecto: misma experiencia que en móvil (lista visible al entrar). */
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const count = trips.length;
   const countLabel = `${count} viaje${count === 1 ? "" : "s"}`;
 

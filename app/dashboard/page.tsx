@@ -204,7 +204,7 @@ export default async function DashboardPage() {
           <header className="border-b border-slate-100 pb-4 md:pb-5">
             <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-slate-500">Tus viajes</p>
             <p className="mt-1 text-xs leading-relaxed text-slate-600 md:text-sm">
-              Listas por estado, tarjeta blanca y una columna como en el móvil.
+              En curso, próximos y pasados: despliega cada bloque con «Mostrar viajes». Lista en una columna.
             </p>
           </header>
           <div className="mt-4 space-y-5 md:mt-5">

@@ -11,6 +11,7 @@ import TripSummaryOverview, {
 import { isPremiumEnabledForTrip } from "@/lib/entitlements";
 import { getTripWeatherByDestination } from "@/lib/trip-weather";
 import { parseActivityLocalMoment } from "@/lib/trip-activity-moment";
+import { TRIP_TAB_SUMMARY_SRC } from "@/lib/trip-tab-assets";
 
 type TripPageProps = {
   params: { id: string };
@@ -325,7 +326,7 @@ export default async function TripSummaryPage({ params }: TripPageProps) {
         section="Resumen del viaje"
         title={currentTrip.name}
         description={`${currentTrip.destination || "Destino pendiente"} · ${formatDateRange(currentTrip.start_date, currentTrip.end_date)}`}
-        iconSrc="/brand/tabs/calendar.png"
+        iconSrc={TRIP_TAB_SUMMARY_SRC}
         iconAlt="Resumen"
         actions={<TripScreenActions tripId={tripId} showSummary={false} homeLabel="Mis viajes" />}
       />

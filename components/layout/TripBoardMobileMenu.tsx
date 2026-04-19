@@ -16,29 +16,39 @@ import {
   mobileMenuRowSignOut,
 } from "@/components/ui/mobileMenuStyles";
 import { iconSlotFill40 } from "@/components/ui/iconTokens";
+import { TRIP_TAB_SUMMARY_SRC, tripTabDocsImageClass } from "@/lib/trip-tab-assets";
 
 type Props = {
   tripId: string;
   isPremium?: boolean;
 };
 
+type NavIcon =
+  | { type: "emoji"; value: string }
+  | { type: "image"; src: string; alt: string; imageClassName?: string };
+
 const NAV_ITEMS: Array<{
   key: string;
   label: string;
-  icon: { type: "emoji"; value: string } | { type: "image"; src: string; alt: string };
+  icon: NavIcon;
   href: (id: string) => string;
 }> = [
   {
     key: "summary",
     label: "Resumen",
-    icon: { type: "image", src: "/brand/tabs/calendar.png", alt: "Resumen" },
+    icon: { type: "image", src: TRIP_TAB_SUMMARY_SRC, alt: "Resumen" },
     href: (id) => `/trip/${id}/summary`,
   },
   { key: "plan", label: "Plan", icon: { type: "image", src: "/brand/tabs/plan.png", alt: "Plan" }, href: (id) => `/trip/${id}/plan` },
   { key: "map", label: "Rutas", icon: { type: "image", src: "/brand/tabs/map.png", alt: "Rutas" }, href: (id) => `/trip/${id}/map` },
   { key: "expenses", label: "Gastos", icon: { type: "image", src: "/brand/tabs/expenses.png", alt: "Gastos" }, href: (id) => `/trip/${id}/expenses` },
   { key: "participants", label: "Gente", icon: { type: "image", src: "/brand/tabs/participants.png", alt: "Participantes" }, href: (id) => `/trip/${id}/participants` },
-  { key: "resources", label: "Docs", icon: { type: "image", src: "/brand/tabs/documents.png", alt: "Docs" }, href: (id) => `/trip/${id}/resources` },
+  {
+    key: "resources",
+    label: "Docs",
+    icon: { type: "image", src: "/brand/tabs/documents.png", alt: "Docs", imageClassName: tripTabDocsImageClass },
+    href: (id) => `/trip/${id}/resources`,
+  },
   {
     key: "chat",
     label: "Asistente personal",
@@ -47,11 +57,7 @@ const NAV_ITEMS: Array<{
   },
 ];
 
-function ItemIcon({
-  icon,
-}: {
-  icon: (typeof NAV_ITEMS)[number]["icon"];
-}) {
+function ItemIcon({ icon }: { icon: NavIcon }) {
   if (icon.type === "emoji") {
     return (
       <span className="text-[1.75rem] leading-none" aria-hidden>
@@ -59,14 +65,11 @@ function ItemIcon({
       </span>
     );
   }
+  const imgClass = ["object-contain", icon.imageClassName].filter(Boolean).join(" ");
   return (
-    <Image
-      src={icon.src}
-      alt={icon.alt}
-      width={32}
-      height={32}
-      className="object-contain"
-    />
+    <span className="relative flex h-full w-full max-h-8 max-w-8 items-center justify-center overflow-hidden rounded-lg">
+      <Image src={icon.src} alt={icon.alt} width={32} height={32} className={imgClass} />
+    </span>
   );
 }
 

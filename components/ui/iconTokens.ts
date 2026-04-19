@@ -18,7 +18,7 @@ export const iconInline16 = "size-4 shrink-0";
 
 /** Barra inferior móvil: área del pictograma (~36px) */
 export const iconSlotNavBottom =
-  "inline-flex h-9 w-9 shrink-0 items-center justify-center [&>img]:size-8 [&>img]:max-h-full [&>img]:max-w-full [&>img]:object-contain [&>svg]:size-8 [&>svg]:shrink-0";
+  "inline-flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg [&>img]:size-8 [&>img]:max-h-full [&>img]:max-w-full [&>img]:object-contain [&>svg]:size-8 [&>svg]:shrink-0";
 
 /** Botón cuadrado ~44px solo icono (pasos del tour) */
 export const iconSlotFill44 =
