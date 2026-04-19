@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import SignOutButton from "@/components/auth/SignOutButton";
 import CreateTripSection from "@/components/dashboard/CreateTripSection";
+import DashboardPageHeader from "@/components/dashboard/DashboardPageHeader";
 import DashboardCreateTripCta from "@/components/dashboard/DashboardCreateTripCta";
 import OnboardingNudge from "@/components/dashboard/OnboardingNudge";
 import DashboardAiShortcuts from "@/components/dashboard/DashboardAiShortcuts";
@@ -135,50 +135,19 @@ export default async function DashboardPage() {
   const lockedTripIds = new Set<string>();
   const freeTripLimitReached = !isPremium && trips.length >= 3;
 
+  const dashboardIntro = (
+    <>
+      Un solo camino: <span className="font-semibold text-slate-800">crear el viaje</span>, dejar que el{" "}
+      <span className="font-semibold text-slate-800">asistente personal</span> proponga plan y rutas (Premium), y{" "}
+      <span className="font-semibold text-slate-800">editar</span> cuando quieras en Plan, Rutas o Gastos.
+    </>
+  );
+
   return (
     <main className="page-shell space-y-6 pb-10 md:space-y-8 md:pb-14">
       <OnboardingNudge hasTrips={trips.length > 0} />
 
-      <header className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white via-slate-50/40 to-cyan-50/50 px-5 py-5 shadow-sm md:rounded-[24px] md:px-8 md:py-6">
-        <div
-          className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-cyan-400/15 blur-3xl"
-          aria-hidden
-        />
-        <div className="relative flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div className="min-w-0 max-w-2xl space-y-2">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Dashboard</p>
-          <h1 className="text-2xl font-extrabold tracking-tight text-slate-950 md:text-3xl">Tus viajes</h1>
-          <p className="text-sm leading-relaxed text-slate-600 md:text-base">
-            Un solo camino: <span className="font-semibold text-slate-800">crear el viaje</span>, dejar que el{" "}
-            <span className="font-semibold text-slate-800">asistente personal</span> proponga plan y rutas (Premium), y{" "}
-            <span className="font-semibold text-slate-800">editar</span> cuando quieras en Plan, Rutas o Gastos.
-          </p>
-        </div>
-        <nav className="flex flex-wrap items-center gap-2 md:justify-end">
-          {isAdmin ? (
-            <Link
-              href="/dashboard/admin"
-              className="inline-flex min-h-[40px] items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-950 transition hover:bg-amber-100"
-            >
-              Admin
-            </Link>
-          ) : null}
-          <Link
-            href="/pricing"
-            className="inline-flex min-h-[40px] items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
-          >
-            Precios
-          </Link>
-          <Link
-            href="/account"
-            className="inline-flex min-h-[40px] items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
-          >
-            Cuenta
-          </Link>
-          <SignOutButton />
-        </nav>
-        </div>
-      </header>
+      <DashboardPageHeader isAdmin={isAdmin} intro={dashboardIntro} />
 
       <section className="rounded-2xl border border-slate-200/90 bg-white px-5 py-6 shadow-sm md:rounded-[24px] md:px-8 md:py-7">
         <DashboardCreateFlowStepper isPremium={isPremium} />
