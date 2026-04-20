@@ -198,6 +198,7 @@ export default function TripPlanView({
   initialTripDescription = null,
   canEditTripNotes = false,
   initialWorkspaceTab = "itinerary",
+  initialSelectedDate = null,
 }: {
   tripId: string;
   premiumEnabled: boolean;
@@ -205,6 +206,7 @@ export default function TripPlanView({
   initialTripDescription?: string | null;
   canEditTripNotes?: boolean;
   initialWorkspaceTab?: "itinerary" | "notes";
+  initialSelectedDate?: string | null;
 }) {
   const { trip, activities, loading, saving, error, createActivity, updateActivity, deleteActivity, deleteActivitiesBulk } =
     useTripActivities(tripId);
@@ -227,7 +229,7 @@ export default function TripPlanView({
   const [showLodging, setShowLodging] = useState(true);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(initialSelectedDate);
   const [kindsOpen, setKindsOpen] = useState(false);
   const [newKind, setNewKind] = useState({ label: "", key: "", emoji: "", color: "#64748b" });
   const [iconPickerOpen, setIconPickerOpen] = useState(false);

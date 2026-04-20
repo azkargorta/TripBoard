@@ -260,6 +260,8 @@ type RoutesDraftPayload = {
   }>;
 };
 
+type MissingCoordsItem = { date: string; id: string; title: string };
+
 function tryExtractRoutesDraft(data: any): RoutesDraftPayload | null {
   const v = data?.routesDraft;
   if (!v || typeof v !== "object") return null;
@@ -268,6 +270,22 @@ function tryExtractRoutesDraft(data: any): RoutesDraftPayload | null {
   if (v.travelMode !== "DRIVING" && v.travelMode !== "WALKING" && v.travelMode !== "BICYCLING") return null;
   if (!Array.isArray(v.routes)) return null;
   return v as RoutesDraftPayload;
+}
+
+function tryExtractMissingCoords(data: any): MissingCoordsItem[] | null {
+  const v = data?.missingCoords;
+  if (!Array.isArray(v) || v.length === 0) return null;
+  const out: MissingCoordsItem[] = [];
+  for (const row of v) {
+    if (!row || typeof row !== "object") continue;
+    const r = row as any;
+    const date = typeof r.date === "string" ? r.date : "";
+    const id = typeof r.id === "string" ? r.id : "";
+    const title = typeof r.title === "string" ? r.title : "";
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !id || !title) continue;
+    out.push({ date, id, title });
+  }
+  return out.length ? out : null;
 }
 
 function extractItinerary(answer: string): ItineraryPayload | null {
@@ -486,6 +504,7 @@ export default function TripAiChatView({
   const [itineraryDraft, setItineraryDraft] = useState<ItineraryPayload | null>(null);
   const [diffDraft, setDiffDraft] = useState<DiffPayload | null>(null);
   const [routesDraft, setRoutesDraft] = useState<RoutesDraftPayload | null>(null);
+  const [missingCoords, setMissingCoords] = useState<MissingCoordsItem[] | null>(null);
   const [applyingDiff, setApplyingDiff] = useState(false);
   const [diffContext, setDiffContext] = useState<{
     activitiesById: Map<string, any>;
@@ -652,6 +671,7 @@ export default function TripAiChatView({
       setPlanConflictOpen(false);
       setDiffDraft(null);
       setRoutesDraft(null);
+      setMissingCoords(null);
       setDiffContext(null);
       setDiffContextLoading(false);
       setDiffSelected(new Set());
@@ -1090,6 +1110,7 @@ export default function TripAiChatView({
         setExpandedDay(null);
         setDiffDraft(data.diff as DiffPayload);
         setRoutesDraft(tryExtractRoutesDraft(data));
+        setMissingCoords(tryExtractMissingCoords(data));
       } else {
         const answerStr = typeof data.answer === "string" ? data.answer : "";
         const maybe = answerStr ? extractItinerary(answerStr) : null;
@@ -1099,6 +1120,7 @@ export default function TripAiChatView({
         const maybeDiff = answerStr ? extractDiff(answerStr) : null;
         if (maybeDiff) setDiffDraft(maybeDiff);
         setRoutesDraft(null);
+        setMissingCoords(null);
       }
 
       if (data?.actionExecuted && data?.actionResult) {
@@ -2138,6 +2160,34 @@ export default function TripAiChatView({
                   >
                     Revisar en Rutas
                   </button>
+                </div>
+              </div>
+            ) : null}
+
+            {mode === "day_planner" && missingCoords?.length ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+                <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-amber-800">Faltan coordenadas</div>
+                <div className="mt-1 text-sm font-semibold text-amber-950">
+                  {missingCoords.length} plan{missingCoords.length === 1 ? "" : "es"} sin ubicación (lat/lng)
+                </div>
+                <div className="mt-2 space-y-1 text-sm text-amber-900/90">
+                  {missingCoords.slice(0, 6).map((x) => (
+                    <div key={`${x.date}:${x.id}`} className="flex flex-wrap gap-x-2">
+                      <span className="font-semibold">{x.date}</span>
+                      <span className="text-amber-950">{x.title}</span>
+                    </div>
+                  ))}
+                  {missingCoords.length > 6 ? (
+                    <div className="text-xs text-amber-800">… y {missingCoords.length - 6} más</div>
+                  ) : null}
+                </div>
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                  <Link
+                    href={`/trip/${encodeURIComponent(tripId)}/plan?date=${encodeURIComponent(missingCoords[0]!.date)}`}
+                    className="inline-flex min-h-[44px] items-center justify-center rounded-2xl border border-amber-200 bg-white px-4 py-2 text-sm font-semibold text-amber-950 shadow-sm transition hover:bg-amber-100/60"
+                  >
+                    Ir a Plan y corregir
+                  </Link>
                 </div>
               </div>
             ) : null}

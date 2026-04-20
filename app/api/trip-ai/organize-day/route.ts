@@ -747,6 +747,7 @@ export async function POST(req: Request) {
 
       const operations: any[] = [];
       const draftRoutes: RouteDraftPayload["routes"] = [];
+      const missingCoords: Array<{ date: string; id: string; title: string }> = [];
 
       for (const date of resolvedDates) {
         const dayActs = (byDate.get(date) || []).slice();
@@ -755,6 +756,16 @@ export async function POST(req: Request) {
             compareActivityTime(x?.activity_time, y?.activity_time) ||
             String(x?.title || x?.place_name || "").localeCompare(String(y?.title || y?.place_name || ""))
         );
+
+        for (const a of dayActs) {
+          const lat = typeof a?.latitude === "number" ? a.latitude : null;
+          const lng = typeof a?.longitude === "number" ? a.longitude : null;
+          if (lat == null || lng == null) {
+            const id = typeof a?.id === "string" ? a.id : String(a?.id || "");
+            const title = String(a?.title || a?.place_name || "Plan").trim();
+            if (id) missingCoords.push({ date, id, title });
+          }
+        }
 
         for (let i = 0; i < dayActs.length - 1; i++) {
           const a = dayActs[i];
@@ -839,9 +850,12 @@ export async function POST(req: Request) {
       const answer =
         `He preparado ${draftRoutes.length} ruta${draftRoutes.length === 1 ? "" : "s"} ` +
         `entre tus planes guardados para el rango ${resolvedDates[0]} → ${resolvedDates[resolvedDates.length - 1]}. ` +
-        `Pulsa «Revisar en Rutas» para validarlas y guardarlas.`;
+        (missingCoords.length
+          ? `\n\nOjo: hay ${missingCoords.length} plan${missingCoords.length === 1 ? "" : "es"} sin coordenadas; sin coords no puedo trazar rutas para esas paradas.`
+          : "") +
+        `\n\nPulsa «Revisar en Rutas» para validarlas y guardarlas.`;
 
-      return NextResponse.json({ answer, plan: null, diff, routesDraft });
+      return NextResponse.json({ answer, plan: null, diff, routesDraft, missingCoords });
     }
 
     const prompt = [

@@ -24,6 +24,15 @@ export default async function TripPlanPage({
     typeof rawTab === "string" ? rawTab.trim().toLowerCase() : Array.isArray(rawTab) ? String(rawTab[0] || "").trim().toLowerCase() : "";
   const initialWorkspaceTab = tabParam === "notas" || tabParam === "notes" ? "notes" : "itinerary";
 
+  const rawDate = searchParams?.date;
+  const dateParam =
+    typeof rawDate === "string"
+      ? rawDate.trim()
+      : Array.isArray(rawDate)
+        ? String(rawDate[0] || "").trim()
+        : "";
+  const initialSelectedDate = /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : null;
+
   const { data: tripNoteRow } = await supabase.from("trips").select("description").eq("id", params.id).maybeSingle();
   const rawDesc = (tripNoteRow as { description?: string | null } | null)?.description;
   const tripDescription = typeof rawDesc === "string" ? rawDesc : null;
@@ -48,6 +57,7 @@ export default async function TripPlanPage({
         initialTripDescription={tripDescription}
         canEditTripNotes={canEditTripNotes}
         initialWorkspaceTab={initialWorkspaceTab}
+        initialSelectedDate={initialSelectedDate}
       />
     </main>
   );
