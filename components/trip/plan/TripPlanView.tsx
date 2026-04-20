@@ -667,7 +667,9 @@ export default function TripPlanView({
               type="button"
               onClick={() => setViewMode("list")}
               className={`inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 px-3 text-xs font-extrabold transition sm:min-h-[36px] sm:flex-none ${
-                viewMode === "list" ? "bg-slate-950 text-white" : "text-slate-700 hover:bg-slate-50"
+                viewMode === "list"
+                  ? "bg-violet-600 text-white hover:bg-violet-700"
+                  : "text-slate-700 hover:bg-violet-50"
               }`}
               title="Vista de lista"
             >
@@ -677,7 +679,9 @@ export default function TripPlanView({
               type="button"
               onClick={() => setViewMode("calendar")}
               className={`inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 px-3 text-xs font-extrabold transition sm:min-h-[36px] sm:flex-none ${
-                viewMode === "calendar" ? "bg-slate-950 text-white" : "text-slate-700 hover:bg-slate-50"
+                viewMode === "calendar"
+                  ? "bg-violet-600 text-white hover:bg-violet-700"
+                  : "text-slate-700 hover:bg-violet-50"
               }`}
               title="Vista calendario"
             >

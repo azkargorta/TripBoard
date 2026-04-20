@@ -167,6 +167,27 @@ function emojiIcon(emoji: string, bg: string) {
   });
 }
 
+function numberIcon(num: number, bg: string) {
+  return L.divIcon({
+    className: "",
+    html: `<div style="
+      width: 32px; height: 32px;
+      display:flex; align-items:center; justify-content:center;
+      border-radius: 999px;
+      background:${bg};
+      border: 2px solid #ffffff;
+      box-shadow: 0 10px 22px rgba(15,23,42,.18);
+      color: #ffffff;
+      font-weight: 900;
+      font-size: 13px;
+      line-height: 1;
+    ">${num}</div>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 32],
+    popupAnchor: [0, -26],
+  });
+}
+
 function FitToBounds({ bounds, boundsKey }: { bounds: L.LatLngBounds | null; boundsKey: string }) {
   const map = useMap();
   const lastKeyRef = useRef<string>("");
@@ -466,7 +487,7 @@ function MapSurface({
   bounds: L.LatLngBounds | null;
   boundsKey: string;
   lines: Array<{ key: string; points: RoutePoint[]; color: string; label: string }>;
-  markers: Array<{ key: string; lat: number; lng: number; title: string; emoji: string; bg: string; subtitle?: string }>;
+  markers: Array<{ key: string; lat: number; lng: number; title: string; icon: L.Icon | L.DivIcon; subtitle?: string }>;
   onMapCreated?: (map: L.Map) => void;
 }) {
   if (!visible) return null;
@@ -502,7 +523,7 @@ function MapSurface({
           ))}
 
           {markers.map((m) => (
-            <Marker key={m.key} position={[m.lat, m.lng]} icon={emojiIcon(m.emoji, m.bg)}>
+            <Marker key={m.key} position={[m.lat, m.lng]} icon={m.icon}>
               <Popup>
                 <div className="text-sm font-semibold text-slate-900">{m.title}</div>
                 {m.subtitle ? <div className="mt-1 text-xs text-slate-600">{m.subtitle}</div> : null}
@@ -768,13 +789,14 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   }, [focusedRouteKey, routeQuery, routesState, selectedDate]);
 
   const mapEntities = useMemo(() => {
-    const markers: Array<{ key: string; lat: number; lng: number; title: string; emoji: string; bg: string; subtitle?: string }> =
+    const markers: Array<{ key: string; lat: number; lng: number; title: string; icon: L.Icon | L.DivIcon; subtitle?: string }> =
       [];
     const hasPreview = isRouteFormOpen && !!routePreview;
 
     // Cuando una ruta está enfocada o estamos previsualizando una nueva, ocultamos el resto del mapa para destacar solo esa ruta.
     if (showPlanMarkers && !focusedRouteKey && !hasPreview) {
       for (const p of allPlanPlaces) {
+        if (selectedDate !== "all" && (p.activityDate || "") !== selectedDate) continue;
         const k = normalizeKind(p.kind) || "visit";
         if (planKindFilter.size && !planKindFilter.has(k)) continue;
         markers.push({
@@ -783,8 +805,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
           lng: p.longitude,
           title: p.title,
           subtitle: p.address,
-          emoji: kindMarkerEmoji(k, customByKey),
-          bg: kindMarkerColor(k, customByKey),
+          icon: emojiIcon(kindMarkerEmoji(k, customByKey), kindMarkerColor(k, customByKey)),
         });
       }
     }
@@ -798,6 +819,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
         label: routePreview.label,
       });
     } else {
+      let routeIdx = 0;
       for (const r of visibleRoutes) {
         const key = `${r.source || "trip_routes"}:${r.id}`;
         const pts = (Array.isArray(r.path_points) && r.path_points.length ? r.path_points : r.route_points) || [];
@@ -808,6 +830,28 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
 
         if (normalized.length >= 2) {
           lines.push({ key, points: normalized, color, label: String(r.title || r.route_name || "Ruta") });
+          // Marcadores origen/destino numerados: 1-2, 3-4, 5-6...
+          const start = normalized[0];
+          const end = normalized[normalized.length - 1];
+          const n1 = routeIdx * 2 + 1;
+          const n2 = routeIdx * 2 + 2;
+          markers.push({
+            key: `${key}:start`,
+            lat: start.lat,
+            lng: start.lng,
+            title: `${n1}. Origen`,
+            subtitle: String(r.origin_name || "Origen"),
+            icon: numberIcon(n1, color),
+          });
+          markers.push({
+            key: `${key}:end`,
+            lat: end.lat,
+            lng: end.lng,
+            title: `${n2}. Destino`,
+            subtitle: String(r.destination_name || "Destino"),
+            icon: numberIcon(n2, color),
+          });
+          routeIdx += 1;
           continue;
         }
         if (
@@ -825,17 +869,50 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
             color,
             label: String(r.title || r.route_name || "Ruta"),
           });
+          const n1 = routeIdx * 2 + 1;
+          const n2 = routeIdx * 2 + 2;
+          markers.push({
+            key: `${key}:start`,
+            lat: r.origin_latitude,
+            lng: r.origin_longitude,
+            title: `${n1}. Origen`,
+            subtitle: String(r.origin_name || "Origen"),
+            icon: numberIcon(n1, color),
+          });
+          markers.push({
+            key: `${key}:end`,
+            lat: r.destination_latitude,
+            lng: r.destination_longitude,
+            title: `${n2}. Destino`,
+            subtitle: String(r.destination_name || "Destino"),
+            icon: numberIcon(n2, color),
+          });
+          routeIdx += 1;
         }
       }
     }
 
     return { markers, lines };
-  }, [allPlanPlaces, customByKey, focusedRouteKey, isRouteFormOpen, planKindFilter, routePreview, showPlanMarkers, visibleRoutes]);
+  }, [
+    allPlanPlaces,
+    customByKey,
+    focusedRouteKey,
+    isRouteFormOpen,
+    planKindFilter,
+    routePreview,
+    selectedDate,
+    showPlanMarkers,
+    visibleRoutes,
+  ]);
 
   const bounds = useMemo(() => {
     const latlngs: Array<[number, number]> = [];
-    for (const m of mapEntities.markers) latlngs.push([m.lat, m.lng]);
-    for (const l of mapEntities.lines) for (const p of l.points) latlngs.push([p.lat, p.lng]);
+    // Priorizamos rutas: si hay líneas visibles, ajustamos a ellas para no “abrir” el mapa por marcadores lejanos.
+    if (mapEntities.lines.length) {
+      for (const l of mapEntities.lines) for (const p of l.points) latlngs.push([p.lat, p.lng]);
+    } else {
+      for (const m of mapEntities.markers) latlngs.push([m.lat, m.lng]);
+    }
     if (!latlngs.length) return null;
     const b = L.latLngBounds(latlngs);
     return b.isValid() ? b : null;
