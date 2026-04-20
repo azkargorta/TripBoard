@@ -50,13 +50,13 @@ export default function DashboardPageHeader({ isAdmin }: Props) {
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm ring-1 ring-slate-900/[0.04] transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-gradient-to-br from-violet-500 to-indigo-600 text-white shadow-sm ring-1 ring-slate-900/[0.04] transition hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60"
             aria-expanded={open}
             aria-haspopup="menu"
             aria-controls="dashboard-account-menu"
             aria-label="Cuenta y accesos"
           >
-            <User className="size-[1.15rem] shrink-0" strokeWidth={2.25} aria-hidden />
+            <User className="size-[1.15rem] shrink-0 text-white" strokeWidth={2.25} aria-hidden />
           </button>
 
           {open ? (

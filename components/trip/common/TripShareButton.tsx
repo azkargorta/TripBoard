@@ -166,6 +166,8 @@ export default function TripShareButton({
     "inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-2 text-[10px] font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60 disabled:opacity-60 sm:min-h-0 sm:min-w-0 sm:px-2 sm:py-1";
 
   const menuBtn = `${mobileMenuRowBase} text-left disabled:opacity-60`;
+  const desktopIconTile =
+    "inline-flex h-7 w-7 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]";
 
   return (
     <>
@@ -182,7 +184,9 @@ export default function TripShareButton({
               <Copy className="text-cyan-700" aria-hidden />
             </span>
           ) : (
-            <Copy className={iconInline16} aria-hidden />
+            <span className={desktopIconTile} aria-hidden>
+              <Copy className="h-4 w-4 text-violet-700" aria-hidden />
+            </span>
           )}
           <span className={menuRow || showLabels ? "inline" : "inline max-w-[9rem] truncate sm:max-w-none"}>Copiar enlace</span>
         </button>
