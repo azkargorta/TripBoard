@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { LogOut } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { clearSupabaseBrowserCookies } from "@/lib/clear-supabase-browser-cookies";
 
 type SignOutButtonProps = {
   className?: string;
@@ -29,7 +29,7 @@ export default function SignOutButton({
 
     try {
       await Promise.race([
-        supabase.auth.signOut(),
+        fetch("/api/auth/logout", { method: "POST", credentials: "include" }),
         new Promise((_, reject) =>
           setTimeout(() => reject(new Error("Timeout al cerrar sesión")), 5000)
         ),
@@ -37,6 +37,7 @@ export default function SignOutButton({
     } catch (error) {
       console.error("Error cerrando sesión:", error);
     } finally {
+      clearSupabaseBrowserCookies();
       window.location.href = "/auth/login";
     }
   }

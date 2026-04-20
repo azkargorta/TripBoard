@@ -14,6 +14,7 @@ import type { AIActionId } from "@/lib/trip-ai/aiActions";
 import type { TripAssistantSurface } from "@/lib/trip-assistant-context";
 import { parseTravelDocsChecklistFromAnswer } from "@/lib/trip-ai/travelDocsChecklist";
 import TravelDocsChecklistCard from "@/components/trip/ai/TravelDocsChecklistCard";
+import { btnPrimary } from "@/components/ui/brandStyles";
 
 type TripAiChatLayout = "page" | "drawer";
 
@@ -91,8 +92,9 @@ const PLANNER_FOCUS_WELCOME =
 
 const DAY_FOCUS_WELCOME =
   "Modo **Desplazamientos y un día**\n\n" +
-  "Pensado para **un día concreto**: horarios, comidas y cómo moveros (andando, coche, etc.). Las respuestas pasan por el motor de **Organizar día**; luego podrás **Aplicar cambios** en el plan.\n\n" +
-  "Indica la **fecha (YYYY-MM-DD)**, ciudad con **país** y el ritmo que buscáis.";
+  "Una vez introducidos los alojamientos y planes vamos a crear las mejores rutas posibles.\n\n" +
+  "Este modo está pensado para **traslados**: rutas entre paradas, a qué hora salir para llegar a tiempo y cómo moveros (andando, bici, coche o transporte público). Si ya tienes una actividad a las 10:00, puedo decirte la hora de salida recomendada y ayudarte a preparar la ruta.\n\n" +
+  "Dime la **fecha (YYYY-MM-DD)**, el **modo de transporte** y el objetivo (por ejemplo: “llegar a las 10:00 a X”).";
 
 /** Apertura al entrar en modo documentos (cambio manual o `?modo=travel_docs`). */
 const OPENING_TRAVEL_DOCS =
@@ -470,6 +472,11 @@ export default function TripAiChatView({
   const { trip, reload: reloadTrip, loading: tripDataLoading } = useTripData(tripId);
   const { activities: tripPlanActivities, reload: reloadTripPlanActivities, loading: tripPlanActivitiesLoading } =
     useTripActivities(tripId);
+
+  const hasAnyPlans = useMemo(() => (tripPlanActivities?.length || 0) > 0, [tripPlanActivities]);
+  const hasAnyLodging = useMemo(() => {
+    return (tripPlanActivities || []).some((a: any) => String(a?.activity_kind || "").toLowerCase() === "lodging");
+  }, [tripPlanActivities]);
 
   const draftHasCalendarDates = useMemo(() => {
     if (!itineraryDraft) return false;
@@ -2032,6 +2039,38 @@ export default function TripAiChatView({
                 : "max-h-[560px] min-w-0 max-w-full space-y-5 overflow-y-auto overflow-x-hidden px-4 py-5 sm:px-5"
             }
           >
+            {mode === "day_planner" && (!hasAnyPlans || !hasAnyLodging) ? (
+              <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-sky-50 p-4 shadow-sm">
+                <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-violet-800">
+                  Para crear rutas automáticamente
+                </div>
+                <div className="mt-2 text-sm font-semibold text-slate-900">
+                  {(!hasAnyPlans && !hasAnyLodging)
+                    ? "Aún no hay planes ni alojamientos guardados."
+                    : !hasAnyPlans
+                      ? "Aún no hay planes guardados."
+                      : "Aún no hay alojamientos guardados."}
+                </div>
+                <div className="mt-1 text-sm text-slate-600">
+                  Puedes ir a añadirlos ahora, o seguir creando rutas manualmente y revisarlas después.
+                </div>
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                  <Link
+                    href={`/trip/${encodeURIComponent(tripId)}/plan`}
+                    className={`${btnPrimary} inline-flex min-h-[44px] items-center justify-center rounded-2xl px-4 py-2 text-sm`}
+                  >
+                    Ir a añadir planes
+                  </Link>
+                  <Link
+                    href={`/trip/${encodeURIComponent(tripId)}/map`}
+                    className="inline-flex min-h-[44px] items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                  >
+                    Introducir rutas manualmente
+                  </Link>
+                </div>
+              </div>
+            ) : null}
+
             {messages.map((message) => {
               const travelDocs =
                 message.role === "assistant" ? parseTravelDocsChecklistFromAnswer(message.content) : null;
