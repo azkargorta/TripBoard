@@ -750,13 +750,8 @@ export async function POST(req: Request) {
       const missingCoords: Array<{ date: string; id: string; title: string }> = [];
 
       for (const date of resolvedDates) {
-        const dayActsAll = (byDate.get(date) || []).slice();
-        const dayActs = dayActsAll.filter((a) => {
-          const k = String(a?.activity_kind || "").toLowerCase();
-          // Excluimos comidas/restaurantes: no queremos rutas hacia “almuerzo ligero”.
-          if (k === "restaurant" || k === "food" || k === "cafe" || k === "cafeteria" || k === "coffee") return false;
-          return true;
-        });
+        // En rango solo usamos planes reales guardados: si hay restaurante con coords, se incluye.
+        const dayActs = (byDate.get(date) || []).slice();
         dayActs.sort(
           (x, y) =>
             compareActivityTime(x?.activity_time, y?.activity_time) ||

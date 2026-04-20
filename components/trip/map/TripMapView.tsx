@@ -185,6 +185,14 @@ function FitToBounds({ bounds, boundsKey }: { bounds: L.LatLngBounds | null; bou
   return null;
 }
 
+function MapReporter({ onMap }: { onMap?: (map: L.Map) => void }) {
+  const map = useMap();
+  useEffect(() => {
+    onMap?.(map);
+  }, [map, onMap]);
+  return null;
+}
+
 function rowStr(row: UnknownRow, key: string) {
   const v = row[key];
   return typeof v === "string" ? v : null;
@@ -452,12 +460,14 @@ function MapSurface({
   boundsKey,
   lines,
   markers,
+  onMapCreated,
 }: {
   visible: boolean;
   bounds: L.LatLngBounds | null;
   boundsKey: string;
   lines: Array<{ key: string; points: RoutePoint[]; color: string; label: string }>;
   markers: Array<{ key: string; lat: number; lng: number; title: string; emoji: string; bg: string; subtitle?: string }>;
+  onMapCreated?: (map: L.Map) => void;
 }) {
   if (!visible) return null;
 
@@ -478,6 +488,7 @@ function MapSurface({
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
+          <MapReporter onMap={onMapCreated} />
           <FitToBounds bounds={bounds} boundsKey={boundsKey} />
 
           {lines.map((l) => (
@@ -506,6 +517,7 @@ function MapSurface({
 
 export default function TripMapView({ tripId, tripDates = [], planSources, routeSources, points, routes }: Props) {
   const searchParams = useSearchParams();
+  const [mapRef, setMapRef] = useState<L.Map | null>(null);
   const allPlanPlaces = useMemo(() => {
     const fromSources =
       planSources && (planSources.tripActivities || planSources.legacyActivities)
@@ -838,6 +850,16 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     ].join("|");
   }, [routePreview?.key, selectedDate, showPlanMarkers, visibleRoutes]);
 
+  // Asegura centrado/zoom cuando cambia el día o se carga una ruta (draft/preview).
+  useEffect(() => {
+    if (!mapRef || !bounds) return;
+    try {
+      mapRef.fitBounds(bounds, { padding: [44, 44] });
+    } catch {
+      // noop
+    }
+  }, [mapRef, boundsKey, bounds]);
+
   const onSelectPlace = useCallback(
     (setState: (v: { address: string; latitude: number | null; longitude: number | null }) => void, payload: AutocompletePayload) => {
       setState({ address: payload.address, latitude: payload.latitude, longitude: payload.longitude });
@@ -1078,7 +1100,17 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
 
     setRoutePreview({
       key: `draft:${idx}`,
-      points: Array.isArray(r.path_points) && r.path_points.length ? r.path_points : Array.isArray(r.route_points) ? r.route_points : [],
+      points:
+        Array.isArray(r.path_points) && r.path_points.length
+          ? r.path_points
+          : Array.isArray(r.route_points) && r.route_points.length
+            ? r.route_points
+            : r.origin_latitude != null && r.origin_longitude != null && r.destination_latitude != null && r.destination_longitude != null
+              ? [
+                  { lat: r.origin_latitude, lng: r.origin_longitude },
+                  { lat: r.destination_latitude, lng: r.destination_longitude },
+                ]
+              : [],
       distanceText: r.distance_text,
       durationText: r.duration_text,
       durationSeconds: null,
@@ -2077,7 +2109,14 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
         </section>
         </aside>
 
-        <MapSurface visible={isMapVisible} bounds={bounds} boundsKey={boundsKey} lines={mapEntities.lines} markers={mapEntities.markers} />
+        <MapSurface
+          visible={isMapVisible}
+          bounds={bounds}
+          boundsKey={boundsKey}
+          lines={mapEntities.lines}
+          markers={mapEntities.markers}
+          onMapCreated={(m) => setMapRef(m)}
+        />
       </div>
 
       <DuplicateRouteDialog

@@ -509,41 +509,9 @@ export default function TripPlanView({
               >
                 Cancelar
               </button>
-              <button
-                type="button"
-                disabled={saving || selectedActivityIds.size === 0}
-                onClick={() => {
-                  const ids = [...selectedActivityIds];
-                  if (!ids.length) return;
-                  const ok = window.confirm(
-                    `¿Eliminar ${ids.length} plan${ids.length === 1 ? "" : "es"} seleccionado${ids.length === 1 ? "" : "s"}? Esta acción no se puede deshacer.`
-                  );
-                  if (!ok) return;
-                  void deleteActivitiesBulk(ids).then(() => {
-                    setBulkDeleteMode(false);
-                    setSelectedActivityIds(new Set());
-                  });
-                }}
-                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-5 py-3 text-sm font-semibold text-rose-900 shadow-sm transition hover:bg-rose-100 focus:outline-none focus:ring-2 focus:ring-rose-200 disabled:opacity-50 sm:w-auto"
-              >
-                <Trash2 className="h-4 w-4" aria-hidden />
-                Eliminar{selectedActivityIds.size > 0 ? ` (${selectedActivityIds.size})` : ""}
-              </button>
             </>
           ) : (
-            <button
-              type="button"
-              onClick={() => {
-                setBulkDeleteMode(true);
-                setSelectedActivityIds(new Set());
-              }}
-              disabled={!filteredWithCalendarDate.length}
-              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-5 py-3 text-sm font-semibold text-rose-900 shadow-sm transition hover:bg-rose-100 focus:outline-none focus:ring-2 focus:ring-rose-200 disabled:opacity-50 sm:w-auto"
-              title="Eliminar varios planes a la vez"
-            >
-              <Trash2 className="h-4 w-4" aria-hidden />
-              Eliminar
-            </button>
+            <></>
           )}
           <button
             type="button"
@@ -572,6 +540,42 @@ export default function TripPlanView({
             <Clock className="h-4 w-4" />
             Historial
           </button>
+          {bulkDeleteMode ? (
+            <button
+              type="button"
+              disabled={saving || selectedActivityIds.size === 0}
+              onClick={() => {
+                const ids = [...selectedActivityIds];
+                if (!ids.length) return;
+                const ok = window.confirm(
+                  `¿Eliminar ${ids.length} plan${ids.length === 1 ? "" : "es"} seleccionado${ids.length === 1 ? "" : "s"}? Esta acción no se puede deshacer.`
+                );
+                if (!ok) return;
+                void deleteActivitiesBulk(ids).then(() => {
+                  setBulkDeleteMode(false);
+                  setSelectedActivityIds(new Set());
+                });
+              }}
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-5 py-3 text-sm font-semibold text-rose-900 shadow-sm transition hover:bg-rose-100 focus:outline-none focus:ring-2 focus:ring-rose-200 disabled:opacity-50 sm:w-auto"
+            >
+              <Trash2 className="h-4 w-4" aria-hidden />
+              Eliminar{selectedActivityIds.size > 0 ? ` (${selectedActivityIds.size})` : ""}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setBulkDeleteMode(true);
+                setSelectedActivityIds(new Set());
+              }}
+              disabled={!filteredWithCalendarDate.length}
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-5 py-3 text-sm font-semibold text-rose-900 shadow-sm transition hover:bg-rose-100 focus:outline-none focus:ring-2 focus:ring-rose-200 disabled:opacity-50 sm:w-auto"
+              title="Eliminar varios planes a la vez"
+            >
+              <Trash2 className="h-4 w-4" aria-hidden />
+              Eliminar
+            </button>
+          )}
         </div>
       </div>
 
@@ -642,20 +646,45 @@ export default function TripPlanView({
       </div>
 
       <div className="space-y-2">
-        <button
-          type="button"
-          onClick={() => setFiltersOpen((v) => !v)}
-          aria-expanded={filtersOpen}
-          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-900 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-violet-200 sm:w-auto sm:justify-start"
-        >
-          <SlidersHorizontal className="h-4 w-4 shrink-0 text-slate-700" aria-hidden />
-          Filtros
-          {filtersOpen ? (
-            <ChevronUp className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />
-          ) : (
-            <ChevronDown className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />
-          )}
-        </button>
+        <div className="flex w-full flex-wrap items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((v) => !v)}
+            aria-expanded={filtersOpen}
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-900 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-violet-200 sm:w-auto sm:justify-start"
+          >
+            <SlidersHorizontal className="h-4 w-4 shrink-0 text-slate-700" aria-hidden />
+            Filtros
+            {filtersOpen ? (
+              <ChevronUp className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />
+            ) : (
+              <ChevronDown className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />
+            )}
+          </button>
+
+          <div className="inline-flex w-full overflow-hidden rounded-xl border border-slate-200 bg-white sm:w-auto">
+            <button
+              type="button"
+              onClick={() => setViewMode("list")}
+              className={`inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 px-3 text-xs font-extrabold transition sm:min-h-[36px] sm:flex-none ${
+                viewMode === "list" ? "bg-slate-950 text-white" : "text-slate-700 hover:bg-slate-50"
+              }`}
+              title="Vista de lista"
+            >
+              Lista
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("calendar")}
+              className={`inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 px-3 text-xs font-extrabold transition sm:min-h-[36px] sm:flex-none ${
+                viewMode === "calendar" ? "bg-slate-950 text-white" : "text-slate-700 hover:bg-slate-50"
+              }`}
+              title="Vista calendario"
+            >
+              Calendario
+            </button>
+          </div>
+        </div>
 
         {filtersOpen ? (
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
@@ -665,28 +694,6 @@ export default function TripPlanView({
                 Vista y alojamientos
               </div>
               <div className="flex flex-wrap gap-2">
-                <div className="mr-0 inline-flex overflow-hidden rounded-xl border border-slate-200 bg-white sm:mr-2">
-                  <button
-                    type="button"
-                    onClick={() => setViewMode("list")}
-                    className={`inline-flex min-h-[36px] items-center gap-2 px-3 text-xs font-extrabold transition ${
-                      viewMode === "list" ? "bg-slate-950 text-white" : "text-slate-700 hover:bg-slate-50"
-                    }`}
-                    title="Vista de lista"
-                  >
-                    Lista
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewMode("calendar")}
-                    className={`inline-flex min-h-[36px] items-center gap-2 px-3 text-xs font-extrabold transition ${
-                      viewMode === "calendar" ? "bg-slate-950 text-white" : "text-slate-700 hover:bg-slate-50"
-                    }`}
-                    title="Vista calendario"
-                  >
-                    Calendario
-                  </button>
-                </div>
                 <button
                   type="button"
                   onClick={() => setShowLodging((v) => !v)}
