@@ -18,6 +18,7 @@ import { iconSlotFill40 } from "@/components/ui/iconTokens";
 import { getRoleLabel, getStatusLabel } from "@/lib/participants";
 import {
   Info,
+  Filter,
   Link2,
   MessageCircle,
   Pencil,
@@ -78,6 +79,7 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
   const [query, setQuery] = useState("");
   const [linkFilter, setLinkFilter] = useState<"all" | "linked" | "unlinked">("all");
   const [roleFilter, setRoleFilter] = useState<"all" | TripRole>("all");
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => {
     if (isLoadedUser) return;
@@ -356,50 +358,71 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          {(
-            [
-              { id: "all" as const, label: "Todos" },
-              { id: "linked" as const, label: "Con cuenta" },
-              { id: "unlinked" as const, label: "Sin vincular" },
-            ] as const
-          ).map((chip) => (
+        <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-2 text-sm font-extrabold text-slate-950">
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-700">
+                <Filter className="h-4 w-4" aria-hidden />
+              </span>
+              Filtros
+            </div>
             <button
-              key={chip.id}
               type="button"
-              onClick={() => setLinkFilter(chip.id)}
-              className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
-                linkFilter === chip.id
-                  ? "border-violet-300 bg-violet-50 text-violet-900"
-                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-              }`}
+              onClick={() => setFiltersOpen((v) => !v)}
+              className="inline-flex min-h-[40px] items-center justify-center rounded-xl border border-violet-200 bg-violet-50 px-4 py-2 text-xs font-semibold text-violet-950 shadow-sm transition hover:bg-violet-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-200"
+              aria-expanded={filtersOpen}
             >
-              {chip.label}
+              {filtersOpen ? "Ocultar filtros" : "Mostrar filtros"}
             </button>
-          ))}
-          <span className="mx-1 hidden h-6 w-px bg-slate-200 sm:inline-block" aria-hidden />
-          {(
-            [
-              { id: "all" as const, label: "Todos los roles" },
-              { id: "owner" as const, label: "Owner" },
-              { id: "editor" as const, label: "Editor" },
-              { id: "viewer" as const, label: "Lector" },
-            ] as const
-          ).map((chip) => (
-            <button
-              key={chip.id}
-              type="button"
-              onClick={() => setRoleFilter(chip.id)}
-              className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
-                roleFilter === chip.id
-                  ? "border-sky-300 bg-sky-50 text-sky-900"
-                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-              }`}
-            >
-              {chip.label}
-            </button>
-          ))}
-        </div>
+          </div>
+
+          {filtersOpen ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {(
+                [
+                  { id: "all" as const, label: "Todos" },
+                  { id: "linked" as const, label: "Con cuenta" },
+                  { id: "unlinked" as const, label: "Sin vincular" },
+                ] as const
+              ).map((chip) => (
+                <button
+                  key={chip.id}
+                  type="button"
+                  onClick={() => setLinkFilter(chip.id)}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
+                    linkFilter === chip.id
+                      ? "border-violet-300 bg-violet-50 text-violet-900"
+                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  {chip.label}
+                </button>
+              ))}
+              <span className="mx-1 hidden h-6 w-px bg-slate-200 sm:inline-block" aria-hidden />
+              {(
+                [
+                  { id: "all" as const, label: "Todos los roles" },
+                  { id: "owner" as const, label: "Owner" },
+                  { id: "editor" as const, label: "Editor" },
+                  { id: "viewer" as const, label: "Lector" },
+                ] as const
+              ).map((chip) => (
+                <button
+                  key={chip.id}
+                  type="button"
+                  onClick={() => setRoleFilter(chip.id)}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
+                    roleFilter === chip.id
+                      ? "border-sky-300 bg-sky-50 text-sky-900"
+                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </section>
 
         {sortedParticipants.length === 0 ? (
           <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50/80 px-6 py-12 text-center">

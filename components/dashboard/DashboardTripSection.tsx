@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import TripCardItem from "@/components/dashboard/TripCardItem";
+import { btnPrimary } from "@/components/ui/brandStyles";
 
 type Trip = {
   id: string;
@@ -43,7 +44,7 @@ export default function DashboardTripSection({
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="inline-flex min-h-[40px] shrink-0 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-950 shadow-sm transition hover:bg-violet-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-200 sm:text-sm"
+          className={`min-h-[40px] rounded-lg px-3 py-1.5 text-xs sm:text-sm ${btnPrimary}`}
           aria-expanded={open}
         >
           {open ? "Ocultar viajes" : "Mostrar viajes"}

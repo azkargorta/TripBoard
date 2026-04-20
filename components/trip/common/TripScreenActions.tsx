@@ -7,7 +7,6 @@ import { TRIP_TAB_SUMMARY_SRC } from "@/lib/trip-tab-assets";
 
 type Props = {
   tripId: string;
-  showSummary?: boolean;
   summaryLabel?: string;
   homeLabel?: string;
   /** Botones claros para cabeceras con gradiente oscuro. */
@@ -20,7 +19,6 @@ type Props = {
 
 export default function TripScreenActions({
   tripId,
-  showSummary = true,
   summaryLabel = "Resumen",
   homeLabel = "Mis viajes",
   variant = "default",
@@ -42,19 +40,6 @@ export default function TripScreenActions({
     return (
       <div className="flex w-full flex-col gap-2">
         <TripShareButton tripId={tripId} showLabels menuRow />
-        {showSummary ? (
-          <Link
-            href={`/trip/${tripId}/summary`}
-            className={row}
-            aria-label={summaryLabel}
-            title={summaryLabel}
-          >
-            <span className={iconWrap}>
-              <Image src={TRIP_TAB_SUMMARY_SRC} alt="" width={26} height={26} className="h-[26px] w-[26px] object-contain" />
-            </span>
-            {summaryLabel}
-          </Link>
-        ) : null}
         <Link href="/dashboard" className={row} aria-label={homeLabel} title={homeLabel}>
           <span className={iconWrap}>
             <Home className="text-slate-800" aria-hidden />
@@ -68,20 +53,6 @@ export default function TripScreenActions({
   return (
     <div className="flex min-w-0 max-w-full flex-wrap gap-2">
       <TripShareButton tripId={tripId} showLabels={showLabels} />
-      {showSummary ? (
-        <Link
-          href={`/trip/${tripId}/summary`}
-          className={btn}
-          aria-label={summaryLabel}
-          title={summaryLabel}
-        >
-          <span className={desktopIconTile} aria-hidden>
-            <Image src={TRIP_TAB_SUMMARY_SRC} alt="" width={28} height={28} className="h-[28px] w-[28px] object-contain" />
-          </span>
-          <span className={showLabels ? "inline" : "hidden sm:inline"}>{summaryLabel}</span>
-        </Link>
-      ) : null}
-
       <Link href="/dashboard" className={btn} aria-label={homeLabel} title={homeLabel}>
         <span className={desktopIconTile} aria-hidden>
           <Home className="h-6 w-6 text-slate-900" aria-hidden />

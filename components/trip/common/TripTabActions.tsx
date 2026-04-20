@@ -1,7 +1,5 @@
 import Link from "next/link";
-import Image from "next/image";
 import { Home } from "lucide-react";
-import { TRIP_TAB_SUMMARY_SRC } from "@/lib/trip-tab-assets";
 
 type Props = {
   tripId: string;
@@ -19,17 +17,6 @@ export default function TripTabActions({ tripId, variant = "default" }: Props) {
 
   return (
     <div className="flex min-w-0 max-w-full flex-wrap gap-2">
-      <Link
-        href={`/trip/${tripId}/summary`}
-        className={className}
-        aria-label="Resumen"
-        title="Resumen"
-      >
-        <span className={desktopIconTile} aria-hidden>
-          <Image src={TRIP_TAB_SUMMARY_SRC} alt="" width={28} height={28} className="h-[28px] w-[28px] object-contain" />
-        </span>
-        <span className="hidden sm:inline">Resumen</span>
-      </Link>
       <Link href="/dashboard" className={className} aria-label="Mis viajes" title="Mis viajes">
         <span className={desktopIconTile} aria-hidden>
           <Home className="h-6 w-6 text-slate-900" aria-hidden />
