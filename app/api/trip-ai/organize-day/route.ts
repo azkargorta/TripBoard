@@ -448,7 +448,7 @@ function asProfile(mode: DayPlanPayload["travelMode"]) {
   return "driving";
 }
 
-function asTravelMode(mode: DayPlanPayload["travelMode"]) {
+function asTravelMode(mode: DayPlanPayload["travelMode"]): "DRIVING" | "WALKING" | "BICYCLING" {
   if (mode === "walking") return "WALKING";
   if (mode === "cycling") return "BICYCLING";
   return "DRIVING";
