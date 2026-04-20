@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { Shield, Tag, User } from "lucide-react";
 import SignOutButton from "@/components/auth/SignOutButton";
-import TripBoardLogo from "@/components/brand/TripBoardLogo";
 import { iconInline16 } from "@/components/ui/iconTokens";
 
 type Props = {
@@ -56,7 +56,14 @@ export default function DashboardPageHeader({ isAdmin }: Props) {
             aria-controls="dashboard-account-menu"
             aria-label="Cuenta y accesos"
           >
-            <User className="size-[1.15rem] shrink-0 text-white" strokeWidth={2.25} aria-hidden />
+            <Image
+              src="/brand/tabs/participants.png"
+              alt=""
+              width={26}
+              height={26}
+              className="h-[26px] w-[26px] object-contain"
+              priority
+            />
           </button>
 
           {open ? (
@@ -96,15 +103,6 @@ export default function DashboardPageHeader({ isAdmin }: Props) {
             </div>
           ) : null}
         </div>
-      </div>
-
-      <div className="mx-auto flex w-full max-w-xl flex-col items-center px-12 text-center sm:max-w-2xl sm:px-16 md:px-20">
-        <div className="flex justify-center">
-          <TripBoardLogo href="/dashboard" size="lg" withWordmark />
-        </div>
-        <h1 className="mt-1 text-lg font-extrabold tracking-tight text-slate-950 md:mt-1.5 md:text-xl">
-          Tus viajes
-        </h1>
       </div>
     </div>
   );

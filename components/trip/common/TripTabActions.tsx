@@ -1,7 +1,5 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Home, LayoutDashboard } from "lucide-react";
-import { iconInline16 } from "@/components/ui/iconTokens";
 import { TRIP_TAB_SUMMARY_SRC } from "@/lib/trip-tab-assets";
 
 type Props = {
@@ -11,7 +9,7 @@ type Props = {
 
 export default function TripTabActions({ tripId, variant = "default" }: Props) {
   const desktopIconTile =
-    "inline-flex h-7 w-7 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]";
+    "inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-slate-100 shadow-sm ring-1 ring-slate-900/[0.04]";
 
   const className =
     variant === "inverse"
@@ -27,13 +25,13 @@ export default function TripTabActions({ tripId, variant = "default" }: Props) {
         title="Resumen"
       >
         <span className={desktopIconTile} aria-hidden>
-          <Image src={TRIP_TAB_SUMMARY_SRC} alt="" width={18} height={18} className="h-[18px] w-[18px] object-contain" />
+          <Image src={TRIP_TAB_SUMMARY_SRC} alt="" width={28} height={28} className="h-[28px] w-[28px] object-contain" />
         </span>
         <span className="hidden sm:inline">Resumen</span>
       </Link>
       <Link href="/dashboard" className={className} aria-label="Mis viajes" title="Mis viajes">
         <span className={desktopIconTile} aria-hidden>
-          <Image src="/brand/icon.png" alt="" width={18} height={18} className="h-[18px] w-[18px] object-contain" />
+          <Image src="/brand/kaviro-globe-pin.png" alt="" width={28} height={28} className="h-[28px] w-[28px] object-contain" />
         </span>
         <span className="hidden sm:inline">Mis viajes</span>
       </Link>

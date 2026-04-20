@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Copy } from "lucide-react";
+import { Link2 } from "lucide-react";
 import { writeTextToClipboard } from "@/lib/clipboard";
 import { useToast } from "@/components/ui/toast";
 import { mobileMenuRowBase, mobileMenuRowIconWrap } from "@/components/ui/mobileMenuStyles";
@@ -167,7 +167,7 @@ export default function TripShareButton({
 
   const menuBtn = `${mobileMenuRowBase} text-left disabled:opacity-60`;
   const desktopIconTile =
-    "inline-flex h-7 w-7 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]";
+    "inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-slate-100 shadow-sm ring-1 ring-slate-900/[0.04]";
 
   return (
     <>
@@ -181,11 +181,11 @@ export default function TripShareButton({
         >
           {menuRow ? (
             <span className={mobileMenuRowIconWrap}>
-              <Copy className="text-cyan-700" aria-hidden />
+              <Link2 className="text-violet-700" aria-hidden />
             </span>
           ) : (
             <span className={desktopIconTile} aria-hidden>
-              <Copy className="h-4 w-4 text-violet-700" aria-hidden />
+              <Link2 className="h-5 w-5 text-slate-900" aria-hidden />
             </span>
           )}
           <span className={menuRow || showLabels ? "inline" : "inline max-w-[9rem] truncate sm:max-w-none"}>Copiar enlace</span>

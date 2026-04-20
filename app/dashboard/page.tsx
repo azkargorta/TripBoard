@@ -10,6 +10,7 @@ import DashboardTripSection from "@/components/dashboard/DashboardTripSection";
 import DashboardCreateFlowStepper from "@/components/dashboard/DashboardCreateFlowStepper";
 import { isPlatformAdmin } from "@/lib/platform-admin";
 import { surfaceAccentCyan } from "@/components/ui/brandStyles";
+import { Sparkles } from "lucide-react";
 
 type Trip = {
   id: string;
@@ -171,9 +172,12 @@ export default async function DashboardPage() {
               <div className="mt-4 flex justify-center">
                 <Link
                   href="/account?upgrade=premium&focus=premium#premium-plans"
-                  className="inline-flex min-h-[44px] w-full items-center justify-center rounded-xl border-2 border-amber-200 bg-amber-50 px-3 py-2.5 text-center text-xs font-semibold text-amber-950 transition hover:bg-amber-100 sm:w-auto sm:min-w-[260px] sm:text-sm"
+                  className="group inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-amber-100/60 px-3 py-2.5 text-center text-xs font-semibold text-amber-950 shadow-sm ring-1 ring-slate-900/[0.02] transition hover:border-amber-300 hover:shadow-md active:translate-y-[0.5px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-200 sm:w-auto sm:min-w-[260px] sm:text-sm"
                 >
-                  ✨ Asistente personal y más con Premium
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-sm ring-1 ring-white/20">
+                    <Sparkles className="h-4 w-4" aria-hidden />
+                  </span>
+                  <span>Asistente personal y más con Premium</span>
                 </Link>
               </div>
             </>
