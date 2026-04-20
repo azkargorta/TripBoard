@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { btnPrimary } from "@/components/ui/brandStyles";
 
 type UploadResult = {
   path: string;
@@ -175,11 +176,7 @@ export default function ResourceUploadForm({
         <button
           type="submit"
           disabled={saving}
-          className={`rounded-xl px-4 py-3 text-sm font-semibold ${
-            saving
-              ? "cursor-not-allowed bg-slate-200 text-slate-500"
-              : "bg-slate-950 text-white"
-          }`}
+          className={btnPrimary}
         >
           {saving ? "Subiendo documento..." : "Subir documento"}
         </button>

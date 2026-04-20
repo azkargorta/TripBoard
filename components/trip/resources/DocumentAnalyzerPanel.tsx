@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { DetectedDocumentData } from "@/lib/document-analyzer";
+import { btnPrimary } from "@/components/ui/brandStyles";
 
 type Props = {
   onUseDetectedData: (data: DetectedDocumentData) => void;
@@ -116,7 +117,7 @@ export default function DocumentAnalyzerPanel({ onUseDetectedData }: Props) {
             type="button"
             onClick={handleAnalyze}
             disabled={loading || !file}
-            className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+            className={btnPrimary}
           >
             {loading ? "Analizando..." : "Analizar documento"}
           </button>

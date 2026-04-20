@@ -5,10 +5,10 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useParams, usePathname } from "next/navigation";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
-import { HelpIconQuestion } from "@/components/brand/HelpIcon";
+import { ChevronLeft, ChevronRight, LifeBuoy, X } from "lucide-react";
 import { TRIP_TAB_SUMMARY_SRC, tripTabDocsImageClass } from "@/lib/trip-tab-assets";
 import { iconInline16, iconSlotFill40, iconSlotFill44 } from "@/components/ui/iconTokens";
+import { btnPrimary } from "@/components/ui/brandStyles";
 
 type HelpBlock = { heading: string; bullets: string[] };
 
@@ -533,11 +533,14 @@ export default function TripPageHelp() {
         type="button"
         onClick={openManual}
         disabled={tourOpen}
-        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60 disabled:pointer-events-none disabled:opacity-40"
+        className="inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-4 text-sm font-extrabold text-violet-950 shadow-sm transition hover:bg-violet-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60 disabled:pointer-events-none disabled:opacity-40"
         aria-label={`Ayuda: ${entry.title}`}
         title={tourOpen ? "Cierra el recorrido para usar la ayuda" : "Ayuda de esta página"}
       >
-        <HelpIconQuestion className="h-6 w-6" />
+        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 to-indigo-700 text-white shadow-sm">
+          <LifeBuoy className="h-5 w-5" aria-hidden />
+        </span>
+        <span>Ayuda</span>
       </button>
 
       {mounted
@@ -631,7 +634,7 @@ export default function TripPageHelp() {
                             <button
                               type="button"
                               onClick={finishTour}
-                              className="inline-flex min-h-[48px] min-w-[min(100%,12rem)] items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                              className={`${btnPrimary} min-h-[48px] min-w-[min(100%,12rem)] rounded-2xl px-5 py-3 text-sm`}
                             >
                               Entendido
                             </button>
@@ -639,7 +642,7 @@ export default function TripPageHelp() {
                             <button
                               type="button"
                               onClick={() => setTourStep((s) => Math.min(TAB_TOUR.length - 1, s + 1))}
-                              className="inline-flex min-h-[48px] items-center justify-center gap-1 rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                              className={`${btnPrimary} min-h-[48px] items-center justify-center gap-1 rounded-2xl px-5 py-3 text-sm`}
                             >
                               Siguiente
                               <ChevronRight className={iconInline16} aria-hidden />
@@ -701,7 +704,7 @@ export default function TripPageHelp() {
                       <button
                         type="button"
                         onClick={closePageHelp}
-                        className="flex min-h-[48px] w-full items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                        className={`${btnPrimary} flex min-h-[48px] w-full items-center justify-center rounded-2xl px-4 py-3 text-sm`}
                       >
                         Entendido
                       </button>

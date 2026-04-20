@@ -15,6 +15,7 @@ import ParticipantLinkProfilePanel from "./ParticipantLinkProfilePanel";
 import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
 import LongTextSheet from "@/components/ui/LongTextSheet";
 import { iconSlotFill40 } from "@/components/ui/iconTokens";
+import { btnPrimary } from "@/components/ui/brandStyles";
 import { getRoleLabel, getStatusLabel } from "@/lib/participants";
 import {
   Info,
@@ -598,7 +599,7 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
                     setLinkingParticipant(null);
                     setIsCreating((prev) => !prev);
                   }}
-                  className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+                  className={`${btnPrimary} inline-flex items-center gap-2 px-4 py-2.5 text-sm`}
                 >
                   <UserPlus className="h-4 w-4" aria-hidden />
                   {isCreating ? "Cerrar" : "Añadir pasajero"}

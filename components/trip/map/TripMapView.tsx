@@ -6,6 +6,7 @@ import L from "leaflet";
 import { CalendarDays, Check, Clock, Copy, GripVertical, MapPin, Plus, RefreshCw, Save, Trash2 } from "lucide-react";
 import PlaceAutocompleteInput from "@/components/PlaceAutocompleteInput";
 import { iconSlotFill40 } from "@/components/ui/iconTokens";
+import { btnPrimary } from "@/components/ui/brandStyles";
 import { useTripRoutes, type RoutePoint, type SaveRouteInput } from "@/hooks/useTripRoutes";
 import { useTripActivityKinds } from "@/hooks/useTripActivityKinds";
 import DuplicateRouteDialog from "@/components/trip/map/DuplicateRouteDialog";
@@ -1290,7 +1291,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                         setStopPlanId("");
                         setDestinationPlanId("");
                       }}
-                      className="inline-flex min-h-[34px] items-center justify-center gap-2 rounded-xl bg-slate-950 px-3 text-xs font-semibold text-white hover:bg-slate-800"
+                      className={`${btnPrimary} inline-flex min-h-[34px] items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs`}
                     >
                       <Plus className="h-3.5 w-3.5" aria-hidden />
                       Nueva ruta
@@ -1593,7 +1594,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                       type="button"
                       disabled={saving || savingRoute || calculatingRoute}
                       onClick={() => void createOrUpdateRoute()}
-                      className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                      className={`${btnPrimary} inline-flex min-h-[44px] items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm disabled:opacity-60`}
                     >
                       <Save className="h-4 w-4" aria-hidden />
                       {saving || savingRoute ? "Guardando…" : form.editingRouteId ? "Guardar cambios" : "Guardar ruta"}

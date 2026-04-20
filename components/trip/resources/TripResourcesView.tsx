@@ -17,6 +17,7 @@ import ReservationTemplateSelector, {
 import LodgingReservationForm from "@/components/trip/resources/LodgingReservationForm";
 import TransportReservationForm from "@/components/trip/resources/TransportReservationForm";
 import ActivityReservationForm from "@/components/trip/resources/ActivityReservationForm";
+import { btnPrimary } from "@/components/ui/brandStyles";
 
 function templateFromDetected(data: DetectedDocumentData): ReservationTemplateType {
   if (data.documentType === "hotel_reservation") return "lodging";
@@ -82,7 +83,7 @@ export default function TripResourcesView({ tripId, aiEnabled = false }: { tripI
           <button
             type="button"
             onClick={() => setShowLists((v) => !v)}
-            className="shrink-0 whitespace-normal rounded-xl bg-slate-950 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-slate-800"
+            className={`${btnPrimary} shrink-0 whitespace-normal px-4 py-2 text-sm`}
           >
             {showLists ? "Cerrar listas" : "Crear/ver listas"}
           </button>
@@ -104,7 +105,7 @@ export default function TripResourcesView({ tripId, aiEnabled = false }: { tripI
             <button
               type="button"
               onClick={() => setShowUploadForm((current) => !current)}
-              className="shrink-0 whitespace-normal rounded-xl bg-slate-950 px-4 py-2 text-center text-sm font-semibold text-white"
+              className={`${btnPrimary} shrink-0 whitespace-normal px-4 py-2 text-sm`}
             >
               {showUploadForm ? "Cerrar" : "Adjuntar documento"}
             </button>
@@ -143,7 +144,7 @@ export default function TripResourcesView({ tripId, aiEnabled = false }: { tripI
             <button
               type="button"
               onClick={() => setShowAnalyzerForm((current) => !current)}
-              className="shrink-0 whitespace-normal rounded-xl bg-slate-950 px-4 py-2 text-center text-sm font-semibold text-white"
+              className={`${btnPrimary} shrink-0 whitespace-normal px-4 py-2 text-sm`}
             >
               {showAnalyzerForm ? "Cerrar" : "Analizar documento"}
             </button>
