@@ -730,7 +730,7 @@ export async function POST(req: Request) {
 
       const { data: rawActs, error: actsErr } = await supabase
         .from("trip_activities")
-        .select("id,title,activity_date,activity_time,place_name,address,latitude,longitude")
+        .select("id,title,activity_date,activity_time,place_name,address,latitude,longitude,activity_kind")
         .eq("trip_id", tripId)
         .in("activity_date", resolvedDates);
       if (actsErr) throw new Error(actsErr.message);
@@ -750,7 +750,13 @@ export async function POST(req: Request) {
       const missingCoords: Array<{ date: string; id: string; title: string }> = [];
 
       for (const date of resolvedDates) {
-        const dayActs = (byDate.get(date) || []).slice();
+        const dayActsAll = (byDate.get(date) || []).slice();
+        const dayActs = dayActsAll.filter((a) => {
+          const k = String(a?.activity_kind || "").toLowerCase();
+          // Excluimos comidas/restaurantes: no queremos rutas hacia “almuerzo ligero”.
+          if (k === "restaurant" || k === "food" || k === "cafe" || k === "cafeteria" || k === "coffee") return false;
+          return true;
+        });
         dayActs.sort(
           (x, y) =>
             compareActivityTime(x?.activity_time, y?.activity_time) ||
@@ -987,12 +993,13 @@ export async function POST(req: Request) {
       });
     }
 
-    // Rutas consecutivas
+    // Rutas consecutivas (solo entre paradas con coords; sin restaurantes/comidas)
     const profile = asProfile(plan.travelMode);
     const travelMode = asTravelMode(plan.travelMode);
-    for (let i = 0; i < enrichedItems.length - 1; i++) {
-      const a = enrichedItems[i];
-      const b = enrichedItems[i + 1];
+    const routeStops = enrichedItems.filter((x) => x.kind !== "restaurant");
+    for (let i = 0; i < routeStops.length - 1; i++) {
+      const a = routeStops[i];
+      const b = routeStops[i + 1];
       if (a.lat == null || a.lng == null || b.lat == null || b.lng == null) continue;
       const route = await osrmRoute({
         origin,

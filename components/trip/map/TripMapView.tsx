@@ -596,6 +596,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
 
   const [routesDraft, setRoutesDraft] = useState<RoutesDraftPayload | null>(null);
   const [routesDraftIndex, setRoutesDraftIndex] = useState(0);
+  const draftReviewActiveRef = useRef(false);
 
   useEffect(() => {
     const want = searchParams?.get("draftRoutes") === "1";
@@ -609,7 +610,10 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
       setRoutesDraft(parsed as RoutesDraftPayload);
       setRoutesDraftIndex(0);
       setShowRoutesList(true);
-      setInfo("Borrador del asistente cargado. Pulsa «Cargar siguiente» para revisar cada ruta.");
+      setInfo("Borrador del asistente cargado. Revisa y guarda; al guardar pasaremos a la siguiente.");
+      requestAnimationFrame(() => {
+        loadDraftRoute(0, parsed as RoutesDraftPayload);
+      });
     } catch {
       // ignore
     }
@@ -998,7 +1002,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
       };
 
       await saveRoute(input, form.editingRouteId || undefined);
-      setInfo(form.editingRouteId ? "Ruta actualizada." : "Ruta guardada.");
+      const savedMsg = form.editingRouteId ? "Ruta actualizada." : "Ruta guardada.";
       setForm(defaultRouteForm(form.routeDate));
       setIsRouteFormOpen(false);
       setRoutePreview(null);
@@ -1008,6 +1012,21 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
       setOriginPlanId("");
       setStopPlanId("");
       setDestinationPlanId("");
+
+      // Si estamos revisando un borrador del asistente, al guardar cargamos automáticamente la siguiente ruta.
+      if (draftReviewActiveRef.current && routesDraft?.routes?.length) {
+        const last = routesDraft.routes.length - 1;
+        const next = Math.min(routesDraftIndex + 1, last);
+        if (next > routesDraftIndex) {
+          setRoutesDraftIndex(next);
+          setInfo(`${savedMsg} Cargando la siguiente ruta…`);
+          setTimeout(() => loadDraftRoute(next), 0);
+        } else {
+          setInfo(`${savedMsg} Borrador completado.`);
+        }
+      } else {
+        setInfo(savedMsg);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo guardar la ruta.");
     } finally {
@@ -1015,10 +1034,12 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     }
   }
 
-  function loadDraftRoute(idx: number) {
-    if (!routesDraft?.routes?.length) return;
-    const r = routesDraft.routes[Math.max(0, Math.min(routesDraft.routes.length - 1, idx))];
+  function loadDraftRoute(idx: number, draftOverride?: RoutesDraftPayload) {
+    const draft = draftOverride ?? routesDraft;
+    if (!draft?.routes?.length) return;
+    const r = draft.routes[Math.max(0, Math.min(draft.routes.length - 1, idx))];
     if (!r) return;
+    draftReviewActiveRef.current = true;
 
     setFocusedRouteKey(null);
     setRoutePreview(null);
@@ -1026,12 +1047,12 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     setSelectedRouteKeys(new Set());
 
     setIsRouteFormOpen(true);
-    setSelectedDate(r.route_day || routesDraft.date || todayISO());
+    setSelectedDate(r.route_day || draft.date || todayISO());
 
     setForm((prev) => ({
       ...prev,
       editingRouteId: null,
-      routeDate: r.route_day || routesDraft.date || todayISO(),
+      routeDate: r.route_day || draft.date || todayISO(),
       routeName: r.title || "Ruta",
       departureTime: r.departure_time || "",
       stopEnabled: false,
@@ -1066,7 +1087,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
       label: r.title,
     });
 
-    setInfo(`Revisando borrador: ${idx + 1}/${routesDraft.routes.length}. Ajusta y pulsa «Guardar ruta».`);
+    setInfo(`Revisando borrador: ${idx + 1}/${draft.routes.length}. Ajusta y pulsa «Guardar ruta».`);
   }
 
   async function removeRoute(route: TripMapRoute) {
@@ -1247,18 +1268,61 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   return (
     <div className="min-w-0 max-w-full space-y-4 overflow-x-hidden">
       {routesDraft?.routes?.length ? (
-        <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-sky-50 px-4 py-3 shadow-sm">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="rounded-3xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-sky-50 px-5 py-4 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-violet-800">Borrador del asistente</div>
               <div className="mt-1 text-sm font-semibold text-slate-900">
                 {routesDraft.routes.length} ruta{routesDraft.routes.length === 1 ? "" : "s"} · {routesDraft.date}
               </div>
+              <div className="mt-2 text-xs font-semibold text-slate-600">
+                Ruta {Math.min(routesDraftIndex + 1, routesDraft.routes.length)}/{routesDraft.routes.length}:
+                <span className="ml-1 font-extrabold text-slate-900">
+                  {routesDraft.routes[routesDraftIndex]?.title || "—"}
+                </span>
+              </div>
+
+              <details className="mt-3 rounded-2xl border border-slate-200 bg-white/70 px-3 py-2">
+                <summary className="cursor-pointer text-xs font-extrabold uppercase tracking-[0.12em] text-slate-700">
+                  Ver lista de rutas ({routesDraft.routes.length})
+                </summary>
+                <div className="mt-3 max-h-56 overflow-auto pr-1">
+                  <div className="space-y-2">
+                    {routesDraft.routes.map((r, i) => (
+                      <button
+                        key={`${r.title}-${i}`}
+                        type="button"
+                        onClick={() => {
+                          setRoutesDraftIndex(i);
+                          loadDraftRoute(i);
+                        }}
+                        className={`w-full rounded-xl border px-3 py-2 text-left text-sm transition ${
+                          i === routesDraftIndex
+                            ? "border-violet-300 bg-violet-50 text-violet-950"
+                            : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50"
+                        }`}
+                      >
+                        <div className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-500">
+                          {i + 1}/{routesDraft.routes.length}
+                        </div>
+                        <div className="mt-0.5 font-semibold">{r.title}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </details>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
               <button
                 type="button"
                 className={`${btnPrimary} inline-flex min-h-[40px] items-center justify-center rounded-2xl px-4 py-2 text-sm`}
+                onClick={() => loadDraftRoute(routesDraftIndex)}
+              >
+                Cargar actual
+              </button>
+              <button
+                type="button"
+                className="inline-flex min-h-[40px] items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
                 onClick={() => {
                   const next = Math.min(routesDraftIndex + 1, routesDraft.routes.length - 1);
                   setRoutesDraftIndex(next);
@@ -1279,16 +1343,10 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                   setRoutesDraft(null);
                   setRoutesDraftIndex(0);
                   setInfo("Borrador descartado.");
+                  draftReviewActiveRef.current = false;
                 }}
               >
                 Descartar borrador
-              </button>
-              <button
-                type="button"
-                className="inline-flex min-h-[40px] items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
-                onClick={() => loadDraftRoute(routesDraftIndex)}
-              >
-                Cargar actual
               </button>
             </div>
           </div>
