@@ -33,7 +33,7 @@ export default function DashboardTripSection({
   const countLabel = `${count} viaje${count === 1 ? "" : "s"}`;
 
   return (
-    <section className="space-y-3">
+    <section className="mx-auto max-w-2xl space-y-3">
       <div className="flex flex-col gap-2 rounded-2xl border border-slate-200/90 bg-white p-3 shadow-sm ring-1 ring-slate-900/[0.03] sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:p-4">
         <div className="min-w-0 flex-1">
           <h2 className="text-base font-bold tracking-tight text-slate-950 sm:text-lg">{title}</h2>
@@ -43,7 +43,7 @@ export default function DashboardTripSection({
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="inline-flex min-h-[40px] shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 transition hover:bg-slate-100 sm:text-sm"
+          className="inline-flex min-h-[40px] shrink-0 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-950 shadow-sm transition hover:bg-violet-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-200 sm:text-sm"
           aria-expanded={open}
         >
           {open ? "Ocultar viajes" : "Mostrar viajes"}
