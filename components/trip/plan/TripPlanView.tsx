@@ -448,7 +448,7 @@ export default function TripPlanView({
         <button
           type="button"
           onClick={handleStartCreate}
-          className="fixed bottom-[calc(max(env(safe-area-inset-bottom),8px)+84px)] right-[max(1rem,env(safe-area-inset-right))] z-30 inline-flex h-14 w-14 items-center justify-center rounded-full bg-cyan-600 text-white shadow-lg transition hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-cyan-200 md:hidden"
+          className="fixed bottom-[calc(max(env(safe-area-inset-bottom),8px)+84px)] right-[max(1rem,env(safe-area-inset-right))] z-30 inline-flex h-14 w-14 items-center justify-center rounded-full bg-violet-600 text-white shadow-lg transition hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-200 md:hidden"
           aria-label="Añadir plan"
           title="Añadir plan"
         >
@@ -484,7 +484,7 @@ export default function TripPlanView({
                 type="button"
                 onClick={() => setSelectedActivityIds(new Set(selectableActivityIds))}
                 disabled={!selectableActivityIds.length || saving}
-                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-cyan-200 disabled:opacity-50 sm:w-auto"
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-violet-200 disabled:opacity-50 sm:w-auto"
               >
                 Seleccionar todos
               </button>
@@ -564,7 +564,7 @@ export default function TripPlanView({
           <button
             type="button"
             onClick={() => setHistoryOpen((v) => !v)}
-            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-cyan-200 sm:w-auto"
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-violet-200 sm:w-auto"
             title="Ver historial de cambios"
           >
             <Clock className="h-4 w-4" />
@@ -633,9 +633,9 @@ export default function TripPlanView({
           <p className="text-[11px] font-semibold leading-tight text-slate-500 md:text-sm">Actividades totales</p>
           <p className="mt-0.5 text-2xl font-bold leading-none text-slate-950 md:mt-2 md:text-3xl">{activities.length}</p>
         </div>
-        <div className="rounded-2xl border border-cyan-200 bg-cyan-50 px-3 py-2 shadow-sm md:p-4">
-          <p className="text-[11px] font-semibold leading-tight text-cyan-800 md:text-sm">Alojamientos</p>
-          <p className="mt-0.5 text-2xl font-bold leading-none text-cyan-950 md:mt-2 md:text-3xl">{lodgingCount}</p>
+        <div className="rounded-2xl border border-violet-200 bg-violet-50 px-3 py-2 shadow-sm md:p-4">
+          <p className="text-[11px] font-semibold leading-tight text-violet-800 md:text-sm">Alojamientos</p>
+          <p className="mt-0.5 text-2xl font-bold leading-none text-violet-950 md:mt-2 md:text-3xl">{lodgingCount}</p>
         </div>
       </div>
 
@@ -644,7 +644,7 @@ export default function TripPlanView({
           type="button"
           onClick={() => setFiltersOpen((v) => !v)}
           aria-expanded={filtersOpen}
-          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-900 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-cyan-200 sm:w-auto sm:justify-start"
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-900 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-violet-200 sm:w-auto sm:justify-start"
         >
           <SlidersHorizontal className="h-4 w-4 shrink-0 text-slate-700" aria-hidden />
           Filtros
@@ -688,8 +688,8 @@ export default function TripPlanView({
                 <button
                   type="button"
                   onClick={() => setShowLodging((v) => !v)}
-                  className={`inline-flex min-h-[36px] items-center gap-2 rounded-xl border px-3 text-xs font-extrabold transition focus:outline-none focus:ring-2 focus:ring-cyan-200 ${
-                    showLodging ? "border-cyan-200 bg-cyan-50 text-cyan-950" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  className={`inline-flex min-h-[36px] items-center gap-2 rounded-xl border px-3 text-xs font-extrabold transition focus:outline-none focus:ring-2 focus:ring-violet-200 ${
+                    showLodging ? "border-violet-200 bg-violet-50 text-violet-950" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                   }`}
                   title="Mostrar/ocultar alojamientos"
                 >
@@ -1012,7 +1012,7 @@ export default function TripPlanView({
               <button
                 type="button"
                 onClick={handleStartCreate}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-200"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-200"
               >
                 <Plus className="h-4 w-4" />
                 Añadir plan

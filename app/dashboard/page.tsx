@@ -207,7 +207,7 @@ export default async function DashboardPage() {
             subtitle="Viajes con fecha futura."
             trips={future}
             badge="Próximo"
-            accent="from-sky-100 to-cyan-50 border-sky-200"
+            accent="from-violet-100 to-fuchsia-50 border-violet-200"
             lockedTripIds={Array.from(lockedTripIds)}
           />
           <DashboardTripSection
