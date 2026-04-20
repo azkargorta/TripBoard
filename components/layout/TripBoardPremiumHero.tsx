@@ -29,7 +29,7 @@ export default function TripBoardPremiumHero({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-3">
             <div className="inline-flex max-w-full flex-wrap items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-white/80">
-              <TripBoardLogo variant="light" size="md" withWordmark />
+              <TripBoardLogo variant="light" size="lg" withWordmark />
               <span className="text-white/40" aria-hidden>
                 ·
               </span>

@@ -19,9 +19,9 @@ type Props = {
 const KAVIRO_LOCKUP_SRC = "/brand/kaviro-logo-full.png";
 
 const lockupHeightClass = {
-  sm: "h-8 max-h-8 sm:h-9 sm:max-h-9",
-  md: "h-9 max-h-9 sm:h-10 sm:max-h-10",
-  lg: "h-10 max-h-10 sm:h-11 sm:max-h-11",
+  sm: "h-9 max-h-9 sm:h-10 sm:max-h-10",
+  md: "h-10 max-h-10 sm:h-11 sm:max-h-11",
+  lg: "h-12 max-h-12 sm:h-13 sm:max-h-13",
 } as const;
 
 // Solo marca (globo + pin), sin wordmark en imagen
@@ -43,9 +43,11 @@ export default function TripBoardLogo({
   const lockupImgClass = [
     "w-auto object-contain object-left",
     lockupHeightClass[size],
-    "max-w-[min(360px,90vw)]",
+    "max-w-[min(420px,92vw)]",
     // El lockup es “sin fondo”: no invertimos; añadimos sombra suave en fondos oscuros.
-    variant === "light" ? "drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]" : "",
+    variant === "light"
+      ? "opacity-[0.98] drop-shadow-[0_1px_0_rgba(0,0,0,0.35)] drop-shadow-[0_8px_18px_rgba(0,0,0,0.22)]"
+      : "opacity-[0.98] drop-shadow-[0_10px_18px_rgba(2,6,23,0.10)]",
     imageClassName,
   ]
     .filter(Boolean)

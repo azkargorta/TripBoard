@@ -72,7 +72,7 @@ export default async function RootLayout({
                     className="min-w-0 shrink outline-none ring-white/0 transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-cyan-300/70"
                     aria-label="Ir al panel de viajes"
                   >
-                    <TripBoardLogo variant="light" size="md" withWordmark />
+                    <TripBoardLogo variant="light" size="lg" withWordmark />
                   </Link>
                   <div
                     className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold ${

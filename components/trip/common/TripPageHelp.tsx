@@ -560,7 +560,7 @@ export default function TripPageHelp() {
                     <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-cyan-900 px-5 pb-4 pt-4 text-white sm:pt-5">
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <TripBoardLogo variant="light" size="md" withWordmark className="mb-3" />
+                          <TripBoardLogo variant="light" size="lg" withWordmark className="mb-3" />
                           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/75">Recorrido del viaje</p>
                           <h2 id="trip-tab-tour-title" className="mt-1 text-lg font-extrabold leading-tight">
                             Qué hay en cada pestaña
@@ -669,7 +669,7 @@ export default function TripPageHelp() {
                   <div className="pointer-events-auto relative my-auto flex min-h-0 w-full max-w-lg max-h-[min(92dvh,calc(100svh-1.5rem))] flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-2xl sm:max-h-[min(90dvh,calc(100svh-2rem))]">
                     <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-5 pb-3 pt-4 sm:pt-5">
                       <div className="min-w-0 pr-2">
-                        <TripBoardLogo size="md" withWordmark className="mb-3" />
+                        <TripBoardLogo size="lg" withWordmark className="mb-3" />
                         <h2 id="trip-page-help-title" className="text-lg font-bold leading-snug text-slate-950">
                           {entry.title}
                         </h2>

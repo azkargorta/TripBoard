@@ -45,7 +45,7 @@ export default function PublicLanding() {
     <main className="min-h-screen bg-gradient-to-b from-cyan-50/80 via-slate-50 to-violet-100/60">
       <header className="border-b border-cyan-200/40 bg-gradient-to-r from-white/95 via-cyan-50/90 to-violet-50/80 backdrop-blur supports-[backdrop-filter]:bg-white/70">
         <div className="page-shell flex items-center justify-between py-2.5 sm:py-3">
-          <TripBoardLogo href="/" variant="dark" size="lg" withWordmark />
+          <TripBoardLogo href="/" variant="dark" size="lg" withWordmark imageClassName="scale-[1.06] origin-left" />
           <nav className="flex items-center gap-2">
             <Link
               href="/pricing"
@@ -133,7 +133,7 @@ export default function PublicLanding() {
                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-cyan-500/20 via-transparent to-transparent" aria-hidden />
                 <div className="relative space-y-6">
                   <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-4">
-                    <TripBoardLogo href="/" variant="light" size="lg" withWordmark />
+                    <TripBoardLogo href="/" variant="light" size="lg" withWordmark imageClassName="scale-[1.06] origin-left" />
                   </div>
                   <p className="text-sm font-medium leading-relaxed text-cyan-50/95">
                     Todo lo esencial del viaje en un panel: agenda, rutas, gastos y asistente cuando tengas Premium.
