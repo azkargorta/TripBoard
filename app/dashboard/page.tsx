@@ -9,6 +9,7 @@ import DashboardAiShortcuts from "@/components/dashboard/DashboardAiShortcuts";
 import DashboardTripSection from "@/components/dashboard/DashboardTripSection";
 import DashboardCreateFlowStepper from "@/components/dashboard/DashboardCreateFlowStepper";
 import { isPlatformAdmin } from "@/lib/platform-admin";
+import { surfaceAccentCyan } from "@/components/ui/brandStyles";
 
 type Trip = {
   id: string;
@@ -141,7 +142,7 @@ export default async function DashboardPage() {
 
       <DashboardPageHeader isAdmin={isAdmin} />
 
-      <section className="mx-auto max-w-2xl rounded-2xl border border-slate-200/90 bg-white px-4 py-4 shadow-sm ring-1 ring-slate-900/[0.03] md:rounded-[20px] md:px-5 md:py-5">
+      <section className={`mx-auto max-w-2xl px-4 py-4 md:px-5 md:py-5 ${surfaceAccentCyan}`}>
         <DashboardCreateFlowStepper isPremium={isPremium} />
 
         <div className="mx-auto max-w-md">

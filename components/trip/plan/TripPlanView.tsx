@@ -26,6 +26,14 @@ import { useTripActivityKinds } from "@/hooks/useTripActivityKinds";
 import TripPlanExploreDrawer, { type ExploreCreatePlanPayload } from "@/components/trip/plan/TripPlanExploreDrawer";
 import TripPlanNotesPanel from "@/components/trip/plan/TripPlanNotesPanel";
 import { activityLikelyNeedsTicket } from "@/lib/trip-plan-ticket-hints";
+import {
+  btnPrimary,
+  btnSecondary,
+  chipGroup,
+  chipItemActive,
+  chipItemBase,
+  chipItemInactive,
+} from "@/components/ui/brandStyles";
 
 const COMMON_KIND_ICONS: Array<{ emoji: string; label: string }> = [
   { emoji: "📍", label: "Visita" },
@@ -410,16 +418,14 @@ export default function TripPlanView({
       <div
         role="tablist"
         aria-label="Vista del plan"
-        className="flex gap-2 rounded-2xl border border-slate-200 bg-slate-50/80 p-1.5 sm:inline-flex sm:max-w-md"
+        className={`${chipGroup} sm:inline-flex sm:max-w-md`}
       >
         <button
           type="button"
           role="tab"
           aria-selected={workspaceTab === "itinerary"}
           onClick={() => setWorkspaceTab("itinerary")}
-          className={`inline-flex min-h-11 flex-1 items-center justify-center rounded-xl px-4 text-sm font-extrabold transition focus:outline-none focus:ring-2 focus:ring-cyan-200 sm:flex-1 ${
-            workspaceTab === "itinerary" ? "bg-white text-slate-950 shadow-sm" : "text-slate-600 hover:text-slate-900"
-          }`}
+          className={`${chipItemBase} sm:flex-1 ${workspaceTab === "itinerary" ? chipItemActive : chipItemInactive}`}
         >
           Itinerario
         </button>
@@ -428,9 +434,7 @@ export default function TripPlanView({
           role="tab"
           aria-selected={workspaceTab === "notes"}
           onClick={() => setWorkspaceTab("notes")}
-          className={`inline-flex min-h-11 flex-1 items-center justify-center rounded-xl px-4 text-sm font-extrabold transition focus:outline-none focus:ring-2 focus:ring-cyan-200 sm:flex-1 ${
-            workspaceTab === "notes" ? "bg-white text-slate-950 shadow-sm" : "text-slate-600 hover:text-slate-900"
-          }`}
+          className={`${chipItemBase} sm:flex-1 ${workspaceTab === "notes" ? chipItemActive : chipItemInactive}`}
         >
           Notas
         </button>
@@ -444,7 +448,7 @@ export default function TripPlanView({
         <button
           type="button"
           onClick={handleStartCreate}
-          className="fixed bottom-[calc(max(env(safe-area-inset-bottom),8px)+84px)] right-[max(1rem,env(safe-area-inset-right))] z-30 inline-flex h-14 w-14 items-center justify-center rounded-full bg-slate-950 text-white shadow-lg transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-200 md:hidden"
+          className="fixed bottom-[calc(max(env(safe-area-inset-bottom),8px)+84px)] right-[max(1rem,env(safe-area-inset-right))] z-30 inline-flex h-14 w-14 items-center justify-center rounded-full bg-cyan-600 text-white shadow-lg transition hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-cyan-200 md:hidden"
           aria-label="Añadir plan"
           title="Añadir plan"
         >
@@ -542,7 +546,7 @@ export default function TripPlanView({
           <button
             type="button"
             onClick={handleStartCreate}
-            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-200 sm:w-auto"
+            className={`${btnPrimary} w-full gap-2 sm:w-auto`}
             title="Crear un plan manual"
           >
             <Plus className="h-4 w-4" />
@@ -551,7 +555,7 @@ export default function TripPlanView({
           <button
             type="button"
             onClick={() => setExploreOpen(true)}
-            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-5 py-3 text-sm font-semibold text-violet-900 shadow-sm transition hover:bg-violet-100 focus:outline-none focus:ring-2 focus:ring-violet-200 sm:w-auto"
+            className={`${btnSecondary} w-full gap-2 sm:w-auto`}
             title="Buscar lugares y crear planes con coordenadas"
           >
             <Compass className="h-4 w-4" />
