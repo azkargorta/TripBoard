@@ -63,6 +63,9 @@ export default function AuthShell({
                   </Link>
                 </div>
                 <div className="mb-6 text-center sm:mb-8">
+                  <div className="mb-4 flex justify-center sm:mb-5">
+                    <TripBoardLogo href="/" variant="dark" size="lg" withWordmark />
+                  </div>
                   <h3 className="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">
                     {title}
                   </h3>

@@ -19,9 +19,9 @@ const KAVIRO_LOCKUP_FULLCOLOR_SRC = "/brand/kaviro-lockup-fullcolor.png";
 const KAVIRO_LOCKUP_WHITE_SRC = "/brand/kaviro-lockup-white.png";
 
 const lockupHeightClass = {
-  sm: "h-9 max-h-9 sm:h-10 sm:max-h-10",
-  md: "h-10 max-h-10 sm:h-11 sm:max-h-11",
-  lg: "h-12 max-h-12 sm:h-13 sm:max-h-13",
+  sm: "h-[4.5rem] max-h-[4.5rem] sm:h-[5rem] sm:max-h-[5rem]",
+  md: "h-[5rem] max-h-[5rem] sm:h-[5.5rem] sm:max-h-[5.5rem]",
+  lg: "h-[5.5rem] max-h-[5.5rem] sm:h-[6.25rem] sm:max-h-[6.25rem]",
 } as const;
 
 // Marca (globo + pin)
@@ -44,7 +44,7 @@ export default function TripBoardLogo({
   const lockupImgClass = [
     "w-auto object-contain object-left",
     lockupHeightClass[size],
-    "max-w-[min(420px,92vw)]",
+    "max-w-[min(840px,96vw)]",
     // Integración natural: sombra suave para separar del fondo sin borde.
     isLight
       ? "opacity-[0.98] drop-shadow-[0_1px_0_rgba(0,0,0,0.35)] drop-shadow-[0_10px_24px_rgba(0,0,0,0.22)]"
