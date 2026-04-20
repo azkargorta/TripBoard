@@ -15,23 +15,14 @@ type Props = {
   imageClassName?: string;
 };
 
-/** Logo horizontal oficial (marca + wordmark). */
-const KAVIRO_LOCKUP_SRC = "/brand/kaviro-logo-full.png";
-
-const lockupHeightClass = {
-  sm: "h-9 max-h-9 sm:h-10 sm:max-h-10",
-  md: "h-10 max-h-10 sm:h-11 sm:max-h-11",
-  lg: "h-12 max-h-12 sm:h-13 sm:max-h-13",
-} as const;
-
-// Solo marca (globo + pin), sin wordmark en imagen
+// Marca (globo + pin)
 const iconPx = { sm: 36, md: 42, lg: 52 };
 const boxPx = { sm: 52, md: 62, lg: 76 };
 
 export default function TripBoardLogo({
   variant = "dark",
   size = "md",
-  withWordmark = true,
+  withWordmark = false,
   href,
   className = "",
   imageClassName = "",
@@ -40,24 +31,7 @@ export default function TripBoardLogo({
   const box = boxPx[size];
   const isLight = variant === "light";
 
-  const lockupImgClass = [
-    "w-auto object-contain object-left",
-    lockupHeightClass[size],
-    "max-w-[min(420px,92vw)]",
-    // El lockup es “sin fondo”: no invertimos; añadimos sombra suave en fondos oscuros.
-    variant === "light"
-      ? "opacity-[0.98] drop-shadow-[0_1px_0_rgba(0,0,0,0.35)] drop-shadow-[0_8px_18px_rgba(0,0,0,0.22)]"
-      : "opacity-[0.98] drop-shadow-[0_10px_18px_rgba(2,6,23,0.10)]",
-    imageClassName,
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  const mark = withWordmark ? (
-    <span className={`inline-flex items-center ${className}`.trim()}>
-      <Image src={KAVIRO_LOCKUP_SRC} alt="Kaviro" width={260} height={70} className={lockupImgClass} priority />
-    </span>
-  ) : (
+  const mark = (
     <span className={`inline-flex items-center gap-2 ${className}`}>
       <span
         className={`inline-flex items-center justify-center overflow-hidden rounded-full ${
@@ -75,6 +49,11 @@ export default function TripBoardLogo({
           priority
         />
       </span>
+      {withWordmark ? (
+        <span className={`select-none font-black tracking-tight ${isLight ? "text-white" : "text-slate-950"}`}>
+          Kaviro
+        </span>
+      ) : null}
     </span>
   );
 

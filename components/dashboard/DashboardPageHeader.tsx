@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Shield, Tag, User } from "lucide-react";
 import SignOutButton from "@/components/auth/SignOutButton";
-import TripBoardLogo from "@/components/brand/TripBoardLogo";
 import { iconInline16 } from "@/components/ui/iconTokens";
 
 type Props = {
@@ -99,9 +98,6 @@ export default function DashboardPageHeader({ isAdmin }: Props) {
       </div>
 
       <div className="mx-auto flex w-full max-w-xl flex-col items-center px-12 text-center sm:max-w-2xl sm:px-16 md:px-20">
-        <div className="flex justify-center">
-          <TripBoardLogo href="/dashboard" size="lg" className="justify-center" />
-        </div>
         <h1 className="mt-2 text-xl font-extrabold tracking-tight text-slate-950 md:mt-2.5 md:text-2xl">
           Tus viajes
         </h1>

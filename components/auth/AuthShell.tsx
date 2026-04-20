@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import TripBoardLogo from "@/components/brand/TripBoardLogo";
 
 type AuthShellProps = {
   title: string;
@@ -23,7 +22,6 @@ export default function AuthShell({
 
             <div className="relative z-10">
               <div className="max-w-md">
-                <TripBoardLogo variant="light" size="lg" withWordmark imageClassName="scale-[1.08] origin-left" />
                 <p className="mt-3 text-sm text-white/70">Organiza tus viajes en un solo lugar</p>
               </div>
 

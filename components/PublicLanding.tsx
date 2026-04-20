@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
-import TripBoardLogo from "@/components/brand/TripBoardLogo";
 import { ArrowRight, CalendarDays, Check, MapPinned, Sparkles, Wallet } from "lucide-react";
 
 function Feature({ children }: { children: string }) {
@@ -45,7 +44,6 @@ export default function PublicLanding() {
     <main className="min-h-screen bg-gradient-to-b from-cyan-50/80 via-slate-50 to-violet-100/60">
       <header className="border-b border-cyan-200/40 bg-gradient-to-r from-white/95 via-cyan-50/90 to-violet-50/80 backdrop-blur supports-[backdrop-filter]:bg-white/70">
         <div className="page-shell flex items-center justify-between py-2.5 sm:py-3">
-          <TripBoardLogo href="/" variant="dark" size="lg" withWordmark imageClassName="scale-[1.06] origin-left" />
           <nav className="flex items-center gap-2">
             <Link
               href="/pricing"
@@ -83,7 +81,6 @@ export default function PublicLanding() {
           <div className="relative grid gap-6 sm:gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
             <div className="space-y-4 sm:space-y-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
-                <TripBoardLogo href="/" variant="dark" size="lg" withWordmark />
                 <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-300/60 bg-cyan-100/80 px-3 py-1.5 text-xs font-semibold text-cyan-950">
                   <Sparkles className="h-3.5 w-3.5 text-cyan-700" aria-hidden />
                   Menos caos, más viaje
@@ -132,9 +129,7 @@ export default function PublicLanding() {
             <div className="relative overflow-hidden rounded-3xl border border-white/20 bg-gradient-to-br from-slate-900 via-cyan-900 to-violet-950 p-6 text-white shadow-xl md:p-8">
                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-cyan-500/20 via-transparent to-transparent" aria-hidden />
                 <div className="relative space-y-6">
-                  <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-4">
-                    <TripBoardLogo href="/" variant="light" size="lg" withWordmark imageClassName="scale-[1.06] origin-left" />
-                  </div>
+                  <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-4" />
                   <p className="text-sm font-medium leading-relaxed text-cyan-50/95">
                     Todo lo esencial del viaje en un panel: agenda, rutas, gastos y asistente cuando tengas Premium.
                   </p>
