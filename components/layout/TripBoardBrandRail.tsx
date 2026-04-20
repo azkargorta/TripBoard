@@ -28,7 +28,7 @@ export default function TripBoardBrandRail({ tripId, tripName, dateRangeLabel }:
             {iconSrc ? (
               <Link
                 href={`/trip/${tripId}/summary`}
-                className="inline-flex shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white/70 ring-1 ring-slate-200 transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60"
+                className="inline-flex shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white/70 ring-1 ring-slate-200 transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60"
                 style={{ width: 42, height: 42 }}
                 title="Ir al resumen del viaje"
               >
@@ -49,7 +49,7 @@ export default function TripBoardBrandRail({ tripId, tripName, dateRangeLabel }:
                 <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                   <Link
                     href={`/trip/${tripId}/summary`}
-                    className="min-w-0 truncate text-xs font-bold text-slate-900 transition hover:text-cyan-700 md:text-sm md:font-semibold"
+                    className="min-w-0 truncate text-xs font-bold text-slate-900 transition hover:text-violet-700 md:text-sm md:font-semibold"
                     title="Ir al resumen del viaje"
                   >
                     {tripName}
@@ -84,7 +84,7 @@ export default function TripBoardBrandRail({ tripId, tripName, dateRangeLabel }:
             ) : (
               <Link
                 href="/dashboard"
-                className="inline-flex min-h-[40px] min-w-[40px] shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60 md:min-h-0 md:min-w-0 md:px-2.5 md:py-1 md:text-[11px]"
+                className="inline-flex min-h-[40px] min-w-[40px] shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60 md:min-h-0 md:min-w-0 md:px-2.5 md:py-1 md:text-[11px]"
               >
                 Mis viajes
               </Link>

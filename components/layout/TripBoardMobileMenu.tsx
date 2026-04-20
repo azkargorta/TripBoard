@@ -108,7 +108,7 @@ export default function TripBoardMobileMenu({ tripId, isPremium = true }: Props)
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={`inline-flex min-h-[40px] min-w-[40px] shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60 md:hidden ${iconSlotFill40}`}
+        className={`inline-flex min-h-[40px] min-w-[40px] shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60 md:hidden ${iconSlotFill40}`}
         aria-label="Abrir menú"
         title="Menú"
       >
@@ -149,7 +149,7 @@ export default function TripBoardMobileMenu({ tripId, isPremium = true }: Props)
                 </div>
 
                 <div className="mt-4 px-5">
-                  <div className="rounded-3xl border border-slate-200/80 bg-gradient-to-br from-slate-50/90 via-white to-cyan-50/25 p-4 shadow-sm ring-1 ring-slate-900/[0.04]">
+                  <div className="rounded-3xl border border-slate-200/80 bg-gradient-to-br from-slate-50/90 via-white to-violet-50/30 p-4 shadow-sm ring-1 ring-slate-900/[0.04]">
                     <div className={mobileMenuSectionTitle}>Acciones rápidas</div>
                     <div className="mt-3">
                       <TripScreenActions tripId={tripId} showLabels variant="default" menuStack />

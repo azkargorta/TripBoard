@@ -90,7 +90,7 @@ export default function DesktopTripSidebar({ tripId, isPremium }: Props) {
                   title={item.label}
                   className={`flex min-h-[56px] flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold transition ${
                     active
-                      ? "bg-cyan-100 text-cyan-950"
+                      ? "bg-violet-100 text-violet-950"
                       : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
                   }`}
                 >

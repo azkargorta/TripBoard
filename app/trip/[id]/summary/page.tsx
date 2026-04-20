@@ -270,7 +270,7 @@ export default async function TripSummaryPage({ params }: TripPageProps) {
       subtitle: "Itinerario, notas del viaje y actividades por día",
       metric: `${activitiesCount ?? 0} planes`,
       iconSrc: "/brand/tabs/plan.png",
-      tone: "cyan",
+      tone: "violet",
       hint: planHint,
     },
     {

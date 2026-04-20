@@ -100,7 +100,7 @@ export default function DesktopTripNav({ tripId, isPremium }: Props) {
                 prefetch
                 className={`inline-flex min-h-[40px] items-center justify-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${
                   active
-                    ? "border-cyan-200 bg-cyan-50 text-cyan-900"
+                    ? "border-violet-200 bg-violet-50 text-violet-900"
                     : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900"
                 }`}
               >

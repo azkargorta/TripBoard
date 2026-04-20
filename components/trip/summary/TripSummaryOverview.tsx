@@ -25,10 +25,10 @@ export type TripSummaryTabDef = {
 
 const TONE_STYLES: Record<TripSummaryTabDef["tone"], { border: string; chip: string; hover: string; accent: string }> = {
   cyan: {
-    border: "border-cyan-200/80 hover:border-cyan-300",
-    chip: "bg-cyan-50 text-cyan-900 border-cyan-200/80",
-    hover: "hover:shadow-cyan-900/10",
-    accent: "border-l-4 border-l-cyan-500",
+    border: "border-violet-200/80 hover:border-violet-300",
+    chip: "bg-violet-50 text-violet-900 border-violet-200/80",
+    hover: "hover:shadow-violet-900/10",
+    accent: "border-l-4 border-l-violet-500",
   },
   emerald: {
     border: "border-emerald-200/80 hover:border-emerald-300",
@@ -99,15 +99,15 @@ export default function TripSummaryOverview({
   return (
     <div className="w-full min-w-0 space-y-5 md:space-y-6">
       <div className="grid min-w-0 gap-4 md:gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(300px,380px)] lg:items-start">
-        <section className="relative min-w-0 overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-slate-900 via-slate-800 to-cyan-950 p-6 text-white shadow-lg md:p-8">
+        <section className="relative min-w-0 overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-slate-900 via-slate-800 to-violet-950 p-6 text-white shadow-lg md:p-8">
           <div
-            className="pointer-events-none absolute -right-16 top-0 h-40 w-40 rounded-full bg-cyan-500/20 blur-3xl"
+            className="pointer-events-none absolute -right-16 top-0 h-40 w-40 rounded-full bg-violet-500/20 blur-3xl"
             aria-hidden
           />
           <div className="relative space-y-5">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
-                <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-cyan-200/90">Agenda</p>
+                <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-violet-200/90">Agenda</p>
                 <h2 className="mt-1 text-xl font-extrabold tracking-tight md:text-2xl">Próximo plan y día actual</h2>
                 <p className="mt-1 text-sm text-slate-300">“Hoy” según {todayLabel}</p>
               </div>
@@ -118,21 +118,6 @@ export default function TripSummaryOverview({
                 Abrir Plan
               </Link>
             </div>
-
-            {nextPlan ? (
-              <div className="rounded-2xl border border-violet-300/45 bg-gradient-to-br from-violet-600/25 to-transparent p-4 ring-1 ring-violet-300/30">
-                <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-violet-100">Próximo en el calendario</p>
-                <p className="mt-1 text-xl font-extrabold text-white md:text-2xl">{nextPlan.title}</p>
-                <p className="mt-1 text-sm font-semibold text-violet-100/95">{formatActivityWhen(nextPlan)}</p>
-                {(nextPlan.place_name || nextPlan.address) ? (
-                  <p className="mt-1 text-sm text-slate-200/95">{nextPlan.place_name || nextPlan.address}</p>
-                ) : null}
-              </div>
-            ) : (
-              <p className="rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-slate-200">
-                No hay planes futuros con fecha (y hora si aplica). Añade actividades con fecha en Plan.
-              </p>
-            )}
 
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-200/90">Planes para hoy</p>
@@ -150,7 +135,7 @@ export default function TripSummaryOverview({
                       <p className={`text-sm font-bold ${a.isPast ? "line-through decoration-slate-500/80" : ""}`}>
                         {a.title}
                       </p>
-                      <p className="mt-0.5 text-xs font-semibold text-cyan-100/85">{formatActivityWhen(a)}</p>
+                      <p className="mt-0.5 text-xs font-semibold text-violet-100/85">{formatActivityWhen(a)}</p>
                       {(a.place_name || a.address) ? (
                         <p className="mt-1 text-xs text-slate-300/90">{a.place_name || a.address}</p>
                       ) : null}
@@ -163,6 +148,21 @@ export default function TripSummaryOverview({
                 </p>
               )}
             </div>
+
+            {nextPlan ? (
+              <div className="rounded-2xl border border-violet-300/45 bg-gradient-to-br from-violet-600/25 to-transparent p-4 ring-1 ring-violet-300/30">
+                <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-violet-100">Próximo en el calendario</p>
+                <p className="mt-1 text-xl font-extrabold text-white md:text-2xl">{nextPlan.title}</p>
+                <p className="mt-1 text-sm font-semibold text-violet-100/95">{formatActivityWhen(nextPlan)}</p>
+                {(nextPlan.place_name || nextPlan.address) ? (
+                  <p className="mt-1 text-sm text-slate-200/95">{nextPlan.place_name || nextPlan.address}</p>
+                ) : null}
+              </div>
+            ) : (
+              <p className="rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-slate-200">
+                No hay planes futuros con fecha (y hora si aplica). Añade actividades con fecha en Plan.
+              </p>
+            )}
           </div>
         </section>
 
@@ -256,7 +256,7 @@ export default function TripSummaryOverview({
                     {tab.hint}
                   </p>
                 ) : null}
-                <span className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-cyan-800 group-hover:underline">
+                <span className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-violet-800 group-hover:underline">
                   Ir al módulo →
                 </span>
               </Link>

@@ -90,7 +90,7 @@ export default function MobileBottomNav({ tripId, isPremium }: Props) {
                   prefetch
                   className={`flex min-h-[52px] min-w-[4.75rem] flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-[11px] font-semibold leading-tight transition active:opacity-90 ${
                     active
-                      ? "bg-cyan-100 text-cyan-900 shadow-sm"
+                      ? "bg-violet-100 text-violet-900 shadow-sm"
                       : "text-slate-500 active:bg-slate-100"
                   }`}
                 >
