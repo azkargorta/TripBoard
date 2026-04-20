@@ -620,7 +620,7 @@ export default function TripPageHelp() {
                         >
                           Saltar recorrido
                         </button>
-                        <div className="ml-auto flex items-center gap-2">
+                        <div className="ml-auto flex w-full items-center justify-end gap-2 sm:w-auto">
                           <button
                             type="button"
                             disabled={tourStep <= 0}
@@ -634,7 +634,7 @@ export default function TripPageHelp() {
                             <button
                               type="button"
                               onClick={finishTour}
-                              className={`${btnPrimary} min-h-[48px] min-w-[min(100%,12rem)] rounded-2xl px-5 py-3 text-sm`}
+                              className={`${btnPrimary} min-h-[48px] w-full flex-1 rounded-2xl px-5 py-3 text-sm sm:w-auto sm:flex-none`}
                             >
                               Entendido
                             </button>

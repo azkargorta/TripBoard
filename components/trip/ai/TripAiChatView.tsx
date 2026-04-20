@@ -94,7 +94,7 @@ const DAY_FOCUS_WELCOME =
   "Modo **Desplazamientos y un día**\n\n" +
   "Una vez introducidos los alojamientos y planes vamos a crear las mejores rutas posibles.\n\n" +
   "Este modo está pensado para **traslados**: rutas entre paradas, a qué hora salir para llegar a tiempo y cómo moveros (andando, bici, coche o transporte público). Si ya tienes una actividad a las 10:00, puedo decirte la hora de salida recomendada y ayudarte a preparar la ruta.\n\n" +
-  "Dime la **fecha (YYYY-MM-DD)**, el **modo de transporte** y el objetivo (por ejemplo: “llegar a las 10:00 a X”).";
+  "Dime el día (por ejemplo **“10/11”**, **“10 de noviembre”**, **“día 2 del viaje”** o un rango **“del 10 al 12 de noviembre”**), el **modo de transporte** y el objetivo (por ejemplo: “llegar a las 10:00 a X”).";
 
 /** Apertura al entrar en modo documentos (cambio manual o `?modo=travel_docs`). */
 const OPENING_TRAVEL_DOCS =

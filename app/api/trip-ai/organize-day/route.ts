@@ -181,26 +181,104 @@ function inferDateLoose(hintText: string): string | null {
     noviembre: "11",
     diciembre: "12",
   };
-  const m = hintText.match(/\b(\d{1,2})\s+de\s+([a-záéíóúñ]+)\s+de\s+(\d{4})\b/i);
+  const m = hintText.match(/\b(\d{1,2})\s+de\s+([a-záéíóúñ]+)(?:\s+de\s+(\d{4}))?\b/i);
   if (m) {
     const mon = months[m[2].toLowerCase()];
     if (mon) {
       const d = String(Math.min(31, Math.max(1, parseInt(m[1], 10)))).padStart(2, "0");
-      return `${m[3]}-${mon}-${d}`;
+      const y = typeof m[3] === "string" && /^\d{4}$/.test(m[3]) ? m[3] : String(new Date().getUTCFullYear());
+      return `${y}-${mon}-${d}`;
     }
   }
 
-  const slash = hintText.match(/\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})\b/);
+  const slash = hintText.match(/\b(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?\b/);
   if (slash) {
     const day = parseInt(slash[1], 10);
     const month = parseInt(slash[2], 10);
-    const y = slash[3];
+    const yRaw = slash[3] ? String(slash[3]) : "";
+    const y = yRaw.length === 2 ? `20${yRaw}` : yRaw;
     if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-      return `${y}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      const year = /^\d{4}$/.test(y) ? y : String(new Date().getUTCFullYear());
+      return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
     }
   }
 
   return null;
+}
+
+function addDaysIso(baseIso: string, addDays: number): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(baseIso)) return null;
+  const d = new Date(`${baseIso}T00:00:00.000Z`);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setUTCDate(d.getUTCDate() + addDays);
+  return d.toISOString().slice(0, 10);
+}
+
+function expandIsoRange(startIso: string, endIso: string, cap = 14): string[] {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startIso) || !/^\d{4}-\d{2}-\d{2}$/.test(endIso)) return [];
+  const a = new Date(`${startIso}T00:00:00.000Z`);
+  const b = new Date(`${endIso}T00:00:00.000Z`);
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return [];
+  const dir = a <= b ? 1 : -1;
+  const out: string[] = [];
+  const cur = new Date(a);
+  for (let i = 0; i < cap; i++) {
+    out.push(cur.toISOString().slice(0, 10));
+    if (cur.toISOString().slice(0, 10) === b.toISOString().slice(0, 10)) break;
+    cur.setUTCDate(cur.getUTCDate() + dir);
+  }
+  return out;
+}
+
+function wordToOrdinalDay(text: string): number | null {
+  const t = text.toLowerCase();
+  if (t.includes("primer") || t === "1") return 1;
+  if (t.includes("segund") || t === "2") return 2;
+  if (t.includes("tercer") || t === "3") return 3;
+  if (t.includes("cuart") || t === "4") return 4;
+  if (t.includes("quint") || t === "5") return 5;
+  if (t.includes("sext") || t === "6") return 6;
+  if (t.includes("sépt") || t.includes("sept") || t === "7") return 7;
+  if (t.includes("octav") || t === "8") return 8;
+  if (t.includes("noven") || t === "9") return 9;
+  if (t.includes("décim") || t.includes("decim") || t === "10") return 10;
+  const n = Number.parseInt(t, 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+function resolveRequestedDates(params: { hintText: string; tripStart: string | null; tripEnd: string | null }): string[] | null {
+  const hint = params.hintText;
+  const tripStart = params.tripStart;
+
+  const ordMatch = hint.match(
+    /\b(primer(?:o|a)?|segund(?:o|a)?|tercer(?:o|a)?|cuart(?:o|a)?|quint(?:o|a)?|sext(?:o|a)?|séptim(?:o|a)?|septim(?:o|a)?|octav(?:o|a)?|noven(?:o|a)?|décim(?:o|a)?|decim(?:o|a)?|\d{1,2})\s+d[ií]a\s+del\s+viaje\b/i
+  );
+  if (ordMatch && tripStart) {
+    const n = wordToOrdinalDay(ordMatch[1]) ?? null;
+    if (n && n >= 1 && n <= 90) {
+      const iso = addDaysIso(tripStart, n - 1);
+      if (iso) return [iso];
+    }
+  }
+
+  const rangeMatch = hint.match(/\b(?:entre|del)\s+(.+?)\s+(?:y|al)\s+(.+?)\b/i);
+  if (rangeMatch) {
+    const a = inferDateLoose(rangeMatch[1]);
+    const b = inferDateLoose(rangeMatch[2]);
+    if (a && b) return expandIsoRange(a, b, 14);
+  }
+
+  const one = inferDateLoose(hint);
+  return one ? [one] : null;
+}
+
+function compareActivityTime(a: unknown, b: unknown): number {
+  const aa = typeof a === "string" ? a.trim() : "";
+  const bb = typeof b === "string" ? b.trim() : "";
+  if (!aa && !bb) return 0;
+  if (!aa) return 1;
+  if (!bb) return -1;
+  return aa.localeCompare(bb);
 }
 
 function inferTravelModeFromHint(hintText: string): DayPlanPayload["travelMode"] {
@@ -619,6 +697,13 @@ export async function POST(req: Request) {
     }
 
     const context = await buildTripContext(tripId);
+    const { data: tripRow } = await supabase
+      .from("trips")
+      .select("start_date,end_date")
+      .eq("id", tripId)
+      .maybeSingle();
+    const tripStart = typeof (tripRow as any)?.start_date === "string" ? String((tripRow as any).start_date) : null;
+    const tripEnd = typeof (tripRow as any)?.end_date === "string" ? String((tripRow as any).end_date) : null;
     const historyBlock =
       conversationSlice.length > 0
         ? [
@@ -628,22 +713,154 @@ export async function POST(req: Request) {
           ].join("\n")
         : "";
 
+    const hintForDates = [question, ...conversationSlice.map((c) => c.content)].join("\n");
+    const resolvedDates = resolveRequestedDates({ hintText: hintForDates, tripStart, tripEnd });
+    const resolvedNote =
+      resolvedDates && resolvedDates.length
+        ? resolvedDates.length === 1
+          ? `Fecha detectada por la app: ${resolvedDates[0]}.`
+          : `Rango detectado por la app: ${resolvedDates[0]} → ${resolvedDates[resolvedDates.length - 1]} (${resolvedDates.length} días).`
+        : "";
+
+    // Si el usuario pide un rango de días, creamos rutas ENTRE planes existentes (sin inventar actividades).
+    if (resolvedDates && resolvedDates.length > 1) {
+      const tm = inferTravelModeFromHint(hintForDates);
+      const travelMode = asTravelMode(tm);
+      const profile = asProfile(tm);
+
+      const { data: rawActs, error: actsErr } = await supabase
+        .from("trip_activities")
+        .select("id,title,activity_date,activity_time,place_name,address,latitude,longitude")
+        .eq("trip_id", tripId)
+        .in("activity_date", resolvedDates);
+      if (actsErr) throw new Error(actsErr.message);
+
+      const acts = Array.isArray(rawActs) ? rawActs : [];
+      const byDate = new Map<string, any[]>();
+      for (const a of acts) {
+        const d = typeof a?.activity_date === "string" ? a.activity_date : null;
+        if (!d) continue;
+        const arr = byDate.get(d) || [];
+        arr.push(a);
+        byDate.set(d, arr);
+      }
+
+      const operations: any[] = [];
+      const draftRoutes: RouteDraftPayload["routes"] = [];
+
+      for (const date of resolvedDates) {
+        const dayActs = (byDate.get(date) || []).slice();
+        dayActs.sort(
+          (x, y) =>
+            compareActivityTime(x?.activity_time, y?.activity_time) ||
+            String(x?.title || x?.place_name || "").localeCompare(String(y?.title || y?.place_name || ""))
+        );
+
+        for (let i = 0; i < dayActs.length - 1; i++) {
+          const a = dayActs[i];
+          const b = dayActs[i + 1];
+          const aLat = typeof a?.latitude === "number" ? a.latitude : null;
+          const aLng = typeof a?.longitude === "number" ? a.longitude : null;
+          const bLat = typeof b?.latitude === "number" ? b.latitude : null;
+          const bLng = typeof b?.longitude === "number" ? b.longitude : null;
+          if (aLat == null || aLng == null || bLat == null || bLng == null) continue;
+
+          const route = await osrmRoute({
+            origin,
+            originPoint: { lat: aLat, lng: aLng },
+            destination: { lat: bLat, lng: bLng },
+            profile,
+          });
+
+          const title = `${String(a?.title || a?.place_name || "Origen").trim()} → ${String(
+            b?.title || b?.place_name || "Destino"
+          ).trim()}`;
+          const distance_text =
+            typeof route.distanceMeters === "number" ? `${(route.distanceMeters / 1000).toFixed(1)} km` : null;
+          const duration_text =
+            typeof route.durationSeconds === "number" ? `${Math.max(1, Math.round(route.durationSeconds / 60))} min` : null;
+
+          const fields = {
+            title,
+            route_day: date,
+            departure_time: null,
+            travel_mode: travelMode,
+            notes: null,
+            origin_name: String(a?.title || a?.place_name || "Origen").trim(),
+            origin_address: typeof a?.address === "string" ? a.address : null,
+            origin_latitude: aLat,
+            origin_longitude: aLng,
+            destination_name: String(b?.title || b?.place_name || "Destino").trim(),
+            destination_address: typeof b?.address === "string" ? b.address : null,
+            destination_latitude: bLat,
+            destination_longitude: bLng,
+            path_points: route.points,
+            route_points: route.points,
+            distance_text,
+            duration_text,
+          };
+
+          operations.push({ op: "create_route", fields });
+          draftRoutes.push({
+            title,
+            route_day: date,
+            departure_time: null,
+            travel_mode: travelMode,
+            origin_name: fields.origin_name,
+            origin_address: fields.origin_address,
+            origin_latitude: aLat,
+            origin_longitude: aLng,
+            destination_name: fields.destination_name,
+            destination_address: fields.destination_address,
+            destination_latitude: bLat,
+            destination_longitude: bLng,
+            path_points: route.points,
+            route_points: route.points,
+            distance_text,
+            duration_text,
+            notes: null,
+          });
+        }
+      }
+
+      const diff = {
+        version: 1,
+        title: `Rutas ${resolvedDates[0]} → ${resolvedDates[resolvedDates.length - 1]}`,
+        operations,
+      };
+
+      const routesDraft: RouteDraftPayload = {
+        version: 1,
+        date: resolvedDates[0],
+        travelMode,
+        routes: draftRoutes,
+      };
+
+      const answer =
+        `He preparado ${draftRoutes.length} ruta${draftRoutes.length === 1 ? "" : "s"} ` +
+        `entre tus planes guardados para el rango ${resolvedDates[0]} → ${resolvedDates[resolvedDates.length - 1]}. ` +
+        `Pulsa «Revisar en Rutas» para validarlas y guardarlas.`;
+
+      return NextResponse.json({ answer, plan: null, diff, routesDraft });
+    }
+
     const prompt = [
       "Eres un asistente experto de viajes dentro de Kaviro.",
       "Responde siempre en español.",
       "Tu tarea es organizar UN día completo con tiempos y desplazamientos aproximados.",
       "",
       "REGLAS CRÍTICAS PARA EL JSON DEL DÍA:",
-      "- Si el usuario (o el historial) ya ha dado la FECHA del día (YYYY-MM-DD), horario aproximado de inicio y fin, cómo moverse y qué le apetece hacer, DEBES generar EN ESTA MISMA RESPUESTA el plan en JSON con los marcadores literales TRIPBOARD_DAYPLAN_JSON_START y TRIPBOARD_DAYPLAN_JSON_END (sin envolverlos en ``` markdown).",
-      "- No pidas más confirmaciones si ya tienes fecha + ventana horaria + preferencia de transporte + intereses.",
+      "- La fecha puede venir como YYYY-MM-DD o en formato humano (ej. «10/11», «10 de noviembre», «día 2 del viaje»). Si está clara por el mensaje, el historial o el calendario del viaje, NO la vuelvas a pedir.",
+      "- Si ya tienes fecha + ventana horaria + preferencia de transporte + intereses, DEBES generar EN ESTA MISMA RESPUESTA el plan en JSON con los marcadores literales TRIPBOARD_DAYPLAN_JSON_START y TRIPBOARD_DAYPLAN_JSON_END (sin envolverlos en ``` markdown).",
       "- Si el usuario da reglas mixtas (p. ej. andar si el tramo es corto y bici si es largo), elige travelMode \"cycling\" o \"walking\" según lo que predomine en el día y explica la regla en el texto humano antes del JSON.",
       "- travelMode debe ser exactamente uno de: driving | walking | cycling.",
       "- El JSON debe ser válido (comillas dobles, sin comentarios). Incluye al menos 4 items con query geocodable (nombre + ciudad).",
-      "- Si aún faltan datos imprescindibles (sobre todo la fecha en YYYY-MM-DD), haz solo preguntas breves y NO incluyas el bloque JSON todavía.",
+      "- Si aún faltan datos imprescindibles, haz solo preguntas breves y NO incluyas el bloque JSON todavía.",
       "",
       "Primero pregunta lo mínimo solo si faltan datos (fecha, transporte, horario, preferencias).",
       "Cuando tengas datos suficientes, devuelve el JSON DayPlan entre TRIPBOARD_DAYPLAN_JSON_START y TRIPBOARD_DAYPLAN_JSON_END (version 1, con date, travelMode, dayStart, dayEnd, items).",
       "",
+      resolvedNote ? `NOTA DE LA APP: ${resolvedNote}` : "",
       historyBlock,
       "CONTEXTO DEL VIAJE:",
       context,
