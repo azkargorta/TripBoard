@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { Home } from "lucide-react";
 import TripShareButton from "@/components/trip/common/TripShareButton";
 import { mobileMenuRowBase, mobileMenuRowIconWrap } from "@/components/ui/mobileMenuStyles";
 import { TRIP_TAB_SUMMARY_SRC } from "@/lib/trip-tab-assets";
@@ -56,7 +57,7 @@ export default function TripScreenActions({
         ) : null}
         <Link href="/dashboard" className={row} aria-label={homeLabel} title={homeLabel}>
           <span className={iconWrap}>
-            <Image src="/brand/kaviro-globe-pin.png" alt="" width={26} height={26} className="h-[26px] w-[26px] object-contain" />
+            <Home className="text-slate-800" aria-hidden />
           </span>
           {homeLabel}
         </Link>
@@ -83,7 +84,7 @@ export default function TripScreenActions({
 
       <Link href="/dashboard" className={btn} aria-label={homeLabel} title={homeLabel}>
         <span className={desktopIconTile} aria-hidden>
-          <Image src="/brand/kaviro-globe-pin.png" alt="" width={28} height={28} className="h-[28px] w-[28px] object-contain" />
+          <Home className="h-6 w-6 text-slate-900" aria-hidden />
         </span>
         <span className={showLabels ? "inline" : "hidden sm:inline"}>{homeLabel}</span>
       </Link>

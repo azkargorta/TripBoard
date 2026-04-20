@@ -533,11 +533,11 @@ export default function TripPageHelp() {
         type="button"
         onClick={openManual}
         disabled={tourOpen}
-        className="inline-flex min-h-[40px] min-w-[40px] shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60 disabled:pointer-events-none disabled:opacity-40 md:min-h-0 md:min-w-0 md:h-9 md:w-9"
+        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60 disabled:pointer-events-none disabled:opacity-40"
         aria-label={`Ayuda: ${entry.title}`}
         title={tourOpen ? "Cierra el recorrido para usar la ayuda" : "Ayuda de esta página"}
       >
-        <HelpIcon className="h-[1.15rem] w-[1.15rem]" />
+        <HelpIcon className="h-6 w-6" />
       </button>
 
       {mounted

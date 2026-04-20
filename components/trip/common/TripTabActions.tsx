@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { Home } from "lucide-react";
 import { TRIP_TAB_SUMMARY_SRC } from "@/lib/trip-tab-assets";
 
 type Props = {
@@ -31,7 +32,7 @@ export default function TripTabActions({ tripId, variant = "default" }: Props) {
       </Link>
       <Link href="/dashboard" className={className} aria-label="Mis viajes" title="Mis viajes">
         <span className={desktopIconTile} aria-hidden>
-          <Image src="/brand/kaviro-globe-pin.png" alt="" width={28} height={28} className="h-[28px] w-[28px] object-contain" />
+          <Home className="h-6 w-6 text-slate-900" aria-hidden />
         </span>
         <span className="hidden sm:inline">Mis viajes</span>
       </Link>
