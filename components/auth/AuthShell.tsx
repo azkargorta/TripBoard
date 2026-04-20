@@ -23,7 +23,7 @@ export default function AuthShell({
 
             <div className="relative z-10">
               <div className="max-w-md">
-                <TripBoardLogo variant="light" size="md" withWordmark />
+                <TripBoardLogo variant="light" size="lg" withWordmark />
                 <p className="mt-3 text-sm text-white/70">Organiza tus viajes en un solo lugar</p>
               </div>
 

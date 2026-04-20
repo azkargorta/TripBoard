@@ -100,7 +100,7 @@ export default function DashboardPageHeader({ isAdmin }: Props) {
 
       <div className="mx-auto flex w-full max-w-xl flex-col items-center px-12 text-center sm:max-w-2xl sm:px-16 md:px-20">
         <div className="flex justify-center">
-          <TripBoardLogo href="/dashboard" size="sm" className="justify-center" />
+          <TripBoardLogo href="/dashboard" size="md" className="justify-center" />
         </div>
         <h1 className="mt-2 text-xl font-extrabold tracking-tight text-slate-950 md:mt-2.5 md:text-2xl">
           Tus viajes
