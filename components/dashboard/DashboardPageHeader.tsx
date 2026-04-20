@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Shield, Tag, UserCircle2 } from "lucide-react";
+import { Menu, Shield, Tag, User } from "lucide-react";
 import SignOutButton from "@/components/auth/SignOutButton";
 import { iconInline16 } from "@/components/ui/iconTokens";
 
@@ -55,10 +55,7 @@ export default function DashboardPageHeader({ isAdmin }: Props) {
             aria-controls="dashboard-account-menu"
             aria-label="Cuenta y accesos"
           >
-            <span className="relative flex items-center">
-              <UserCircle2 className="h-6 w-6" strokeWidth={2.1} aria-hidden />
-              <ChevronDown className="-mr-1 ml-0.5 h-4 w-4 text-slate-400" strokeWidth={2.5} aria-hidden />
-            </span>
+            <Menu className="h-6 w-6" strokeWidth={2.25} aria-hidden />
           </button>
 
           {open ? (
