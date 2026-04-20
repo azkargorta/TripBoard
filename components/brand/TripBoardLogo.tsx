@@ -7,13 +7,22 @@ type Props = {
   /** Se mantiene por compatibilidad con usos previos. */
   variant?: "light" | "dark";
   size?: "sm" | "md" | "lg";
-  /** Se mantiene por compatibilidad (el logo ya incluye wordmark). */
+  /** Si `true`, muestra el lockup (logo + nombre). Si `false`, solo icono. */
   withWordmark?: boolean;
   href?: string;
   className?: string;
   /** Permite forzar altura/ancho del <img> desde la barra superior. */
   imageClassName?: string;
 };
+
+const KAVIRO_LOCKUP_FULLCOLOR_SRC = "/brand/kaviro-lockup-fullcolor.png";
+const KAVIRO_LOCKUP_WHITE_SRC = "/brand/kaviro-lockup-white.png";
+
+const lockupHeightClass = {
+  sm: "h-9 max-h-9 sm:h-10 sm:max-h-10",
+  md: "h-10 max-h-10 sm:h-11 sm:max-h-11",
+  lg: "h-12 max-h-12 sm:h-13 sm:max-h-13",
+} as const;
 
 // Marca (globo + pin)
 const iconPx = { sm: 36, md: 42, lg: 52 };
@@ -31,7 +40,25 @@ export default function TripBoardLogo({
   const box = boxPx[size];
   const isLight = variant === "light";
 
-  const mark = (
+  const lockupSrc = isLight ? KAVIRO_LOCKUP_WHITE_SRC : KAVIRO_LOCKUP_FULLCOLOR_SRC;
+  const lockupImgClass = [
+    "w-auto object-contain object-left",
+    lockupHeightClass[size],
+    "max-w-[min(420px,92vw)]",
+    // Integración natural: sombra suave para separar del fondo sin borde.
+    isLight
+      ? "opacity-[0.98] drop-shadow-[0_1px_0_rgba(0,0,0,0.35)] drop-shadow-[0_10px_24px_rgba(0,0,0,0.22)]"
+      : "opacity-[0.98] drop-shadow-[0_10px_18px_rgba(2,6,23,0.10)]",
+    imageClassName,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const mark = withWordmark ? (
+    <span className={`inline-flex items-center ${className}`.trim()}>
+      <Image src={lockupSrc} alt="Kaviro" width={1536} height={1024} className={lockupImgClass} priority />
+    </span>
+  ) : (
     <span className={`inline-flex items-center gap-2 ${className}`}>
       <span
         className={`inline-flex items-center justify-center overflow-hidden rounded-full ${
@@ -49,11 +76,6 @@ export default function TripBoardLogo({
           priority
         />
       </span>
-      {withWordmark ? (
-        <span className={`select-none font-black tracking-tight ${isLight ? "text-white" : "text-slate-950"}`}>
-          Kaviro
-        </span>
-      ) : null}
     </span>
   );
 
