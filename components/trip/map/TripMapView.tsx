@@ -533,7 +533,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   const [routePreview, setRoutePreview] = useState<RoutePreview | null>(null);
   const [calculatingRoute, setCalculatingRoute] = useState(false);
   const [isMapVisible, setIsMapVisible] = useState(true);
-  const [showRoutesList, setShowRoutesList] = useState(true);
+  const [showRoutesList, setShowRoutesList] = useState(false);
   const [routesBulkMode, setRoutesBulkMode] = useState(false);
   const [selectedRouteKeys, setSelectedRouteKeys] = useState<Set<string>>(new Set());
 
@@ -1678,7 +1678,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                     className={`inline-flex min-h-[34px] items-center justify-center rounded-xl border px-3 text-xs font-semibold transition ${
                       showRoutesList
                         ? "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                        : "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
+                        : "border-violet-300 bg-violet-600 text-white hover:bg-violet-700"
                     }`}
                     title={showRoutesList ? "Ocultar rutas" : "Mostrar rutas"}
                   >

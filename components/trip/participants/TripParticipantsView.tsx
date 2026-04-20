@@ -19,12 +19,12 @@ import { btnPrimary } from "@/components/ui/brandStyles";
 import { getRoleLabel, getStatusLabel } from "@/lib/participants";
 import {
   Info,
-  Filter,
   Link2,
   MessageCircle,
   Pencil,
   RefreshCcw,
   Search,
+  SlidersHorizontal,
   Sparkles,
   Trash2,
   UserPlus,
@@ -363,7 +363,7 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="inline-flex items-center gap-2 text-sm font-extrabold text-slate-950">
               <span className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-700">
-                <Filter className="h-4 w-4" aria-hidden />
+                <SlidersHorizontal className="h-4 w-4" aria-hidden />
               </span>
               Filtros
             </div>
