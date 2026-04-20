@@ -30,6 +30,31 @@ type DayPlanPayload = {
   items: DayPlanItem[];
 };
 
+type RouteDraftPayload = {
+  version: 1;
+  date: string;
+  travelMode: "DRIVING" | "WALKING" | "BICYCLING";
+  routes: Array<{
+    title: string;
+    route_day: string;
+    departure_time: string | null;
+    travel_mode: "DRIVING" | "WALKING" | "BICYCLING";
+    origin_name: string;
+    origin_address: string | null;
+    origin_latitude: number | null;
+    origin_longitude: number | null;
+    destination_name: string;
+    destination_address: string | null;
+    destination_latitude: number | null;
+    destination_longitude: number | null;
+    path_points: any[];
+    route_points: any[];
+    distance_text: string | null;
+    duration_text: string | null;
+    notes: string | null;
+  }>;
+};
+
 type ChatTurn = { role: "user" | "assistant"; content: string };
 
 function padHhMm(value: string | null | undefined): string | null {
@@ -775,6 +800,36 @@ export async function POST(req: Request) {
     }
 
     const diff = { version: 1, title: `Organizar día ${plan.date}`, operations };
+    const routesDraft: RouteDraftPayload = {
+      version: 1,
+      date: plan.date,
+      travelMode,
+      routes: operations
+        .filter((op: any) => op && op.op === "create_route" && op.fields && typeof op.fields === "object")
+        .map((op: any) => {
+          const f = op.fields || {};
+          return {
+            title: String(f.title || "").trim(),
+            route_day: String(f.route_day || plan.date),
+            departure_time: typeof f.departure_time === "string" ? f.departure_time : null,
+            travel_mode: travelMode,
+            origin_name: String(f.origin_name || "").trim(),
+            origin_address: typeof f.origin_address === "string" ? f.origin_address : null,
+            origin_latitude: typeof f.origin_latitude === "number" ? f.origin_latitude : null,
+            origin_longitude: typeof f.origin_longitude === "number" ? f.origin_longitude : null,
+            destination_name: String(f.destination_name || "").trim(),
+            destination_address: typeof f.destination_address === "string" ? f.destination_address : null,
+            destination_latitude: typeof f.destination_latitude === "number" ? f.destination_latitude : null,
+            destination_longitude: typeof f.destination_longitude === "number" ? f.destination_longitude : null,
+            path_points: Array.isArray(f.path_points) ? f.path_points : [],
+            route_points: Array.isArray(f.route_points) ? f.route_points : [],
+            distance_text: typeof f.distance_text === "string" ? f.distance_text : null,
+            duration_text: typeof f.duration_text === "string" ? f.duration_text : null,
+            notes: typeof f.notes === "string" ? f.notes : null,
+          };
+        })
+        .filter((r: any) => r.title && r.origin_name && r.destination_name),
+    };
 
     // Audit: guardamos una entrada resumen (no crea nada todavía; solo registra generación).
     await safeInsertAudit(supabase, {
@@ -788,7 +843,7 @@ export async function POST(req: Request) {
       actor_email: null,
     });
 
-    return NextResponse.json({ answer, plan, diff });
+    return NextResponse.json({ answer, plan, diff, routesDraft });
   } catch (e: any) {
     const status = typeof e?.httpStatus === "number" ? e.httpStatus : 500;
     return NextResponse.json(

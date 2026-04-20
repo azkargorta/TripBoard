@@ -226,13 +226,49 @@ type DiffOperation =
   | { op: "update_activity"; id: string; patch: Record<string, unknown> }
   | { op: "create_activity"; fields: Record<string, unknown> }
   | { op: "delete_activity"; id: string }
-  | { op: "update_route"; id: string; patch: Record<string, unknown> };
+  | { op: "update_route"; id: string; patch: Record<string, unknown> }
+  | { op: "create_route"; fields: Record<string, unknown> };
 
 type DiffPayload = {
   version: 1;
   title?: string;
   operations: DiffOperation[];
 };
+
+type RoutesDraftPayload = {
+  version: 1;
+  date: string;
+  travelMode: "DRIVING" | "WALKING" | "BICYCLING";
+  routes: Array<{
+    title: string;
+    route_day: string;
+    departure_time: string | null;
+    travel_mode: "DRIVING" | "WALKING" | "BICYCLING";
+    origin_name: string;
+    origin_address: string | null;
+    origin_latitude: number | null;
+    origin_longitude: number | null;
+    destination_name: string;
+    destination_address: string | null;
+    destination_latitude: number | null;
+    destination_longitude: number | null;
+    path_points: any[];
+    route_points: any[];
+    distance_text: string | null;
+    duration_text: string | null;
+    notes: string | null;
+  }>;
+};
+
+function tryExtractRoutesDraft(data: any): RoutesDraftPayload | null {
+  const v = data?.routesDraft;
+  if (!v || typeof v !== "object") return null;
+  if (v.version !== 1) return null;
+  if (typeof v.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v.date)) return null;
+  if (v.travelMode !== "DRIVING" && v.travelMode !== "WALKING" && v.travelMode !== "BICYCLING") return null;
+  if (!Array.isArray(v.routes)) return null;
+  return v as RoutesDraftPayload;
+}
 
 function extractItinerary(answer: string): ItineraryPayload | null {
   const start = "TRIPBOARD_ITINERARY_JSON_START";
@@ -449,6 +485,7 @@ export default function TripAiChatView({
   const [info, setInfo] = useState<string | null>(null);
   const [itineraryDraft, setItineraryDraft] = useState<ItineraryPayload | null>(null);
   const [diffDraft, setDiffDraft] = useState<DiffPayload | null>(null);
+  const [routesDraft, setRoutesDraft] = useState<RoutesDraftPayload | null>(null);
   const [applyingDiff, setApplyingDiff] = useState(false);
   const [diffContext, setDiffContext] = useState<{
     activitiesById: Map<string, any>;
@@ -614,6 +651,7 @@ export default function TripAiChatView({
       setItineraryDraft(null);
       setPlanConflictOpen(false);
       setDiffDraft(null);
+      setRoutesDraft(null);
       setDiffContext(null);
       setDiffContextLoading(false);
       setDiffSelected(new Set());
@@ -1051,6 +1089,7 @@ export default function TripAiChatView({
         setItineraryDraft(null);
         setExpandedDay(null);
         setDiffDraft(data.diff as DiffPayload);
+        setRoutesDraft(tryExtractRoutesDraft(data));
       } else {
         const answerStr = typeof data.answer === "string" ? data.answer : "";
         const maybe = answerStr ? extractItinerary(answerStr) : null;
@@ -1059,6 +1098,7 @@ export default function TripAiChatView({
 
         const maybeDiff = answerStr ? extractDiff(answerStr) : null;
         if (maybeDiff) setDiffDraft(maybeDiff);
+        setRoutesDraft(null);
       }
 
       if (data?.actionExecuted && data?.actionResult) {
@@ -2067,6 +2107,37 @@ export default function TripAiChatView({
                   >
                     Introducir rutas manualmente
                   </Link>
+                </div>
+              </div>
+            ) : null}
+
+            {mode === "day_planner" && routesDraft?.routes?.length ? (
+              <div className="rounded-2xl border border-violet-200 bg-white p-4 shadow-sm">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-violet-800">Rutas propuestas</div>
+                    <div className="mt-1 text-sm font-semibold text-slate-900">
+                      {routesDraft.routes.length} ruta{routesDraft.routes.length === 1 ? "" : "s"} · {routesDraft.date}
+                    </div>
+                    <div className="mt-1 text-sm text-slate-600">
+                      Pulsa para revisarlas en el formulario de Rutas (podrás editar y guardar una a una).
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className={`${btnPrimary} shrink-0 rounded-2xl px-4 py-2 text-sm`}
+                    onClick={() => {
+                      try {
+                        const key = `tripboard_routes_draft:${tripId}`;
+                        window.sessionStorage.setItem(key, JSON.stringify(routesDraft));
+                      } catch {
+                        // ignore
+                      }
+                      router.push(`/trip/${encodeURIComponent(tripId)}/map?draftRoutes=1`);
+                    }}
+                  >
+                    Revisar en Rutas
+                  </button>
                 </div>
               </div>
             ) : null}

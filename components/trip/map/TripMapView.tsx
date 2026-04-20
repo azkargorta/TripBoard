@@ -13,6 +13,7 @@ import DuplicateRouteDialog from "@/components/trip/map/DuplicateRouteDialog";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { useSearchParams } from "next/navigation";
 
 type UnknownRow = Record<string, unknown>;
 type RouteMode = "DRIVING";
@@ -53,6 +54,31 @@ type RoutePreview = {
   arrivalTime: string | null;
   color: string;
   label: string;
+};
+
+type RoutesDraftPayload = {
+  version: 1;
+  date: string;
+  travelMode: "DRIVING" | "WALKING" | "BICYCLING";
+  routes: Array<{
+    title: string;
+    route_day: string;
+    departure_time: string | null;
+    travel_mode: "DRIVING" | "WALKING" | "BICYCLING";
+    origin_name: string;
+    origin_address: string | null;
+    origin_latitude: number | null;
+    origin_longitude: number | null;
+    destination_name: string;
+    destination_address: string | null;
+    destination_latitude: number | null;
+    destination_longitude: number | null;
+    path_points: RoutePoint[];
+    route_points: RoutePoint[];
+    distance_text: string | null;
+    duration_text: string | null;
+    notes: string | null;
+  }>;
 };
 
 export type TripMapRoute = {
@@ -479,6 +505,7 @@ function MapSurface({
 }
 
 export default function TripMapView({ tripId, tripDates = [], planSources, routeSources, points, routes }: Props) {
+  const searchParams = useSearchParams();
   const allPlanPlaces = useMemo(() => {
     const fromSources =
       planSources && (planSources.tripActivities || planSources.legacyActivities)
@@ -566,6 +593,28 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+
+  const [routesDraft, setRoutesDraft] = useState<RoutesDraftPayload | null>(null);
+  const [routesDraftIndex, setRoutesDraftIndex] = useState(0);
+
+  useEffect(() => {
+    const want = searchParams?.get("draftRoutes") === "1";
+    if (!want) return;
+    try {
+      const key = `tripboard_routes_draft:${tripId}`;
+      const raw = window.sessionStorage.getItem(key);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.routes)) return;
+      setRoutesDraft(parsed as RoutesDraftPayload);
+      setRoutesDraftIndex(0);
+      setShowRoutesList(true);
+      setInfo("Borrador del asistente cargado. Pulsa «Cargar siguiente» para revisar cada ruta.");
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tripId]);
 
   const routeCalcKey = useMemo(() => {
     return JSON.stringify({
@@ -966,6 +1015,60 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     }
   }
 
+  function loadDraftRoute(idx: number) {
+    if (!routesDraft?.routes?.length) return;
+    const r = routesDraft.routes[Math.max(0, Math.min(routesDraft.routes.length - 1, idx))];
+    if (!r) return;
+
+    setFocusedRouteKey(null);
+    setRoutePreview(null);
+    setRoutesBulkMode(false);
+    setSelectedRouteKeys(new Set());
+
+    setIsRouteFormOpen(true);
+    setSelectedDate(r.route_day || routesDraft.date || todayISO());
+
+    setForm((prev) => ({
+      ...prev,
+      editingRouteId: null,
+      routeDate: r.route_day || routesDraft.date || todayISO(),
+      routeName: r.title || "Ruta",
+      departureTime: r.departure_time || "",
+      stopEnabled: false,
+      autoColor: true,
+      noteText: r.notes || "",
+      checklist: [],
+    }));
+
+    setOrigin({
+      address: r.origin_address || r.origin_name || "",
+      latitude: r.origin_latitude ?? null,
+      longitude: r.origin_longitude ?? null,
+    });
+    setStop({ address: "", latitude: null, longitude: null });
+    setDestination({
+      address: r.destination_address || r.destination_name || "",
+      latitude: r.destination_latitude ?? null,
+      longitude: r.destination_longitude ?? null,
+    });
+    setOriginPlanId("");
+    setStopPlanId("");
+    setDestinationPlanId("");
+
+    setRoutePreview({
+      key: `draft:${idx}`,
+      points: Array.isArray(r.path_points) && r.path_points.length ? r.path_points : Array.isArray(r.route_points) ? r.route_points : [],
+      distanceText: r.distance_text,
+      durationText: r.duration_text,
+      durationSeconds: null,
+      arrivalTime: null,
+      color: effectiveRouteColor,
+      label: r.title,
+    });
+
+    setInfo(`Revisando borrador: ${idx + 1}/${routesDraft.routes.length}. Ajusta y pulsa «Guardar ruta».`);
+  }
+
   async function removeRoute(route: TripMapRoute) {
     setError(null);
     try {
@@ -1143,6 +1246,55 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
 
   return (
     <div className="min-w-0 max-w-full space-y-4 overflow-x-hidden">
+      {routesDraft?.routes?.length ? (
+        <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-sky-50 px-4 py-3 shadow-sm">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-violet-800">Borrador del asistente</div>
+              <div className="mt-1 text-sm font-semibold text-slate-900">
+                {routesDraft.routes.length} ruta{routesDraft.routes.length === 1 ? "" : "s"} · {routesDraft.date}
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className={`${btnPrimary} inline-flex min-h-[40px] items-center justify-center rounded-2xl px-4 py-2 text-sm`}
+                onClick={() => {
+                  const next = Math.min(routesDraftIndex + 1, routesDraft.routes.length - 1);
+                  setRoutesDraftIndex(next);
+                  loadDraftRoute(next);
+                }}
+              >
+                Cargar siguiente
+              </button>
+              <button
+                type="button"
+                className="inline-flex min-h-[40px] items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                onClick={() => {
+                  try {
+                    window.sessionStorage.removeItem(`tripboard_routes_draft:${tripId}`);
+                  } catch {
+                    // ignore
+                  }
+                  setRoutesDraft(null);
+                  setRoutesDraftIndex(0);
+                  setInfo("Borrador descartado.");
+                }}
+              >
+                Descartar borrador
+              </button>
+              <button
+                type="button"
+                className="inline-flex min-h-[40px] items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                onClick={() => loadDraftRoute(routesDraftIndex)}
+              >
+                Cargar actual
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div
         className={`grid min-w-0 gap-6 ${isMapVisible ? "xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]" : "grid-cols-1"}`}
       >
