@@ -136,7 +136,7 @@ export default async function DashboardPage() {
   const freeTripLimitReached = !isPremium && trips.length >= 3;
 
   return (
-    <main className="page-shell space-y-6 pb-10 md:space-y-8 md:pb-14">
+    <main className="page-shell space-y-4 pb-8 md:space-y-5 md:pb-10">
       <OnboardingNudge hasTrips={trips.length > 0} />
 
       <DashboardPageHeader isAdmin={isAdmin} />

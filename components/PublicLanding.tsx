@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
+import TripBoardLogo from "@/components/brand/TripBoardLogo";
 import { ArrowRight, CalendarDays, Check, MapPinned, Sparkles, Wallet } from "lucide-react";
 
 function Feature({ children }: { children: string }) {
@@ -44,6 +45,7 @@ export default function PublicLanding() {
     <main className="min-h-screen bg-gradient-to-b from-cyan-50/80 via-slate-50 to-violet-100/60">
       <header className="border-b border-cyan-200/40 bg-gradient-to-r from-white/95 via-cyan-50/90 to-violet-50/80 backdrop-blur supports-[backdrop-filter]:bg-white/70">
         <div className="page-shell flex items-center justify-between py-2.5 sm:py-3">
+          <TripBoardLogo href="/" variant="dark" size="lg" withWordmark />
           <nav className="flex items-center gap-2">
             <Link
               href="/pricing"

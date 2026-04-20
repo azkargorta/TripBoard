@@ -43,7 +43,7 @@ export default function DashboardPageHeader({ isAdmin }: Props) {
     "flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-900 transition hover:bg-slate-50";
 
   return (
-    <div ref={rootRef} className="relative -mt-2 pb-1 md:-mt-3 md:pb-2">
+    <div ref={rootRef} className="relative -mt-4 pb-0.5 md:-mt-5 md:pb-1">
       {/* Perfil: esquina superior derecha, sin descentrar el bloque marca + título */}
       <div className="absolute right-0 top-0 z-10 sm:top-0.5">
         <div className="relative shrink-0">
@@ -102,7 +102,7 @@ export default function DashboardPageHeader({ isAdmin }: Props) {
         <div className="flex justify-center">
           <TripBoardLogo href="/dashboard" size="lg" withWordmark />
         </div>
-        <h1 className="mt-2 text-xl font-extrabold tracking-tight text-slate-950 md:mt-2.5 md:text-2xl">
+        <h1 className="mt-1 text-lg font-extrabold tracking-tight text-slate-950 md:mt-1.5 md:text-xl">
           Tus viajes
         </h1>
       </div>
