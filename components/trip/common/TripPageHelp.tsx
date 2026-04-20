@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useParams, usePathname } from "next/navigation";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
-import { HelpIconQuestion } from "@/components/brand/HelpIcon";
+import { HelpIconLifebuoy } from "@/components/brand/HelpIcon";
 import { iconInline16, iconSlotFill40, iconSlotFill44 } from "@/components/ui/iconTokens";
 
 type HelpBlock = { heading: string; bullets: string[] };
@@ -537,7 +537,7 @@ export default function TripPageHelp() {
         aria-label={`Ayuda: ${entry.title}`}
         title={tourOpen ? "Cierra el recorrido para usar la ayuda" : "Ayuda de esta página"}
       >
-        <HelpIconQuestion className="h-6 w-6" />
+        <HelpIconLifebuoy className="h-6 w-6" />
       </button>
 
       {mounted
