@@ -44,7 +44,7 @@ export default function DashboardTripSection({
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className={`min-h-[40px] rounded-lg px-3 py-1.5 text-xs sm:text-sm ${btnPrimary}`}
+          className={`${btnPrimary} min-h-[40px] rounded-lg px-3 py-1.5 text-xs sm:text-sm`}
           aria-expanded={open}
         >
           {open ? "Ocultar viajes" : "Mostrar viajes"}

@@ -328,7 +328,7 @@ export default async function TripSummaryPage({ params }: TripPageProps) {
         description={`${currentTrip.destination || "Destino pendiente"} · ${formatDateRange(currentTrip.start_date, currentTrip.end_date)}`}
         iconSrc={TRIP_TAB_SUMMARY_SRC}
         iconAlt="Resumen"
-        actions={<TripScreenActions tripId={tripId} showSummary={false} homeLabel="Mis viajes" />}
+        actions={<TripScreenActions tripId={tripId} homeLabel="Mis viajes" />}
       />
 
       <TripFirstRunPanel
