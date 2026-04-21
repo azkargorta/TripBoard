@@ -20,8 +20,8 @@ function asNumber(value: unknown): number | null {
 
 export function getMonthlyAiBudgetEur(): number {
   const env = asNumber(process.env.AI_USER_MONTHLY_BUDGET_EUR);
-  // 9€ es razonable como “cap” de seguridad para un MVP; ajustable por env.
-  return env != null && env > 0 ? env : 9;
+  // Límite por usuario/mes (Premium): 2€ por defecto; ajustable por env.
+  return env != null && env > 0 ? env : 2;
 }
 
 export function estimateGemini25FlashCostEur(usage: AiUsage): number {

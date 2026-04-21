@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { DetectedDocumentData } from "@/lib/document-analyzer";
 import { btnPrimary } from "@/components/ui/brandStyles";
 
@@ -22,6 +22,25 @@ export default function DocumentAnalyzerPanel({ onUseDetectedData }: Props) {
   const [detected, setDetected] = useState<DetectedDocumentData | null>(null);
   const [useGemini, setUseGemini] = useState(false);
   const [aiNotice, setAiNotice] = useState<string | null>(null);
+  const [aiBudgetExceeded, setAiBudgetExceeded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/ai-budget/status", { cache: "no-store" });
+        const data = await res.json().catch(() => null);
+        if (!cancelled && res.ok && data && typeof data?.exceeded === "boolean") {
+          setAiBudgetExceeded(Boolean(data.exceeded));
+        }
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function handleAnalyze() {
     if (!file) {
@@ -33,6 +52,7 @@ export default function DocumentAnalyzerPanel({ onUseDetectedData }: Props) {
     setError(null);
     setDetected(null);
     setAiNotice(null);
+    setAiBudgetExceeded(false);
 
     try {
       const formData = new FormData();
@@ -55,9 +75,10 @@ export default function DocumentAnalyzerPanel({ onUseDetectedData }: Props) {
         throw new Error("No se ha recibido ningún resultado del analizador.");
       }
 
-      if (typeof data?.llmError === "string" && data.llmError.trim()) {
-        setAiNotice(data.llmError.trim());
+      if (typeof data?.llmErrorCode === "string" && data.llmErrorCode === "AI_BUDGET_EXCEEDED") {
+        setAiBudgetExceeded(true);
       }
+      if (typeof data?.llmError === "string" && data.llmError.trim()) setAiNotice(data.llmError.trim());
 
       // Si hay mejora LLM, mezclar (LLM tiene prioridad) manteniendo extractedText/confidence si vienen.
       const llm = data?.llmDetected;
@@ -90,7 +111,12 @@ export default function DocumentAnalyzerPanel({ onUseDetectedData }: Props) {
 
       <div className="mt-5 space-y-4">
         <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800">
-          <input type="checkbox" checked={useGemini} onChange={(e) => setUseGemini(e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={useGemini}
+            onChange={(e) => setUseGemini(e.target.checked)}
+            disabled={aiBudgetExceeded}
+          />
           Mejor calidad (Gemini)
         </label>
 
@@ -116,7 +142,7 @@ export default function DocumentAnalyzerPanel({ onUseDetectedData }: Props) {
           <button
             type="button"
             onClick={handleAnalyze}
-            disabled={loading || !file}
+            disabled={loading || !file || aiBudgetExceeded}
             className={btnPrimary}
           >
             {loading ? "Analizando..." : "Analizar documento"}
@@ -137,6 +163,13 @@ export default function DocumentAnalyzerPanel({ onUseDetectedData }: Props) {
           <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             <span className="font-semibold">Aviso (Gemini): </span>
             {aiNotice}
+          </div>
+        ) : null}
+
+        {aiBudgetExceeded ? (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
+            <span className="font-semibold">Límite mensual de IA alcanzado.</span> Se deshabilita el análisis con Gemini hasta el
+            mes siguiente.
           </div>
         ) : null}
 

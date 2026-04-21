@@ -501,6 +501,7 @@ export default function TripAiChatView({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [aiBudgetExceeded, setAiBudgetExceeded] = useState(false);
   const [itineraryDraft, setItineraryDraft] = useState<ItineraryPayload | null>(null);
   const [diffDraft, setDiffDraft] = useState<DiffPayload | null>(null);
   const [routesDraft, setRoutesDraft] = useState<RoutesDraftPayload | null>(null);
@@ -524,6 +525,24 @@ export default function TripAiChatView({
   const [planActivityCount, setPlanActivityCount] = useState<number | null>(null);
   const [onboardingBusy, setOnboardingBusy] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/ai-budget/status", { cache: "no-store" });
+        const data = await res.json().catch(() => null);
+        if (!cancelled && res.ok && data && typeof data?.exceeded === "boolean") {
+          setAiBudgetExceeded(Boolean(data.exceeded));
+        }
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const { trip, reload: reloadTrip, loading: tripDataLoading } = useTripData(tripId);
   const { activities: tripPlanActivities, reload: reloadTripPlanActivities, loading: tripPlanActivitiesLoading } =
@@ -1013,6 +1032,11 @@ export default function TripAiChatView({
     hooks?: { onSuccess?: () => void; onError?: () => void }
   ) {
     if (!isPremium) return;
+    if (aiBudgetExceeded) {
+      setError("Has alcanzado el límite mensual de IA. El asistente se reactivará el mes que viene.");
+      hooks?.onError?.();
+      return;
+    }
     const clean = (customQuestion ?? question).trim();
     if (!clean || loading) return;
 
@@ -1076,6 +1100,11 @@ export default function TripAiChatView({
       if (!res.ok) {
         const fromJson = typeof data?.error === "string" ? data.error : "";
         const fallback = rawText.trim().slice(0, 800);
+        const code = typeof (data as any)?.code === "string" ? String((data as any).code) : "";
+        if (code === "AI_BUDGET_EXCEEDED") {
+          setAiBudgetExceeded(true);
+          throw new Error(fromJson || "Has alcanzado el límite mensual de IA. Vuelve a intentarlo el mes que viene.");
+        }
         throw new Error(fromJson || fallback || "No se pudo obtener respuesta.");
       }
 
@@ -1098,6 +1127,7 @@ export default function TripAiChatView({
           content: typeof data.answer === "string" ? data.answer : "No se pudo generar respuesta",
         },
       ]);
+      setAiBudgetExceeded(false);
 
       const hasDayPlannerDiff =
         mode === "day_planner" &&
@@ -1929,7 +1959,7 @@ export default function TripAiChatView({
               <button
                 type="button"
                 onClick={newConversation}
-                disabled={!isPremium}
+                disabled={!isPremium || aiBudgetExceeded}
                 className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
               >
                 Nueva
@@ -1942,7 +1972,7 @@ export default function TripAiChatView({
                   key={item.id}
                   type="button"
                   onClick={() => void openConversation(item.id)}
-                  disabled={!isPremium}
+                  disabled={!isPremium || aiBudgetExceeded}
                   className={`w-full rounded-2xl border px-3 py-3 text-left text-sm transition ${
                     conversationId === item.id
                       ? "border-violet-300 bg-violet-50 text-violet-900"
@@ -2012,7 +2042,7 @@ export default function TripAiChatView({
                   <button
                     key={preset.id}
                     type="button"
-                    disabled={loading}
+                    disabled={loading || aiBudgetExceeded}
                     onClick={() => beginNewChatForMode(preset.id, { onlyIfChanged: true })}
                     className={`flex flex-col items-start gap-1 rounded-2xl border px-2.5 py-2 text-left transition disabled:opacity-50 sm:gap-1.5 sm:px-3 sm:py-2.5 ${
                       layout === "drawer" ? "min-h-[64px]" : "min-h-[88px]"
@@ -2032,7 +2062,7 @@ export default function TripAiChatView({
 
             <button
               type="button"
-              disabled={loading}
+              disabled={loading || aiBudgetExceeded}
               onClick={() => beginNewChatForMode("auto", { onlyIfChanged: true })}
               className={`mt-2 w-full rounded-xl border px-3 py-2 text-xs font-semibold transition disabled:opacity-50 ${
                 modeSource === "auto"
@@ -2059,6 +2089,7 @@ export default function TripAiChatView({
                     }
                     beginNewChatForMode(v, { onlyIfChanged: true });
                   }}
+                  disabled={loading || aiBudgetExceeded}
                   className="rounded-xl border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800 shadow-sm"
                 >
                   <option value="auto">Automático</option>
@@ -2081,6 +2112,17 @@ export default function TripAiChatView({
               }`}
             >
               {error}
+            </div>
+          ) : null}
+
+          {aiBudgetExceeded ? (
+            <div
+              className={`mx-4 min-w-0 max-w-full break-words rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900 sm:mx-5 ${
+                layout === "drawer" ? "mt-2 shrink-0" : "mt-5"
+              }`}
+            >
+              <span className="font-semibold">Límite mensual de IA alcanzado.</span> El asistente queda deshabilitado hasta el
+              mes siguiente.
             </div>
           ) : null}
 
@@ -2239,7 +2281,7 @@ export default function TripAiChatView({
                 onChange={(e) => setQuestion(e.target.value)}
                 rows={layout === "drawer" ? 3 : 4}
                 placeholder={placeholder}
-                disabled={!isPremium}
+                disabled={!isPremium || aiBudgetExceeded}
                 className={`w-full resize-none rounded-2xl border-0 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 ${
                   layout === "drawer" ? "min-h-[72px]" : "min-h-[120px]"
                 }`}
@@ -2255,7 +2297,7 @@ export default function TripAiChatView({
                   <button
                     type="button"
                     onClick={() => setQuestion("")}
-                    disabled={loading || !question || !isPremium}
+                    disabled={loading || !question || !isPremium || aiBudgetExceeded}
                     className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
                   >
                     Limpiar
@@ -2263,7 +2305,7 @@ export default function TripAiChatView({
 
                   <button
                     type="submit"
-                    disabled={loading || !question.trim() || !isPremium}
+                    disabled={loading || !question.trim() || !isPremium || aiBudgetExceeded}
                     className="rounded-xl bg-slate-950 px-5 py-2 text-sm font-semibold text-white disabled:bg-slate-300"
                   >
                     Enviar

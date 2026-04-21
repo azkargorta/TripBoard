@@ -103,6 +103,8 @@ export async function POST(request: Request) {
 
     let llmDetected: any = null;
     let llmError: string | null = null;
+    let llmErrorCode: string | null = null;
+    let llmBudget: any = null;
     if (enhance && extractedText.trim()) {
       const prompt = [
         "Eres un extractor de datos de reservas/tickets/documentos de viaje.",
@@ -127,7 +129,10 @@ export async function POST(request: Request) {
         });
         llmDetected = extractFirstJsonObject(answer);
       } catch (e) {
+        const err: any = e;
         llmError = e instanceof Error ? e.message : "Error al contactar con el asistente personal.";
+        llmErrorCode = typeof err?.code === "string" ? err.code : null;
+        llmBudget = err?.budget ?? null;
       }
     }
 
@@ -140,6 +145,8 @@ export async function POST(request: Request) {
       detected,
       llmDetected,
       llmError,
+      llmErrorCode,
+      llmBudget,
     });
   } catch (error) {
     return NextResponse.json(
