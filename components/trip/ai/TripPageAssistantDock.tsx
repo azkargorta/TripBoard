@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
 import { MessageCircle, X } from "lucide-react";
@@ -24,6 +25,7 @@ export default function TripPageAssistantDock({ tripId, isPremium }: Props) {
   const pathname = usePathname();
   const surface = useMemo(() => tripAssistantSurfaceFromPathname(pathname), [pathname]);
   const [open, setOpen] = useState(false);
+  const [assistantLogoOk, setAssistantLogoOk] = useState(true);
 
   if (!isPremium || !surface) return null;
 
@@ -46,7 +48,19 @@ export default function TripPageAssistantDock({ tripId, isPremium }: Props) {
         aria-label={`Abrir asistente personal (${surfaceLabel})`}
         title={`Asistente personal · ${surfaceLabel}`}
       >
-        <MessageCircle aria-hidden />
+        {assistantLogoOk ? (
+          <Image
+            src="/brand/assistant-logo.png"
+            alt=""
+            width={56}
+            height={56}
+            className="h-9 w-9 object-contain"
+            priority
+            onError={() => setAssistantLogoOk(false)}
+          />
+        ) : (
+          <MessageCircle aria-hidden />
+        )}
       </button>
 
       {open ? (
