@@ -28,6 +28,14 @@ export default function TripPageAssistantDock({ tripId, isPremium }: Props) {
   if (!isPremium || !surface) return null;
 
   const surfaceLabel = tripAssistantSurfaceLabel(surface);
+  const fullscreenHref = useMemo(() => {
+    const base = `/trip/${encodeURIComponent(tripId)}/ai-chat`;
+    if (surface === "routes") return `${base}?modo=desplazamientos`;
+    if (surface === "resources") return `${base}?modo=documentos`;
+    if (surface === "expenses") return `${base}?modo=gastos`;
+    if (surface === "plan") return `${base}?modo=planificador`;
+    return base;
+  }, [surface, tripId]);
 
   return (
     <>
@@ -66,7 +74,7 @@ export default function TripPageAssistantDock({ tripId, isPremium }: Props) {
               </div>
               <div className="flex min-w-0 shrink-0 items-stretch justify-end gap-2 sm:items-center">
                 <Link
-                  href={`/trip/${encodeURIComponent(tripId)}/ai-chat`}
+                  href={fullscreenHref}
                   className="inline-flex min-h-10 min-w-0 flex-1 items-center justify-center whitespace-normal rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-xs font-semibold leading-snug text-slate-800 shadow-sm transition hover:bg-slate-50 sm:flex-none sm:min-w-[9.5rem]"
                   onClick={() => setOpen(false)}
                 >

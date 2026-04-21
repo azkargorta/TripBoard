@@ -36,11 +36,11 @@ function assistantContextPreset(surface: TripAssistantSurface): AssistantContext
       };
     case "routes":
       return {
-        mode: "optimizer",
+        mode: "day_planner",
         modeSource: "manual",
         welcome:
-          "Estás en Rutas: me centro en trayectos entre paradas, orden geográfico del día y cómo conectar lo que ya hay en el plan.\n\n" +
-          "Pide crear rutas entre paradas concretas, mejorar el orden para menos desplazamiento o revisar huecos en el recorrido. Los cambios aplicables pueden salir como bloque para «Aplicar cambios».",
+          "Estás en Rutas: me centro en **desplazamientos** (trayectos entre paradas), a qué hora salir para llegar a tiempo y cómo moveros (andando, bici, coche o transporte público).\n\n" +
+          "Dime el día o rango (p. ej. “día 2 del viaje” o “del 10 al 12”) y el modo de transporte, y preparo rutas para revisarlas en la pestaña de Rutas.",
       };
     case "expenses":
       return {
@@ -51,10 +51,10 @@ function assistantContextPreset(surface: TripAssistantSurface): AssistantContext
       };
     case "resources":
       return {
-        mode: "general",
+        mode: "travel_docs",
         modeSource: "manual",
         welcome:
-          "Estás en Docs: puedo orientarte sobre qué subir (PDF, capturas de vuelo u hotel), cómo organizar reservas y qué revisar antes del viaje.",
+          OPENING_TRAVEL_DOCS,
       };
     case "participants":
       return {
