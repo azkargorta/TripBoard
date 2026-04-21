@@ -119,7 +119,7 @@ export default function DashboardAiShortcuts({
           title="Abre el formulario para crear un viaje; al guardar con Premium puedes seguir en el asistente"
         >
           <Sparkles className={`${iconInline16} text-violet-700`} aria-hidden />
-          Crear viaje con asistente personal
+          Crear viaje (manual)
         </button>
         {trips.length === 1 ? (
           <>
