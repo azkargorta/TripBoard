@@ -52,6 +52,8 @@ export type ResolvedTripCreation = {
   endDate: string;
   durationDays: number;
   intent: TripCreationIntent;
+  /** `true` si las fechas se han rellenado con un default (no venían del usuario). */
+  datesInferred?: boolean;
 };
 
 export function resolveTripCreationDates(intent: TripCreationIntent): ResolvedTripCreation | { error: string } {
@@ -74,6 +76,7 @@ export function resolveTripCreationDates(intent: TripCreationIntent): ResolvedTr
       endDate,
       durationDays,
       intent: { ...intent, destination, startDate, endDate, durationDays },
+      datesInferred: false,
     };
   }
 
@@ -86,10 +89,12 @@ export function resolveTripCreationDates(intent: TripCreationIntent): ResolvedTr
       endDate,
       durationDays,
       intent: { ...intent, destination, startDate, endDate, durationDays },
+      datesInferred: false,
     };
   }
 
   if (rawDur != null && rawDur > 0) {
+    const usedDefaultStart = !startDate;
     const s = startDate || defaultTripStartDate();
     let durationDays = Math.min(MAX_AUTO_DAYS, Math.max(1, rawDur));
     startDate = s;
@@ -100,6 +105,7 @@ export function resolveTripCreationDates(intent: TripCreationIntent): ResolvedTr
       endDate,
       durationDays,
       intent: { ...intent, destination, startDate, endDate, durationDays },
+      datesInferred: usedDefaultStart,
     };
   }
 

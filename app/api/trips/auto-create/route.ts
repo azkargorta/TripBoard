@@ -117,6 +117,22 @@ export async function POST(req: Request) {
     }
 
     if (previewOnly) {
+      // Si las fechas han sido rellenadas por default (no venían del usuario), pedimos fechas explícitas.
+      if (resolved.datesInferred) {
+        const nextIntent: TripCreationIntent = {
+          ...resolved.intent,
+          // forzamos a pedir fechas; mantenemos duración y destino
+          startDate: null,
+          endDate: null,
+        };
+        return NextResponse.json({
+          status: "needs_clarification",
+          question:
+            "¿Qué fechas exactas tienes para el viaje? (inicio y fin). Si aún no lo sabes, dime un mes aproximado.",
+          code: "duration_or_dates",
+          draftIntent: nextIntent,
+        });
+      }
       return NextResponse.json({
         status: "ready",
         draftIntent: resolved.intent,

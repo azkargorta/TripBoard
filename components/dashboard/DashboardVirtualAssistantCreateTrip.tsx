@@ -296,6 +296,55 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
     }
   }
 
+  function buildRecalcFollowUp(): string {
+    const parts: string[] = [];
+    const s = (draftIntent?.startLocation || "").trim();
+    const e = (draftIntent?.endLocation || "").trim();
+    const mustSee = (draftIntent?.mustSee || []).map((x) => String(x || "").trim()).filter(Boolean);
+    if (s) parts.push(`Empiezo en: ${s}.`);
+    if (e) parts.push(`Termino en: ${e}.`);
+    if (mustSee.length) parts.push(`Sitios a visitar: ${mustSee.join(", ")}.`);
+    if (notes.trim()) parts.push(`Detalles: ${notes.trim()}`);
+    return parts.join(" ");
+  }
+
+  async function recalculateDraft() {
+    if (loading || disabled || aiBudgetExceeded) return;
+    if (!draftIntent) {
+      setError("Primero pulsa “Leer lo que he entendido”.");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await callAutoCreate({
+        followUp: buildRecalcFollowUp(),
+        draftIntent,
+        previewOnly: true,
+      });
+      if (data?.status === "needs_clarification") {
+        const payload = data as ApiNeedsClarification;
+        setDraftIntent(payload.draftIntent || null);
+        setQuestion(payload.question || "¿Puedes darme un detalle más?");
+        setStage("clarifying");
+        return;
+      }
+      if (data?.status === "ready") {
+        const ready = data as ApiReady;
+        setDraftIntent(ready.draftIntent || null);
+        setQuestion(null);
+        setFollowUp("");
+        setStage("ready");
+        return;
+      }
+      throw new Error("Respuesta inesperada del servidor.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo recalcular el borrador.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   if (!mounted) return null;
 
   if (!isPremium) {
@@ -503,19 +552,21 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
                       <p className="mt-1 text-xs text-slate-600">
                         Puedes escribir lugares concretos para que el borrador los tenga en cuenta (ej.: “Vaticano, Coliseo…”).
                       </p>
-                      <input
-                        value={(draftIntent?.mustSee || []).join(", ")}
+                      <textarea
+                        value={(draftIntent?.mustSee || []).join("\n")}
                         onChange={(e) => {
-                          const items = e.target.value
-                            .split(",")
+                          const raw = e.target.value || "";
+                          const items = raw
+                            .split(/[,\/\n\r]+/g)
                             .map((x) => x.trim())
                             .filter(Boolean)
-                            .slice(0, 10);
+                            .slice(0, 12);
                           setDraftIntent((prev) => ({ ...(prev || {}), mustSee: items.length ? items : undefined }));
                         }}
                         disabled={loading || disabled || aiBudgetExceeded}
-                        placeholder="Ej.: Coliseo, Vaticano, Trastevere"
-                        className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                        placeholder={"Ej. (uno por línea):\nColiseo\nVaticano\nTrastevere"}
+                        rows={3}
+                        className="mt-2 w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
                       />
                     </div>
 
@@ -534,8 +585,21 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
                     </div>
 
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <button type="button" onClick={generateTripNow} disabled={loading || disabled || aiBudgetExceeded} className={btnPrimary}>
+                      <button
+                        type="button"
+                        onClick={generateTripNow}
+                        disabled={loading || disabled || aiBudgetExceeded}
+                        className={btnPrimary}
+                      >
                         {loading ? "Creando…" : "Generar viaje"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={recalculateDraft}
+                        disabled={loading || disabled || aiBudgetExceeded}
+                        className={btnSecondary}
+                      >
+                        {loading ? "Recalculando…" : "Recalcular viaje"}
                       </button>
                       <button
                         type="button"
