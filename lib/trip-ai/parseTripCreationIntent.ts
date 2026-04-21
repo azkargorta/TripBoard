@@ -20,6 +20,8 @@ function normalizeIntent(raw: Record<string, unknown>): TripCreationIntent {
 
   return {
     destination: str(raw.destination) || null,
+    startLocation: str(raw.startLocation) || null,
+    endLocation: str(raw.endLocation) || null,
     durationDays: num(raw.durationDays) != null ? Math.round(num(raw.durationDays) as number) : null,
     startDate: str(raw.startDate) || null,
     endDate: str(raw.endDate) || null,
@@ -29,6 +31,7 @@ function normalizeIntent(raw: Record<string, unknown>): TripCreationIntent {
     interests: arr(raw.interests),
     travelStyle: arr(raw.travelStyle),
     constraints: arr(raw.constraints),
+    mustSee: arr(raw.mustSee),
     wantsRouteOptimization: Boolean(raw.wantsRouteOptimization),
     wantsBudgetPlan: Boolean(raw.wantsBudgetPlan),
     suggestedTripName: str(raw.suggestedTripName) || null,
@@ -39,6 +42,8 @@ const PARSE_PROMPT = `Eres un extractor de datos para la app de viajes Kaviro.
 Devuelve SOLO un objeto JSON (sin markdown, sin texto adicional) con estas claves exactas:
 {
   "destination": string|null,
+  "startLocation": string|null,
+  "endLocation": string|null,
   "durationDays": number|null,
   "startDate": "YYYY-MM-DD"|null,
   "endDate": "YYYY-MM-DD"|null,
@@ -48,6 +53,7 @@ Devuelve SOLO un objeto JSON (sin markdown, sin texto adicional) con estas clave
   "interests": string[],
   "travelStyle": string[],
   "constraints": string[],
+  "mustSee": string[],
   "wantsRouteOptimization": boolean,
   "wantsBudgetPlan": boolean,
   "suggestedTripName": string|null
@@ -55,12 +61,14 @@ Devuelve SOLO un objeto JSON (sin markdown, sin texto adicional) con estas clave
 
 Reglas:
 - destination: ciudad o región principal en español o nombre propio local.
+- startLocation/endLocation: si el usuario menciona “empiezo en…” o “termino en…”, o es un viaje multi-ciudad, rellena estos campos.
 - Si el usuario da fechas explícitas, rellena startDate/endDate y calcula durationDays.
 - Si solo da duración (ej. "4 días"), durationDays numérico y startDate/endDate null.
 - budgetLevel: si no se menciona presupuesto, usa "medium".
 - wantsRouteOptimization: true si pide ruta optimizada, menos desplazamientos, orden geográfico, "ruta optimizada".
 - wantsBudgetPlan: true si habla de presupuesto, barato, caro, ahorrar.
 - interests/travelStyle: palabras clave cortas (ej. monumentos, gastronomía, museos, relax).
+- mustSee: lista de sitios/paradas obligatorias que el usuario menciona (máx. 8), nombres cortos.
 `;
 
 export async function parseTripCreationIntentLLM(

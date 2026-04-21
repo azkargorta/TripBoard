@@ -11,7 +11,7 @@ export function mergeTripCreationIntent(base: TripCreationIntent, patch: TripCre
     if (v === null && typeof (out as any)[k] === "string" && String((out as any)[k]).trim()) {
       return;
     }
-    if (k === "interests" || k === "travelStyle" || k === "constraints") {
+    if (k === "interests" || k === "travelStyle" || k === "constraints" || k === "mustSee") {
       const prev = (out[k] as string[] | undefined) || [];
       const next = (v as string[] | undefined) || [];
       const merged = [...new Set([...prev, ...next].map((s) => String(s || "").trim()).filter(Boolean))];

@@ -6,6 +6,7 @@ import { Sparkles, X } from "lucide-react";
 import type { TripCreationIntent } from "@/lib/trip-ai/tripCreationTypes";
 import { btnPrimary, btnNeutral, btnSecondary } from "@/components/ui/brandStyles";
 import { iconInline16, iconSlotFill40 } from "@/components/ui/iconTokens";
+import TripBoardLogo from "@/components/brand/TripBoardLogo";
 
 type Props = {
   isPremium: boolean;
@@ -31,15 +32,37 @@ type ApiCreated = {
   };
 };
 
+type ApiReady = {
+  status: "ready";
+  draftIntent: TripCreationIntent;
+  resolved: {
+    destination: string;
+    startDate: string;
+    endDate: string;
+    durationDays: number;
+  };
+};
+
 type ApiError = { error: string; code?: string | null; budget?: any };
 
 const SUGGESTED_CHIPS = [
   "Escapada romántica",
   "Viaje barato",
   "Con amigos",
+  "Con familia",
+  "Solo",
   "Ruta optimizada",
   "Relax",
   "Gastronomía",
+  "Cultura y museos",
+  "Naturaleza",
+  "Playa",
+  "Aventura",
+  "Road trip",
+  "Ciudad + pueblos",
+  "Fiesta y noche",
+  "Compras",
+  "Food tour",
 ] as const;
 
 function prettyTripDraft(intent: TripCreationIntent | null) {
@@ -58,13 +81,19 @@ function prettyTripDraft(intent: TripCreationIntent | null) {
   const budget = intent.budgetLevel ? `Presupuesto ${intent.budgetLevel}` : "";
   const style = (intent.travelStyle || []).slice(0, 3).join(" · ");
   const interests = (intent.interests || []).slice(0, 3).join(" · ");
+  const startLoc = (intent.startLocation || "").trim();
+  const endLoc = (intent.endLocation || "").trim();
+  const mustSee = (intent.mustSee || []).slice(0, 4).join(" · ");
 
   return {
     destination: dest || "—",
     dates: dates || "—",
     travelers: travelers || "—",
     budget: budget || "—",
-    style: style || interests || "—",
+    style: mustSee || startLoc || endLoc ? "Personalizado" : style || interests || "—",
+    startLocation: startLoc || "—",
+    endLocation: endLoc || "—",
+    mustSee: mustSee || "—",
   };
 }
 
@@ -79,7 +108,9 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
   const [draftIntent, setDraftIntent] = useState<TripCreationIntent | null>(null);
   const [question, setQuestion] = useState<string | null>(null);
   const [followUp, setFollowUp] = useState("");
+  const [notes, setNotes] = useState("");
   const [aiBudgetExceeded, setAiBudgetExceeded] = useState(false);
+  const [stage, setStage] = useState<"collecting" | "clarifying" | "ready">("collecting");
 
   const panelRef = useRef<HTMLDivElement | null>(null);
 
@@ -133,12 +164,19 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
     setDraftIntent(null);
     setQuestion(null);
     setFollowUp("");
+    setNotes("");
     setError(null);
     setLoading(false);
     setAiBudgetExceeded(false);
+    setStage("collecting");
   }
 
-  async function callAutoCreate(params: { prompt?: string; followUp?: string; draftIntent?: TripCreationIntent | null }) {
+  async function callAutoCreate(params: {
+    prompt?: string;
+    followUp?: string;
+    draftIntent?: TripCreationIntent | null;
+    previewOnly?: boolean;
+  }) {
     const res = await fetch("/api/trips/auto-create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -147,9 +185,10 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
         followUp: params.followUp || "",
         draftIntent: params.draftIntent || undefined,
         provider: "gemini",
+        previewOnly: Boolean(params.previewOnly),
       }),
     });
-    const data = (await res.json().catch(() => null)) as (ApiNeedsClarification | ApiCreated | ApiError | null) & any;
+    const data = (await res.json().catch(() => null)) as (ApiNeedsClarification | ApiReady | ApiCreated | ApiError | null) & any;
     if (!res.ok) {
       const code = typeof data?.code === "string" ? data.code : null;
       if (code === "AI_BUDGET_EXCEEDED") setAiBudgetExceeded(true);
@@ -158,25 +197,28 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
     return data;
   }
 
-  async function startFromPrompt() {
+  async function previewFromPrompt() {
     if (!canSubmitPrompt) return;
     setLoading(true);
     setError(null);
+    setStage("collecting");
     setQuestion(null);
     setFollowUp("");
     try {
-      const data = await callAutoCreate({ prompt: prompt.trim(), draftIntent });
+      const data = await callAutoCreate({ prompt: prompt.trim(), draftIntent, previewOnly: true });
       if (data?.status === "needs_clarification") {
         const payload = data as ApiNeedsClarification;
         setDraftIntent(payload.draftIntent || null);
         setQuestion(payload.question || "¿Puedes darme un detalle más?");
+        setStage("clarifying");
         return;
       }
-      if (data?.status === "created" || data?.status === "partial") {
-        const created = data as ApiCreated;
-        router.push(`/trip/${encodeURIComponent(created.tripId)}/summary?recien=1`);
-        setOpen(false);
-        resetFlow();
+      if (data?.status === "ready") {
+        const ready = data as ApiReady;
+        setDraftIntent(ready.draftIntent || null);
+        setQuestion(null);
+        setFollowUp("");
+        setStage("ready");
         return;
       }
       throw new Error("Respuesta inesperada del servidor.");
@@ -187,24 +229,63 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
     }
   }
 
-  async function answerFollowUp() {
+  async function previewAnswerFollowUp() {
     if (!canSubmitFollowUp) return;
     setLoading(true);
     setError(null);
     try {
-      const data = await callAutoCreate({ followUp: followUp.trim(), draftIntent });
+      const data = await callAutoCreate({ followUp: followUp.trim(), draftIntent, previewOnly: true });
       if (data?.status === "needs_clarification") {
         const payload = data as ApiNeedsClarification;
         setDraftIntent(payload.draftIntent || null);
         setQuestion(payload.question || "¿Puedes darme un detalle más?");
         setFollowUp("");
+        setStage("clarifying");
         return;
       }
+      if (data?.status === "ready") {
+        const ready = data as ApiReady;
+        setDraftIntent(ready.draftIntent || null);
+        setQuestion(null);
+        setFollowUp("");
+        setStage("ready");
+        return;
+      }
+      throw new Error("Respuesta inesperada del servidor.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo crear el viaje.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function generateTripNow() {
+    if (loading || disabled || aiBudgetExceeded) return;
+    const intent = draftIntent || null;
+    if (!intent) {
+      setError("Primero pulsa “Leer lo que he entendido”.");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await callAutoCreate({
+        followUp: notes.trim(),
+        draftIntent: intent,
+        previewOnly: false,
+      });
       if (data?.status === "created" || data?.status === "partial") {
         const created = data as ApiCreated;
         router.push(`/trip/${encodeURIComponent(created.tripId)}/summary?recien=1`);
         setOpen(false);
         resetFlow();
+        return;
+      }
+      if (data?.status === "needs_clarification") {
+        const payload = data as ApiNeedsClarification;
+        setDraftIntent(payload.draftIntent || null);
+        setQuestion(payload.question || "¿Puedes darme un detalle más?");
+        setStage("clarifying");
         return;
       }
       throw new Error("Respuesta inesperada del servidor.");
@@ -250,16 +331,19 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
             role="dialog"
             aria-modal="true"
             aria-labelledby="virtual-assistant-create-trip-title"
-            className="max-h-[min(720px,88vh)] w-full max-w-2xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl"
+            className="max-h-[min(820px,90vh)] w-full max-w-3xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl"
           >
-            <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
-              <div className="min-w-0">
-                <p id="virtual-assistant-create-trip-title" className="text-sm font-extrabold text-slate-900 sm:text-base">
-                  Crear viaje con tu asistente virtual
-                </p>
-                <p className="mt-1 text-xs text-slate-600 sm:text-sm">
-                  Cuéntame destino, días/fechas y el estilo. Si falta algo, te haré una sola pregunta.
-                </p>
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
+              <div className="flex min-w-0 flex-1 items-start gap-3">
+                <TripBoardLogo variant="dark" size="lg" withWordmark className="shrink-0" />
+                <div className="min-w-0">
+                  <p id="virtual-assistant-create-trip-title" className="text-sm font-extrabold text-slate-900 sm:text-base">
+                    Crear viaje con tu asistente virtual
+                  </p>
+                  <p className="mt-1 text-xs text-slate-600 sm:text-sm">
+                    Primero leeré lo que has dicho y te enseñaré un borrador. Después decides si generar el viaje.
+                  </p>
+                </div>
               </div>
               <button
                 type="button"
@@ -274,7 +358,7 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
               </button>
             </div>
 
-            <div className="grid gap-4 overflow-y-auto p-5 md:grid-cols-[1fr_320px]">
+            <div className="grid gap-4 overflow-y-auto p-5 md:grid-cols-[1fr_340px] md:p-6">
               <div className="space-y-4">
                 {aiBudgetExceeded ? (
                   <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
@@ -283,7 +367,7 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
                   </div>
                 ) : null}
 
-                {!question ? (
+                {stage === "collecting" ? (
                   <div className="space-y-3">
                     <div>
                       <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">
@@ -321,8 +405,8 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
                     </div>
 
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <button type="button" onClick={startFromPrompt} disabled={!canSubmitPrompt} className={btnPrimary}>
-                        {loading ? "Preparando…" : "Continuar"}
+                      <button type="button" onClick={previewFromPrompt} disabled={!canSubmitPrompt} className={btnPrimary}>
+                        {loading ? "Leyendo…" : "Leer lo que he entendido"}
                       </button>
                       <button
                         type="button"
@@ -336,7 +420,7 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
                       </button>
                     </div>
                   </div>
-                ) : (
+                ) : stage === "clarifying" ? (
                   <div className="space-y-3">
                     <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-sky-50 p-4">
                       <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-violet-700">
@@ -354,13 +438,14 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
                     />
 
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <button type="button" onClick={answerFollowUp} disabled={!canSubmitFollowUp} className={btnPrimary}>
-                        {loading ? "Creando…" : "Generar viaje"}
+                      <button type="button" onClick={previewAnswerFollowUp} disabled={!canSubmitFollowUp} className={btnPrimary}>
+                        {loading ? "Leyendo…" : "Leer lo que he entendido"}
                       </button>
                       <button
                         type="button"
                         disabled={loading}
                         onClick={() => {
+                          setStage("collecting");
                           setQuestion(null);
                           setFollowUp("");
                           setError(null);
@@ -368,6 +453,104 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
                         className={btnSecondary}
                       >
                         Volver atrás
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                      <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-emerald-800">Borrador listo</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900">
+                        Revisa el borrador a la derecha y ajusta lo que quieras antes de generar.
+                      </p>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">
+                          Ciudad inicio (opcional)
+                        </label>
+                        <input
+                          value={(draftIntent?.startLocation || "") ?? ""}
+                          onChange={(e) =>
+                            setDraftIntent((prev) => ({ ...(prev || {}), startLocation: e.target.value.trim() || null }))
+                          }
+                          disabled={loading || disabled || aiBudgetExceeded}
+                          placeholder="Ej.: Madrid"
+                          className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">
+                          Ciudad fin (opcional)
+                        </label>
+                        <input
+                          value={(draftIntent?.endLocation || "") ?? ""}
+                          onChange={(e) =>
+                            setDraftIntent((prev) => ({ ...(prev || {}), endLocation: e.target.value.trim() || null }))
+                          }
+                          disabled={loading || disabled || aiBudgetExceeded}
+                          placeholder="Ej.: Barcelona"
+                          className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">
+                        Sitios a visitar (opcional)
+                      </label>
+                      <p className="mt-1 text-xs text-slate-600">
+                        Puedes escribir lugares concretos para que el borrador los tenga en cuenta (ej.: “Vaticano, Coliseo…”).
+                      </p>
+                      <input
+                        value={(draftIntent?.mustSee || []).join(", ")}
+                        onChange={(e) => {
+                          const items = e.target.value
+                            .split(",")
+                            .map((x) => x.trim())
+                            .filter(Boolean)
+                            .slice(0, 10);
+                          setDraftIntent((prev) => ({ ...(prev || {}), mustSee: items.length ? items : undefined }));
+                        }}
+                        disabled={loading || disabled || aiBudgetExceeded}
+                        placeholder="Ej.: Coliseo, Vaticano, Trastevere"
+                        className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">
+                        Añadir detalles (opcional)
+                      </label>
+                      <textarea
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        rows={3}
+                        disabled={loading || disabled || aiBudgetExceeded}
+                        placeholder="Ej.: ritmo tranquilo, evitar madrugar, 2 restaurantes buenos…"
+                        className="mt-2 w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <button type="button" onClick={generateTripNow} disabled={loading || disabled || aiBudgetExceeded} className={btnPrimary}>
+                        {loading ? "Creando…" : "Generar viaje"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={loading}
+                        onClick={() => {
+                          setStage("collecting");
+                          setDraftIntent(null);
+                          setQuestion(null);
+                          setFollowUp("");
+                          setNotes("");
+                          setError(null);
+                        }}
+                        className={btnSecondary}
+                      >
+                        Editar texto
                       </button>
                     </div>
                   </div>
@@ -385,6 +568,14 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
                   <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Resumen</p>
                   {summary ? (
                     <div className="mt-3 space-y-2 text-sm">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-slate-500">Inicio</span>
+                        <span className="font-semibold text-slate-900">{summary.startLocation}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-slate-500">Fin</span>
+                        <span className="font-semibold text-slate-900">{summary.endLocation}</span>
+                      </div>
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-slate-500">Destino</span>
                         <span className="font-semibold text-slate-900">{summary.destination}</span>
@@ -405,17 +596,22 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
                         <span className="text-slate-500">Estilo</span>
                         <span className="font-semibold text-slate-900">{summary.style}</span>
                       </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-slate-500">Sitios</span>
+                        <span className="font-semibold text-slate-900">{summary.mustSee}</span>
+                      </div>
                     </div>
                   ) : (
-                    <p className="mt-2 text-sm text-slate-600">Te iré mostrando aquí lo que vaya entendiendo.</p>
+                    <p className="mt-2 text-sm text-slate-600">
+                      Aquí verás lo que el asistente virtual ha entendido cuando pulses <span className="font-semibold">Leer lo que he entendido</span>.
+                    </p>
                   )}
                 </div>
 
                 <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600">
                   <p className="font-semibold text-slate-800">Cómo funciona</p>
                   <p className="mt-1">
-                    El asistente virtual extrae un borrador estructurado y, cuando ya hay destino + fechas/duración, crea el viaje
-                    y te manda al resumen para seguir afinando.
+                    1) Escribes tu idea. 2) El asistente virtual crea un borrador y te lo enseña. 3) Si te gusta, generas el viaje.
                   </p>
                 </div>
               </div>

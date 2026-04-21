@@ -44,6 +44,7 @@ export async function POST(req: Request) {
     const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
     const followUp = typeof body?.followUp === "string" ? body.followUp.trim() : "";
     const draftIntent = body?.draftIntent as TripCreationIntent | undefined;
+    const previewOnly = Boolean(body?.previewOnly);
 
     const monthKey = monthKeyUtc();
     let supabase: Awaited<ReturnType<typeof createClient>>;
@@ -113,6 +114,19 @@ export async function POST(req: Request) {
     const resolved = resolveTripCreationDates(intent);
     if ("error" in resolved) {
       return NextResponse.json({ error: resolved.error }, { status: 400 });
+    }
+
+    if (previewOnly) {
+      return NextResponse.json({
+        status: "ready",
+        draftIntent: resolved.intent,
+        resolved: {
+          destination: resolved.destination,
+          startDate: resolved.startDate,
+          endDate: resolved.endDate,
+          durationDays: resolved.durationDays,
+        },
+      });
     }
 
     const tripName = (intent.suggestedTripName || "").trim() || buildDefaultTripName(resolved);

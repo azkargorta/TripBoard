@@ -3,6 +3,10 @@
  */
 export type TripCreationIntent = {
   destination?: string | null;
+  /** Ciudad o punto de inicio del viaje si el usuario lo menciona (opcional). */
+  startLocation?: string | null;
+  /** Ciudad o punto final del viaje si el usuario lo menciona (opcional). */
+  endLocation?: string | null;
   durationDays?: number | null;
   startDate?: string | null;
   endDate?: string | null;
@@ -12,6 +16,8 @@ export type TripCreationIntent = {
   interests?: string[];
   travelStyle?: string[];
   constraints?: string[];
+  /** Sitios/paradas que el usuario quiere sí o sí (opcional). */
+  mustSee?: string[];
   wantsRouteOptimization?: boolean;
   wantsBudgetPlan?: boolean;
   /** Nombre sugerido para el viaje (opcional; el servidor puede derivar uno). */
