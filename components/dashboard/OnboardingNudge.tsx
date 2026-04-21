@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 function Icon({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-slate-950 text-white">
+    <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-violet-600 text-white shadow-sm dark:bg-violet-500">
       {children}
     </span>
   );
@@ -42,58 +42,58 @@ export default function OnboardingNudge({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
       onMouseDown={close}
     >
       <div
-        className="w-full max-w-xl rounded-3xl border border-slate-200 bg-white p-6 shadow-xl"
+        className="w-full max-w-xl rounded-3xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-700/60 dark:bg-slate-950/60"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-300">
               Bienvenido/a
             </p>
-            <h2 className="text-2xl font-extrabold tracking-tight text-slate-950">
+            <h2 className="text-2xl font-extrabold tracking-tight text-slate-950 dark:text-slate-50">
               Tu primer viaje en tres pasos
             </h2>
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-slate-600 dark:text-slate-300">
               Crear → dejar que el asistente personal proponga (Premium) → afinar en Plan y Rutas.
             </p>
           </div>
           <button
             type="button"
             onClick={close}
-            className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700/60 dark:bg-slate-950/40 dark:text-slate-200 dark:hover:bg-slate-900/40"
           >
             Cerrar
           </button>
         </div>
 
         <div className="mt-5 grid gap-3">
-          <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700/60 dark:bg-slate-900/40">
             <Icon>1</Icon>
             <div>
-              <p className="font-semibold text-slate-950">Crea el viaje</p>
-              <p className="mt-1 text-sm text-slate-600">
+              <p className="font-semibold text-slate-950 dark:text-slate-50">Crea el viaje</p>
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
                 Ponle un nombre y (opcional) destino/fechas.
               </p>
             </div>
           </div>
-          <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700/60 dark:bg-slate-900/40">
             <Icon>2</Icon>
             <div>
-              <p className="font-semibold text-slate-950">Asistente personal (Premium)</p>
-              <p className="mt-1 text-sm text-slate-600">
+              <p className="font-semibold text-slate-950 dark:text-slate-50">Asistente personal (Premium)</p>
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
                 Borrador de plan y rutas con contexto del viaje; tú revisas y guardas.
               </p>
             </div>
           </div>
-          <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700/60 dark:bg-slate-900/40">
             <Icon>3</Icon>
             <div>
-              <p className="font-semibold text-slate-950">Edita con calma</p>
-              <p className="mt-1 text-sm text-slate-600">
+              <p className="font-semibold text-slate-950 dark:text-slate-50">Edita con calma</p>
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
                 Plan, Rutas y Gastos comparten el mismo viaje: un solo contexto para el grupo.
               </p>
             </div>
@@ -108,14 +108,14 @@ export default function OnboardingNudge({
               // Baja al bloque de creación sin depender de refs.
               document.getElementById("create-trip")?.scrollIntoView({ behavior: "smooth", block: "start" });
             }}
-            className="inline-flex min-h-[44px] items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800"
+            className="inline-flex min-h-[44px] items-center justify-center rounded-2xl bg-violet-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-violet-700"
           >
             Crear mi primer viaje
           </button>
           <button
             type="button"
             onClick={close}
-            className="inline-flex min-h-[44px] items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+            className="inline-flex min-h-[44px] items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 dark:border-slate-700/60 dark:bg-slate-950/40 dark:text-slate-100 dark:hover:bg-slate-900/40"
           >
             Lo veré luego
           </button>

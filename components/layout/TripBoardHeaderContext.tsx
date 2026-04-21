@@ -39,9 +39,14 @@ export function TripBoardHeaderProvider({ children }: { children: ReactNode }) {
 
 export function useTripBoardHeader() {
   const ctx = useContext(TripBoardHeaderContext);
-  if (!ctx) {
-    throw new Error("useTripBoardHeader debe usarse dentro de TripBoardHeaderProvider.");
-  }
-  return ctx;
+  // En transiciones de layouts, Next puede montar/desmontar temporalmente componentes.
+  // Preferimos no romper navegación: devolvemos un contexto “vacío” si no hay provider.
+  return (
+    ctx ?? {
+      header: {},
+      setHeader: () => {},
+      clearHeader: () => {},
+    }
+  );
 }
 

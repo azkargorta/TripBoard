@@ -71,7 +71,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
 export function useThemeMode() {
   const ctx = useContext(ThemeContext);
-  if (!ctx) throw new Error("useThemeMode debe usarse dentro de ThemeProvider");
-  return ctx;
+  // Igual que con el header: evitamos excepciones intermitentes en navegación.
+  return (
+    ctx ?? {
+      theme: "light" as ThemeMode,
+      setTheme: () => {},
+      toggleTheme: () => {},
+    }
+  );
 }
 

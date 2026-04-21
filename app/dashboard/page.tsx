@@ -143,20 +143,22 @@ export default async function DashboardPage() {
 
       <DashboardPageHeader isAdmin={isAdmin} />
 
-      <section className={`mx-auto max-w-2xl px-4 py-4 md:px-5 md:py-5 ${surfaceAccentCyan}`}>
+      <section
+        className={`mx-auto max-w-2xl px-4 py-4 md:px-5 md:py-5 ${surfaceAccentCyan} dark:border-slate-700/50 dark:bg-slate-950/40`}
+      >
         <DashboardCreateFlowStepper isPremium={isPremium} />
 
         <div className="mx-auto max-w-md">
           <DashboardCreateTripCta disabled={freeTripLimitReached} />
         </div>
 
-        <div className="mx-auto mt-4 max-w-2xl border-t border-slate-100 pt-4 md:mt-5 md:pt-5">
+        <div className="mx-auto mt-4 max-w-2xl border-t border-slate-100 pt-4 md:mt-5 md:pt-5 dark:border-slate-700/50">
           {isPremium ? (
             <>
-              <p className="text-center text-[11px] font-bold uppercase tracking-[0.16em] text-violet-700">
+              <p className="text-center text-[11px] font-bold uppercase tracking-[0.16em] text-violet-700 dark:text-violet-300">
                 Asistente personal
               </p>
-              <p className="mx-auto mt-1 max-w-lg text-center text-xs text-slate-600 md:text-sm">
+              <p className="mx-auto mt-1 max-w-lg text-center text-xs text-slate-600 md:text-sm dark:text-slate-300">
                 Tras crear el viaje, el asistente te guía con propuestas. También puedes abrirlo en cualquier viaje desde
                 la pestaña del mismo nombre.
               </p>
@@ -164,8 +166,10 @@ export default async function DashboardPage() {
             </>
           ) : (
             <>
-              <p className="text-center text-[11px] font-bold uppercase tracking-[0.16em] text-slate-600">Plan gratuito</p>
-              <p className="mx-auto mt-1 max-w-lg text-center text-xs text-slate-600 md:text-sm">
+              <p className="text-center text-[11px] font-bold uppercase tracking-[0.16em] text-slate-600 dark:text-slate-300">
+                Plan gratuito
+              </p>
+              <p className="mx-auto mt-1 max-w-lg text-center text-xs text-slate-600 md:text-sm dark:text-slate-300">
                 Sigue los 6 pasos del recuadro superior. Al pulsar <strong className="text-slate-800">Crear viaje</strong> y abrir el
                 formulario verás una guía detallada en el mismo orden.
               </p>
@@ -184,14 +188,17 @@ export default async function DashboardPage() {
           )}
         </div>
 
-        <div id="create-trip" className="mx-auto mt-4 max-w-2xl scroll-mt-20 border-t border-slate-100 pt-4 md:mt-5 md:pt-5">
+        <div
+          id="create-trip"
+          className="mx-auto mt-4 max-w-2xl scroll-mt-20 border-t border-slate-100 pt-4 md:mt-5 md:pt-5 dark:border-slate-700/50"
+        >
           <CreateTripSection isPremium={isPremium} tripCount={trips.length} />
         </div>
       </section>
 
       {!isPremium ? (
-        <section className="rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-xs text-slate-700 md:text-sm">
-          <span className="font-semibold text-slate-900">Plan gratuito:</span> hasta 3 viajes. Premium desbloquea el
+        <section className="rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-xs text-slate-700 md:text-sm dark:border-slate-700/50 dark:bg-slate-950/40 dark:text-slate-200">
+          <span className="font-semibold text-slate-900 dark:text-slate-50">Plan gratuito:</span> hasta 3 viajes. Premium desbloquea el
           asistente personal y el análisis de documentos.
         </section>
       ) : null}

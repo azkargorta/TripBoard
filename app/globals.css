@@ -80,6 +80,36 @@ html.dark :where(.shadow-sm) {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28) !important;
 }
 
+/* Tailwind gradients: en dark, oscurecemos los stops más comunes (white / slate-50 / violet-50 / amber-50). */
+html.dark :where(.from-white) {
+  --tw-gradient-from: rgb(2 6 23 / 0.72) !important;
+  --tw-gradient-to: rgb(2 6 23 / 0) !important;
+}
+html.dark :where(.to-white) {
+  --tw-gradient-to: rgb(2 6 23 / 0.72) !important;
+}
+html.dark :where(.via-white) {
+  --tw-gradient-via: rgb(15 23 42 / 0.55) !important;
+}
+
+html.dark :where(.from-slate-50) {
+  --tw-gradient-from: rgb(15 23 42 / 0.62) !important;
+  --tw-gradient-to: rgb(15 23 42 / 0) !important;
+}
+html.dark :where(.to-slate-50) {
+  --tw-gradient-to: rgb(15 23 42 / 0.62) !important;
+}
+
+html.dark :where(.via-violet-50, .via-violet-50\/25, .via-violet-50\/35, .via-violet-50\/40) {
+  --tw-gradient-via: rgb(30 41 59 / 0.45) !important;
+}
+
+html.dark :where(.from-amber-50, .to-amber-100, .to-amber-100\/60, .to-orange-50) {
+  --tw-gradient-from: rgb(15 23 42 / 0.62) !important;
+  --tw-gradient-via: rgb(30 41 59 / 0.45) !important;
+  --tw-gradient-to: rgb(15 23 42 / 0.62) !important;
+}
+
 * {
   box-sizing: border-box;
 }
