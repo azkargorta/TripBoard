@@ -6,7 +6,6 @@ import TripBoardLogo from "@/components/brand/TripBoardLogo";
 import { useTripBoardHeader } from "@/components/layout/TripBoardHeaderContext";
 import TripPageHelp from "@/components/trip/common/TripPageHelp";
 import TripBoardMobileMenu from "@/components/layout/TripBoardMobileMenu";
-import ThemeToggleButton from "@/components/theme/ThemeToggleButton";
 
 type Props = {
   tripId: string;
@@ -84,7 +83,6 @@ export default function TripBoardBrandRail({ tripId, tripName, dateRangeLabel }:
 
           <div className="flex shrink-0 items-center gap-1.5">
             <TripPageHelp />
-            <ThemeToggleButton />
             <TripBoardMobileMenu tripId={tripId} />
             {header.actions ? (
               <div className="hidden max-w-[45vw] flex-nowrap justify-end gap-1.5 overflow-x-auto no-scrollbar md:flex md:max-w-none">
