@@ -17,9 +17,10 @@ type Props = {
 
 export default function TripBoardBrandRail({ tripId, tripName, dateRangeLabel }: Props) {
   const { header } = useTripBoardHeader();
-  const section = header.section?.trim() || "";
-  const iconSrc = header.iconSrc?.trim() || "";
-  const iconAlt = header.iconAlt?.trim() || header.title?.trim() || header.section?.trim() || "Módulo";
+  const safeTrim = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  const section = safeTrim(header.section);
+  const iconSrc = safeTrim(header.iconSrc);
+  const iconAlt = safeTrim(header.iconAlt) || safeTrim(header.title) || safeTrim(header.section) || "Módulo";
 
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
