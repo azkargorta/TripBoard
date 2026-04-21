@@ -30,9 +30,6 @@ export default function TripPageAssistantDock({ tripId, isPremium }: Props) {
 
   useEffect(() => setMounted(true), []);
 
-  if (!mounted || !isPremium || !surface) return null;
-
-  const surfaceLabel = tripAssistantSurfaceLabel(surface);
   const fullscreenHref = useMemo(() => {
     const base = `/trip/${encodeURIComponent(tripId)}/ai-chat`;
     if (surface === "routes") return `${base}?modo=desplazamientos`;
@@ -41,6 +38,10 @@ export default function TripPageAssistantDock({ tripId, isPremium }: Props) {
     if (surface === "plan") return `${base}?modo=planificador`;
     return base;
   }, [surface, tripId]);
+
+  if (!mounted || !isPremium || !surface) return null;
+
+  const surfaceLabel = tripAssistantSurfaceLabel(surface);
 
   return (
     <>
