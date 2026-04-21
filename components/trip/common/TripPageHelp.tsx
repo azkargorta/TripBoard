@@ -529,7 +529,8 @@ export default function TripPageHelp() {
   const tourStepData = TAB_TOUR[tourStep];
   const isLastTourStep = tourStep >= TAB_TOUR.length - 1;
 
-  if (!tripId || !pageId || !entry) return null;
+  // Evita mismatch SSR/CSR: `usePathname/useParams` pueden diferir en el render del servidor.
+  if (!mounted || !tripId || !pageId || !entry) return null;
 
   return (
     <>

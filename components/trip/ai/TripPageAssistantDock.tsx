@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MessageCircle, X } from "lucide-react";
 import { tripAssistantSurfaceFromPathname, tripAssistantSurfaceLabel } from "@/lib/trip-assistant-context";
 import { iconSlotFab56, iconSlotFill40 } from "@/components/ui/iconTokens";
@@ -24,10 +24,13 @@ type Props = {
 export default function TripPageAssistantDock({ tripId, isPremium }: Props) {
   const pathname = usePathname();
   const surface = useMemo(() => tripAssistantSurfaceFromPathname(pathname), [pathname]);
+  const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
   const [assistantLogoOk, setAssistantLogoOk] = useState(true);
 
-  if (!isPremium || !surface) return null;
+  useEffect(() => setMounted(true), []);
+
+  if (!mounted || !isPremium || !surface) return null;
 
   const surfaceLabel = tripAssistantSurfaceLabel(surface);
   const fullscreenHref = useMemo(() => {
