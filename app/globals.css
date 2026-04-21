@@ -40,6 +40,46 @@ html.dark body {
   color: #e2e8f0;
 }
 
+/* ---
+   Dark mode: mejora contraste en “grises” de Tailwind usados en modo claro.
+   Esto evita tener que añadir dark: en cientos de componentes existentes.
+--- */
+html.dark :where(.bg-white) {
+  background-color: rgba(2, 6, 23, 0.65) !important;
+}
+
+html.dark :where(.bg-slate-50, .bg-slate-50\/80, .bg-slate-50\/90, .bg-slate-100) {
+  background-color: rgba(15, 23, 42, 0.55) !important;
+}
+
+html.dark :where(.bg-slate-200) {
+  background-color: rgba(30, 41, 59, 0.75) !important;
+}
+
+html.dark :where(.border-slate-200, .border-slate-200\/90) {
+  border-color: rgba(148, 163, 184, 0.18) !important;
+}
+
+html.dark :where(.text-slate-900, .text-slate-950) {
+  color: #f8fafc !important;
+}
+
+html.dark :where(.text-slate-800, .text-slate-700) {
+  color: rgba(241, 245, 249, 0.92) !important;
+}
+
+html.dark :where(.text-slate-600, .text-slate-500) {
+  color: rgba(226, 232, 240, 0.78) !important;
+}
+
+html.dark :where(.text-slate-400) {
+  color: rgba(203, 213, 225, 0.72) !important;
+}
+
+html.dark :where(.shadow-sm) {
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28) !important;
+}
+
 * {
   box-sizing: border-box;
 }

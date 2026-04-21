@@ -250,7 +250,7 @@ export default function TripExpensesView({
       ) : null}
 
       {exportOpen ? (
-        <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-white via-violet-50/40 to-white p-4 shadow-sm">
+        <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-white via-violet-50/40 to-white p-4 shadow-sm dark:border-slate-700/50 dark:bg-gradient-to-br dark:from-slate-950/70 dark:via-slate-900/55 dark:to-slate-950/70">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <div className="text-sm font-semibold text-slate-950">Exportar</div>
@@ -309,7 +309,7 @@ export default function TripExpensesView({
       ) : null}
 
       {historyOpen ? (
-        <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-white via-violet-50/40 to-white p-4 shadow-sm">
+        <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-white via-violet-50/40 to-white p-4 shadow-sm dark:border-slate-700/50 dark:bg-gradient-to-br dark:from-slate-950/70 dark:via-slate-900/55 dark:to-slate-950/70">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <div className="text-sm font-semibold text-slate-950">Historial de cambios</div>
@@ -359,11 +359,11 @@ export default function TripExpensesView({
       <div className="grid min-w-0 max-w-full gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
         <div className="min-w-0 space-y-4">
           <details
-            className="rounded-2xl border border-violet-200 bg-gradient-to-br from-white via-violet-50/35 to-white shadow-sm open:shadow-md"
+            className="rounded-2xl border border-violet-200 bg-gradient-to-br from-white via-violet-50/35 to-white shadow-sm open:shadow-md dark:border-slate-700/50 dark:bg-gradient-to-br dark:from-slate-950/70 dark:via-slate-900/55 dark:to-slate-950/70"
             open={isAnalyzeOpen}
             onToggle={(e) => setIsAnalyzeOpen((e.currentTarget as HTMLDetailsElement).open)}
           >
-            <summary className="flex min-w-0 cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-4 py-4 hover:bg-violet-50/40 sm:px-5">
+            <summary className="flex min-w-0 cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-4 py-4 hover:bg-violet-50/40 dark:hover:bg-slate-900/40 sm:px-5">
               <div className="flex min-w-0 flex-1 items-center gap-2">
                 <ScanText className="h-4 w-4 shrink-0 text-slate-700" aria-hidden />
                 <div className="min-w-0">
@@ -403,7 +403,7 @@ export default function TripExpensesView({
           </details>
 
           <details
-            className="rounded-2xl border border-violet-200 bg-gradient-to-br from-white via-violet-50/35 to-white shadow-sm open:shadow-md"
+            className="rounded-2xl border border-violet-200 bg-gradient-to-br from-white via-violet-50/35 to-white shadow-sm open:shadow-md dark:border-slate-700/50 dark:bg-gradient-to-br dark:from-slate-950/70 dark:via-slate-900/55 dark:to-slate-950/70"
             open={shouldShowForm}
             onToggle={(e) => {
               const open = (e.currentTarget as HTMLDetailsElement).open;
@@ -414,7 +414,7 @@ export default function TripExpensesView({
               }
             }}
           >
-            <summary className="flex min-w-0 cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-4 py-4 hover:bg-violet-50/40 sm:px-5">
+            <summary className="flex min-w-0 cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-4 py-4 hover:bg-violet-50/40 dark:hover:bg-slate-900/40 sm:px-5">
               <div className="flex min-w-0 flex-1 items-center gap-2">
                 <Plus className="h-4 w-4 shrink-0 text-violet-700" aria-hidden />
                 <div className="min-w-0">
@@ -452,11 +452,11 @@ export default function TripExpensesView({
           </details>
 
           <details
-            className="rounded-2xl border border-violet-200 bg-gradient-to-br from-white via-violet-50/35 to-white shadow-sm open:shadow-md"
+            className="rounded-2xl border border-violet-200 bg-gradient-to-br from-white via-violet-50/35 to-white shadow-sm open:shadow-md dark:border-slate-700/50 dark:bg-gradient-to-br dark:from-slate-950/70 dark:via-slate-900/55 dark:to-slate-950/70"
             open={isConverterOpen}
             onToggle={(e) => setIsConverterOpen((e.currentTarget as HTMLDetailsElement).open)}
           >
-            <summary className="flex min-w-0 cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-4 py-4 hover:bg-violet-50/40 sm:px-5">
+            <summary className="flex min-w-0 cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-4 py-4 hover:bg-violet-50/40 dark:hover:bg-slate-900/40 sm:px-5">
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-semibold text-slate-950">Convertidor de moneda</div>
                 <div className="text-xs text-slate-600">Convierte importes y ajusta la moneda de balance.</div>
@@ -472,8 +472,8 @@ export default function TripExpensesView({
             </div>
           </details>
 
-          <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-white via-violet-50/25 to-white shadow-sm">
-            <div className="flex flex-col gap-2 border-b border-violet-200/80 bg-violet-50/50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-white via-violet-50/25 to-white shadow-sm dark:border-slate-700/50 dark:bg-gradient-to-br dark:from-slate-950/70 dark:via-slate-900/55 dark:to-slate-950/70">
+            <div className="flex flex-col gap-2 border-b border-violet-200/80 bg-violet-50/50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-700/50 dark:bg-slate-900/45">
               <div>
                 <div className="text-sm font-semibold text-slate-950">Listado de gastos</div>
                 <div className="mt-1 text-xs text-slate-600">Edita, elimina y revisa todos los tickets registrados.</div>
@@ -503,8 +503,8 @@ export default function TripExpensesView({
         </div>
 
         <div className="min-w-0 space-y-4">
-          <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-white via-violet-50/25 to-white shadow-sm">
-            <div className="border-b border-violet-200/80 bg-violet-50/50 px-5 py-4">
+          <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-white via-violet-50/25 to-white shadow-sm dark:border-slate-700/50 dark:bg-gradient-to-br dark:from-slate-950/70 dark:via-slate-900/55 dark:to-slate-950/70">
+            <div className="border-b border-violet-200/80 bg-violet-50/50 px-5 py-4 dark:border-slate-700/50 dark:bg-slate-900/45">
               <div className="text-sm font-semibold text-slate-950">Balances y pagos</div>
               <div className="mt-1 text-xs text-slate-600">Quién debe a quién y enlaces rápidos por WhatsApp.</div>
             </div>
