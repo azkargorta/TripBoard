@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import TripCardItem from "@/components/dashboard/TripCardItem";
 import { btnPrimary } from "@/components/ui/brandStyles";
 
@@ -30,8 +30,15 @@ export default function DashboardTripSection({
   lockedTripIds: string[];
 }) {
   const [open, setOpen] = useState(false);
+  const expandedRef = useRef<HTMLDivElement | null>(null);
   const count = trips.length;
   const countLabel = `${count} viaje${count === 1 ? "" : "s"}`;
+
+  useEffect(() => {
+    if (!open) return;
+    // Al desplegar, baja automáticamente para enseñar el contenido.
+    expandedRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [open]);
 
   return (
     <section className="mx-auto max-w-2xl space-y-3">
@@ -53,11 +60,17 @@ export default function DashboardTripSection({
 
       {open ? (
         trips.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-6 text-center text-xs text-slate-500 sm:text-sm">
+          <div
+            ref={expandedRef}
+            className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-6 text-center text-xs text-slate-500 sm:text-sm"
+          >
             No hay viajes en esta categoría.
           </div>
         ) : (
-          <div className="rounded-2xl border border-slate-200/90 bg-gradient-to-b from-white to-slate-50/90 p-3 shadow-sm ring-1 ring-slate-900/[0.03] sm:p-4">
+          <div
+            ref={expandedRef}
+            className="rounded-2xl border border-slate-200/90 bg-gradient-to-b from-white to-slate-50/90 p-3 shadow-sm ring-1 ring-slate-900/[0.03] sm:p-4"
+          >
             <div className="grid grid-cols-1 gap-3 sm:gap-4">
               {trips.map((trip) => (
                 <TripCardItem

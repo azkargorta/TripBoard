@@ -5,6 +5,8 @@ import Link from "next/link";
 import AuthListener from "@/components/auth/AuthListener";
 import AnalyticsRoot from "@/components/analytics/AnalyticsRoot";
 import TripBoardLogo from "@/components/brand/TripBoardLogo";
+import { ThemeProvider } from "@/components/theme/ThemeProvider";
+import ThemeToggleButton from "@/components/theme/ThemeToggleButton";
 import { createClient } from "@/lib/supabase/server";
 import { ToastProvider } from "@/components/ui/toast";
 
@@ -59,49 +61,54 @@ export default async function RootLayout({
 
   return (
     <html lang="es">
-      <body className="touch-manipulation bg-slate-50 text-slate-950 antialiased">
-        <ToastProvider>
-          <AuthListener />
-          <AnalyticsRoot />
-          {isPremium !== null ? (
-            <div className="sticky top-0 z-50">
-              <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-violet-900">
-                <div className="mx-auto flex max-w-[1200px] items-center justify-between gap-3 py-3 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] sm:py-4 sm:pl-6 sm:pr-6">
-                  <Link
-                    href="/dashboard"
-                    className="min-w-0 shrink outline-none ring-white/0 transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-violet-300/70"
-                    aria-label="Ir al panel de viajes"
-                  >
-                    <TripBoardLogo
-                      variant="light"
-                      size="md"
-                      withWordmark
-                      imageClassName="h-[10rem] max-h-[10rem] sm:h-[11rem] sm:max-h-[11rem]"
-                    />
-                  </Link>
-                  <div
-                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold ${
-                      isPremium
-                        ? "border-emerald-300/35 bg-emerald-400/15 text-emerald-50"
-                        : "border-white/20 bg-white/10 text-white"
-                    }`}
-                    title={isPremium ? "Versión Premium" : "Versión gratuita"}
-                  >
-                    <span
-                      className={`inline-flex h-2.5 w-2.5 rounded-full ${
-                        isPremium ? "bg-emerald-300" : "bg-white/70"
-                      }`}
-                      aria-hidden
-                    />
-                    <span className="uppercase tracking-[0.16em] opacity-70">Versión</span>
-                    <span className="font-extrabold">{isPremium ? "Premium" : "gratuita"}</span>
+      <body className="touch-manipulation antialiased">
+        <ThemeProvider>
+          <ToastProvider>
+            <AuthListener />
+            <AnalyticsRoot />
+            {isPremium !== null ? (
+              <div className="sticky top-0 z-50">
+                <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-violet-900">
+                  <div className="mx-auto flex max-w-[1200px] items-center justify-between gap-3 py-3 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] sm:py-4 sm:pl-6 sm:pr-6">
+                    <Link
+                      href="/dashboard"
+                      className="min-w-0 shrink outline-none ring-white/0 transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-violet-300/70"
+                      aria-label="Ir al panel de viajes"
+                    >
+                      <TripBoardLogo
+                        variant="light"
+                        size="md"
+                        withWordmark
+                        imageClassName="h-[10rem] max-h-[10rem] sm:h-[11rem] sm:max-h-[11rem]"
+                      />
+                    </Link>
+                    <div className="flex items-center gap-2">
+                      <ThemeToggleButton variant="inverse" />
+                      <div
+                        className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold ${
+                          isPremium
+                            ? "border-emerald-300/35 bg-emerald-400/15 text-emerald-50"
+                            : "border-white/20 bg-white/10 text-white"
+                        }`}
+                        title={isPremium ? "Versión Premium" : "Versión gratuita"}
+                      >
+                        <span
+                          className={`inline-flex h-2.5 w-2.5 rounded-full ${
+                            isPremium ? "bg-emerald-300" : "bg-white/70"
+                          }`}
+                          aria-hidden
+                        />
+                        <span className="uppercase tracking-[0.16em] opacity-70">Versión</span>
+                        <span className="font-extrabold">{isPremium ? "Premium" : "gratuita"}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ) : null}
-          <div className="min-h-0 min-w-0">{children}</div>
-        </ToastProvider>
+            ) : null}
+            <div className="min-h-0 min-w-0">{children}</div>
+          </ToastProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
