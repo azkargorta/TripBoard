@@ -74,11 +74,29 @@ function prettyTripDraft(intent: TripCreationIntent | null) {
       : intent.durationDays
         ? `${intent.durationDays} días`
         : "";
+  const travelersTypeLabel =
+    intent.travelersType === "solo"
+      ? "Solo"
+      : intent.travelersType === "couple"
+        ? "Pareja"
+        : intent.travelersType === "friends"
+          ? "Amigos"
+          : intent.travelersType === "family"
+            ? "Familia"
+            : "";
   const travelers =
-    intent.travelersType || intent.travelersCount
-      ? `${intent.travelersType || "viajeros"}${intent.travelersCount ? ` · ${intent.travelersCount}` : ""}`
+    travelersTypeLabel || intent.travelersCount
+      ? `${travelersTypeLabel || "Viajeros"}${intent.travelersCount ? ` · ${intent.travelersCount}` : ""}`
       : "";
-  const budget = intent.budgetLevel ? `Presupuesto ${intent.budgetLevel}` : "";
+  const budgetLabel =
+    intent.budgetLevel === "low"
+      ? "bajo"
+      : intent.budgetLevel === "medium"
+        ? "medio"
+        : intent.budgetLevel === "high"
+          ? "alto"
+          : "";
+  const budget = budgetLabel ? `Presupuesto ${budgetLabel}` : "";
   const style = (intent.travelStyle || []).slice(0, 3).join(" · ");
   const interests = (intent.interests || []).slice(0, 3).join(" · ");
   const startLoc = (intent.startLocation || "").trim();
@@ -109,12 +127,21 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
   const [question, setQuestion] = useState<string | null>(null);
   const [followUp, setFollowUp] = useState("");
   const [notes, setNotes] = useState("");
+  const [mustSeeText, setMustSeeText] = useState("");
   const [aiBudgetExceeded, setAiBudgetExceeded] = useState(false);
   const [stage, setStage] = useState<"collecting" | "clarifying" | "ready">("collecting");
 
   const panelRef = useRef<HTMLDivElement | null>(null);
 
   const summary = useMemo(() => prettyTripDraft(draftIntent), [draftIntent]);
+
+  // Botones un poco más estilizados (menos “bastos”) para este modal, sin afectar al resto de la app.
+  const btnPrimarySlim =
+    "inline-flex min-h-[42px] items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-violet-600 via-violet-600 to-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-sm ring-1 ring-white/10 transition hover:brightness-[0.98] hover:shadow-md active:translate-y-[0.5px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:cursor-not-allowed disabled:opacity-60";
+  const btnSecondarySlim =
+    "inline-flex min-h-[42px] items-center justify-center gap-2 rounded-2xl border border-violet-200 bg-white px-5 py-2 text-sm font-semibold text-violet-950 shadow-sm ring-1 ring-slate-900/[0.02] transition hover:bg-violet-50 active:translate-y-[0.5px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:cursor-not-allowed disabled:opacity-60";
+  const btnNeutralSlim =
+    "inline-flex min-h-[42px] items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-2 text-sm font-semibold text-slate-800 shadow-sm ring-1 ring-slate-900/[0.02] transition hover:bg-slate-50 active:translate-y-[0.5px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:cursor-not-allowed disabled:opacity-60";
 
   useEffect(() => setMounted(true), []);
 
@@ -165,6 +192,7 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
     setQuestion(null);
     setFollowUp("");
     setNotes("");
+    setMustSeeText("");
     setError(null);
     setLoading(false);
     setAiBudgetExceeded(false);
@@ -216,6 +244,7 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
       if (data?.status === "ready") {
         const ready = data as ApiReady;
         setDraftIntent(ready.draftIntent || null);
+        setMustSeeText((ready.draftIntent?.mustSee || []).join("\n"));
         setQuestion(null);
         setFollowUp("");
         setStage("ready");
@@ -246,6 +275,7 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
       if (data?.status === "ready") {
         const ready = data as ApiReady;
         setDraftIntent(ready.draftIntent || null);
+        setMustSeeText((ready.draftIntent?.mustSee || []).join("\n"));
         setQuestion(null);
         setFollowUp("");
         setStage("ready");
@@ -332,6 +362,7 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
       if (data?.status === "ready") {
         const ready = data as ApiReady;
         setDraftIntent(ready.draftIntent || null);
+        setMustSeeText((ready.draftIntent?.mustSee || []).join("\n"));
         setQuestion(null);
         setFollowUp("");
         setStage("ready");
@@ -409,6 +440,12 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
 
             <div className="grid gap-4 overflow-y-auto p-5 md:grid-cols-[1fr_340px] md:p-6">
               <div className="space-y-4">
+                {error ? (
+                  <div className="sticky top-0 z-10 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900 shadow-sm">
+                    <span className="font-semibold">Error:</span> {error}
+                  </div>
+                ) : null}
+
                 {aiBudgetExceeded ? (
                   <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
                     <span className="font-semibold">Límite mensual alcanzado.</span> El asistente virtual se reactivará el mes que
@@ -454,7 +491,7 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
                     </div>
 
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <button type="button" onClick={previewFromPrompt} disabled={!canSubmitPrompt} className={btnPrimary}>
+                      <button type="button" onClick={previewFromPrompt} disabled={!canSubmitPrompt} className={btnPrimarySlim}>
                         {loading ? "Leyendo…" : "Leer lo que he entendido"}
                       </button>
                       <button
@@ -463,7 +500,7 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
                           setOpen(false);
                           resetFlow();
                         }}
-                        className={btnNeutral}
+                        className={btnNeutralSlim}
                       >
                         Cancelar
                       </button>
@@ -487,7 +524,12 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
                     />
 
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <button type="button" onClick={previewAnswerFollowUp} disabled={!canSubmitFollowUp} className={btnPrimary}>
+                      <button
+                        type="button"
+                        onClick={previewAnswerFollowUp}
+                        disabled={!canSubmitFollowUp}
+                        className={btnPrimarySlim}
+                      >
                         {loading ? "Leyendo…" : "Leer lo que he entendido"}
                       </button>
                       <button
@@ -499,9 +541,20 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
                           setFollowUp("");
                           setError(null);
                         }}
-                        className={btnSecondary}
+                        className={btnSecondarySlim}
                       >
                         Volver atrás
+                      </button>
+                      <button
+                        type="button"
+                        disabled={loading}
+                        onClick={() => {
+                          setOpen(false);
+                          resetFlow();
+                        }}
+                        className={btnNeutralSlim}
+                      >
+                        Cancelar
                       </button>
                     </div>
                   </div>
@@ -553,9 +606,11 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
                         Puedes escribir lugares concretos para que el borrador los tenga en cuenta (ej.: “Vaticano, Coliseo…”).
                       </p>
                       <textarea
-                        value={(draftIntent?.mustSee || []).join("\n")}
+                        value={mustSeeText}
                         onChange={(e) => {
-                          const raw = e.target.value || "";
+                          const raw = e.target.value ?? "";
+                          setMustSeeText(raw);
+                          // Parseamos para el borrador, pero sin “machacar” el texto tecleado (espacios/saltos).
                           const items = raw
                             .split(/[,\/\n\r]+/g)
                             .map((x) => x.trim())
@@ -589,7 +644,7 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
                         type="button"
                         onClick={generateTripNow}
                         disabled={loading || disabled || aiBudgetExceeded}
-                        className={btnPrimary}
+                        className={btnPrimarySlim}
                       >
                         {loading ? "Creando…" : "Generar viaje"}
                       </button>
@@ -597,7 +652,7 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
                         type="button"
                         onClick={recalculateDraft}
                         disabled={loading || disabled || aiBudgetExceeded}
-                        className={btnSecondary}
+                        className={btnSecondarySlim}
                       >
                         {loading ? "Recalculando…" : "Recalcular viaje"}
                       </button>
@@ -610,21 +665,29 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
                           setQuestion(null);
                           setFollowUp("");
                           setNotes("");
+                          setMustSeeText("");
                           setError(null);
                         }}
-                        className={btnSecondary}
+                        className={btnSecondarySlim}
                       >
                         Editar texto
+                      </button>
+                      <button
+                        type="button"
+                        disabled={loading}
+                        onClick={() => {
+                          setOpen(false);
+                          resetFlow();
+                        }}
+                        className={btnNeutralSlim}
+                      >
+                        Cancelar
                       </button>
                     </div>
                   </div>
                 )}
 
-                {error ? (
-                  <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
-                    {error}
-                  </div>
-                ) : null}
+                {/* el error se muestra arriba en sticky */}
               </div>
 
               <div className="space-y-3">

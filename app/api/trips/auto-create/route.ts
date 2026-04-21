@@ -89,7 +89,10 @@ export async function POST(req: Request) {
 
     let intent: TripCreationIntent;
 
-    if (followUp && draftIntent) {
+    // Permitir creación/preview usando solo el borrador (sin followUp) para el paso "Generar viaje".
+    if (!prompt && !followUp && draftIntent) {
+      intent = draftIntent;
+    } else if (followUp && draftIntent) {
       const { intent: merged, usage } = await mergeTripCreationIntentLLM(draftIntent, followUp, { provider });
       intent = merged;
       await trackIfCountable({ supabase, userId, monthKey, usage });
