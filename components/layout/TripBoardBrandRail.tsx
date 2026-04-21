@@ -23,7 +23,7 @@ export default function TripBoardBrandRail({ tripId, tripName, dateRangeLabel }:
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
       <div className="page-shell max-w-[1200px] !pb-2 !pt-[max(0.5rem,env(safe-area-inset-top))] md:!py-3">
-        <div className="flex min-h-[48px] items-center justify-between gap-2 sm:min-h-[44px]">
+        <div className="flex min-h-[80px] items-center justify-between gap-2 sm:min-h-[72px]">
           <div className="flex min-w-0 flex-1 items-center gap-2.5">
             {iconSrc ? (
               <Link
@@ -42,7 +42,13 @@ export default function TripBoardBrandRail({ tripId, tripName, dateRangeLabel }:
                 />
               </Link>
             ) : (
-              <TripBoardLogo href="/dashboard" variant="dark" size="md" withWordmark={false} className="shrink-0" />
+              <TripBoardLogo
+                href="/dashboard"
+                variant="dark"
+                size="md"
+                withWordmark={false}
+                className="shrink-0 scale-[2] origin-left"
+              />
             )}
             <div className="min-w-0">
               <div className="flex min-w-0 flex-col gap-0.5">
