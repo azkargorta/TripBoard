@@ -1,10 +1,13 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, ChevronRight, Compass, Sparkles, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, ChevronRight, Compass, Map as MapIcon, Sparkles, X } from "lucide-react";
 import type { TripCreationIntent } from "@/lib/trip-ai/tripCreationTypes";
 import type { ExecutableItineraryPayload, ItineraryItemPayload } from "@/lib/trip-ai/tripCreationTypes";
+import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
+import L from "leaflet";
+import TripParticipantsView from "@/components/trip/participants/TripParticipantsView";
 
 type Props = {
   isPremium: boolean;
@@ -161,6 +164,60 @@ function inferPopularSuggestions(destinationRaw: string) {
   return ["Centro histórico", "Mirador", "Mercado local", "Museo principal", "Barrio gastronómico", "Excursión cercana"];
 }
 
+function emojiIcon(emoji: string, bg: string) {
+  return L.divIcon({
+    className: "",
+    html: `<div style="
+      width: 34px; height: 34px;
+      display:flex; align-items:center; justify-content:center;
+      border-radius: 999px;
+      background:${bg};
+      border: 2px solid #ffffff;
+      box-shadow: 0 10px 22px rgba(15,23,42,.18);
+      font-size: 16px;
+      line-height: 1;
+    ">${emoji}</div>`,
+    iconSize: [34, 34],
+    iconAnchor: [17, 34],
+    popupAnchor: [0, -28],
+  });
+}
+
+function FitToBounds({ pointsKey, bounds }: { pointsKey: string; bounds: L.LatLngBounds | null }) {
+  const map = useMap();
+  const lastKeyRef = useRef<string>("");
+
+  useEffect(() => {
+    if (!bounds) return;
+    if (pointsKey && pointsKey === lastKeyRef.current) return;
+    lastKeyRef.current = pointsKey;
+    try {
+      map.fitBounds(bounds, { padding: [40, 40] });
+    } catch {
+      // noop
+    }
+  }, [bounds, map, pointsKey]);
+
+  return null;
+}
+
+function cityFromAddress(addressRaw: string) {
+  const raw = String(addressRaw || "").trim();
+  if (!raw) return "";
+  // Normalmente: "Lugar, Calle, Ciudad, País" o "Ciudad, País"
+  const parts = raw
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length >= 2) {
+    // Heurística: si hay 3+ partes, la "ciudad" suele estar al final-1.
+    if (parts.length >= 3) return parts[parts.length - 2] || parts[0] || "";
+    // 2 partes: "Ciudad, País"
+    return parts[0] || "";
+  }
+  return raw;
+}
+
 function clampStep(n: number): WizardStep {
   if (n <= 1) return 1;
   if (n >= 5) return 5;
@@ -285,16 +342,33 @@ export default function TripCreationWizard({ isPremium }: Props) {
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewItinerary, setPreviewItinerary] = useState<ExecutableItineraryPayload | null>(null);
   const [previewResolved, setPreviewResolved] = useState<PreviewPlansOk["resolved"] | null>(null);
+  const [previewTab, setPreviewTab] = useState<"calendar" | "map">("calendar");
+  const [previewGeo, setPreviewGeo] = useState<Record<string, { lat: number; lng: number; address: string }>>({});
+  const [previewGeoLoading, setPreviewGeoLoading] = useState(false);
+  const [previewExpandedDays, setPreviewExpandedDays] = useState<Set<number>>(() => new Set());
   const [editing, setEditing] = useState<{
     dayIndex: number;
     itemIndex: number | null;
     values: ItineraryItemPayload;
   } | null>(null);
 
+  const [lodgingLoading, setLodgingLoading] = useState(false);
+  const [lodgingError, setLodgingError] = useState<string | null>(null);
+  const [lodgingItinerary, setLodgingItinerary] = useState<ExecutableItineraryPayload | null>(null);
+  const [lodgingResolved, setLodgingResolved] = useState<PreviewPlansOk["resolved"] | null>(null);
+  const [lodgingActionByCity, setLodgingActionByCity] = useState<Record<string, "none" | "manual" | "scan" | "proposal">>({});
+  const [lodgingManualByCity, setLodgingManualByCity] = useState<Record<string, { name: string; address: string; notes: string }>>({});
+  const [lodgingProposalTierByCity, setLodgingProposalTierByCity] = useState<Record<string, "asequible" | "medio" | "lujo">>({});
+  const [lodgingSelectedHotelByCity, setLodgingSelectedHotelByCity] = useState<
+    Record<string, { name: string; priceLabel: string; url: string } | null>
+  >({});
+
   const [transportNotes, setTransportNotes] = useState("");
   const [travelersType, setTravelersType] = useState<string>("family");
   const [travelersCount, setTravelersCount] = useState<number | null>(null);
   const [travelerNamesText, setTravelerNamesText] = useState("");
+  const [createdTripId, setCreatedTripId] = useState<string | null>(null);
+  const [createdTripPartialError, setCreatedTripPartialError] = useState<string | null>(null);
 
   const travelerNames = useMemo(
     () =>
@@ -336,6 +410,99 @@ export default function TripCreationWizard({ isPremium }: Props) {
     // Lo añadimos como una línea extra para dar contexto sin “ensuciar” el texto original.
     return base ? `${base}\n\nIdeas/estilo: ${extras.join(" · ")}` : `Ideas/estilo: ${extras.join(" · ")}`;
   }, [prompt, tripIdeas]);
+
+  useEffect(() => {
+    if (step !== 2) return;
+    if (!draftIntent) return;
+    // Asegura que "Optimizar orden" esté activado por defecto si el intent no lo trae.
+    if (typeof draftIntent.wantsRouteOptimization !== "boolean") {
+      setOptimizeOrder(true);
+      setDraftIntent((prev) => ({ ...(prev || {}), wantsRouteOptimization: true }));
+    }
+  }, [draftIntent, step]);
+
+  async function ensureLodgingItinerary() {
+    if (!draftIntent || lodgingLoading) return;
+    if (lodgingItinerary && lodgingResolved) return;
+    setLodgingLoading(true);
+    setLodgingError(null);
+    try {
+      const res = await fetch("/api/trips/auto-preview-plans", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: "gemini",
+          draftIntent: { ...draftIntent, mustSee: derivedPlaces, wantsRouteOptimization: optimizeOrder },
+        }),
+      });
+      const data = (await res.json().catch(() => null)) as any;
+      if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "No se pudieron calcular alojamientos.");
+      if (data?.status !== "ok" || !data?.itinerary) throw new Error("Respuesta inesperada del servidor.");
+      setLodgingResolved(data.resolved || null);
+      setLodgingItinerary(data.itinerary || null);
+    } catch (e) {
+      setLodgingError(e instanceof Error ? e.message : "No se pudieron calcular alojamientos.");
+      setLodgingResolved(null);
+      setLodgingItinerary(null);
+    } finally {
+      setLodgingLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (step !== 3) return;
+    void ensureLodgingItinerary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
+  const lodgingCities = useMemo(() => {
+    const itin = lodgingItinerary;
+    if (!itin?.days?.length) return [];
+    const map = new Map<string, { city: string; nights: number; dates: string[] }>();
+    for (const day of itin.days) {
+      const items = day.items || [];
+      const lodgingItem =
+        items.find((it) => String(it.activity_kind || "").toLowerCase() === "lodging") ||
+        items.find((it) => /check[-\s]?in|hotel|aloj/i.test(String(it.title || ""))) ||
+        null;
+      const addr = String(lodgingItem?.address || "").trim();
+      const city = cityFromAddress(addr) || cityFromAddress(String(items[items.length - 1]?.address || "")) || "";
+      const key = city || "Sin ciudad";
+      const prev = map.get(key) || { city: key, nights: 0, dates: [] };
+      prev.nights += 1;
+      if (day.date) prev.dates.push(day.date);
+      map.set(key, prev);
+    }
+    return Array.from(map.values()).sort((a, b) => b.nights - a.nights);
+  }, [lodgingItinerary]);
+
+  function hotelOptionsFor(city: string, tier: "asequible" | "medio" | "lujo", resolvedLabel: string) {
+    const base = encodeURIComponent(`${city} hotel ${resolvedLabel}`.trim());
+    const mk = (name: string, priceLabel: string) => ({
+      name,
+      priceLabel,
+      url: `https://www.google.com/search?q=${encodeURIComponent(`${name} ${city} hotel`)}`,
+    });
+    if (tier === "asequible") {
+      return [
+        mk(`${city} Budget Inn`, "€"),
+        mk(`${city} City Hostel`, "€"),
+        mk(`${city} Central Rooms`, "€€"),
+      ];
+    }
+    if (tier === "lujo") {
+      return [
+        mk(`${city} Grand Hotel`, "€€€"),
+        mk(`${city} Boutique Palace`, "€€€"),
+        mk(`${city} Luxury Suites`, "€€€"),
+      ];
+    }
+    return [
+      mk(`${city} Central Hotel`, "€€"),
+      mk(`${city} Riverside Hotel`, "€€"),
+      mk(`${city} Boutique Stay`, "€€"),
+    ];
+  }
 
   function scrollTop() {
     window.requestAnimationFrame(() => topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
@@ -452,8 +619,8 @@ export default function TripCreationWizard({ isPremium }: Props) {
     }
   }
 
-  async function finalizeCreateTrip() {
-    if (loading || !draftIntent) return;
+  async function finalizeCreateTrip(options?: { redirectToSummary?: boolean }) {
+    if (loading || !draftIntent) return null;
     setLoading(true);
     setError(null);
     try {
@@ -473,8 +640,16 @@ export default function TripCreationWizard({ isPremium }: Props) {
 
       if (data?.status === "created" || data?.status === "partial") {
         const created = data as ApiCreated;
-        router.push(`/trip/${encodeURIComponent(created.tripId)}/summary?recien=1`);
-        return;
+        if (created.status === "partial" && created.error) {
+          setCreatedTripPartialError(created.error);
+        } else {
+          setCreatedTripPartialError(null);
+        }
+        setCreatedTripId(created.tripId);
+        if (options?.redirectToSummary ?? true) {
+          router.push(`/trip/${encodeURIComponent(created.tripId)}/summary?recien=1`);
+        }
+        return created.tripId;
       }
       if (data?.status === "needs_clarification") {
         const payload = data as ApiNeedsClarification;
@@ -483,11 +658,12 @@ export default function TripCreationWizard({ isPremium }: Props) {
         setStage("clarifying");
         setStep(1);
         scrollTop();
-        return;
+        return null;
       }
       throw new Error("Respuesta inesperada del servidor.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo crear el viaje.");
+      return null;
     } finally {
       setLoading(false);
     }
@@ -496,8 +672,12 @@ export default function TripCreationWizard({ isPremium }: Props) {
   async function previewPlans() {
     if (loading || !draftIntent) return;
     setPreviewOpen(true);
+    setPreviewTab("calendar");
     setPreviewLoading(true);
     setPreviewError(null);
+    setPreviewGeo({});
+    setPreviewGeoLoading(false);
+    setPreviewExpandedDays(new Set());
     setEditing(null);
     try {
       const res = await fetch("/api/trips/auto-preview-plans", {
@@ -521,6 +701,106 @@ export default function TripCreationWizard({ isPremium }: Props) {
       setPreviewLoading(false);
     }
   }
+
+  const previewMapPoints = useMemo(() => {
+    if (!previewItinerary?.days?.length) return [];
+    const points: Array<{ key: string; lat: number; lng: number; title: string; subtitle?: string; emoji: string; bg: string }> = [];
+    for (let di = 0; di < previewItinerary.days.length; di++) {
+      const day = previewItinerary.days[di]!;
+      for (let ii = 0; ii < (day.items || []).length; ii++) {
+        const it = (day.items || [])[ii] as ItineraryItemPayload;
+        const addr = String(it.address || it.place_name || "").trim();
+        const key = `d${di}-i${ii}`;
+        const geo = previewGeo[key];
+        if (!geo) continue;
+        points.push({
+          key,
+          lat: geo.lat,
+          lng: geo.lng,
+          title: it.title || it.place_name || "Plan",
+          subtitle: geo.address || addr || undefined,
+          emoji: "📍",
+          bg: "#0f172a",
+        });
+      }
+    }
+    return points;
+  }, [previewGeo, previewItinerary?.days]);
+
+  const previewMapBounds = useMemo(() => {
+    if (!previewMapPoints.length) return null;
+    const b = L.latLngBounds(previewMapPoints.map((p) => [p.lat, p.lng] as [number, number]));
+    return b.isValid() ? b : null;
+  }, [previewMapPoints]);
+
+  const previewPointsKey = useMemo(() => previewMapPoints.map((p) => p.key).join("|"), [previewMapPoints]);
+
+  useEffect(() => {
+    if (!previewOpen) return;
+    if (previewTab !== "map") return;
+    if (!previewItinerary?.days?.length) return;
+    if (previewGeoLoading) return;
+
+    let cancelled = false;
+
+    const neededKeys: Array<{ key: string; query: string }> = [];
+    for (let di = 0; di < previewItinerary.days.length; di++) {
+      const day = previewItinerary.days[di]!;
+      for (let ii = 0; ii < (day.items || []).length; ii++) {
+        const it = (day.items || [])[ii] as ItineraryItemPayload;
+        const key = `d${di}-i${ii}`;
+        if (previewGeo[key]) continue;
+        const base = String(it.address || it.place_name || it.title || "").trim();
+        if (!base) continue;
+        const query = destinationLabel ? `${base}, ${destinationLabel}` : base;
+        neededKeys.push({ key, query });
+      }
+    }
+
+    if (!neededKeys.length) return;
+
+    setPreviewGeoLoading(true);
+    (async () => {
+      try {
+        const concurrency = 4;
+        let idx = 0;
+        const results: Record<string, { lat: number; lng: number; address: string }> = {};
+
+        const worker = async () => {
+          while (idx < neededKeys.length && !cancelled) {
+            const cur = neededKeys[idx]!;
+            idx += 1;
+            try {
+              const resp = await fetch("/api/geocode", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ address: cur.query }),
+              });
+              const payload = await resp.json().catch(() => null);
+              if (!resp.ok) continue;
+              const lat = typeof payload?.latitude === "number" ? payload.latitude : null;
+              const lng = typeof payload?.longitude === "number" ? payload.longitude : null;
+              if (typeof lat !== "number" || typeof lng !== "number") continue;
+              const formatted = typeof payload?.formattedAddress === "string" ? payload.formattedAddress : cur.query;
+              results[cur.key] = { lat, lng, address: formatted };
+            } catch {
+              // ignore single failure
+            }
+          }
+        };
+
+        await Promise.all(Array.from({ length: concurrency }).map(() => worker()));
+        if (cancelled) return;
+        setPreviewGeo((prev) => ({ ...prev, ...results }));
+      } finally {
+        if (!cancelled) setPreviewGeoLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [destinationLabel, previewGeo, previewGeoLoading, previewItinerary?.days, previewOpen, previewTab]);
 
   function startAddItem(dayIndex: number) {
     setEditing({
@@ -965,24 +1245,6 @@ export default function TripCreationWizard({ isPremium }: Props) {
                   ))}
                 </div>
               </div>
-
-              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-extrabold text-slate-950">Mapa</div>
-                    <div className="mt-1 text-xs text-slate-600">Verás el mapa completo cuando el viaje esté creado.</div>
-                  </div>
-                  <button
-                    type="button"
-                    disabled
-                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-extrabold text-slate-500"
-                    title="Disponible al crear el viaje"
-                  >
-                    <Compass className="h-4 w-4" aria-hidden />
-                    Mapa
-                  </button>
-                </div>
-              </div>
             </aside>
           </div>
         ) : null}
@@ -991,47 +1253,251 @@ export default function TripCreationWizard({ isPremium }: Props) {
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="text-base font-extrabold text-slate-950">Alojamientos</div>
             <p className="mt-1 text-sm text-slate-600">
-              Aquí te mostraremos las ciudades donde pasas noche y el número de noches. (En esta iteración dejamos la estructura lista.)
+              Te mostramos las ciudades donde pasas noche y el número de noches. Puedes añadir un alojamiento manual, escanear una reserva o elegir una propuesta.
             </p>
 
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              {["Ciudad 1", "Ciudad 2"].map((city) => (
-                <details key={city} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <summary className="cursor-pointer list-none">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-sm font-extrabold text-slate-950">{city}</div>
-                        <div className="text-xs font-semibold text-slate-600">Noches: —</div>
-                      </div>
-                      <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold text-slate-700">
-                        Abrir
-                      </span>
-                    </div>
-                  </summary>
+            {lodgingLoading ? (
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                Calculando noches por ciudad…
+              </div>
+            ) : lodgingError ? (
+              <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
+                <span className="font-semibold">Error:</span> {lodgingError}
+              </div>
+            ) : lodgingCities.length ? (
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                {lodgingCities.map((row) => {
+                  const city = row.city;
+                  const action = lodgingActionByCity[city] || "none";
+                  const manual = lodgingManualByCity[city] || { name: "", address: "", notes: "" };
+                  const tier = lodgingProposalTierByCity[city] || "medio";
+                  const resolvedLabel = lodgingResolved?.destination || destinationLabel || "";
+                  const options = hotelOptionsFor(city, tier, resolvedLabel);
+                  const selected = lodgingSelectedHotelByCity[city] ?? null;
 
-                  <div className="mt-4 space-y-2">
-                    <button
-                      type="button"
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-800 hover:bg-slate-50"
-                    >
-                      Añadir alojamiento manual
-                    </button>
-                    <button
-                      type="button"
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-800 hover:bg-slate-50"
-                    >
-                      Escanear reserva
-                    </button>
-                    <button
-                      type="button"
-                      className="w-full rounded-2xl bg-slate-950 px-4 py-3 text-sm font-extrabold text-white hover:bg-slate-800"
-                    >
-                      Propuesta de alojamiento
-                    </button>
-                  </div>
-                </details>
-              ))}
-            </div>
+                  return (
+                    <details key={city} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <summary className="cursor-pointer list-none">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-sm font-extrabold text-slate-950">{city}</div>
+                            <div className="text-xs font-semibold text-slate-600">Noches: {row.nights}</div>
+                          </div>
+                          <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold text-slate-700">
+                            Abrir
+                          </span>
+                        </div>
+                      </summary>
+
+                      <div className="mt-4 space-y-3">
+                        {selected ? (
+                          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
+                            <span className="font-extrabold">Seleccionado:</span> {selected.name}{" "}
+                            <span className="ml-2 rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-xs font-extrabold text-emerald-900">
+                              {selected.priceLabel}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+                            Puedes dejar esta ciudad sin alojamiento. Para rutas usaremos el centro de {city}.
+                          </div>
+                        )}
+
+                        <div className="grid gap-2 sm:grid-cols-3">
+                          <button
+                            type="button"
+                            onClick={() => setLodgingActionByCity((p) => ({ ...p, [city]: "manual" }))}
+                            className={`w-full rounded-2xl border px-4 py-3 text-sm font-extrabold transition ${
+                              action === "manual"
+                                ? "border-violet-300 bg-violet-50 text-violet-950"
+                                : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50"
+                            }`}
+                          >
+                            Manual
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setLodgingActionByCity((p) => ({ ...p, [city]: "scan" }))}
+                            className={`w-full rounded-2xl border px-4 py-3 text-sm font-extrabold transition ${
+                              action === "scan"
+                                ? "border-violet-300 bg-violet-50 text-violet-950"
+                                : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50"
+                            }`}
+                          >
+                            Escanear
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setLodgingActionByCity((p) => ({ ...p, [city]: "proposal" }))}
+                            className={`w-full rounded-2xl border px-4 py-3 text-sm font-extrabold transition ${
+                              action === "proposal"
+                                ? "border-slate-950 bg-slate-950 text-white"
+                                : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50"
+                            }`}
+                          >
+                            Propuesta
+                          </button>
+                        </div>
+
+                        {action === "manual" ? (
+                          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                            <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Alojamiento manual</div>
+                            <div className="mt-3 grid gap-3">
+                              <label className="space-y-1">
+                                <span className="text-xs font-extrabold text-slate-700">Nombre</span>
+                                <input
+                                  value={manual.name}
+                                  onChange={(e) =>
+                                    setLodgingManualByCity((p) => ({
+                                      ...p,
+                                      [city]: { ...manual, name: e.target.value },
+                                    }))
+                                  }
+                                  placeholder={`Ej. Hotel en ${city}`}
+                                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-violet-200"
+                                />
+                              </label>
+                              <label className="space-y-1">
+                                <span className="text-xs font-extrabold text-slate-700">Dirección</span>
+                                <input
+                                  value={manual.address}
+                                  onChange={(e) =>
+                                    setLodgingManualByCity((p) => ({
+                                      ...p,
+                                      [city]: { ...manual, address: e.target.value },
+                                    }))
+                                  }
+                                  placeholder={`Ej. Calle..., ${city}`}
+                                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-violet-200"
+                                />
+                              </label>
+                              <label className="space-y-1">
+                                <span className="text-xs font-extrabold text-slate-700">Notas</span>
+                                <textarea
+                                  value={manual.notes}
+                                  onChange={(e) =>
+                                    setLodgingManualByCity((p) => ({
+                                      ...p,
+                                      [city]: { ...manual, notes: e.target.value },
+                                    }))
+                                  }
+                                  rows={3}
+                                  className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-violet-200"
+                                />
+                              </label>
+                              <div className="flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setLodgingSelectedHotelByCity((p) => ({
+                                      ...p,
+                                      [city]: {
+                                        name: manual.name.trim() || `Alojamiento en ${city}`,
+                                        priceLabel: "—",
+                                        url: `https://www.google.com/search?q=${encodeURIComponent(`${manual.name || "hotel"} ${city}`)}`,
+                                      },
+                                    }))
+                                  }
+                                  className="inline-flex min-h-10 items-center justify-center rounded-2xl bg-slate-950 px-4 py-2 text-xs font-extrabold text-white hover:bg-slate-800"
+                                >
+                                  Guardar alojamiento
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setLodgingSelectedHotelByCity((p) => ({ ...p, [city]: null }))}
+                                  className="inline-flex min-h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2 text-xs font-extrabold text-slate-800 hover:bg-slate-50"
+                                >
+                                  Dejar vacío
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ) : null}
+
+                        {action === "scan" ? (
+                          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                            <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Escanear reserva</div>
+                            <div className="mt-2 text-sm text-slate-600">
+                              Sube una captura o PDF de la reserva y rellenaremos el alojamiento automáticamente. (UI lista; parser en la siguiente iteración.)
+                            </div>
+                            <div className="mt-3 flex flex-col gap-2">
+                              <input type="file" accept=".pdf,image/*" className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm" />
+                              <button
+                                type="button"
+                                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-extrabold text-slate-700"
+                                disabled
+                                title="Pendiente de integrar lector de reservas"
+                              >
+                                Leer reserva (próximamente)
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
+
+                        {action === "proposal" ? (
+                          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                            <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Propuesta de alojamiento</div>
+                            <div className="mt-2 text-sm text-slate-600">
+                              Elige rango. Mostramos 3 opciones y puedes añadir una al viaje.
+                            </div>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {(["asequible", "medio", "lujo"] as const).map((t) => {
+                                const active = tier === t;
+                                return (
+                                  <button
+                                    key={t}
+                                    type="button"
+                                    onClick={() => setLodgingProposalTierByCity((p) => ({ ...p, [city]: t }))}
+                                    className={`rounded-full border px-3 py-2 text-xs font-extrabold transition ${
+                                      active
+                                        ? "border-violet-300 bg-violet-50 text-violet-950"
+                                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                                    }`}
+                                  >
+                                    {t === "asequible" ? "Asequible" : t === "medio" ? "Medio" : "Lujo"}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <div className="mt-3 grid gap-2">
+                              {options.map((h) => (
+                                <div key={h.name} className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                  <div className="min-w-0">
+                                    <div className="text-sm font-extrabold text-slate-950">{h.name}</div>
+                                    <div className="mt-0.5 text-xs font-semibold text-slate-600">Rango: {h.priceLabel}</div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setLodgingSelectedHotelByCity((p) => ({ ...p, [city]: h }))}
+                                      className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-extrabold text-white hover:bg-slate-800"
+                                    >
+                                      Añadir hotel
+                                    </button>
+                                    <a
+                                      href={h.url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
+                                    >
+                                      Web hotel
+                                    </a>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    </details>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                Aún no tenemos suficientes datos para calcular las noches. Vuelve a Planes y pulsa “Previsualizar planes” o revisa las fechas.
+              </div>
+            )}
 
             <div className="mt-5 flex flex-wrap gap-2">
               <button
@@ -1095,52 +1561,26 @@ export default function TripCreationWizard({ isPremium }: Props) {
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="text-base font-extrabold text-slate-950">Pasajeros</div>
             <p className="mt-1 text-sm text-slate-600">
-              Configura quién viaja. Al finalizar crearemos el viaje y entraremos al resumen.
+              Gestiona pasajeros con la misma ventana de Participantes que ya existe en el viaje.
             </p>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <label className="space-y-1">
-                <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Tipo</span>
-                <select
-                  value={travelersType}
-                  onChange={(e) => setTravelersType(e.target.value)}
-                  disabled={loading}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
-                >
-                  <option value="family">Familia</option>
-                  <option value="couple">Pareja</option>
-                  <option value="friends">Amigos</option>
-                  <option value="solo">Solo</option>
-                </select>
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Número (opcional)</span>
-                <input
-                  type="number"
-                  min={1}
-                  value={travelersCount ?? ""}
-                  onChange={(e) => {
-                    const n = Number.parseInt(e.target.value, 10);
-                    setTravelersCount(Number.isFinite(n) && n > 0 ? n : null);
-                  }}
-                  disabled={loading}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
-                  placeholder="Ej. 4"
-                />
-              </label>
-            </div>
+            {!createdTripId ? (
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
+                Para abrir la ventana completa de Participantes primero tenemos que crear el viaje (sin salir de aquí).
+              </div>
+            ) : null}
 
-            <label className="mt-4 block space-y-1">
-              <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Nombres (opcional)</span>
-              <textarea
-                value={travelerNamesText}
-                onChange={(e) => setTravelerNamesText(e.target.value)}
-                rows={3}
-                disabled={loading}
-                placeholder="Ej.: Ana, Luis, Martina, Pablo"
-                className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
-              />
-            </label>
+            {createdTripPartialError ? (
+              <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                <span className="font-semibold">Aviso:</span> El viaje se ha creado, pero algo quedó incompleto: {createdTripPartialError}
+              </div>
+            ) : null}
+
+            {createdTripId ? (
+              <div className="mt-4">
+                <TripParticipantsView tripId={createdTripId} />
+              </div>
+            ) : null}
 
             <div className="mt-5 flex flex-wrap gap-2">
               <button
@@ -1151,15 +1591,26 @@ export default function TripCreationWizard({ isPremium }: Props) {
               >
                 Ir atrás
               </button>
-              <button
-                type="button"
-                onClick={finalizeCreateTrip}
-                disabled={loading || !draftIntent}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-violet-600 px-5 py-3 text-sm font-extrabold text-white shadow-sm hover:bg-violet-700 disabled:opacity-60"
-              >
-                <Sparkles className="h-4 w-4" aria-hidden />
-                {loading ? "Creando…" : "Finalizar"}
-              </button>
+              {!createdTripId ? (
+                <button
+                  type="button"
+                  onClick={() => void finalizeCreateTrip({ redirectToSummary: false })}
+                  disabled={loading || !draftIntent}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-violet-600 px-5 py-3 text-sm font-extrabold text-white shadow-sm hover:bg-violet-700 disabled:opacity-60"
+                >
+                  <Sparkles className="h-4 w-4" aria-hidden />
+                  {loading ? "Creando…" : "Crear viaje y gestionar pasajeros"}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => router.push(`/trip/${encodeURIComponent(createdTripId)}/summary?recien=1`)}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-violet-600 px-5 py-3 text-sm font-extrabold text-white shadow-sm hover:bg-violet-700"
+                >
+                  <Sparkles className="h-4 w-4" aria-hidden />
+                  Ir al resumen
+                </button>
+              )}
             </div>
           </div>
         ) : null}
@@ -1182,14 +1633,39 @@ export default function TripCreationWizard({ isPremium }: Props) {
                   {previewResolved?.startDate && previewResolved?.endDate ? ` · ${previewResolved.startDate} → ${previewResolved.endDate}` : ""}
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setPreviewOpen(false)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                aria-label="Cerrar"
-              >
-                <X className="h-4 w-4" aria-hidden />
-              </button>
+              <div className="flex items-center gap-2">
+                <div className="inline-flex overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewTab("calendar")}
+                    className={`px-3 py-2 text-xs font-extrabold transition ${
+                      previewTab === "calendar" ? "bg-violet-600 text-white" : "text-slate-700 hover:bg-slate-50"
+                    }`}
+                    title="Ver calendario"
+                  >
+                    Calendario
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewTab("map")}
+                    className={`inline-flex items-center gap-2 px-3 py-2 text-xs font-extrabold transition ${
+                      previewTab === "map" ? "bg-violet-600 text-white" : "text-slate-700 hover:bg-slate-50"
+                    }`}
+                    title="Explorar mapa"
+                  >
+                    <MapIcon className="h-4 w-4" aria-hidden />
+                    Explorar mapa
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPreviewOpen(false)}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  aria-label="Cerrar"
+                >
+                  <X className="h-4 w-4" aria-hidden />
+                </button>
+              </div>
             </div>
 
             <div className="grid max-h-[calc(92vh-60px)] gap-4 overflow-y-auto p-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)]">
@@ -1203,64 +1679,127 @@ export default function TripCreationWizard({ isPremium }: Props) {
                     <span className="font-semibold">Error:</span> {previewError}
                   </div>
                 ) : previewItinerary?.days?.length ? (
-                  <div className="space-y-3">
-                    {previewItinerary.days.map((day, dayIndex) => (
-                      <div key={`${day.day}-${day.date}-${dayIndex}`} className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
-                          <div className="min-w-0">
-                            <div className="text-sm font-extrabold text-slate-950">
-                              Día {day.day} {day.date ? `· ${day.date}` : ""}
-                            </div>
-                            <div className="text-xs font-semibold text-slate-500">{day.items?.length || 0} planes</div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => startAddItem(dayIndex)}
-                            className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-800 hover:bg-slate-50"
-                          >
-                            + Añadir plan
-                          </button>
-                        </div>
-                        <div className="space-y-2 px-4 py-3">
-                          {(day.items || []).map((it, itemIndex) => (
-                            <div key={`${dayIndex}-${itemIndex}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                              <div className="flex flex-wrap items-start justify-between gap-2">
-                                <div className="min-w-0">
-                                  <div className="text-sm font-extrabold text-slate-950">
-                                    {(it.start_time ? `${it.start_time} · ` : "") + (it.title || "Plan")}
-                                  </div>
-                                  <div className="mt-1 text-xs text-slate-600">
-                                    {(it.place_name || it.address || "").toString() || "—"}
-                                  </div>
+                  previewTab === "calendar" ? (
+                    <div className="space-y-3">
+                      {previewItinerary.days.map((day, dayIndex) => (
+                        <div key={`${day.day}-${day.date}-${dayIndex}`} className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                          {(() => {
+                            const expanded = previewExpandedDays.has(dayIndex);
+                            return (
+                              <>
+                                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setPreviewExpandedDays((prev) => {
+                                        const next = new Set(prev);
+                                        if (next.has(dayIndex)) next.delete(dayIndex);
+                                        else next.add(dayIndex);
+                                        return next;
+                                      })
+                                    }
+                                    className="flex min-w-0 flex-1 items-center gap-3 text-left hover:opacity-90"
+                                    aria-expanded={expanded}
+                                    title={expanded ? "Plegar" : "Desplegar"}
+                                  >
+                                    <ChevronDown
+                                      className={`h-5 w-5 shrink-0 text-slate-500 transition ${expanded ? "rotate-180" : ""}`}
+                                      aria-hidden
+                                    />
+                                    <div className="min-w-0">
+                                      <div className="text-sm font-extrabold text-slate-950">
+                                        Día {day.day} {day.date ? `· ${day.date}` : ""}
+                                      </div>
+                                      <div className="text-xs font-semibold text-slate-500">{day.items?.length || 0} planes</div>
+                                    </div>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => startAddItem(dayIndex)}
+                                    className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-800 hover:bg-slate-50"
+                                  >
+                                    + Añadir plan
+                                  </button>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => startEditItem(dayIndex, itemIndex, it)}
-                                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
-                                  >
-                                    Editar
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => deleteItem(dayIndex, itemIndex)}
-                                    className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-extrabold text-rose-900 hover:bg-rose-100"
-                                  >
-                                    Eliminar
-                                  </button>
+
+                                {expanded ? (
+                                  <div className="space-y-2 px-4 py-3">
+                            {(day.items || []).map((it, itemIndex) => (
+                              <div key={`${dayIndex}-${itemIndex}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                                <div className="flex flex-wrap items-start justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <div className="text-sm font-extrabold text-slate-950">
+                                      {(it.start_time ? `${it.start_time} · ` : "") + (it.title || "Plan")}
+                                    </div>
+                                    <div className="mt-1 text-xs text-slate-600">
+                                      {(it.place_name || it.address || "").toString() || "—"}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => startEditItem(dayIndex, itemIndex, it)}
+                                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
+                                    >
+                                      Editar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => deleteItem(dayIndex, itemIndex)}
+                                      className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-extrabold text-rose-900 hover:bg-rose-100"
+                                    >
+                                      Eliminar
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          ))}
-                          {!day.items?.length ? (
-                            <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-4 text-sm text-slate-600">
-                              Sin planes todavía para este día.
-                            </div>
-                          ) : null}
+                            ))}
+                            {!day.items?.length ? (
+                              <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-4 text-sm text-slate-600">
+                                Sin planes todavía para este día.
+                              </div>
+                            ) : null}
+                                  </div>
+                                ) : null}
+                              </>
+                            );
+                          })()}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2 px-1 pb-3">
+                        <div className="text-sm font-extrabold text-slate-950">Mapa de planes</div>
+                        <div className="text-xs font-semibold text-slate-600">
+                          {previewGeoLoading ? "Geocodificando…" : `${previewMapPoints.length} marcadores`}
                         </div>
                       </div>
-                    ))}
-                  </div>
+                      <div className="h-[520px] w-full overflow-hidden rounded-2xl border border-slate-200">
+                        <MapContainer center={[40.4168, -3.7038]} zoom={4} style={{ height: "100%", width: "100%" }} scrollWheelZoom>
+                          <TileLayer
+                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                          />
+                          <FitToBounds pointsKey={previewPointsKey} bounds={previewMapBounds} />
+                          {previewMapPoints.map((p) => (
+                            <Marker key={p.key} position={[p.lat, p.lng]} icon={emojiIcon(p.emoji, p.bg)}>
+                              <Popup>
+                                <div className="text-sm font-semibold text-slate-900">{p.title}</div>
+                                {p.subtitle ? <div className="mt-1 text-xs text-slate-600">{p.subtitle}</div> : null}
+                              </Popup>
+                            </Marker>
+                          ))}
+                        </MapContainer>
+                      </div>
+                      {previewGeoLoading ? (
+                        <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                          Estamos buscando coordenadas para los planes. Si alguno no aparece, puede que su dirección sea demasiado genérica.
+                        </div>
+                      ) : null}
+                    </div>
+                  )
                 ) : (
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
                     No hay planes para mostrar todavía.
