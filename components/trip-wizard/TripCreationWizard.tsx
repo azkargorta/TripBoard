@@ -725,6 +725,16 @@ export default function TripCreationWizard({ isPremium }: Props) {
     }
   }
 
+  function closePreviewModal() {
+    setPreviewOpen(false);
+    setPreviewTab("calendar");
+    setPreviewLoading(false);
+    setPreviewError(null);
+    setPreviewEditor(null);
+    setPreviewEditorError(null);
+    setPreviewEditorSaving(false);
+  }
+
   const previewMapPoints = useMemo(() => {
     if (!previewItinerary?.days?.length) return [];
     const points: Array<{ key: string; lat: number; lng: number; title: string; subtitle?: string; emoji: string; bg: string }> = [];
@@ -856,8 +866,6 @@ export default function TripCreationWizard({ isPremium }: Props) {
 
   async function openPreviewEditorForAdd(dayIndex: number, date: string | null) {
     setPreviewEditorError(null);
-    const tripId = await ensureTripForPreviewEditor();
-    if (!tripId) return;
     setPreviewEditor({
       mode: "add",
       dayIndex,
@@ -865,51 +873,64 @@ export default function TripCreationWizard({ isPremium }: Props) {
       date,
       initialData: { activity_date: date },
     });
+    // Creamos el viaje en segundo plano para que al guardar sea inmediato.
+    void ensureTripForPreviewEditor();
   }
 
   async function openPreviewEditorForEdit(dayIndex: number, itemIndex: number, date: string | null, it: ItineraryItemPayload) {
     setPreviewEditorError(null);
-    const tripId = await ensureTripForPreviewEditor();
-    if (!tripId) return;
-    let matched: any | null = null;
-    try {
-      const activities = await fetchTripActivities(tripId);
-      matched = findMatchingDbActivity(activities, date, it);
-    } catch {
-      // ignore and allow editing anyway
-    }
+    // Abrimos el formulario inmediatamente con datos del preview.
     setPreviewEditor({
       mode: "edit",
       dayIndex,
       itemIndex,
       date,
-      initialData: matched
-        ? {
-            id: matched.id,
-            title: matched.title,
-            description: matched.description,
-            rating: matched.rating ?? null,
-            comment: matched.comment ?? null,
-            activity_date: matched.activity_date,
-            activity_time: matched.activity_time,
-            place_name: matched.place_name,
-            address: matched.address,
-            latitude: matched.latitude,
-            longitude: matched.longitude,
-            activity_kind: matched.activity_kind,
-          }
-        : {
-            title: it.title || "",
-            description: (it as any).description || "",
-            activity_date: date,
-            activity_time: String((it as any).start_time || ""),
-            place_name: it.place_name || "",
-            address: it.address || "",
-            latitude: typeof (it as any).latitude === "number" ? (it as any).latitude : null,
-            longitude: typeof (it as any).longitude === "number" ? (it as any).longitude : null,
-            activity_kind: (it as any).activity_kind || null,
-          },
+      initialData: {
+        title: it.title || "",
+        description: (it as any).description || "",
+        activity_date: date,
+        activity_time: String((it as any).start_time || ""),
+        place_name: it.place_name || "",
+        address: it.address || "",
+        latitude: typeof (it as any).latitude === "number" ? (it as any).latitude : null,
+        longitude: typeof (it as any).longitude === "number" ? (it as any).longitude : null,
+        activity_kind: (it as any).activity_kind || null,
+      },
     });
+
+    // Intentamos enlazar con la actividad real en BD (si existe) en segundo plano.
+    void (async () => {
+      try {
+        const tripId = await ensureTripForPreviewEditor();
+        if (!tripId) return;
+        const activities = await fetchTripActivities(tripId);
+        const matched = findMatchingDbActivity(activities, date, it);
+        if (!matched?.id) return;
+        setPreviewEditor((cur) => {
+          if (!cur) return cur;
+          if (cur.dayIndex !== dayIndex || cur.itemIndex !== itemIndex) return cur;
+          return {
+            ...cur,
+            initialData: {
+              id: matched.id,
+              title: matched.title,
+              description: matched.description,
+              rating: matched.rating ?? null,
+              comment: matched.comment ?? null,
+              activity_date: matched.activity_date,
+              activity_time: matched.activity_time,
+              place_name: matched.place_name,
+              address: matched.address,
+              latitude: matched.latitude,
+              longitude: matched.longitude,
+              activity_kind: matched.activity_kind,
+            },
+          };
+        });
+      } catch {
+        // ignore
+      }
+    })();
   }
 
   async function deletePreviewItem(dayIndex: number, itemIndex: number, date: string | null, it: ItineraryItemPayload) {
@@ -1769,7 +1790,10 @@ export default function TripCreationWizard({ isPremium }: Props) {
           className="fixed inset-0 z-[1200] flex items-end justify-center bg-slate-950/50 p-4 backdrop-blur-sm sm:items-center"
           role="presentation"
           onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setPreviewOpen(false);
+            if (e.target === e.currentTarget) closePreviewModal();
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closePreviewModal();
           }}
         >
           <div className="max-h-[92vh] w-full max-w-4xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
@@ -1807,7 +1831,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setPreviewOpen(false)}
+                  onClick={closePreviewModal}
                   className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                   aria-label="Cerrar"
                 >
