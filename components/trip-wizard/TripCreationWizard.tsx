@@ -2,8 +2,9 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, ChevronRight, Compass, Sparkles } from "lucide-react";
+import { ArrowLeft, Check, ChevronRight, Compass, Sparkles, X } from "lucide-react";
 import type { TripCreationIntent } from "@/lib/trip-ai/tripCreationTypes";
+import type { ExecutableItineraryPayload, ItineraryItemPayload } from "@/lib/trip-ai/tripCreationTypes";
 
 type Props = {
   isPremium: boolean;
@@ -37,6 +38,13 @@ type ApiCreated = {
 };
 
 type ApiError = { error: string; code?: string | null; budget?: any };
+
+type PreviewPlansOk = {
+  status: "ok";
+  draftIntent: TripCreationIntent;
+  resolved: { destination: string; startDate: string; endDate: string; durationDays: number };
+  itinerary: ExecutableItineraryPayload;
+};
 
 const STEP_LABELS: Array<{ step: WizardStep; label: string }> = [
   { step: 1, label: "Viaje" },
@@ -75,6 +83,83 @@ const TRIP_IDEAS = [
   "Accesible (movilidad reducida)",
   "Pet-friendly",
 ] as const;
+
+function normalizeDestination(raw: string) {
+  return String(raw || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function inferPlacesPlaceholder(destinationRaw: string) {
+  const d = normalizeDestination(destinationRaw);
+  const has = (s: string) => d.includes(s);
+  if (
+    has("italia") ||
+    has("italy") ||
+    has("roma") ||
+    has("rome") ||
+    has("venecia") ||
+    has("venice") ||
+    has("florencia") ||
+    has("florence")
+  ) {
+    return "Ej. Coliseo, Vaticano, Trastevere, Florencia, Murano…";
+  }
+  if (has("francia") || has("france") || has("paris") || has("parís")) {
+    return "Ej. Louvre, Torre Eiffel, Montmartre, Versalles…";
+  }
+  if (
+    has("japon") ||
+    has("japón") ||
+    has("japan") ||
+    has("tokio") ||
+    has("tokyo") ||
+    has("kyoto") ||
+    has("kioto") ||
+    has("osaka")
+  ) {
+    return "Ej. Shibuya, Fushimi Inari, Arashiyama, Dotonbori…";
+  }
+  if (has("croacia") || has("croatia") || has("dubrovnik") || has("split")) {
+    return "Ej. Dubrovnik, Split, Plitvice, Hvar…";
+  }
+  if (has("portugal") || has("lisboa") || has("lisbon") || has("oporto") || has("porto")) {
+    return "Ej. Torre de Belém, Alfama, Ribeira, Livraria Lello…";
+  }
+  if (has("polonia") || has("poland") || has("cracovia") || has("krakow") || has("varsovia") || has("warsaw")) {
+    return "Ej. Cracovia, Auschwitz, Barrio judío, Varsovia…";
+  }
+  if (has("espana") || has("españa") || has("spain") || has("madrid") || has("barcelona") || has("sevilla") || has("granada")) {
+    return "Ej. Centro histórico, miradores, museos, tapas…";
+  }
+  return "Ej. Centro histórico, museo principal, mercado local…";
+}
+
+function inferPopularSuggestions(destinationRaw: string) {
+  const d = normalizeDestination(destinationRaw);
+  const has = (s: string) => d.includes(s);
+  if (has("italia") || has("italy")) {
+    return ["Roma", "Florencia", "Venecia", "Milán", "Pompeya", "Vaticano", "Uffizi", "Trastevere", "Cinque Terre"];
+  }
+  if (has("francia") || has("france") || has("paris") || has("parís")) {
+    return ["París", "Louvre", "Torre Eiffel", "Montmartre", "Versalles", "Sena", "Museo d'Orsay", "Notre-Dame"];
+  }
+  if (has("japon") || has("japón") || has("japan") || has("tokyo") || has("tokio") || has("kyoto") || has("kioto")) {
+    return ["Tokio", "Kioto", "Osaka", "Nara", "Shibuya", "Fushimi Inari", "Arashiyama", "Dotonbori"];
+  }
+  if (has("croacia") || has("croatia")) {
+    return ["Dubrovnik", "Split", "Zadar", "Hvar", "Lagos de Plitvice", "Trogir"];
+  }
+  if (has("portugal")) {
+    return ["Lisboa", "Oporto", "Sintra", "Belém", "Ribeira", "Cascais", "Braga"];
+  }
+  if (has("polonia") || has("poland")) {
+    return ["Cracovia", "Auschwitz", "Gdansk", "Varsovia", "Wroclaw", "Zakopane"];
+  }
+  return ["Centro histórico", "Mirador", "Mercado local", "Museo principal", "Barrio gastronómico", "Excursión cercana"];
+}
 
 function clampStep(n: number): WizardStep {
   if (n <= 1) return 1;
@@ -195,6 +280,16 @@ export default function TripCreationWizard({ isPremium }: Props) {
   const [places, setPlaces] = useState<string[]>([]);
   const [placeAdd, setPlaceAdd] = useState("");
   const [optimizeOrder, setOptimizeOrder] = useState(true);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewItinerary, setPreviewItinerary] = useState<ExecutableItineraryPayload | null>(null);
+  const [previewResolved, setPreviewResolved] = useState<PreviewPlansOk["resolved"] | null>(null);
+  const [editing, setEditing] = useState<{
+    dayIndex: number;
+    itemIndex: number | null;
+    values: ItineraryItemPayload;
+  } | null>(null);
 
   const [transportNotes, setTransportNotes] = useState("");
   const [travelersType, setTravelersType] = useState<string>("family");
@@ -224,6 +319,15 @@ export default function TripCreationWizard({ isPremium }: Props) {
     if (places.length) return places;
     return placesFromIntent(draftIntent);
   }, [draftIntent, places]);
+
+  const destinationLabel = useMemo(() => {
+    const a = String(draftIntent?.destination || "").trim();
+    const b = String(draftIntent?.endLocation || "").trim();
+    return a || b || "";
+  }, [draftIntent?.destination, draftIntent?.endLocation]);
+
+  const placesPlaceholder = useMemo(() => inferPlacesPlaceholder(destinationLabel), [destinationLabel]);
+  const popularSuggestions = useMemo(() => inferPopularSuggestions(destinationLabel), [destinationLabel]);
 
   const promptForAi = useMemo(() => {
     const base = prompt.trim();
@@ -293,7 +397,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
       if (data?.status === "ready") {
         const ready = data as ApiReady;
         setDraftIntent(ready.draftIntent || null);
-        setOptimizeOrder(Boolean(ready.draftIntent?.wantsRouteOptimization));
+        setOptimizeOrder(Boolean(ready.draftIntent?.wantsRouteOptimization ?? true));
         setStage("ready");
         setQuestion(null);
         setFollowUp("");
@@ -331,7 +435,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
       if (data?.status === "ready") {
         const ready = data as ApiReady;
         setDraftIntent(ready.draftIntent || null);
-        setOptimizeOrder(Boolean(ready.draftIntent?.wantsRouteOptimization));
+        setOptimizeOrder(Boolean(ready.draftIntent?.wantsRouteOptimization ?? true));
         setStage("ready");
         setQuestion(null);
         setFollowUp("");
@@ -387,6 +491,98 @@ export default function TripCreationWizard({ isPremium }: Props) {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function previewPlans() {
+    if (loading || !draftIntent) return;
+    setPreviewOpen(true);
+    setPreviewLoading(true);
+    setPreviewError(null);
+    setEditing(null);
+    try {
+      const res = await fetch("/api/trips/auto-preview-plans", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: "gemini",
+          draftIntent: { ...draftIntent, mustSee: derivedPlaces, wantsRouteOptimization: optimizeOrder },
+        }),
+      });
+      const data = (await res.json().catch(() => null)) as any;
+      if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "No se pudo previsualizar los planes.");
+      if (data?.status !== "ok" || !data?.itinerary) throw new Error("Respuesta inesperada del servidor.");
+      setPreviewResolved(data.resolved || null);
+      setPreviewItinerary(data.itinerary || null);
+    } catch (e) {
+      setPreviewError(e instanceof Error ? e.message : "No se pudo previsualizar los planes.");
+      setPreviewItinerary(null);
+      setPreviewResolved(null);
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
+  function startAddItem(dayIndex: number) {
+    setEditing({
+      dayIndex,
+      itemIndex: null,
+      values: { title: "", activity_kind: "visit", place_name: "", address: "", start_time: "10:00", notes: "" },
+    });
+  }
+
+  function startEditItem(dayIndex: number, itemIndex: number, item: ItineraryItemPayload) {
+    setEditing({
+      dayIndex,
+      itemIndex,
+      values: {
+        title: item.title || "",
+        activity_kind: item.activity_kind ?? "visit",
+        place_name: item.place_name ?? "",
+        address: item.address ?? "",
+        start_time: item.start_time ?? "",
+        notes: item.notes ?? "",
+      },
+    });
+  }
+
+  function deleteItem(dayIndex: number, itemIndex: number) {
+    setPreviewItinerary((prev) => {
+      if (!prev) return prev;
+      const days = prev.days.map((d) => ({ ...d, items: [...(d.items || [])] }));
+      const day = days[dayIndex];
+      if (!day) return prev;
+      day.items.splice(itemIndex, 1);
+      return { ...prev, days };
+    });
+  }
+
+  function saveEditing() {
+    if (!editing) return;
+    const { dayIndex, itemIndex, values } = editing;
+    const title = String(values.title || "").trim();
+    if (!title) return;
+    setPreviewItinerary((prev) => {
+      if (!prev) return prev;
+      const days = prev.days.map((d) => ({ ...d, items: [...(d.items || [])] }));
+      const day = days[dayIndex];
+      if (!day) return prev;
+      const normalized: ItineraryItemPayload = {
+        title,
+        activity_kind: String(values.activity_kind || "visit"),
+        place_name: String(values.place_name || "").trim() || null,
+        address: String(values.address || "").trim() || null,
+        start_time: String(values.start_time || "").trim() || null,
+        notes: String(values.notes || "").trim() || null,
+      };
+      if (itemIndex == null) {
+        day.items.push(normalized);
+      } else {
+        day.items[itemIndex] = normalized;
+      }
+      day.items.sort((a, b) => String(a.start_time || "").localeCompare(String(b.start_time || "")));
+      return { ...prev, days };
+    });
+    setEditing(null);
   }
 
   if (!isPremium) {
@@ -617,7 +813,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
                         }
                       }}
                       disabled={loading}
-                      placeholder="Ej. Coliseo, Vaticano, Trastevere…"
+                      placeholder={placesPlaceholder}
                       className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
                     />
                     <button
@@ -675,6 +871,15 @@ export default function TripCreationWizard({ isPremium }: Props) {
                 <div className="mt-4 flex flex-wrap gap-2">
                   <button
                     type="button"
+                    onClick={previewPlans}
+                    disabled={loading || !draftIntent}
+                    className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-violet-200 bg-violet-50 px-5 py-3 text-sm font-extrabold text-violet-950 shadow-sm hover:bg-violet-100 disabled:opacity-60"
+                    title="Ver un calendario de planes propuestos (sin crear el viaje todavía)"
+                  >
+                    Previsualizar planes
+                  </button>
+                  <button
+                    type="button"
                     onClick={goBack}
                     disabled={loading}
                     className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
@@ -702,13 +907,51 @@ export default function TripCreationWizard({ isPremium }: Props) {
             </div>
 
             <aside className="min-w-0 space-y-4">
+              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Resumen</div>
+                <div className="mt-3 grid gap-2 text-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="text-slate-500">Destino</span>
+                    <span className="text-right font-extrabold text-slate-950">{destinationLabel || "—"}</span>
+                  </div>
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="text-slate-500">Fechas</span>
+                    <span className="text-right font-semibold text-slate-900">
+                      {draftIntent?.startDate && draftIntent?.endDate ? `${draftIntent.startDate} → ${draftIntent.endDate}` : "—"}
+                    </span>
+                  </div>
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="text-slate-500">Duración</span>
+                    <span className="text-right font-semibold text-slate-900">
+                      {typeof draftIntent?.durationDays === "number" && draftIntent.durationDays ? `${draftIntent.durationDays} días` : "—"}
+                    </span>
+                  </div>
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="text-slate-500">Origen</span>
+                    <span className="text-right font-semibold text-slate-900">{(draftIntent?.startLocation || "").trim() || "—"}</span>
+                  </div>
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="text-slate-500">Fin</span>
+                    <span className="text-right font-semibold text-slate-900">{(draftIntent?.endLocation || "").trim() || "—"}</span>
+                  </div>
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="text-slate-500">Lugares</span>
+                    <span className="text-right font-semibold text-slate-900">{derivedPlaces.length ? derivedPlaces.length : "—"}</span>
+                  </div>
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="text-slate-500">Optimizar orden</span>
+                    <span className="text-right font-semibold text-slate-900">{optimizeOrder ? "Sí" : "No"}</span>
+                  </div>
+                </div>
+              </div>
+
               <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
                 <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Sugerencias</div>
                 <p className="mt-1 text-sm text-slate-600">
-                  En esta versión, las sugerencias se basan en tu destino detectado. (Ampliaremos con recomendaciones en tiempo real.)
+                  Ciudades, pueblos, museos o visitas populares para <span className="font-semibold">{destinationLabel || "tu destino"}</span>.
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {["Centro histórico", "Museo principal", "Mercado local", "Mirador", "Barrio gastronómico"].map((x) => (
+                  {popularSuggestions.map((x) => (
                     <button
                       key={x}
                       type="button"
@@ -921,6 +1164,222 @@ export default function TripCreationWizard({ isPremium }: Props) {
           </div>
         ) : null}
       </section>
+
+      {previewOpen ? (
+        <div
+          className="fixed inset-0 z-[1200] flex items-end justify-center bg-slate-950/50 p-4 backdrop-blur-sm sm:items-center"
+          role="presentation"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setPreviewOpen(false);
+          }}
+        >
+          <div className="max-h-[92vh] w-full max-w-4xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3">
+              <div className="min-w-0">
+                <div className="text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">Previsualizar planes</div>
+                <div className="truncate text-sm font-extrabold text-slate-950">
+                  {previewResolved?.destination || destinationLabel || "Viaje"}
+                  {previewResolved?.startDate && previewResolved?.endDate ? ` · ${previewResolved.startDate} → ${previewResolved.endDate}` : ""}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewOpen(false)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                aria-label="Cerrar"
+              >
+                <X className="h-4 w-4" aria-hidden />
+              </button>
+            </div>
+
+            <div className="grid max-h-[calc(92vh-60px)] gap-4 overflow-y-auto p-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)]">
+              <section className="min-w-0 space-y-3">
+                {previewLoading ? (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                    Generando previsualización…
+                  </div>
+                ) : previewError ? (
+                  <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
+                    <span className="font-semibold">Error:</span> {previewError}
+                  </div>
+                ) : previewItinerary?.days?.length ? (
+                  <div className="space-y-3">
+                    {previewItinerary.days.map((day, dayIndex) => (
+                      <div key={`${day.day}-${day.date}-${dayIndex}`} className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
+                          <div className="min-w-0">
+                            <div className="text-sm font-extrabold text-slate-950">
+                              Día {day.day} {day.date ? `· ${day.date}` : ""}
+                            </div>
+                            <div className="text-xs font-semibold text-slate-500">{day.items?.length || 0} planes</div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => startAddItem(dayIndex)}
+                            className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-800 hover:bg-slate-50"
+                          >
+                            + Añadir plan
+                          </button>
+                        </div>
+                        <div className="space-y-2 px-4 py-3">
+                          {(day.items || []).map((it, itemIndex) => (
+                            <div key={`${dayIndex}-${itemIndex}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <div className="text-sm font-extrabold text-slate-950">
+                                    {(it.start_time ? `${it.start_time} · ` : "") + (it.title || "Plan")}
+                                  </div>
+                                  <div className="mt-1 text-xs text-slate-600">
+                                    {(it.place_name || it.address || "").toString() || "—"}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => startEditItem(dayIndex, itemIndex, it)}
+                                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
+                                  >
+                                    Editar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => deleteItem(dayIndex, itemIndex)}
+                                    className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-extrabold text-rose-900 hover:bg-rose-100"
+                                  >
+                                    Eliminar
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                          {!day.items?.length ? (
+                            <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-4 text-sm text-slate-600">
+                              Sin planes todavía para este día.
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                    No hay planes para mostrar todavía.
+                  </div>
+                )}
+              </section>
+
+              <aside className="min-w-0 space-y-3">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Edición</div>
+                  <div className="mt-1 text-xs text-slate-600">
+                    Los cambios aquí son una previsualización. (En la siguiente iteración los aplicaremos a la creación final.)
+                  </div>
+                </div>
+
+                {editing ? (
+                  <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4">
+                    <div className="text-sm font-extrabold text-violet-950">
+                      {editing.itemIndex == null ? "Nuevo plan" : "Editar plan"}
+                    </div>
+                    <div className="mt-3 grid gap-3">
+                      <label className="space-y-1">
+                        <span className="text-xs font-extrabold text-slate-700">Título</span>
+                        <input
+                          value={editing.values.title}
+                          onChange={(e) => setEditing((p) => (p ? { ...p, values: { ...p.values, title: e.target.value } } : p))}
+                          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-violet-200"
+                        />
+                      </label>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <label className="space-y-1">
+                          <span className="text-xs font-extrabold text-slate-700">Hora</span>
+                          <input
+                            value={String(editing.values.start_time || "")}
+                            onChange={(e) =>
+                              setEditing((p) => (p ? { ...p, values: { ...p.values, start_time: e.target.value } } : p))
+                            }
+                            placeholder="10:00"
+                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-violet-200"
+                          />
+                        </label>
+                        <label className="space-y-1">
+                          <span className="text-xs font-extrabold text-slate-700">Tipo</span>
+                          <select
+                            value={String(editing.values.activity_kind || "visit")}
+                            onChange={(e) =>
+                              setEditing((p) => (p ? { ...p, values: { ...p.values, activity_kind: e.target.value } } : p))
+                            }
+                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-violet-200"
+                          >
+                            <option value="visit">Visita</option>
+                            <option value="museum">Museo</option>
+                            <option value="food">Comida</option>
+                            <option value="activity">Actividad</option>
+                            <option value="transport">Transporte</option>
+                            <option value="shopping">Compras</option>
+                            <option value="nightlife">Noche</option>
+                          </select>
+                        </label>
+                      </div>
+                      <label className="space-y-1">
+                        <span className="text-xs font-extrabold text-slate-700">Lugar visible</span>
+                        <input
+                          value={String(editing.values.place_name || "")}
+                          onChange={(e) =>
+                            setEditing((p) => (p ? { ...p, values: { ...p.values, place_name: e.target.value } } : p))
+                          }
+                          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-violet-200"
+                        />
+                      </label>
+                      <label className="space-y-1">
+                        <span className="text-xs font-extrabold text-slate-700">Dirección</span>
+                        <input
+                          value={String(editing.values.address || "")}
+                          onChange={(e) =>
+                            setEditing((p) => (p ? { ...p, values: { ...p.values, address: e.target.value } } : p))
+                          }
+                          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-violet-200"
+                        />
+                      </label>
+                      <label className="space-y-1">
+                        <span className="text-xs font-extrabold text-slate-700">Notas</span>
+                        <textarea
+                          value={String(editing.values.notes || "")}
+                          onChange={(e) =>
+                            setEditing((p) => (p ? { ...p, values: { ...p.values, notes: e.target.value } } : p))
+                          }
+                          rows={3}
+                          className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-violet-200"
+                        />
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={saveEditing}
+                          className="inline-flex min-h-10 items-center justify-center rounded-2xl bg-slate-950 px-4 py-2 text-xs font-extrabold text-white hover:bg-slate-800"
+                        >
+                          Guardar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditing(null)}
+                          className="inline-flex min-h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2 text-xs font-extrabold text-slate-800 hover:bg-slate-50"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                    Pulsa <span className="font-semibold">Editar</span> en un plan o <span className="font-semibold">Añadir plan</span> en un día.
+                  </div>
+                )}
+              </aside>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
