@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, ChevronDown, ChevronRight, Compass, Map as MapIcon, Sparkles, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, ChevronRight, Compass, Map as MapIcon, Plus, Sparkles, Trash2, X } from "lucide-react";
 import type { TripCreationIntent } from "@/lib/trip-ai/tripCreationTypes";
 import type { ExecutableItineraryPayload, ItineraryItemPayload } from "@/lib/trip-ai/tripCreationTypes";
 import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
-import TripPlanView from "@/components/trip/plan/TripPlanView";
+import PlanForm, { type PlanFormValues } from "@/components/trip/plan/PlanForm";
 
 type Props = {
   isPremium: boolean;
@@ -345,8 +345,31 @@ export default function TripCreationWizard({ isPremium }: Props) {
   const [previewGeo, setPreviewGeo] = useState<Record<string, { lat: number; lng: number; address: string }>>({});
   const [previewGeoLoading, setPreviewGeoLoading] = useState(false);
   const [previewExpandedDays, setPreviewExpandedDays] = useState<Set<number>>(() => new Set());
-  const [previewDbOpen, setPreviewDbOpen] = useState(false);
-  const [previewDbSelectedDate, setPreviewDbSelectedDate] = useState<string | null>(null);
+  const [previewEditor, setPreviewEditor] = useState<
+    | null
+    | {
+        mode: "add" | "edit";
+        dayIndex: number;
+        itemIndex: number | null;
+        date: string | null;
+        initialData: {
+          id?: string;
+          title?: string | null;
+          description?: string | null;
+          rating?: number | null;
+          comment?: string | null;
+          activity_date?: string | null;
+          activity_time?: string | null;
+          place_name?: string | null;
+          address?: string | null;
+          latitude?: number | null;
+          longitude?: number | null;
+          activity_kind?: string | null;
+        } | null;
+      }
+  >(null);
+  const [previewEditorSaving, setPreviewEditorSaving] = useState(false);
+  const [previewEditorError, setPreviewEditorError] = useState<string | null>(null);
 
   const [lodgingLoading, setLodgingLoading] = useState(false);
   const [lodgingError, setLodgingError] = useState<string | null>(null);
@@ -677,8 +700,8 @@ export default function TripCreationWizard({ isPremium }: Props) {
     setPreviewGeo({});
     setPreviewGeoLoading(false);
     setPreviewExpandedDays(new Set());
-    setPreviewDbOpen(false);
-    setPreviewDbSelectedDate(null);
+    setPreviewEditor(null);
+    setPreviewEditorError(null);
     try {
       const res = await fetch("/api/trips/auto-preview-plans", {
         method: "POST",
@@ -802,13 +825,223 @@ export default function TripCreationWizard({ isPremium }: Props) {
     };
   }, [destinationLabel, previewGeo, previewGeoLoading, previewItinerary?.days, previewOpen, previewTab]);
 
-  async function openDbPlanEditor(selectedDate: string | null) {
-    setPreviewDbSelectedDate(selectedDate);
-    if (!createdTripId) {
-      const id = await finalizeCreateTrip({ redirectTo: "none" });
-      if (!id) return;
+  async function ensureTripForPreviewEditor() {
+    if (createdTripId) return createdTripId;
+    const id = await finalizeCreateTrip({ redirectTo: "none" });
+    return id;
+  }
+
+  async function fetchTripActivities(tripId: string) {
+    const res = await fetch(`/api/trip-activities?tripId=${encodeURIComponent(tripId)}`);
+    const data = (await res.json().catch(() => null)) as any;
+    if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "No se pudo cargar el plan.");
+    return (Array.isArray(data?.activities) ? data.activities : []) as any[];
+  }
+
+  function findMatchingDbActivity(activities: any[], date: string | null, it: ItineraryItemPayload | null) {
+    if (!date || !it) return null;
+    const title = String(it.title || "").trim();
+    const time = String((it as any).start_time || "").trim();
+    if (!title) return null;
+    const exact = activities.find(
+      (a) =>
+        String(a?.activity_date || "") === date &&
+        String(a?.title || "").trim() === title &&
+        (time ? String(a?.activity_time || "").trim() === time : true)
+    );
+    if (exact) return exact;
+    const loose = activities.find((a) => String(a?.activity_date || "") === date && String(a?.title || "").trim() === title);
+    return loose || null;
+  }
+
+  async function openPreviewEditorForAdd(dayIndex: number, date: string | null) {
+    setPreviewEditorError(null);
+    const tripId = await ensureTripForPreviewEditor();
+    if (!tripId) return;
+    setPreviewEditor({
+      mode: "add",
+      dayIndex,
+      itemIndex: null,
+      date,
+      initialData: { activity_date: date },
+    });
+  }
+
+  async function openPreviewEditorForEdit(dayIndex: number, itemIndex: number, date: string | null, it: ItineraryItemPayload) {
+    setPreviewEditorError(null);
+    const tripId = await ensureTripForPreviewEditor();
+    if (!tripId) return;
+    let matched: any | null = null;
+    try {
+      const activities = await fetchTripActivities(tripId);
+      matched = findMatchingDbActivity(activities, date, it);
+    } catch {
+      // ignore and allow editing anyway
     }
-    setPreviewDbOpen(true);
+    setPreviewEditor({
+      mode: "edit",
+      dayIndex,
+      itemIndex,
+      date,
+      initialData: matched
+        ? {
+            id: matched.id,
+            title: matched.title,
+            description: matched.description,
+            rating: matched.rating ?? null,
+            comment: matched.comment ?? null,
+            activity_date: matched.activity_date,
+            activity_time: matched.activity_time,
+            place_name: matched.place_name,
+            address: matched.address,
+            latitude: matched.latitude,
+            longitude: matched.longitude,
+            activity_kind: matched.activity_kind,
+          }
+        : {
+            title: it.title || "",
+            description: (it as any).description || "",
+            activity_date: date,
+            activity_time: String((it as any).start_time || ""),
+            place_name: it.place_name || "",
+            address: it.address || "",
+            latitude: typeof (it as any).latitude === "number" ? (it as any).latitude : null,
+            longitude: typeof (it as any).longitude === "number" ? (it as any).longitude : null,
+            activity_kind: (it as any).activity_kind || null,
+          },
+    });
+  }
+
+  async function deletePreviewItem(dayIndex: number, itemIndex: number, date: string | null, it: ItineraryItemPayload) {
+    setPreviewEditorError(null);
+    const tripId = await ensureTripForPreviewEditor();
+    if (!tripId) return;
+    try {
+      const activities = await fetchTripActivities(tripId);
+      const matched = findMatchingDbActivity(activities, date, it);
+      if (matched?.id) {
+        const res = await fetch(`/api/trip-activities/${encodeURIComponent(String(matched.id))}`, { method: "DELETE" });
+        const data = (await res.json().catch(() => null)) as any;
+        if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "No se pudo eliminar.");
+      }
+    } catch (e) {
+      setPreviewEditorError(e instanceof Error ? e.message : "No se pudo eliminar el plan.");
+      return;
+    }
+
+    setPreviewItinerary((prev) => {
+      if (!prev?.days?.length) return prev;
+      const days = prev.days.map((d) => ({ ...d, items: Array.isArray((d as any).items) ? [...((d as any).items as any[])] : [] })) as any[];
+      const day = days[dayIndex];
+      if (!day?.items?.length) return prev;
+      day.items.splice(itemIndex, 1);
+      return { ...prev, days };
+    });
+
+    setPreviewEditor((cur) => {
+      if (!cur) return cur;
+      if (cur.dayIndex === dayIndex && cur.itemIndex === itemIndex) return null;
+      return cur;
+    });
+  }
+
+  async function submitPreviewForm(values: PlanFormValues) {
+    setPreviewEditorError(null);
+    const tripId = await ensureTripForPreviewEditor();
+    if (!tripId) return;
+    if (!previewEditor) return;
+    setPreviewEditorSaving(true);
+    try {
+      const body = {
+        tripId,
+        title: values.title,
+        description: values.description,
+        rating: values.rating || null,
+        comment: values.comment || null,
+        activity_date: values.activityDate || previewEditor.date || null,
+        activity_time: values.activityTime || null,
+        place_name: values.placeName || null,
+        address: values.address || null,
+        latitude: values.latitude,
+        longitude: values.longitude,
+        activity_type: values.activityKind,
+        activity_kind: values.activityKind,
+        source: "wizard_preview",
+      };
+
+      const existingId = previewEditor.initialData?.id;
+      let saved: any;
+      if (existingId) {
+        const res = await fetch(`/api/trip-activities/${encodeURIComponent(String(existingId))}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = (await res.json().catch(() => null)) as any;
+        if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "No se pudo guardar.");
+        saved = data?.activity;
+      } else {
+        const res = await fetch("/api/trip-activities", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = (await res.json().catch(() => null)) as any;
+        if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "No se pudo crear.");
+        saved = data?.activity;
+      }
+
+      setPreviewItinerary((prev) => {
+        if (!prev?.days?.length) return prev;
+        const days = prev.days.map((d) => ({ ...d, items: Array.isArray((d as any).items) ? [...((d as any).items as any[])] : [] })) as any[];
+        const day = days[previewEditor.dayIndex];
+        if (!day) return prev;
+        const nextItem: any = {
+          title: String(saved?.title || values.title || "Plan"),
+          place_name: saved?.place_name ?? values.placeName ?? null,
+          address: saved?.address ?? values.address ?? null,
+          start_time: saved?.activity_time ?? values.activityTime ?? null,
+          latitude: typeof saved?.latitude === "number" ? saved.latitude : values.latitude ?? null,
+          longitude: typeof saved?.longitude === "number" ? saved.longitude : values.longitude ?? null,
+          activity_kind: saved?.activity_kind ?? values.activityKind ?? null,
+          description: saved?.description ?? values.description ?? null,
+        };
+        if (previewEditor.mode === "add") {
+          (day.items || []).push(nextItem);
+        } else if (previewEditor.itemIndex != null) {
+          (day.items || [])[previewEditor.itemIndex] = { ...((day.items || [])[previewEditor.itemIndex] || {}), ...nextItem };
+        }
+        return { ...prev, days };
+      });
+
+      setPreviewEditor((cur) => {
+        if (!cur) return cur;
+        return {
+          ...cur,
+          mode: "edit",
+          initialData: saved
+            ? {
+                id: saved.id,
+                title: saved.title,
+                description: saved.description,
+                rating: saved.rating ?? null,
+                comment: saved.comment ?? null,
+                activity_date: saved.activity_date,
+                activity_time: saved.activity_time,
+                place_name: saved.place_name,
+                address: saved.address,
+                latitude: saved.latitude,
+                longitude: saved.longitude,
+                activity_kind: saved.activity_kind,
+              }
+            : cur.initialData,
+        };
+      });
+    } catch (e) {
+      setPreviewEditorError(e instanceof Error ? e.message : "No se pudo guardar el plan.");
+    } finally {
+      setPreviewEditorSaving(false);
+    }
   }
 
   if (!isPremium) {
@@ -1585,32 +1818,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
 
             <div className="grid max-h-[calc(92vh-60px)] gap-4 overflow-y-auto p-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)]">
               <section className="min-w-0 space-y-3">
-                {previewDbOpen && createdTripId ? (
-                  <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-                    <div className="flex flex-wrap items-center justify-between gap-2 px-1 pb-3">
-                      <div className="min-w-0">
-                        <div className="text-sm font-extrabold text-slate-950">Plan (modo BD)</div>
-                        <div className="mt-1 text-xs text-slate-600">
-                          Aquí estás usando el <span className="font-semibold">mismo formulario</span> que el Plan manual, guardando en la BD.
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setPreviewDbOpen(false)}
-                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
-                      >
-                        Volver a previsualización
-                      </button>
-                    </div>
-
-                    <TripPlanView
-                      tripId={createdTripId}
-                      premiumEnabled
-                      initialWorkspaceTab="itinerary"
-                      initialSelectedDate={previewDbSelectedDate}
-                    />
-                  </div>
-                ) : previewLoading ? (
+                {previewLoading ? (
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
                     Generando previsualización…
                   </div>
@@ -1654,14 +1862,15 @@ export default function TripCreationWizard({ isPremium }: Props) {
                                     </div>
                                   </button>
 
-                          <button
-                            type="button"
-                            onClick={() => void openDbPlanEditor(day.date || null)}
-                            className="rounded-full border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-extrabold text-violet-950 hover:bg-violet-100"
-                            title="Abrir el formulario real (BD) para este día"
-                          >
-                            Editar en Plan
-                          </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => void openPreviewEditorForAdd(dayIndex, day.date || null)}
+                                    className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-extrabold text-violet-950 hover:bg-violet-100"
+                                    title="Añadir un plan a este día"
+                                  >
+                                    <Plus className="h-4 w-4" aria-hidden />
+                                    Añadir plan
+                                  </button>
                                 </div>
 
                                 {expanded ? (
@@ -1680,10 +1889,19 @@ export default function TripCreationWizard({ isPremium }: Props) {
                                   <div className="flex items-center gap-2">
                                   <button
                                     type="button"
-                                    onClick={() => void openDbPlanEditor(day.date || null)}
-                                    className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-extrabold text-violet-950 hover:bg-violet-100"
+                                    onClick={() => void openPreviewEditorForEdit(dayIndex, itemIndex, day.date || null, it as ItineraryItemPayload)}
+                                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-800 hover:bg-slate-50"
                                   >
-                                    Editar en Plan
+                                    Editar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => void deletePreviewItem(dayIndex, itemIndex, day.date || null, it as ItineraryItemPayload)}
+                                    className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-extrabold text-rose-900 hover:bg-rose-100"
+                                    title="Eliminar este plan"
+                                  >
+                                    <Trash2 className="h-4 w-4" aria-hidden />
+                                    Eliminar
                                   </button>
                                   </div>
                                 </div>
@@ -1742,12 +1960,29 @@ export default function TripCreationWizard({ isPremium }: Props) {
               </section>
 
               <aside className="min-w-0 space-y-3">
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Editar en la BD</div>
-                  <div className="mt-1 text-xs text-slate-600">
-                    Para usar el formulario real con autocompletar y guardar en la base de datos, pulsa <span className="font-semibold">Editar en Plan</span>.
+                {previewEditorError ? (
+                  <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
+                    <span className="font-semibold">Error:</span> {previewEditorError}
                   </div>
-                </div>
+                ) : null}
+
+                {previewEditor ? (
+                  <PlanForm
+                    saving={previewEditorSaving}
+                    premiumEnabled
+                    initialData={previewEditor.initialData}
+                    onCancelEdit={() => setPreviewEditor(null)}
+                    onSubmit={submitPreviewForm}
+                  />
+                ) : (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Editor</div>
+                    <div className="mt-1 text-xs text-slate-600">
+                      Pulsa <span className="font-semibold">Editar</span> o <span className="font-semibold">Añadir plan</span> para abrir aquí el formulario real
+                      con autocompletar de dirección y coordenadas.
+                    </div>
+                  </div>
+                )}
               </aside>
             </div>
           </div>
