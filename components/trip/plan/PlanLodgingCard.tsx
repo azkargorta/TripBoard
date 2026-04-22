@@ -88,7 +88,7 @@ export default function PlanLodgingCard({
         accent="violet"
         disableEdit={!onEdit}
         disableDelete={!onDelete}
-        disabledReason="Sincronizado desde Reservas"
+        disabledReason={!onEdit || !onDelete ? "No disponible" : undefined}
         stopPropagation={Boolean(selectable)}
       />
       <div className="flex items-start justify-between gap-4">

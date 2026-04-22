@@ -162,7 +162,17 @@ export async function geocodePhotonPreferred(
       return null;
     }
 
-    // Sin ancla: primer resultado razonable
+    // Sin ancla: si hay pistas de país/región, usar SOLO resultados coherentes.
+    if (hints.length) {
+      for (const f of features) {
+        const pt = featurePoint(f);
+        if (!pt) continue;
+        if (!countryMatches(hints, f)) continue;
+        return { lat: pt.lat, lng: pt.lng, label: featureLabel(f) || q };
+      }
+    }
+
+    // Sin pistas: primer resultado razonable
     for (const f of features) {
       const pt = featurePoint(f);
       if (!pt) continue;

@@ -731,7 +731,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
               const resp = await fetch("/api/geocode", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ address: query }),
+                body: JSON.stringify({ address: query, tripId: created.tripId }),
               });
               const payload = await resp.json().catch(() => null);
               if (resp.ok) {
@@ -747,22 +747,42 @@ export default function TripCreationWizard({ isPremium }: Props) {
             const mm = m % 60;
             const activity_time = `${String(Math.min(23, hh)).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 
-            await fetch("/api/trip-activities", {
+            const notesParts: string[] = [];
+            if (selected?.url) notesParts.push(`Web: ${selected.url}`);
+            if (manual.notes?.trim()) notesParts.push(manual.notes.trim());
+            const notes = notesParts.length ? notesParts.join("\n\n") : null;
+
+            const destParts = destinationLabel
+              .split(/[,|;]+/g)
+              .map((s) => s.trim())
+              .filter(Boolean);
+            const countryHint = destParts.length > 1 ? destParts[destParts.length - 1]! : destParts[0] || null;
+
+            await fetch("/api/trip-reservations", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 tripId: created.tripId,
-                title: name,
-                description: selected?.url ? `Web: ${selected.url}` : manual.notes ? manual.notes : null,
-                activity_date: row.startDate || draftIntent?.startDate || null,
-                activity_time,
-                place_name: name,
+                reservation_type: "lodging",
+                reservation_name: name,
+                reservation_code: null,
                 address: formattedAddress,
+                city: city && city !== "Sin ciudad" ? city : null,
+                country: countryHint,
+                check_in_date: row.startDate || draftIntent?.startDate || null,
+                check_in_time: activity_time,
+                check_out_date: row.endDate || null,
+                check_out_time: null,
+                guests: null,
+                total_amount: null,
+                currency: "EUR",
+                payment_status: "pending",
+                notes,
+                detected_document_type: "wizard_lodging",
+                detected_data: { source: "trip_creation_wizard", segment_key: segmentKey },
+                sync_to_plan: true,
                 latitude,
                 longitude,
-                activity_type: "lodging",
-                activity_kind: "lodging",
-                source: "wizard_lodging",
               }),
             });
           }

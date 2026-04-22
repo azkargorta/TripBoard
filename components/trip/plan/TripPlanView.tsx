@@ -1098,6 +1098,8 @@ export default function TripPlanView({
                           {isLodging ? (
                             <PlanLodgingCard
                               activity={activity}
+                              onEdit={handleStartEdit}
+                              onDelete={(item) => deleteActivity(item.id)}
                               selectable={bulkDeleteMode && canBulkDeletePlanActivity(activity)}
                               selected={selectedActivityIds.has(activity.id)}
                               onToggleSelect={() =>

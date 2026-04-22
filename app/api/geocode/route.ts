@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireTripAccess } from "@/lib/trip-access";
+import { geocodePhotonPreferred, geocodeTripAnchor, regionHintsFromDestination } from "@/lib/geocoding/photonGeocode";
 
 export const runtime = "nodejs";
 
@@ -24,24 +25,25 @@ export async function POST(request: Request) {
       await requireTripAccess(tripId);
     }
 
-    const url = new URL("https://photon.komoot.io/api/");
-    url.searchParams.set("q", address);
-    url.searchParams.set("limit", "1");
-    const response = await fetch(url.toString(), { method: "GET", cache: "no-store" });
-    const payload: any = await response.json().catch(() => null);
-    if (!response.ok) {
-      return NextResponse.json({ error: "No se pudo geocodificar la dirección." }, { status: 502 });
+    let tripDestination: string | null = null;
+    if (tripId) {
+      const { data: tripRow } = await supabase.from("trips").select("destination").eq("id", tripId).maybeSingle();
+      tripDestination = typeof tripRow?.destination === "string" ? tripRow.destination : null;
     }
-    const feature = Array.isArray(payload?.features) ? payload.features[0] : null;
-    const coords = feature?.geometry?.coordinates;
-    const longitude = Array.isArray(coords) ? Number(coords[0]) : null;
-    const latitude = Array.isArray(coords) ? Number(coords[1]) : null;
-    const formattedAddress =
-      (feature?.properties && typeof feature.properties === "object"
-        ? [feature.properties.name, feature.properties.street, feature.properties.city, feature.properties.country]
-            .filter(Boolean)
-            .join(", ")
-        : "") || address;
+
+    const regionHints = regionHintsFromDestination(tripDestination);
+    const anchor = await geocodeTripAnchor(tripDestination);
+
+    const g = await geocodePhotonPreferred(address, {
+      anchor,
+      regionHints,
+      // En API usamos filtro por país/hints; el radio amplio evita descartar multi-ciudad.
+      maxDistanceKm: 50000,
+    });
+
+    const latitude = g ? g.lat : null;
+    const longitude = g ? g.lng : null;
+    const formattedAddress = g?.label || address;
 
     return NextResponse.json({
       ok: true,

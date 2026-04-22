@@ -41,6 +41,7 @@ type EditableActivity = {
   address?: string | null;
   latitude?: number | null;
   longitude?: number | null;
+  activity_type?: string | null;
   activity_kind?: string | null;
 };
 
@@ -69,6 +70,16 @@ const EMPTY_FORM: PlanFormValues = {
 
 function fromInitial(initialData?: EditableActivity | null): PlanFormValues {
   if (!initialData) return EMPTY_FORM;
+  const kindFromType =
+    String(initialData.activity_type || "").toLowerCase() === "lodging" ? "lodging" : null;
+  const kindFromField =
+    typeof initialData.activity_kind === "string" && initialData.activity_kind.trim()
+      ? initialData.activity_kind.trim().toLowerCase()
+      : "";
+  const resolvedKind =
+    kindFromType === "lodging" || kindFromField === "lodging" || kindFromField === "hotel"
+      ? "lodging"
+      : kindFromField || "visit";
   return {
     title: initialData.title || "",
     description: initialData.description || "",
@@ -80,8 +91,7 @@ function fromInitial(initialData?: EditableActivity | null): PlanFormValues {
     address: initialData.address || "",
     latitude: typeof initialData.latitude === "number" ? initialData.latitude : null,
     longitude: typeof initialData.longitude === "number" ? initialData.longitude : null,
-    activityKind:
-      (typeof initialData.activity_kind === "string" && initialData.activity_kind.trim()) ? initialData.activity_kind.trim() : "visit",
+    activityKind: resolvedKind,
   };
 }
 
@@ -190,7 +200,7 @@ export default function PlanForm({
             </h3>
 
             <p className="mt-1 text-sm text-slate-500">
-              Crea visitas, museos, restaurantes, transportes o actividades manuales. Los alojamientos vienen automáticamente desde Reservas.
+              Crea visitas, museos, restaurantes, transportes o actividades manuales. Los alojamientos del plan se pueden editar aquí: si están vinculados a Docs (reserva), los cambios se reflejan también en la pestaña Docs.
             </p>
           </div>
 
