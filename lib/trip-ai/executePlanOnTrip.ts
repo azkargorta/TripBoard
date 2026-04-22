@@ -175,6 +175,7 @@ export async function executePlanOnTrip(params: {
 
     const rows: Record<string, unknown>[] = [];
     const slotMeta: SlotMeta[] = [];
+    const rowKeys: string[] = [];
 
     for (const day of itinerary.days as ItineraryDay[]) {
       const date = typeof day?.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(day.date) ? day.date : null;
@@ -213,12 +214,13 @@ export async function executePlanOnTrip(params: {
           if (hit.formattedAddress) normalizedAddress = hit.formattedAddress;
         }
 
+        const activity_time = normalizeTime(item.start_time ?? null);
         rows.push({
           trip_id: tripId,
           title,
           description: typeof item?.notes === "string" ? item.notes.trim() : null,
           activity_date: date,
-          activity_time: normalizeTime(item.start_time ?? null),
+          activity_time,
           place_name,
           address: normalizedAddress,
           latitude,
@@ -237,6 +239,9 @@ export async function executePlanOnTrip(params: {
           latitude,
           longitude,
         });
+
+        // Clave estable para mapear la fila insertada (el orden de retorno de Supabase puede no coincidir).
+        rowKeys.push(`${date || "NO_DATE"}|${activity_time || "NO_TIME"}|${title}`);
       }
     }
 
@@ -244,7 +249,10 @@ export async function executePlanOnTrip(params: {
       return { ok: false, error: "No hay items válidos para crear." };
     }
 
-    const { data: insertedRows, error } = await supabase.from("trip_activities").insert(rows).select("id");
+    const { data: insertedRows, error } = await supabase
+      .from("trip_activities")
+      .insert(rows)
+      .select("id,title,activity_date,activity_time,place_name,address");
     if (error) throw new Error(error.message);
 
     const created = rows.length;
@@ -269,6 +277,19 @@ export async function executePlanOnTrip(params: {
       };
     }
 
+    const insertedIdByKey = new Map<string, { id: string; address: string | null; place_name: string | null }>();
+    for (const r of insertedRows as any[]) {
+      const k = `${String(r?.activity_date || "NO_DATE")}|${String(r?.activity_time || "NO_TIME")}|${String(r?.title || "").trim()}`;
+      if (!k.trim()) continue;
+      if (!insertedIdByKey.has(k)) {
+        insertedIdByKey.set(k, {
+          id: String(r?.id),
+          address: typeof r?.address === "string" ? r.address : null,
+          place_name: typeof r?.place_name === "string" ? r.place_name : null,
+        });
+      }
+    }
+
     // Refuerzo: si algún plan quedó sin coordenadas, intentamos geocodificar y actualizar la fila por id.
     // Esto evita que el usuario tenga que abrir cada tarjeta para fijar lat/lng manualmente.
     const missingIdx: number[] = [];
@@ -289,11 +310,16 @@ export async function executePlanOnTrip(params: {
         while (cursor < work.length) {
           const i = work[cursor]!;
           cursor += 1;
-          const id = (insertedRows[i] as any)?.id;
+          const key = rowKeys[i] || "";
+          const id = (insertedIdByKey.get(key)?.id || null) as string | null;
           if (!id) continue;
           const s = slotMeta[i]!;
 
-          const query = buildGeocodeQuery({ placeName: s.place_name, address: s.addressLabel, tripDestination });
+          const query = buildGeocodeQuery({
+            placeName: insertedIdByKey.get(key)?.place_name ?? s.place_name,
+            address: insertedIdByKey.get(key)?.address ?? s.addressLabel,
+            tripDestination,
+          });
           if (!query) continue;
 
           try {

@@ -674,6 +674,64 @@ export default function TripCreationWizard({ isPremium }: Props) {
           setCreatedTripPartialError(null);
         }
         setCreatedTripId(created.tripId);
+
+        // Guardar alojamientos elegidos en el wizard como actividades "lodging" en BD.
+        // (Antes se quedaban solo en estado local y se perdían al crear el viaje).
+        if (!silent && lodgingCities.length) {
+          const tasks: Array<Promise<unknown>> = [];
+          for (const row of lodgingCities) {
+            const city = row.city;
+            const selected = lodgingSelectedHotelByCity[city] ?? null;
+            const manual = lodgingManualByCity[city] || { name: "", address: "", notes: "" };
+            const name = String(selected?.name || manual.name || "").trim();
+            const address = String(manual.address || "").trim();
+            if (!name) continue;
+
+            const query = [address, city, destinationLabel].filter(Boolean).join(", ");
+            tasks.push(
+              (async () => {
+                let latitude: number | null = null;
+                let longitude: number | null = null;
+                let formattedAddress: string | null = address || null;
+
+                if (query) {
+                  const resp = await fetch("/api/geocode", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ address: query }),
+                  });
+                  const payload = await resp.json().catch(() => null);
+                  if (resp.ok) {
+                    latitude = typeof payload?.latitude === "number" ? payload.latitude : null;
+                    longitude = typeof payload?.longitude === "number" ? payload.longitude : null;
+                    formattedAddress = typeof payload?.formattedAddress === "string" ? payload.formattedAddress : formattedAddress;
+                  }
+                }
+
+                await fetch("/api/trip-activities", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    tripId: created.tripId,
+                    title: name,
+                    description: selected?.url ? `Web: ${selected.url}` : manual.notes ? manual.notes : null,
+                    activity_date: row.startDate || draftIntent?.startDate || null,
+                    activity_time: null,
+                    place_name: name,
+                    address: formattedAddress,
+                    latitude,
+                    longitude,
+                    activity_type: "lodging",
+                    activity_kind: "lodging",
+                    source: "wizard_lodging",
+                  }),
+                });
+              })()
+            );
+          }
+          await Promise.allSettled(tasks);
+        }
+
         const redirectTo = options?.redirectTo ?? "participants";
         if (redirectTo === "summary") {
           router.push(`/trip/${encodeURIComponent(created.tripId)}/summary?recien=1`);
