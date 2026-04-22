@@ -49,6 +49,33 @@ const STEP_LABELS: Array<{ step: WizardStep; label: string }> = [
 const PROMPT_EXAMPLE =
   "Voy a realizar un viaje por Italia del 10 al 25 de agosto. Mi origen es Venecia desde Madrid en avión y mi destino es Roma y tengo vuelo final a Madrid. Quiero un viaje en familia, con museos y gastronómico.";
 
+const TRIP_IDEAS = [
+  "Con familia",
+  "En pareja",
+  "Con amigos",
+  "Solo",
+  "Gastronomía",
+  "Cultura y museos",
+  "Naturaleza",
+  "Playa",
+  "Aventura",
+  "Relax",
+  "Road trip",
+  "Ciudad + pueblos",
+  "Ruta optimizada",
+  "Viaje barato",
+  "Presupuesto medio",
+  "Lujo",
+  "Food tour",
+  "Senderismo",
+  "Compras",
+  "Fiesta y noche",
+  "Viaje con niños",
+  "Sin madrugar",
+  "Accesible (movilidad reducida)",
+  "Pet-friendly",
+] as const;
+
 function clampStep(n: number): WizardStep {
   if (n <= 1) return 1;
   if (n >= 5) return 5;
@@ -159,6 +186,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   const [prompt, setPrompt] = useState("");
+  const [tripIdeas, setTripIdeas] = useState<Set<string>>(() => new Set());
   const [stage, setStage] = useState<"idle" | "clarifying" | "ready">("idle");
   const [question, setQuestion] = useState<string | null>(null);
   const [followUp, setFollowUp] = useState("");
@@ -196,6 +224,14 @@ export default function TripCreationWizard({ isPremium }: Props) {
     if (places.length) return places;
     return placesFromIntent(draftIntent);
   }, [draftIntent, places]);
+
+  const promptForAi = useMemo(() => {
+    const base = prompt.trim();
+    if (!tripIdeas.size) return base;
+    const extras = Array.from(tripIdeas.values());
+    // Lo añadimos como una línea extra para dar contexto sin “ensuciar” el texto original.
+    return base ? `${base}\n\nIdeas/estilo: ${extras.join(" · ")}` : `Ideas/estilo: ${extras.join(" · ")}`;
+  }, [prompt, tripIdeas]);
 
   function scrollTop() {
     window.requestAnimationFrame(() => topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
@@ -241,7 +277,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
     setError(null);
     try {
       const data = await callAutoCreate({
-        prompt: prompt.trim(),
+        prompt: promptForAi,
         draftIntent: { ...(draftIntent || {}), wantsRouteOptimization: optimizeOrder },
         previewOnly: true,
       });
@@ -444,6 +480,60 @@ export default function TripCreationWizard({ isPremium }: Props) {
                 placeholder={PROMPT_EXAMPLE}
                 className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
               />
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-600">
+                      Ideas de tipos de viaje
+                    </div>
+                    <div className="mt-1 text-xs text-slate-600">
+                      Selecciona varias para guiar al asistente (se añaden como contexto).
+                    </div>
+                  </div>
+                  {tripIdeas.size ? (
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={() => setTripIdeas(new Set())}
+                      className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-extrabold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                      title="Limpiar selección"
+                    >
+                      Limpiar ({tripIdeas.size})
+                    </button>
+                  ) : null}
+                </div>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {TRIP_IDEAS.map((idea) => {
+                    const active = tripIdeas.has(idea);
+                    return (
+                      <button
+                        key={idea}
+                        type="button"
+                        disabled={loading}
+                        onClick={() =>
+                          setTripIdeas((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(idea)) next.delete(idea);
+                            else next.add(idea);
+                            return next;
+                          })
+                        }
+                        className={`rounded-full border px-3 py-2 text-xs font-extrabold transition disabled:opacity-60 ${
+                          active
+                            ? "border-violet-300 bg-violet-50 text-violet-950"
+                            : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                        }`}
+                        aria-pressed={active}
+                        title={active ? "Quitar" : "Añadir"}
+                      >
+                        {idea}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
               {stage === "clarifying" ? (
                 <input
