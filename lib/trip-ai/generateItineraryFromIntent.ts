@@ -33,6 +33,8 @@ Esquema exacto:
 Reglas:
 - Cada día: entre 3 y 5 items, start_time en orden creciente.
 - Lugares realistas para el destino indicado.
+- **address (MUY IMPORTANTE):** en cada item debe figurar la **ciudad y el país del viaje** del "Destino principal" (ej. comercio en Venecia → "…, Venecia, Italia"). No uses solo nombres de calle o de establecimiento que puedan existir en otro país (ej. evita "Calle Venecia" sin ciudad/país si el viaje es Italia).
+- **place_name:** el nombre visible del sitio en la zona del destino (no inventes sucursales en países distintos al del viaje).
 - version siempre 1.
 - travelMode "walking" si el usuario prefiere andar o ciudad compacta; si no, "driving".
 - Si el usuario ha pedido paradas obligatorias (mustSee), DEBES incluirlas como items (title/place_name) repartiéndolas por los días disponibles.
@@ -124,13 +126,20 @@ async function optimizeMustSeeOrder(resolved: ResolvedTripCreation, tokens: stri
 
   const startLabel = (resolved.intent.startLocation || "").trim();
   const endLabel = (resolved.intent.endLocation || "").trim();
-  const startPoint = startLabel ? await geocodeToken(startLabel) : null;
-  const endPoint = endLabel ? await geocodeToken(endLabel) : null;
+  const [startPoint, endPoint] = await Promise.all([
+    startLabel ? geocodeToken(startLabel) : Promise.resolve(null),
+    endLabel ? geocodeToken(endLabel) : Promise.resolve(null),
+  ]);
 
   const points: Array<{ token: string; lat: number; lng: number }> = [];
-  for (const t of tokens) {
-    const p = await geocodeToken(t);
-    if (p) points.push({ token: t, lat: p.lat, lng: p.lng });
+  const tokenCoords = await Promise.all(
+    tokens.map(async (t) => {
+      const p = await geocodeToken(t);
+      return p ? { token: t, lat: p.lat, lng: p.lng } : null;
+    })
+  );
+  for (const row of tokenCoords) {
+    if (row) points.push(row);
   }
   if (points.length < 3) return tokens;
 
@@ -301,4 +310,16 @@ ${resolvedForPrompt.intent.wantsRouteOptimization ? "Si hay múltiples ciudades/
   const parsed = validateItinerary(extractJsonObject(text));
   const aligned = alignItineraryDates(parsed, resolvedForPrompt);
   return { itinerary: enforceMustSee(aligned, resolvedForPrompt), usage };
+}
+
+/**
+ * Itinerario ya generado en cliente (p. ej. previsualización del asistente): valida, alinea fechas al viaje y refuerza mustSee.
+ */
+export function normalizeClientExecutableItinerary(
+  raw: unknown,
+  resolved: ResolvedTripCreation
+): ExecutableItineraryPayload {
+  const parsed = validateItinerary(raw);
+  const aligned = alignItineraryDates(parsed, resolved);
+  return enforceMustSee(aligned, resolved);
 }

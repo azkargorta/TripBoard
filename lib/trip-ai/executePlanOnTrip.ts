@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ExecutableItineraryPayload } from "@/lib/trip-ai/tripCreationTypes";
 import { geocodePhotonPreferred, geocodeTripAnchor, regionHintsFromDestination } from "@/lib/geocoding/photonGeocode";
+import { fetchProjectOsrmRoute } from "@/lib/osrm/projectOsrmRoute";
 
 type ItineraryItem = ExecutableItineraryPayload["days"][number]["items"][number];
 type ItineraryDay = ExecutableItineraryPayload["days"][number];
@@ -48,9 +49,41 @@ function normalizeKind(input: string | null | undefined): string {
 }
 
 function buildGeocodeQuery(opts: { placeName: string | null; address: string | null; tripDestination: string | null }) {
-  const parts = [opts.address, opts.placeName, opts.tripDestination].map((s) => (typeof s === "string" ? s.trim() : "")).filter(Boolean);
+  const dest = typeof opts.tripDestination === "string" ? opts.tripDestination.trim() : "";
+  const addr = typeof opts.address === "string" ? opts.address.trim() : "";
+  const place = typeof opts.placeName === "string" ? opts.placeName.trim() : "";
+  const parts: string[] = [];
+  const seen = new Set<string>();
+  const push = (s: string) => {
+    const t = s.trim();
+    if (!t) return;
+    const k = t.toLowerCase();
+    if (seen.has(k)) return;
+    seen.add(k);
+    parts.push(t);
+  };
+  // Destino primero: refuerza país/ciudad ante calles homónimas en otros países.
+  push(dest);
+  push(addr);
+  push(place);
   if (!parts.length) return null;
   return parts.join(", ");
+}
+
+async function runWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  if (!items.length) return [];
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const workerCount = Math.max(1, Math.min(limit, items.length));
+  const worker = async () => {
+    while (true) {
+      const idx = next++;
+      if (idx >= items.length) break;
+      results[idx] = await fn(items[idx]!, idx);
+    }
+  };
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
 }
 
 function itineraryProfile(itinerary: ItineraryPayload): "driving" | "walking" | "cycling" {
@@ -88,32 +121,14 @@ async function insertTripRouteRow(supabase: SupabaseClient, payload: Record<stri
   return { ok: false as const, error: response.error.message };
 }
 
-async function fetchOsrmRoute(params: {
-  requestOrigin: string;
-  origin: { lat: number; lng: number };
-  destination: { lat: number; lng: number };
-  profile: "driving" | "walking" | "cycling";
-}) {
-  const url = new URL("/api/osrm/route", params.requestOrigin);
-  const resp = await fetch(url.toString(), {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      origin: params.origin,
-      destination: params.destination,
-      profile: params.profile,
-    }),
-    cache: "no-store",
-  });
-  const payload = await resp.json().catch(() => null);
-  if (!resp.ok) {
-    return { points: [] as { lat: number; lng: number }[], distanceMeters: null as number | null, durationSeconds: null as number | null };
-  }
-  return {
-    points: Array.isArray(payload?.points) ? payload.points : [],
-    distanceMeters: typeof payload?.distanceMeters === "number" ? payload.distanceMeters : null,
-    durationSeconds: typeof payload?.durationSeconds === "number" ? payload.durationSeconds : null,
-  };
+function straightLineFallback(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number }
+): { lat: number; lng: number }[] {
+  return [
+    { lat: a.lat, lng: a.lng },
+    { lat: b.lat, lng: b.lng },
+  ];
 }
 
 export type ExecutePlanAccess = {
@@ -130,7 +145,6 @@ export async function executePlanOnTrip(params: {
   tripId: string;
   itinerary: ExecutableItineraryPayload;
   conflictResolution: "replace" | "add";
-  requestOrigin: string;
   access: ExecutePlanAccess;
   tripDestination: string | null;
 }): Promise<
@@ -138,7 +152,7 @@ export async function executePlanOnTrip(params: {
   | { ok: false; error: string }
 > {
   try {
-    const { supabase, tripId, itinerary, conflictResolution, requestOrigin, access, tripDestination } = params;
+    const { supabase, tripId, itinerary, conflictResolution, access, tripDestination } = params;
 
     const itineraryDates: string[] = [];
     for (const day of itinerary.days) {
@@ -217,10 +231,24 @@ export async function executePlanOnTrip(params: {
 
     let created = 0;
 
+    type PreparedRow = {
+      date: string | null;
+      item: ReturnType<typeof inferTimes>[number];
+      title: string;
+      place_name: string | null;
+      address: string | null;
+      activity_kind: string;
+    };
+
+    const prepared: PreparedRow[] = [];
     for (const day of itinerary.days as ItineraryDay[]) {
       const date = typeof day?.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(day.date) ? day.date : null;
       const items = Array.isArray(day?.items) ? day.items : [];
-      const itemsWithTimes = inferTimes(items);
+      const itemsWithTimes = inferTimes(items).sort((a, b) => {
+        const ta = normalizeTime((a as ItineraryItem).start_time ?? null) || "99:99";
+        const tb = normalizeTime((b as ItineraryItem).start_time ?? null) || "99:99";
+        return ta.localeCompare(tb);
+      });
 
       for (const item of itemsWithTimes) {
         const title = typeof item?.title === "string" ? item.title.trim() : "";
@@ -229,56 +257,64 @@ export async function executePlanOnTrip(params: {
         const place_name = typeof item?.place_name === "string" ? item.place_name.trim() : null;
         const address = typeof item?.address === "string" ? item.address.trim() : null;
         const activity_kind = normalizeKind(item?.activity_kind ?? null);
-
-        let normalizedAddress: string | null = address;
-
-        const query = buildGeocodeQuery({ placeName: place_name, address, tripDestination });
-        const geo = query ? await geocodeForItineraryItem(query) : { latitude: null, longitude: null, formattedAddress: null };
-        let latitude = geo.latitude ?? null;
-        let longitude = geo.longitude ?? null;
-        if (geo.formattedAddress) normalizedAddress = geo.formattedAddress;
-
-        // Último intento: título + destino (a veces el LLM deja address genérico)
-        if ((latitude == null || longitude == null) && tripDestination) {
-          const q2 = `${title}, ${tripDestination}`.trim();
-          const geo2 = await geocodeForItineraryItem(q2);
-          latitude = geo2.latitude ?? latitude;
-          longitude = geo2.longitude ?? longitude;
-          if (geo2.formattedAddress) normalizedAddress = geo2.formattedAddress;
-        }
-
-        const activity_time = normalizeTime(item.start_time ?? null);
-        const row: Record<string, unknown> = {
-          trip_id: tripId,
-          title,
-          description: typeof item?.notes === "string" ? item.notes.trim() : null,
-          activity_date: date,
-          activity_time,
-          place_name,
-          address: normalizedAddress,
-          latitude,
-          longitude,
-          activity_type: "general",
-          activity_kind,
-          source: "ai",
-          created_by_user_id: access.userId,
-        };
-
-        const { data: inserted, error } = await supabase.from("trip_activities").insert([row]).select("id").single();
-        if (error) throw new Error(error.message);
-        if (!inserted?.id) throw new Error("No se pudo crear una actividad del plan.");
-
-        created += 1;
-
-        slotMeta.push({
-          route_day: date,
-          title,
-          place_name,
-          addressLabel: normalizedAddress,
-          latitude,
-          longitude,
-        });
+        prepared.push({ date, item, title, place_name, address, activity_kind });
       }
+    }
+
+    const GEOCODE_CONCURRENCY = 8;
+    const geocoded = await runWithConcurrency(prepared, GEOCODE_CONCURRENCY, async (r) => {
+      let normalizedAddress: string | null = r.address;
+      const query = buildGeocodeQuery({ placeName: r.place_name, address: r.address, tripDestination });
+      let latitude: number | null = null;
+      let longitude: number | null = null;
+      if (query) {
+        const geo = await geocodeForItineraryItem(query);
+        latitude = geo.latitude ?? null;
+        longitude = geo.longitude ?? null;
+        if (geo.formattedAddress) normalizedAddress = geo.formattedAddress;
+      }
+      if ((latitude == null || longitude == null) && tripDestination) {
+        const q2 = `${r.title}, ${tripDestination}`.trim();
+        const geo2 = await geocodeForItineraryItem(q2);
+        latitude = geo2.latitude ?? latitude;
+        longitude = geo2.longitude ?? longitude;
+        if (geo2.formattedAddress) normalizedAddress = geo2.formattedAddress;
+      }
+      return { ...r, normalizedAddress, latitude, longitude };
+    });
+
+    for (const r of geocoded) {
+      const activity_time = normalizeTime(r.item.start_time ?? null);
+      const row: Record<string, unknown> = {
+        trip_id: tripId,
+        title: r.title,
+        description: typeof r.item?.notes === "string" ? r.item.notes.trim() : null,
+        activity_date: r.date,
+        activity_time,
+        place_name: r.place_name,
+        address: r.normalizedAddress,
+        latitude: r.latitude,
+        longitude: r.longitude,
+        activity_type: "general",
+        activity_kind: r.activity_kind,
+        source: "ai",
+        created_by_user_id: access.userId,
+      };
+
+      const { data: inserted, error } = await supabase.from("trip_activities").insert([row]).select("id").single();
+      if (error) throw new Error(error.message);
+      if (!inserted?.id) throw new Error("No se pudo crear una actividad del plan.");
+
+      created += 1;
+
+      slotMeta.push({
+        route_day: r.date,
+        title: r.title,
+        place_name: r.place_name,
+        addressLabel: r.normalizedAddress,
+        latitude: r.latitude,
+        longitude: r.longitude,
+      });
     }
 
     if (!created) {
@@ -310,13 +346,17 @@ export async function executePlanOnTrip(params: {
       if (a.latitude == null || a.longitude == null || b.latitude == null || b.longitude == null) continue;
       if (routeCalls >= ROUTE_CALL_LIMIT) break;
 
-      const route = await fetchOsrmRoute({
-        requestOrigin,
+      const route = await fetchProjectOsrmRoute({
         origin: { lat: a.latitude, lng: a.longitude },
         destination: { lat: b.latitude, lng: b.longitude },
         profile,
       });
       routeCalls += 1;
+
+      const originPt = { lat: a.latitude, lng: a.longitude };
+      const destPt = { lat: b.latitude, lng: b.longitude };
+      const rawPts = Array.isArray(route.points) ? route.points : [];
+      const points = rawPts.length >= 2 ? rawPts : straightLineFallback(originPt, destPt);
 
       const title = `${a.title} → ${b.title}`;
       const routeDay = a.route_day;
@@ -332,7 +372,10 @@ export async function executePlanOnTrip(params: {
         departure_time: null,
         travel_mode,
         mode,
-        notes: null,
+        notes:
+          rawPts.length >= 2
+            ? null
+            : "Geometría aproximada (línea recta): OSRM no devolvió trazado; revisa ferry/isla o modo de transporte.",
         color: null,
         origin_name: a.title,
         origin_address: a.addressLabel,
@@ -347,8 +390,8 @@ export async function executePlanOnTrip(params: {
         stop_latitude: null,
         stop_longitude: null,
         waypoints: [],
-        path_points: route.points,
-        route_points: route.points,
+        path_points: points,
+        route_points: points,
         distance_text:
           typeof route.distanceMeters === "number" ? `${(route.distanceMeters / 1000).toFixed(1)} km` : null,
         duration_text:

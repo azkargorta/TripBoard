@@ -2,14 +2,17 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { enforceAiMonthlyBudgetOrThrow, trackAiUsage } from "@/lib/ai-budget";
 import { monthKeyUtc } from "@/lib/ai-usage";
-import type { TripCreationIntent } from "@/lib/trip-ai/tripCreationTypes";
+import type { ExecutableItineraryPayload, TripCreationIntent } from "@/lib/trip-ai/tripCreationTypes";
 import { mergeTripCreationIntentLLM, parseTripCreationIntentLLM } from "@/lib/trip-ai/parseTripCreationIntent";
 import {
   buildDefaultTripName,
   getTripCreationFollowUp,
   resolveTripCreationDates,
 } from "@/lib/trip-ai/tripCreationResolve";
-import { generateExecutableItineraryFromIntent } from "@/lib/trip-ai/generateItineraryFromIntent";
+import {
+  generateExecutableItineraryFromIntent,
+  normalizeClientExecutableItinerary,
+} from "@/lib/trip-ai/generateItineraryFromIntent";
 import { executePlanOnTrip } from "@/lib/trip-ai/executePlanOnTrip";
 import { createTripWithOwner } from "@/lib/trips/createTripWithOwner";
 import { ensureUserCanCreateTrip } from "@/lib/trips/tripCreationLimits";
@@ -233,16 +236,30 @@ export async function POST(req: Request) {
       );
     }
 
-    const { itinerary, usage: u2 } = await generateExecutableItineraryFromIntent(resolved, { provider });
-    await trackIfCountable({ supabase, userId, monthKey, usage: u2 });
+    let itinerary: ExecutableItineraryPayload;
+    let itineraryUsage: TripAiUsage | null = null;
+    if (body?.itinerary && typeof body.itinerary === "object") {
+      try {
+        itinerary = normalizeClientExecutableItinerary(body.itinerary, resolved);
+      } catch {
+        const gen = await generateExecutableItineraryFromIntent(resolved, { provider });
+        itinerary = gen.itinerary;
+        itineraryUsage = gen.usage;
+      }
+    } else {
+      const gen = await generateExecutableItineraryFromIntent(resolved, { provider });
+      itinerary = gen.itinerary;
+      itineraryUsage = gen.usage;
+    }
+    if (itineraryUsage) {
+      await trackIfCountable({ supabase, userId, monthKey, usage: itineraryUsage });
+    }
 
-    const requestOrigin = new URL(req.url).origin;
     const exec = await executePlanOnTrip({
       supabase,
       tripId,
       itinerary,
       conflictResolution: "add",
-      requestOrigin,
       access: { userId: access.userId, can_manage_map: access.can_manage_map },
       tripDestination: resolved.destination,
     });

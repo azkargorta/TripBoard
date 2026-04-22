@@ -86,12 +86,16 @@ export async function askGemini(prompt: string, mode: TripAiMode) {
 
   // gemini-2.0-flash dejó de estar disponible para nuevos usuarios (404).
   const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-  const temperature = mode === "optimizer" ? 0.3 : mode === "travel_docs" ? 0.35 : 0.5;
+  const temperature =
+    mode === "optimizer" ? 0.3 : mode === "travel_docs" ? 0.35 : mode === "planning" ? 0.35 : 0.5;
 
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({
     model: modelName,
-    generationConfig: { temperature },
+    generationConfig: {
+      temperature,
+      ...(mode === "planning" ? { maxOutputTokens: 6144 } : {}),
+    },
   });
 
   try {
@@ -117,11 +121,15 @@ export async function askGeminiWithUsage(prompt: string, mode: TripAiMode): Prom
       throw new Error("Falta GEMINI_API_KEY en el servidor.");
     }
 
-    const temperature = mode === "optimizer" ? 0.3 : mode === "travel_docs" ? 0.35 : 0.5;
+    const temperature =
+      mode === "optimizer" ? 0.3 : mode === "travel_docs" ? 0.35 : mode === "planning" ? 0.35 : 0.5;
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
       model: modelName,
-      generationConfig: { temperature },
+      generationConfig: {
+        temperature,
+        ...(mode === "planning" ? { maxOutputTokens: 6144 } : {}),
+      },
     });
 
     const result = await model.generateContent(prompt);

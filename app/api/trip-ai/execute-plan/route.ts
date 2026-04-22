@@ -38,13 +38,11 @@ export async function POST(req: Request) {
     const { data: tripRow } = await supabase.from("trips").select("destination").eq("id", tripId).single();
     const tripDestination = typeof tripRow?.destination === "string" ? tripRow.destination : null;
 
-    const requestOrigin = new URL(req.url).origin;
     const result = await executePlanOnTrip({
       supabase,
       tripId,
       itinerary,
       conflictResolution,
-      requestOrigin,
       access: { userId: access.userId, can_manage_map: access.can_manage_map },
       tripDestination,
     });

@@ -34,6 +34,47 @@ function featurePoint(feature: any): { lat: number; lng: number } | null {
   return { lat, lng };
 }
 
+/**
+ * Ciudades muy ambiguas o nombres ES que, si van solos en el destino, deben añadir pistas de país
+ * (p. ej. "Venecia" sin "Italia" → igual filtramos Italia y no "Calle Venecia" en España).
+ */
+const CITY_EXTRA_REGION_HINTS: Record<string, string[]> = {
+  venecia: ["italia", "italy", "veneto"],
+  venice: ["italia", "italy", "veneto"],
+  venezia: ["italia", "italy", "veneto"],
+  roma: ["italia", "italy", "lazio"],
+  rome: ["italia", "italy", "lazio"],
+  milán: ["italia", "italy", "lombardia"],
+  milan: ["italia", "italy", "lombardia"],
+  milano: ["italia", "italy", "lombardia"],
+  florencia: ["italia", "italy", "toscana"],
+  florence: ["italia", "italy", "toscana"],
+  firenze: ["italia", "italy", "toscana"],
+  nápoles: ["italia", "italy", "campania"],
+  napoles: ["italia", "italy", "campania"],
+  naples: ["italia", "italy", "campania"],
+  napoli: ["italia", "italy", "campania"],
+  turín: ["italia", "italy", "piamonte"],
+  turin: ["italia", "italy", "piamonte"],
+  torino: ["italia", "italy", "piamonte"],
+  bolonia: ["italia", "italy", "emilia"],
+  bologna: ["italia", "italy", "emilia"],
+  parís: ["francia", "france", "île-de-france"],
+  paris: ["francia", "france", "île-de-france"],
+  londres: ["united kingdom", "uk", "england", "inglaterra"],
+  london: ["united kingdom", "uk", "england"],
+  madrid: ["españa", "spain"],
+  barcelona: ["españa", "spain", "cataluña", "catalunya"],
+  sevilla: ["españa", "spain", "andalucía", "andalucia"],
+  seville: ["españa", "spain", "andalucía", "andalucia"],
+  lisboa: ["portugal"],
+  lisbon: ["portugal"],
+  oporto: ["portugal"],
+  porto: ["portugal"],
+  atenas: ["greece", "grecia"],
+  athens: ["greece", "grecia"],
+};
+
 /** Trocea un texto tipo destino de viaje en pistas para refuerzo de consulta / país. */
 export function regionHintsFromDestination(destination: string | null | undefined): string[] {
   if (!destination || typeof destination !== "string") return [];
@@ -42,7 +83,14 @@ export function regionHintsFromDestination(destination: string | null | undefine
     .map((s) => s.trim())
     .filter((s) => s.length > 1);
   const lower = parts.map((p) => p.toLowerCase());
-  return Array.from(new Set(lower));
+  const set = new Set(lower);
+  for (const p of lower) {
+    const extras = CITY_EXTRA_REGION_HINTS[p];
+    if (extras) {
+      for (const e of extras) set.add(e.toLowerCase());
+    }
+  }
+  return Array.from(set);
 }
 
 async function photonFetch(q: string, opts: { limit: number; bias?: { lat: number; lng: number } | null }): Promise<any[]> {
@@ -101,10 +149,19 @@ function countryMatches(hints: string[], feature: any): boolean {
 export async function geocodeTripAnchor(destination: string | null | undefined): Promise<{ lat: number; lng: number } | null> {
   const q = typeof destination === "string" ? destination.trim() : "";
   if (!q) return null;
-  const features = await photonFetch(q, { limit: 5, bias: null });
+  const hints = regionHintsFromDestination(q);
+  const features = await photonFetch(q, { limit: 10, bias: null });
   for (const f of features) {
     const pt = featurePoint(f);
-    if (pt) return pt;
+    if (!pt) continue;
+    if (hints.length && !countryMatches(hints, f)) continue;
+    return pt;
+  }
+  if (!hints.length) {
+    for (const f of features) {
+      const pt = featurePoint(f);
+      if (pt) return pt;
+    }
   }
   return null;
 }
@@ -147,12 +204,14 @@ export async function geocodePhotonPreferred(
     }
     if (best) return { lat: best.lat, lng: best.lng, label: best.label };
 
-    // Sin filtro de país si descartó todos pero tenemos ancla: distancia pura
+    // Si hay pistas de país, NUNCA aceptar un resultado solo por cercanía al ancla ignorando el país
+    // (evita "Calle Venecia" en España cuando el viaje es Venecia/Italia).
     if (hints.length && anchor) {
       let best2: { dist: number; label: string; lat: number; lng: number } | null = null;
       for (const f of features) {
         const pt = featurePoint(f);
         if (!pt) continue;
+        if (!countryMatches(hints, f)) continue;
         const dist = haversineKm(anchor, pt);
         if (!best2 || dist < best2.dist) {
           best2 = { dist, label: featureLabel(f) || q, ...pt };

@@ -228,6 +228,8 @@ async function callAutoCreate(params: {
   followUp?: string;
   draftIntent?: TripCreationIntent | null;
   previewOnly: boolean;
+  /** Si viene del paso Planes (previsualización), se reutiliza orden/contenido y se evita otra llamada IA al crear. */
+  itinerary?: ExecutableItineraryPayload | null;
 }) {
   const res = await fetch("/api/trips/auto-create", {
     method: "POST",
@@ -238,6 +240,7 @@ async function callAutoCreate(params: {
       draftIntent: params.draftIntent || undefined,
       provider: "gemini",
       previewOnly: Boolean(params.previewOnly),
+      ...(params.itinerary && params.itinerary.days?.length ? { itinerary: params.itinerary } : {}),
     }),
   });
 
@@ -692,6 +695,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
         followUp: mergedFollowUp,
         draftIntent: { ...draftIntent, mustSee: derivedPlaces, wantsRouteOptimization: optimizeOrder },
         previewOnly: false,
+        itinerary: previewItinerary,
       });
 
       if (data?.status === "created" || data?.status === "partial") {
