@@ -2,11 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, ChevronDown, ChevronRight, Compass, Map as MapIcon, Plus, Sparkles, Trash2, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, ChevronRight, Compass, Plus, Sparkles, Trash2, X } from "lucide-react";
 import type { TripCreationIntent } from "@/lib/trip-ai/tripCreationTypes";
 import type { ExecutableItineraryPayload, ItineraryItemPayload } from "@/lib/trip-ai/tripCreationTypes";
-import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
-import L from "leaflet";
 import PlanForm, { type PlanFormValues } from "@/components/trip/plan/PlanForm";
 
 type Props = {
@@ -163,42 +161,7 @@ function inferPopularSuggestions(destinationRaw: string) {
   return ["Centro histórico", "Mirador", "Mercado local", "Museo principal", "Barrio gastronómico", "Excursión cercana"];
 }
 
-function emojiIcon(emoji: string, bg: string) {
-  return L.divIcon({
-    className: "",
-    html: `<div style="
-      width: 34px; height: 34px;
-      display:flex; align-items:center; justify-content:center;
-      border-radius: 999px;
-      background:${bg};
-      border: 2px solid #ffffff;
-      box-shadow: 0 10px 22px rgba(15,23,42,.18);
-      font-size: 16px;
-      line-height: 1;
-    ">${emoji}</div>`,
-    iconSize: [34, 34],
-    iconAnchor: [17, 34],
-    popupAnchor: [0, -28],
-  });
-}
-
-function FitToBounds({ pointsKey, bounds }: { pointsKey: string; bounds: L.LatLngBounds | null }) {
-  const map = useMap();
-  const lastKeyRef = useRef<string>("");
-
-  useEffect(() => {
-    if (!bounds) return;
-    if (pointsKey && pointsKey === lastKeyRef.current) return;
-    lastKeyRef.current = pointsKey;
-    try {
-      map.fitBounds(bounds, { padding: [40, 40] });
-    } catch {
-      // noop
-    }
-  }, [bounds, map, pointsKey]);
-
-  return null;
-}
+// Nota: la pestaña "Explorar mapa" del asistente automático está desactivada por ahora.
 
 function cityFromAddress(addressRaw: string) {
   const raw = String(addressRaw || "").trim();
@@ -341,9 +304,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewItinerary, setPreviewItinerary] = useState<ExecutableItineraryPayload | null>(null);
   const [previewResolved, setPreviewResolved] = useState<PreviewPlansOk["resolved"] | null>(null);
-  const [previewTab, setPreviewTab] = useState<"calendar" | "map">("calendar");
-  const [previewGeo, setPreviewGeo] = useState<Record<string, { lat: number; lng: number; address: string }>>({});
-  const [previewGeoLoading, setPreviewGeoLoading] = useState(false);
+  // (Mapa desactivado por ahora)
   const [previewExpandedDays, setPreviewExpandedDays] = useState<Set<number>>(() => new Set());
   const [previewEditor, setPreviewEditor] = useState<
     | null
@@ -694,11 +655,8 @@ export default function TripCreationWizard({ isPremium }: Props) {
   async function previewPlans() {
     if (loading || !draftIntent) return;
     setPreviewOpen(true);
-    setPreviewTab("calendar");
     setPreviewLoading(true);
     setPreviewError(null);
-    setPreviewGeo({});
-    setPreviewGeoLoading(false);
     setPreviewExpandedDays(new Set());
     setPreviewEditor(null);
     setPreviewEditorError(null);
@@ -727,113 +685,12 @@ export default function TripCreationWizard({ isPremium }: Props) {
 
   function closePreviewModal() {
     setPreviewOpen(false);
-    setPreviewTab("calendar");
     setPreviewLoading(false);
     setPreviewError(null);
     setPreviewEditor(null);
     setPreviewEditorError(null);
     setPreviewEditorSaving(false);
   }
-
-  const previewMapPoints = useMemo(() => {
-    if (!previewItinerary?.days?.length) return [];
-    const points: Array<{ key: string; lat: number; lng: number; title: string; subtitle?: string; emoji: string; bg: string }> = [];
-    for (let di = 0; di < previewItinerary.days.length; di++) {
-      const day = previewItinerary.days[di]!;
-      for (let ii = 0; ii < (day.items || []).length; ii++) {
-        const it = (day.items || [])[ii] as ItineraryItemPayload;
-        const addr = String(it.address || it.place_name || "").trim();
-        const key = `d${di}-i${ii}`;
-        const geo = previewGeo[key];
-        if (!geo) continue;
-        points.push({
-          key,
-          lat: geo.lat,
-          lng: geo.lng,
-          title: it.title || it.place_name || "Plan",
-          subtitle: geo.address || addr || undefined,
-          emoji: "📍",
-          bg: "#0f172a",
-        });
-      }
-    }
-    return points;
-  }, [previewGeo, previewItinerary?.days]);
-
-  const previewMapBounds = useMemo(() => {
-    if (!previewMapPoints.length) return null;
-    const b = L.latLngBounds(previewMapPoints.map((p) => [p.lat, p.lng] as [number, number]));
-    return b.isValid() ? b : null;
-  }, [previewMapPoints]);
-
-  const previewPointsKey = useMemo(() => previewMapPoints.map((p) => p.key).join("|"), [previewMapPoints]);
-
-  useEffect(() => {
-    if (!previewOpen) return;
-    if (previewTab !== "map") return;
-    if (!previewItinerary?.days?.length) return;
-    if (previewGeoLoading) return;
-
-    let cancelled = false;
-
-    const neededKeys: Array<{ key: string; query: string }> = [];
-    for (let di = 0; di < previewItinerary.days.length; di++) {
-      const day = previewItinerary.days[di]!;
-      for (let ii = 0; ii < (day.items || []).length; ii++) {
-        const it = (day.items || [])[ii] as ItineraryItemPayload;
-        const key = `d${di}-i${ii}`;
-        if (previewGeo[key]) continue;
-        const base = String(it.address || it.place_name || it.title || "").trim();
-        if (!base) continue;
-        const query = destinationLabel ? `${base}, ${destinationLabel}` : base;
-        neededKeys.push({ key, query });
-      }
-    }
-
-    if (!neededKeys.length) return;
-
-    setPreviewGeoLoading(true);
-    (async () => {
-      try {
-        const concurrency = 4;
-        let idx = 0;
-        const results: Record<string, { lat: number; lng: number; address: string }> = {};
-
-        const worker = async () => {
-          while (idx < neededKeys.length && !cancelled) {
-            const cur = neededKeys[idx]!;
-            idx += 1;
-            try {
-              const resp = await fetch("/api/geocode", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ address: cur.query }),
-              });
-              const payload = await resp.json().catch(() => null);
-              if (!resp.ok) continue;
-              const lat = typeof payload?.latitude === "number" ? payload.latitude : null;
-              const lng = typeof payload?.longitude === "number" ? payload.longitude : null;
-              if (typeof lat !== "number" || typeof lng !== "number") continue;
-              const formatted = typeof payload?.formattedAddress === "string" ? payload.formattedAddress : cur.query;
-              results[cur.key] = { lat, lng, address: formatted };
-            } catch {
-              // ignore single failure
-            }
-          }
-        };
-
-        await Promise.all(Array.from({ length: concurrency }).map(() => worker()));
-        if (cancelled) return;
-        setPreviewGeo((prev) => ({ ...prev, ...results }));
-      } finally {
-        if (!cancelled) setPreviewGeoLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [destinationLabel, previewGeo, previewGeoLoading, previewItinerary?.days, previewOpen, previewTab]);
 
   async function ensureTripForPreviewEditor() {
     if (createdTripId) return createdTripId;
@@ -1806,28 +1663,8 @@ export default function TripCreationWizard({ isPremium }: Props) {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <div className="inline-flex overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                  <button
-                    type="button"
-                    onClick={() => setPreviewTab("calendar")}
-                    className={`px-3 py-2 text-xs font-extrabold transition ${
-                      previewTab === "calendar" ? "bg-violet-600 text-white" : "text-slate-700 hover:bg-slate-50"
-                    }`}
-                    title="Ver calendario"
-                  >
-                    Calendario
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPreviewTab("map")}
-                    className={`inline-flex items-center gap-2 px-3 py-2 text-xs font-extrabold transition ${
-                      previewTab === "map" ? "bg-violet-600 text-white" : "text-slate-700 hover:bg-slate-50"
-                    }`}
-                    title="Explorar mapa"
-                  >
-                    <MapIcon className="h-4 w-4" aria-hidden />
-                    Explorar mapa
-                  </button>
+                <div className="inline-flex rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700">
+                  Calendario
                 </div>
                 <button
                   type="button"
@@ -1851,15 +1688,14 @@ export default function TripCreationWizard({ isPremium }: Props) {
                     <span className="font-semibold">Error:</span> {previewError}
                   </div>
                 ) : previewItinerary?.days?.length ? (
-                  previewTab === "calendar" ? (
-                    <div className="space-y-3">
-                      {previewItinerary.days.map((day, dayIndex) => (
-                        <div key={`${day.day}-${day.date}-${dayIndex}`} className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-                          {(() => {
-                            const expanded = previewExpandedDays.has(dayIndex);
-                            return (
-                              <>
-                                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
+                  <div className="space-y-3">
+                    {previewItinerary.days.map((day, dayIndex) => (
+                      <div key={`${day.day}-${day.date}-${dayIndex}`} className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                        {(() => {
+                          const expanded = previewExpandedDays.has(dayIndex);
+                          return (
+                            <>
+                              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
                                   <button
                                     type="button"
                                     onClick={() =>
@@ -1940,42 +1776,10 @@ export default function TripCreationWizard({ isPremium }: Props) {
                                 ) : null}
                               </>
                             );
-                          })()}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-                      <div className="flex flex-wrap items-center justify-between gap-2 px-1 pb-3">
-                        <div className="text-sm font-extrabold text-slate-950">Mapa de planes</div>
-                        <div className="text-xs font-semibold text-slate-600">
-                          {previewGeoLoading ? "Geocodificando…" : `${previewMapPoints.length} marcadores`}
-                        </div>
+                        })()}
                       </div>
-                      <div className="h-[520px] w-full overflow-hidden rounded-2xl border border-slate-200">
-                        <MapContainer center={[40.4168, -3.7038]} zoom={4} style={{ height: "100%", width: "100%" }} scrollWheelZoom>
-                          <TileLayer
-                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                          />
-                          <FitToBounds pointsKey={previewPointsKey} bounds={previewMapBounds} />
-                          {previewMapPoints.map((p) => (
-                            <Marker key={p.key} position={[p.lat, p.lng]} icon={emojiIcon(p.emoji, p.bg)}>
-                              <Popup>
-                                <div className="text-sm font-semibold text-slate-900">{p.title}</div>
-                                {p.subtitle ? <div className="mt-1 text-xs text-slate-600">{p.subtitle}</div> : null}
-                              </Popup>
-                            </Marker>
-                          ))}
-                        </MapContainer>
-                      </div>
-                      {previewGeoLoading ? (
-                        <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-                          Estamos buscando coordenadas para los planes. Si alguno no aparece, puede que su dirección sea demasiado genérica.
-                        </div>
-                      ) : null}
-                    </div>
-                  )
+                    ))}
+                  </div>
                 ) : (
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
                     No hay planes para mostrar todavía.
