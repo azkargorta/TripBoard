@@ -173,11 +173,11 @@ function cityFromAddress(addressRaw: string) {
     .filter(Boolean);
   if (parts.length >= 2) {
     // Heurística: si hay 3+ partes, la "ciudad" suele estar al final-1.
-    if (parts.length >= 3) return parts[parts.length - 2] || parts[0] || "";
+    if (parts.length >= 3) return String(parts[parts.length - 2] || parts[0] || "").replace(/^\d+\s+/, "");
     // 2 partes: "Ciudad, País"
-    return parts[0] || "";
+    return String(parts[0] || "").replace(/^\d+\s+/, "");
   }
-  return raw;
+  return raw.replace(/^\d+\s+/, "");
 }
 
 function clampStep(n: number): WizardStep {
@@ -313,6 +313,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
   const [places, setPlaces] = useState<string[]>([]);
   const [placeAdd, setPlaceAdd] = useState("");
   const [optimizeOrder, setOptimizeOrder] = useState(true);
+  const [optimizeTouched, setOptimizeTouched] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -408,12 +409,12 @@ export default function TripCreationWizard({ isPremium }: Props) {
   useEffect(() => {
     if (step !== 2) return;
     if (!draftIntent) return;
-    // Asegura que "Optimizar orden" esté activado por defecto si el intent no lo trae.
-    if (typeof draftIntent.wantsRouteOptimization !== "boolean") {
+    // Asegura que "Optimizar orden" esté activado por defecto (si el usuario no lo ha tocado).
+    if (!optimizeTouched) {
       setOptimizeOrder(true);
       setDraftIntent((prev) => ({ ...(prev || {}), wantsRouteOptimization: true }));
     }
-  }, [draftIntent, step]);
+  }, [draftIntent, optimizeTouched, step]);
 
   async function ensureLodgingItinerary() {
     if (!draftIntent || lodgingLoading) return;
@@ -1239,6 +1240,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
                     disabled={loading}
                     onChange={(e) => {
                       const v = Boolean(e.target.checked);
+                      setOptimizeTouched(true);
                       setOptimizeOrder(v);
                       setDraftIntent((prev) => ({ ...(prev || {}), wantsRouteOptimization: v }));
                     }}
@@ -1698,9 +1700,6 @@ export default function TripCreationWizard({ isPremium }: Props) {
         <div
           className="fixed inset-0 z-[1200] flex items-end justify-center bg-slate-950/50 p-4 backdrop-blur-sm sm:items-center"
           role="presentation"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) closePreviewModal();
-          }}
           onClick={(e) => {
             if (e.target === e.currentTarget) closePreviewModal();
           }}

@@ -168,7 +168,7 @@ export async function executePlanOnTrip(params: {
 
     const geocodeCache = new Map<string, { latitude: number | null; longitude: number | null; formattedAddress?: string | null }>();
     let geocodeCount = 0;
-    const GEOCODE_LIMIT = 40;
+    const GEOCODE_LIMIT = 80;
 
     const anchor = await geocodeTripAnchor(tripDestination ?? null);
     const regionHints = regionHintsFromDestination(tripDestination ?? null);
@@ -267,6 +267,74 @@ export async function executePlanOnTrip(params: {
         routesCreated: 0,
         routesNote: "Actividades creadas, pero no se pudieron calcular rutas (respuesta de inserción incompleta).",
       };
+    }
+
+    // Refuerzo: si algún plan quedó sin coordenadas, intentamos geocodificar y actualizar la fila por id.
+    // Esto evita que el usuario tenga que abrir cada tarjeta para fijar lat/lng manualmente.
+    const missingIdx: number[] = [];
+    for (let i = 0; i < slotMeta.length; i++) {
+      const s = slotMeta[i]!;
+      if (s.latitude != null && s.longitude != null) continue;
+      if (!s.addressLabel && !s.place_name) continue;
+      missingIdx.push(i);
+    }
+
+    if (missingIdx.length) {
+      const MAX_FIX = 60;
+      const work = missingIdx.slice(0, MAX_FIX);
+      const concurrency = 6;
+      let cursor = 0;
+
+      const worker = async () => {
+        while (cursor < work.length) {
+          const i = work[cursor]!;
+          cursor += 1;
+          const id = (insertedRows[i] as any)?.id;
+          if (!id) continue;
+          const s = slotMeta[i]!;
+
+          const query = buildGeocodeQuery({ placeName: s.place_name, address: s.addressLabel, tripDestination });
+          if (!query) continue;
+
+          try {
+            const cached = geocodeCache.get(query);
+            const hit =
+              cached ??
+              (await (async () => {
+                const g = await geocodePhotonPreferred(query, { anchor, regionHints });
+                return {
+                  latitude: g ? g.lat : null,
+                  longitude: g ? g.lng : null,
+                  formattedAddress: g ? g.label : null,
+                };
+              })());
+            if (!cached) geocodeCache.set(query, hit);
+
+            const latitude = hit.latitude ?? null;
+            const longitude = hit.longitude ?? null;
+            if (latitude == null || longitude == null) continue;
+
+            const normalizedAddress = hit.formattedAddress ? hit.formattedAddress : s.addressLabel;
+
+            const { error: updErr } = await supabase
+              .from("trip_activities")
+              .update({ latitude, longitude, address: normalizedAddress })
+              .eq("id", id);
+            if (updErr) continue;
+
+            slotMeta[i] = {
+              ...s,
+              latitude,
+              longitude,
+              addressLabel: normalizedAddress,
+            };
+          } catch {
+            // ignore single failure
+          }
+        }
+      };
+
+      await Promise.all(Array.from({ length: concurrency }).map(() => worker()));
     }
 
     const profile = itineraryProfile(itinerary);
