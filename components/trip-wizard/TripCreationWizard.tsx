@@ -7,7 +7,6 @@ import type { TripCreationIntent } from "@/lib/trip-ai/tripCreationTypes";
 import type { ExecutableItineraryPayload, ItineraryItemPayload } from "@/lib/trip-ai/tripCreationTypes";
 import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
-import TripParticipantsView from "@/components/trip/participants/TripParticipantsView";
 import TripPlanView from "@/components/trip/plan/TripPlanView";
 
 type Props = {
@@ -15,7 +14,7 @@ type Props = {
   isAdmin?: boolean;
 };
 
-type WizardStep = 1 | 2 | 3 | 4 | 5;
+type WizardStep = 1 | 2 | 3 | 4;
 
 type ApiNeedsClarification = {
   status: "needs_clarification";
@@ -55,7 +54,6 @@ const STEP_LABELS: Array<{ step: WizardStep; label: string }> = [
   { step: 2, label: "Planes" },
   { step: 3, label: "Alojamientos" },
   { step: 4, label: "Rutas" },
-  { step: 5, label: "Pasajeros" },
 ];
 
 const PROMPT_EXAMPLE =
@@ -221,7 +219,7 @@ function cityFromAddress(addressRaw: string) {
 
 function clampStep(n: number): WizardStep {
   if (n <= 1) return 1;
-  if (n >= 5) return 5;
+  if (n >= 4) return 4;
   return n as WizardStep;
 }
 
@@ -360,6 +358,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
   const [lodgingSelectedHotelByCity, setLodgingSelectedHotelByCity] = useState<
     Record<string, { name: string; priceLabel: string; url: string } | null>
   >({});
+  const [lodgingOpenCity, setLodgingOpenCity] = useState<string | null>(null);
 
   const [transportNotes, setTransportNotes] = useState("");
   const [travelersType, setTravelersType] = useState<string>("family");
@@ -383,7 +382,6 @@ export default function TripCreationWizard({ isPremium }: Props) {
     if (step === 1) return Boolean(prompt.trim());
     if (step === 2) return Boolean(draftIntent);
     if (step === 4) return true;
-    if (step === 5) return Boolean(draftIntent);
     return true;
   }, [draftIntent, loading, prompt, step]);
 
@@ -617,7 +615,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
     }
   }
 
-  async function finalizeCreateTrip(options?: { redirectToSummary?: boolean }) {
+  async function finalizeCreateTrip(options?: { redirectTo?: "participants" | "summary" | "none" }) {
     if (loading || !draftIntent) return null;
     setLoading(true);
     setError(null);
@@ -644,8 +642,11 @@ export default function TripCreationWizard({ isPremium }: Props) {
           setCreatedTripPartialError(null);
         }
         setCreatedTripId(created.tripId);
-        if (options?.redirectToSummary ?? true) {
+        const redirectTo = options?.redirectTo ?? "participants";
+        if (redirectTo === "summary") {
           router.push(`/trip/${encodeURIComponent(created.tripId)}/summary?recien=1`);
+        } else if (redirectTo === "participants") {
+          router.push(`/trip/${encodeURIComponent(created.tripId)}/participants?recien=1`);
         }
         return created.tripId;
       }
@@ -804,7 +805,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
   async function openDbPlanEditor(selectedDate: string | null) {
     setPreviewDbSelectedDate(selectedDate);
     if (!createdTripId) {
-      const id = await finalizeCreateTrip({ redirectToSummary: false });
+      const id = await finalizeCreateTrip({ redirectTo: "none" });
       if (!id) return;
     }
     setPreviewDbOpen(true);
@@ -1213,6 +1214,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 {lodgingCities.map((row) => {
                   const city = row.city;
+                  const open = lodgingOpenCity === city;
                   const action = lodgingActionByCity[city] || "none";
                   const manual = lodgingManualByCity[city] || { name: "", address: "", notes: "" };
                   const tier = lodgingProposalTierByCity[city] || "medio";
@@ -1221,20 +1223,43 @@ export default function TripCreationWizard({ isPremium }: Props) {
                   const selected = lodgingSelectedHotelByCity[city] ?? null;
 
                   return (
-                    <details key={city} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                      <summary className="cursor-pointer list-none">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="text-sm font-extrabold text-slate-950">{city}</div>
-                            <div className="text-xs font-semibold text-slate-600">Noches: {row.nights}</div>
-                          </div>
-                          <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold text-slate-700">
-                            Abrir
-                          </span>
+                    <div
+                      key={city}
+                      className="relative rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                      style={{ minHeight: 112 }}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-sm font-extrabold text-slate-950">{city}</div>
+                          <div className="text-xs font-semibold text-slate-600">Noches: {row.nights}</div>
                         </div>
-                      </summary>
+                        <button
+                          type="button"
+                          onClick={() => setLodgingOpenCity((prev) => (prev === city ? null : city))}
+                          className={`rounded-full border px-3 py-1 text-xs font-extrabold transition ${
+                            open ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                          }`}
+                        >
+                          {open ? "Cerrar" : "Abrir"}
+                        </button>
+                      </div>
 
-                      <div className="mt-4 space-y-3">
+                      {open ? (
+                        <div className="absolute left-0 right-0 top-[68px] z-10 mt-3 max-h-[min(60vh,520px)] overflow-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-xl">
+                          <div className="mb-3 flex items-center justify-between gap-2">
+                            <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">
+                              {city} · {row.nights} noche{row.nights === 1 ? "" : "s"}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setLodgingOpenCity(null)}
+                              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
+                            >
+                              Cerrar
+                            </button>
+                          </div>
+
+                          <div className="space-y-3">
                         {selected ? (
                           <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
                             <span className="font-extrabold">Seleccionado:</span> {selected.name}{" "}
@@ -1433,8 +1458,10 @@ export default function TripCreationWizard({ isPremium }: Props) {
                             </div>
                           </div>
                         ) : null}
-                      </div>
-                    </details>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
                   );
                 })}
               </div>
@@ -1492,70 +1519,13 @@ export default function TripCreationWizard({ isPremium }: Props) {
               </button>
               <button
                 type="button"
-                onClick={goNext}
-                disabled={loading}
-                className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-extrabold text-white shadow-sm hover:bg-slate-800 disabled:opacity-60"
+                onClick={() => void finalizeCreateTrip({ redirectTo: "participants" })}
+                disabled={loading || !draftIntent}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-violet-600 px-5 py-3 text-sm font-extrabold text-white shadow-sm hover:bg-violet-700 disabled:opacity-60"
               >
-                Siguiente paso
+                <Sparkles className="h-4 w-4" aria-hidden />
+                {loading ? "Creando…" : "Finalizar"}
               </button>
-            </div>
-          </div>
-        ) : null}
-
-        {step === 5 ? (
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="text-base font-extrabold text-slate-950">Pasajeros</div>
-            <p className="mt-1 text-sm text-slate-600">
-              Gestiona pasajeros con la misma ventana de Participantes que ya existe en el viaje.
-            </p>
-
-            {!createdTripId ? (
-              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
-                Para abrir la ventana completa de Participantes primero tenemos que crear el viaje (sin salir de aquí).
-              </div>
-            ) : null}
-
-            {createdTripPartialError ? (
-              <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-                <span className="font-semibold">Aviso:</span> El viaje se ha creado, pero algo quedó incompleto: {createdTripPartialError}
-              </div>
-            ) : null}
-
-            {createdTripId ? (
-              <div className="mt-4">
-                <TripParticipantsView tripId={createdTripId} />
-              </div>
-            ) : null}
-
-            <div className="mt-5 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={goBack}
-                disabled={loading}
-                className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
-              >
-                Ir atrás
-              </button>
-              {!createdTripId ? (
-                <button
-                  type="button"
-                  onClick={() => void finalizeCreateTrip({ redirectToSummary: false })}
-                  disabled={loading || !draftIntent}
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-violet-600 px-5 py-3 text-sm font-extrabold text-white shadow-sm hover:bg-violet-700 disabled:opacity-60"
-                >
-                  <Sparkles className="h-4 w-4" aria-hidden />
-                  {loading ? "Creando…" : "Crear viaje y gestionar pasajeros"}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => router.push(`/trip/${encodeURIComponent(createdTripId)}/summary?recien=1`)}
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-violet-600 px-5 py-3 text-sm font-extrabold text-white shadow-sm hover:bg-violet-700"
-                >
-                  <Sparkles className="h-4 w-4" aria-hidden />
-                  Ir al resumen
-                </button>
-              )}
             </div>
           </div>
         ) : null}
