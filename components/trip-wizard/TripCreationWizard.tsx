@@ -351,13 +351,13 @@ export default function TripCreationWizard({ isPremium }: Props) {
   const [lodgingError, setLodgingError] = useState<string | null>(null);
   const [lodgingItinerary, setLodgingItinerary] = useState<ExecutableItineraryPayload | null>(null);
   const [lodgingResolved, setLodgingResolved] = useState<PreviewPlansOk["resolved"] | null>(null);
-  const [lodgingActionByCity, setLodgingActionByCity] = useState<Record<string, "none" | "manual" | "scan" | "proposal">>({});
-  const [lodgingManualByCity, setLodgingManualByCity] = useState<Record<string, { name: string; address: string; notes: string }>>({});
-  const [lodgingProposalTierByCity, setLodgingProposalTierByCity] = useState<Record<string, "asequible" | "medio" | "lujo">>({});
-  const [lodgingSelectedHotelByCity, setLodgingSelectedHotelByCity] = useState<
+  const [lodgingActionBySegment, setLodgingActionBySegment] = useState<Record<string, "none" | "manual" | "scan" | "proposal">>({});
+  const [lodgingManualBySegment, setLodgingManualBySegment] = useState<Record<string, { name: string; address: string; notes: string }>>({});
+  const [lodgingProposalTierBySegment, setLodgingProposalTierBySegment] = useState<Record<string, "asequible" | "medio" | "lujo">>({});
+  const [lodgingSelectedHotelBySegment, setLodgingSelectedHotelBySegment] = useState<
     Record<string, { name: string; priceLabel: string; url: string } | null>
   >({});
-  const [lodgingOpenCity, setLodgingOpenCity] = useState<string | null>(null);
+  const [lodgingOpenSegment, setLodgingOpenSegment] = useState<string | null>(null);
 
   const [transportNotes, setTransportNotes] = useState("");
   const [travelersType, setTravelersType] = useState<string>("family");
@@ -460,10 +460,6 @@ export default function TripCreationWizard({ isPremium }: Props) {
   const lodgingCities = useMemo(() => {
     const itin = lodgingItinerary;
     if (!itin?.days?.length) return [];
-    const map = new Map<
-      string,
-      { city: string; nights: number; dates: string[]; startDate: string | null; endDate: string | null }
-    >();
 
     const addDays = (isoDate: string, days: number) => {
       const d = new Date(`${isoDate}T12:00:00`);
@@ -472,28 +468,60 @@ export default function TripCreationWizard({ isPremium }: Props) {
       return d.toISOString().slice(0, 10);
     };
 
-    for (const day of itin.days) {
+    type LodgingSeg = {
+      segmentKey: string;
+      city: string;
+      nights: number;
+      dates: string[];
+      startDate: string | null;
+      endDate: string | null;
+    };
+
+    const sortedDays = [...itin.days]
+      .filter((d) => typeof d?.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d.date))
+      .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+
+    const segments: LodgingSeg[] = [];
+    let current: LodgingSeg | null = null;
+
+    for (const day of sortedDays) {
       const items = day.items || [];
       const lodgingItem =
         items.find((it) => String(it.activity_kind || "").toLowerCase() === "lodging") ||
         items.find((it) => /check[-\s]?in|hotel|aloj/i.test(String(it.title || ""))) ||
         null;
       const addr = String(lodgingItem?.address || "").trim();
-      const city = cityFromAddress(addr) || cityFromAddress(String(items[items.length - 1]?.address || "")) || "";
-      const key = city || "Sin ciudad";
-      const prev = map.get(key) || { city: key, nights: 0, dates: [], startDate: null, endDate: null };
-      prev.nights += 1;
-      if (day.date) {
-        prev.dates.push(day.date);
-        const sortedDates = [...prev.dates].sort((a, b) => a.localeCompare(b));
-        prev.startDate = sortedDates[0] || null;
-        // checkout: día siguiente al último día con noche
-        const last = sortedDates[sortedDates.length - 1] || null;
-        prev.endDate = last ? addDays(last, 1) : null;
+      const city =
+        cityFromAddress(addr) || cityFromAddress(String(items[items.length - 1]?.address || "")) || "Sin ciudad";
+
+      // Tramos consecutivos por ciudad: si vuelves a la misma ciudad más tarde en el viaje, es otro tramo (otro check-in).
+      if (!current || current.city !== city) {
+        if (current) segments.push(current);
+        const startDate = typeof day.date === "string" ? day.date : null;
+        const segOrdinal: number = segments.length;
+        const sk: string = `${city}|${startDate || "unknown"}|${String(segOrdinal)}`;
+        current = {
+          segmentKey: sk,
+          city,
+          nights: 0,
+          dates: [],
+          startDate,
+          endDate: null,
+        };
       }
-      map.set(key, prev);
+
+      current.nights += 1;
+      if (day.date) {
+        current.dates.push(day.date);
+        const sortedDates = [...current.dates].sort((a, b) => a.localeCompare(b));
+        current.startDate = sortedDates[0] || null;
+        const last = sortedDates[sortedDates.length - 1] || null;
+        current.endDate = last ? addDays(last, 1) : null;
+      }
     }
-    return Array.from(map.values()).sort((a, b) => {
+    if (current) segments.push(current);
+
+    return segments.sort((a, b) => {
       const ad = a.startDate || "9999-12-31";
       const bd = b.startDate || "9999-12-31";
       const byDate = ad.localeCompare(bd);
@@ -678,58 +706,66 @@ export default function TripCreationWizard({ isPremium }: Props) {
         // Guardar alojamientos elegidos en el wizard como actividades "lodging" en BD.
         // (Antes se quedaban solo en estado local y se perdían al crear el viaje).
         if (!silent && lodgingCities.length) {
-          const tasks: Array<Promise<unknown>> = [];
-          for (const row of lodgingCities) {
+          const sortedLodging = [...lodgingCities].sort((a, b) => {
+            const ad = a.startDate || "";
+            const bd = b.startDate || "";
+            if (ad !== bd) return ad.localeCompare(bd);
+            return a.segmentKey.localeCompare(b.segmentKey);
+          });
+          for (let li = 0; li < sortedLodging.length; li++) {
+            const row = sortedLodging[li]!;
             const city = row.city;
-            const selected = lodgingSelectedHotelByCity[city] ?? null;
-            const manual = lodgingManualByCity[city] || { name: "", address: "", notes: "" };
+            const segmentKey = row.segmentKey;
+            const selected = lodgingSelectedHotelBySegment[segmentKey] ?? null;
+            const manual = lodgingManualBySegment[segmentKey] || { name: "", address: "", notes: "" };
             const name = String(selected?.name || manual.name || "").trim();
             const address = String(manual.address || "").trim();
             if (!name) continue;
 
             const query = [address, city, destinationLabel].filter(Boolean).join(", ");
-            tasks.push(
-              (async () => {
-                let latitude: number | null = null;
-                let longitude: number | null = null;
-                let formattedAddress: string | null = address || null;
+            let latitude: number | null = null;
+            let longitude: number | null = null;
+            let formattedAddress: string | null = address || null;
 
-                if (query) {
-                  const resp = await fetch("/api/geocode", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ address: query }),
-                  });
-                  const payload = await resp.json().catch(() => null);
-                  if (resp.ok) {
-                    latitude = typeof payload?.latitude === "number" ? payload.latitude : null;
-                    longitude = typeof payload?.longitude === "number" ? payload.longitude : null;
-                    formattedAddress = typeof payload?.formattedAddress === "string" ? payload.formattedAddress : formattedAddress;
-                  }
-                }
+            if (query) {
+              const resp = await fetch("/api/geocode", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ address: query }),
+              });
+              const payload = await resp.json().catch(() => null);
+              if (resp.ok) {
+                latitude = typeof payload?.latitude === "number" ? payload.latitude : null;
+                longitude = typeof payload?.longitude === "number" ? payload.longitude : null;
+                formattedAddress = typeof payload?.formattedAddress === "string" ? payload.formattedAddress : formattedAddress;
+              }
+            }
 
-                await fetch("/api/trip-activities", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    tripId: created.tripId,
-                    title: name,
-                    description: selected?.url ? `Web: ${selected.url}` : manual.notes ? manual.notes : null,
-                    activity_date: row.startDate || draftIntent?.startDate || null,
-                    activity_time: null,
-                    place_name: name,
-                    address: formattedAddress,
-                    latitude,
-                    longitude,
-                    activity_type: "lodging",
-                    activity_kind: "lodging",
-                    source: "wizard_lodging",
-                  }),
-                });
-              })()
-            );
+            const baseMin = 12 * 60 + 20;
+            const m = baseMin + li * 4;
+            const hh = Math.floor(m / 60);
+            const mm = m % 60;
+            const activity_time = `${String(Math.min(23, hh)).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+
+            await fetch("/api/trip-activities", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                tripId: created.tripId,
+                title: name,
+                description: selected?.url ? `Web: ${selected.url}` : manual.notes ? manual.notes : null,
+                activity_date: row.startDate || draftIntent?.startDate || null,
+                activity_time,
+                place_name: name,
+                address: formattedAddress,
+                latitude,
+                longitude,
+                activity_type: "lodging",
+                activity_kind: "lodging",
+                source: "wizard_lodging",
+              }),
+            });
           }
-          await Promise.allSettled(tasks);
         }
 
         const redirectTo = options?.redirectTo ?? "participants";
@@ -1433,17 +1469,18 @@ export default function TripCreationWizard({ isPremium }: Props) {
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 {lodgingCities.map((row) => {
                   const city = row.city;
-                  const open = lodgingOpenCity === city;
-                  const action = lodgingActionByCity[city] || "none";
-                  const manual = lodgingManualByCity[city] || { name: "", address: "", notes: "" };
-                  const tier = lodgingProposalTierByCity[city] || "medio";
+                  const segmentKey = row.segmentKey;
+                  const open = lodgingOpenSegment === segmentKey;
+                  const action = lodgingActionBySegment[segmentKey] || "none";
+                  const manual = lodgingManualBySegment[segmentKey] || { name: "", address: "", notes: "" };
+                  const tier = lodgingProposalTierBySegment[segmentKey] || "medio";
                   const resolvedLabel = lodgingResolved?.destination || destinationLabel || "";
                   const options = hotelOptionsFor(city, tier, resolvedLabel);
-                  const selected = lodgingSelectedHotelByCity[city] ?? null;
+                  const selected = lodgingSelectedHotelBySegment[segmentKey] ?? null;
 
                   return (
                     <div
-                      key={city}
+                      key={segmentKey}
                       className="relative rounded-2xl border border-slate-200 bg-slate-50 p-4"
                       style={{ minHeight: 112 }}
                     >
@@ -1462,7 +1499,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
                         </div>
                         <button
                           type="button"
-                          onClick={() => setLodgingOpenCity((prev) => (prev === city ? null : city))}
+                          onClick={() => setLodgingOpenSegment((prev) => (prev === segmentKey ? null : segmentKey))}
                           className={`rounded-full border px-3 py-1 text-xs font-extrabold transition ${
                             open ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                           }`}
@@ -1479,7 +1516,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
                             </div>
                             <button
                               type="button"
-                              onClick={() => setLodgingOpenCity(null)}
+                              onClick={() => setLodgingOpenSegment(null)}
                               className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
                             >
                               Cerrar
@@ -1503,7 +1540,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
                         <div className="grid gap-2 sm:grid-cols-3">
                           <button
                             type="button"
-                            onClick={() => setLodgingActionByCity((p) => ({ ...p, [city]: "manual" }))}
+                            onClick={() => setLodgingActionBySegment((p) => ({ ...p, [segmentKey]: "manual" }))}
                             className={`w-full rounded-2xl border px-4 py-3 text-sm font-extrabold transition ${
                               action === "manual"
                                 ? "border-violet-300 bg-violet-50 text-violet-950"
@@ -1514,7 +1551,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
                           </button>
                           <button
                             type="button"
-                            onClick={() => setLodgingActionByCity((p) => ({ ...p, [city]: "scan" }))}
+                            onClick={() => setLodgingActionBySegment((p) => ({ ...p, [segmentKey]: "scan" }))}
                             className={`w-full rounded-2xl border px-4 py-3 text-sm font-extrabold transition ${
                               action === "scan"
                                 ? "border-violet-300 bg-violet-50 text-violet-950"
@@ -1525,7 +1562,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
                           </button>
                           <button
                             type="button"
-                            onClick={() => setLodgingActionByCity((p) => ({ ...p, [city]: "proposal" }))}
+                            onClick={() => setLodgingActionBySegment((p) => ({ ...p, [segmentKey]: "proposal" }))}
                             className={`w-full rounded-2xl border px-4 py-3 text-sm font-extrabold transition ${
                               action === "proposal"
                                 ? "border-slate-950 bg-slate-950 text-white"
@@ -1545,9 +1582,9 @@ export default function TripCreationWizard({ isPremium }: Props) {
                                 <input
                                   value={manual.name}
                                   onChange={(e) =>
-                                    setLodgingManualByCity((p) => ({
+                                    setLodgingManualBySegment((p) => ({
                                       ...p,
-                                      [city]: { ...manual, name: e.target.value },
+                                      [segmentKey]: { ...manual, name: e.target.value },
                                     }))
                                   }
                                   placeholder={`Ej. Hotel en ${city}`}
@@ -1559,9 +1596,9 @@ export default function TripCreationWizard({ isPremium }: Props) {
                                 <input
                                   value={manual.address}
                                   onChange={(e) =>
-                                    setLodgingManualByCity((p) => ({
+                                    setLodgingManualBySegment((p) => ({
                                       ...p,
-                                      [city]: { ...manual, address: e.target.value },
+                                      [segmentKey]: { ...manual, address: e.target.value },
                                     }))
                                   }
                                   placeholder={`Ej. Calle..., ${city}`}
@@ -1573,9 +1610,9 @@ export default function TripCreationWizard({ isPremium }: Props) {
                                 <textarea
                                   value={manual.notes}
                                   onChange={(e) =>
-                                    setLodgingManualByCity((p) => ({
+                                    setLodgingManualBySegment((p) => ({
                                       ...p,
-                                      [city]: { ...manual, notes: e.target.value },
+                                      [segmentKey]: { ...manual, notes: e.target.value },
                                     }))
                                   }
                                   rows={3}
@@ -1586,9 +1623,9 @@ export default function TripCreationWizard({ isPremium }: Props) {
                                 <button
                                   type="button"
                                   onClick={() =>
-                                    setLodgingSelectedHotelByCity((p) => ({
+                                    setLodgingSelectedHotelBySegment((p) => ({
                                       ...p,
-                                      [city]: {
+                                      [segmentKey]: {
                                         name: manual.name.trim() || `Alojamiento en ${city}`,
                                         priceLabel: "—",
                                         url: `https://www.google.com/search?q=${encodeURIComponent(`${manual.name || "hotel"} ${city}`)}`,
@@ -1601,7 +1638,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => setLodgingSelectedHotelByCity((p) => ({ ...p, [city]: null }))}
+                                  onClick={() => setLodgingSelectedHotelBySegment((p) => ({ ...p, [segmentKey]: null }))}
                                   className="inline-flex min-h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2 text-xs font-extrabold text-slate-800 hover:bg-slate-50"
                                 >
                                   Dejar vacío
@@ -1644,7 +1681,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
                                   <button
                                     key={t}
                                     type="button"
-                                    onClick={() => setLodgingProposalTierByCity((p) => ({ ...p, [city]: t }))}
+                                    onClick={() => setLodgingProposalTierBySegment((p) => ({ ...p, [segmentKey]: t }))}
                                     className={`rounded-full border px-3 py-2 text-xs font-extrabold transition ${
                                       active
                                         ? "border-violet-300 bg-violet-50 text-violet-950"
@@ -1658,7 +1695,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
                             </div>
                             <div className="mt-3 grid gap-2">
                               {options.map((h) => (
-                                <div key={h.name} className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                <div key={`${segmentKey}-${h.name}`} className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                                   <div className="min-w-0">
                                     <div className="text-sm font-extrabold text-slate-950">{h.name}</div>
                                     <div className="mt-0.5 text-xs font-semibold text-slate-600">Rango: {h.priceLabel}</div>
@@ -1666,7 +1703,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
                                   <div className="flex items-center gap-2">
                                     <button
                                       type="button"
-                                      onClick={() => setLodgingSelectedHotelByCity((p) => ({ ...p, [city]: h }))}
+                                      onClick={() => setLodgingSelectedHotelBySegment((p) => ({ ...p, [segmentKey]: h }))}
                                       className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-extrabold text-white hover:bg-slate-800"
                                     >
                                       Añadir hotel

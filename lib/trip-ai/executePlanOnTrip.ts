@@ -167,15 +167,55 @@ export async function executePlanOnTrip(params: {
     }
 
     const geocodeCache = new Map<string, { latitude: number | null; longitude: number | null; formattedAddress?: string | null }>();
-    let geocodeCount = 0;
-    const GEOCODE_LIMIT = 80;
+    let geocodeNetworkCalls = 0;
+    const GEOCODE_NETWORK_LIMIT = 120;
 
     const anchor = await geocodeTripAnchor(tripDestination ?? null);
     const regionHints = regionHintsFromDestination(tripDestination ?? null);
 
-    const rows: Record<string, unknown>[] = [];
     const slotMeta: SlotMeta[] = [];
-    const rowKeys: string[] = [];
+
+    async function geocodeForItineraryItem(query: string): Promise<{ latitude: number | null; longitude: number | null; formattedAddress: string | null }> {
+      if (!query.trim()) return { latitude: null, longitude: null, formattedAddress: null };
+      const cached = geocodeCache.get(query);
+      if (cached) {
+        return {
+          latitude: cached.latitude ?? null,
+          longitude: cached.longitude ?? null,
+          formattedAddress: cached.formattedAddress ?? null,
+        };
+      }
+      if (geocodeNetworkCalls >= GEOCODE_NETWORK_LIMIT) {
+        const miss = { latitude: null as number | null, longitude: null as number | null, formattedAddress: null as string | null };
+        geocodeCache.set(query, miss);
+        return miss;
+      }
+
+      const runOnce = async (q: string, opts: { anchor: { lat: number; lng: number } | null; maxDistanceKm: number }) => {
+        geocodeNetworkCalls += 1;
+        const g = await geocodePhotonPreferred(q, { anchor: opts.anchor, regionHints, maxDistanceKm: opts.maxDistanceKm });
+        return g ? { lat: g.lat, lng: g.lng, label: g.label } : null;
+      };
+
+      // 1) Con ancla del destino (útil en ciudades únicas)
+      let g = await runOnce(query, { anchor, maxDistanceKm: 4000 });
+      // 2) Sin ancla: viajes multi-ciudad (p.ej. Croacia) — el ancla única puede estar a >380km y descartaba todo
+      if (!g) g = await runOnce(query, { anchor: null, maxDistanceKm: 50000 });
+      // 3) Refuerzo con país/destino explícito
+      if (!g && tripDestination) {
+        g = await runOnce(`${query}, ${tripDestination}`.trim(), { anchor: null, maxDistanceKm: 50000 });
+      }
+
+      const hit = {
+        latitude: g ? g.lat : null,
+        longitude: g ? g.lng : null,
+        formattedAddress: g ? g.label : null,
+      };
+      geocodeCache.set(query, hit);
+      return hit;
+    }
+
+    let created = 0;
 
     for (const day of itinerary.days as ItineraryDay[]) {
       const date = typeof day?.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(day.date) ? day.date : null;
@@ -190,32 +230,25 @@ export async function executePlanOnTrip(params: {
         const address = typeof item?.address === "string" ? item.address.trim() : null;
         const activity_kind = normalizeKind(item?.activity_kind ?? null);
 
-        let latitude: number | null = null;
-        let longitude: number | null = null;
         let normalizedAddress: string | null = address;
 
         const query = buildGeocodeQuery({ placeName: place_name, address, tripDestination });
-        if (query && geocodeCount < GEOCODE_LIMIT) {
-          const cached = geocodeCache.get(query);
-          const hit =
-            cached ??
-            (await (async () => {
-              const g = await geocodePhotonPreferred(query, { anchor, regionHints });
-              return {
-                latitude: g ? g.lat : null,
-                longitude: g ? g.lng : null,
-                formattedAddress: g ? g.label : null,
-              };
-            })());
-          if (!cached) geocodeCache.set(query, hit);
-          geocodeCount += 1;
-          latitude = hit.latitude ?? null;
-          longitude = hit.longitude ?? null;
-          if (hit.formattedAddress) normalizedAddress = hit.formattedAddress;
+        const geo = query ? await geocodeForItineraryItem(query) : { latitude: null, longitude: null, formattedAddress: null };
+        let latitude = geo.latitude ?? null;
+        let longitude = geo.longitude ?? null;
+        if (geo.formattedAddress) normalizedAddress = geo.formattedAddress;
+
+        // Último intento: título + destino (a veces el LLM deja address genérico)
+        if ((latitude == null || longitude == null) && tripDestination) {
+          const q2 = `${title}, ${tripDestination}`.trim();
+          const geo2 = await geocodeForItineraryItem(q2);
+          latitude = geo2.latitude ?? latitude;
+          longitude = geo2.longitude ?? longitude;
+          if (geo2.formattedAddress) normalizedAddress = geo2.formattedAddress;
         }
 
         const activity_time = normalizeTime(item.start_time ?? null);
-        rows.push({
+        const row: Record<string, unknown> = {
           trip_id: tripId,
           title,
           description: typeof item?.notes === "string" ? item.notes.trim() : null,
@@ -229,7 +262,13 @@ export async function executePlanOnTrip(params: {
           activity_kind,
           source: "ai",
           created_by_user_id: access.userId,
-        });
+        };
+
+        const { data: inserted, error } = await supabase.from("trip_activities").insert([row]).select("id").single();
+        if (error) throw new Error(error.message);
+        if (!inserted?.id) throw new Error("No se pudo crear una actividad del plan.");
+
+        created += 1;
 
         slotMeta.push({
           route_day: date,
@@ -239,23 +278,13 @@ export async function executePlanOnTrip(params: {
           latitude,
           longitude,
         });
-
-        // Clave estable para mapear la fila insertada (el orden de retorno de Supabase puede no coincidir).
-        rowKeys.push(`${date || "NO_DATE"}|${activity_time || "NO_TIME"}|${title}`);
       }
     }
 
-    if (!rows.length) {
+    if (!created) {
       return { ok: false, error: "No hay items válidos para crear." };
     }
 
-    const { data: insertedRows, error } = await supabase
-      .from("trip_activities")
-      .insert(rows)
-      .select("id,title,activity_date,activity_time,place_name,address");
-    if (error) throw new Error(error.message);
-
-    const created = rows.length;
     let routesCreated = 0;
 
     if (!access.can_manage_map) {
@@ -266,101 +295,6 @@ export async function executePlanOnTrip(params: {
         routesNote:
           "Actividades creadas. Para generar también las rutas en el mapa necesitas permiso de gestión del mapa en este viaje.",
       };
-    }
-
-    if (!Array.isArray(insertedRows) || insertedRows.length !== rows.length) {
-      return {
-        ok: true,
-        created,
-        routesCreated: 0,
-        routesNote: "Actividades creadas, pero no se pudieron calcular rutas (respuesta de inserción incompleta).",
-      };
-    }
-
-    const insertedIdByKey = new Map<string, { id: string; address: string | null; place_name: string | null }>();
-    for (const r of insertedRows as any[]) {
-      const k = `${String(r?.activity_date || "NO_DATE")}|${String(r?.activity_time || "NO_TIME")}|${String(r?.title || "").trim()}`;
-      if (!k.trim()) continue;
-      if (!insertedIdByKey.has(k)) {
-        insertedIdByKey.set(k, {
-          id: String(r?.id),
-          address: typeof r?.address === "string" ? r.address : null,
-          place_name: typeof r?.place_name === "string" ? r.place_name : null,
-        });
-      }
-    }
-
-    // Refuerzo: si algún plan quedó sin coordenadas, intentamos geocodificar y actualizar la fila por id.
-    // Esto evita que el usuario tenga que abrir cada tarjeta para fijar lat/lng manualmente.
-    const missingIdx: number[] = [];
-    for (let i = 0; i < slotMeta.length; i++) {
-      const s = slotMeta[i]!;
-      if (s.latitude != null && s.longitude != null) continue;
-      if (!s.addressLabel && !s.place_name) continue;
-      missingIdx.push(i);
-    }
-
-    if (missingIdx.length) {
-      const MAX_FIX = 60;
-      const work = missingIdx.slice(0, MAX_FIX);
-      const concurrency = 6;
-      let cursor = 0;
-
-      const worker = async () => {
-        while (cursor < work.length) {
-          const i = work[cursor]!;
-          cursor += 1;
-          const key = rowKeys[i] || "";
-          const id = (insertedIdByKey.get(key)?.id || null) as string | null;
-          if (!id) continue;
-          const s = slotMeta[i]!;
-
-          const query = buildGeocodeQuery({
-            placeName: insertedIdByKey.get(key)?.place_name ?? s.place_name,
-            address: insertedIdByKey.get(key)?.address ?? s.addressLabel,
-            tripDestination,
-          });
-          if (!query) continue;
-
-          try {
-            const cached = geocodeCache.get(query);
-            const hit =
-              cached ??
-              (await (async () => {
-                const g = await geocodePhotonPreferred(query, { anchor, regionHints });
-                return {
-                  latitude: g ? g.lat : null,
-                  longitude: g ? g.lng : null,
-                  formattedAddress: g ? g.label : null,
-                };
-              })());
-            if (!cached) geocodeCache.set(query, hit);
-
-            const latitude = hit.latitude ?? null;
-            const longitude = hit.longitude ?? null;
-            if (latitude == null || longitude == null) continue;
-
-            const normalizedAddress = hit.formattedAddress ? hit.formattedAddress : s.addressLabel;
-
-            const { error: updErr } = await supabase
-              .from("trip_activities")
-              .update({ latitude, longitude, address: normalizedAddress })
-              .eq("id", id);
-            if (updErr) continue;
-
-            slotMeta[i] = {
-              ...s,
-              latitude,
-              longitude,
-              addressLabel: normalizedAddress,
-            };
-          } catch {
-            // ignore single failure
-          }
-        }
-      };
-
-      await Promise.all(Array.from({ length: concurrency }).map(() => worker()));
     }
 
     const profile = itineraryProfile(itinerary);
