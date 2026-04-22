@@ -6,6 +6,7 @@ import { buildTripContext } from "@/lib/trip-ai/buildTripContext";
 import { askTripAIWithUsage } from "@/lib/trip-ai/providers";
 import { createClient } from "@/lib/supabase/server";
 import { safeInsertAudit } from "@/lib/audit";
+import { geocodePhotonPreferred, geocodeTripAnchor, regionHintsFromDestination } from "@/lib/geocoding/photonGeocode";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -230,6 +231,22 @@ function expandIsoRange(startIso: string, endIso: string, cap = 14): string[] {
   return out;
 }
 
+function wantsFullTripSpan(hintText: string): boolean {
+  const h = hintText.toLowerCase();
+  return (
+    /\btodos\s+los\s+d[ií]as\b/.test(h) ||
+    /\btodos\s+los\s+dias\b/.test(h) ||
+    /\bcada\s+d[ií]a\b/.test(h) ||
+    /\bcada\s+dia\b/.test(h) ||
+    /\btodo\s+el\s+viaje\b/.test(h) ||
+    /\bel\s+viaje\s+entero\b/.test(h) ||
+    /\bdurante\s+todo\s+el\s+viaje\b/.test(h) ||
+    /\brutas\s+para\s+todos\s+los\s+d[ií]as\b/.test(h) ||
+    /\bpara\s+todos\s+los\s+d[ií]as\b/.test(h) ||
+    /\btodas\s+las\s+rutas\b/.test(h)
+  );
+}
+
 function wordToOrdinalDay(text: string): number | null {
   const t = text.toLowerCase();
   if (t.includes("primer") || t === "1") return 1;
@@ -249,6 +266,7 @@ function wordToOrdinalDay(text: string): number | null {
 function resolveRequestedDates(params: { hintText: string; tripStart: string | null; tripEnd: string | null }): string[] | null {
   const hint = params.hintText;
   const tripStart = params.tripStart;
+  const tripEnd = params.tripEnd;
 
   const ordMatch = hint.match(
     /\b(primer(?:o|a)?|segund(?:o|a)?|tercer(?:o|a)?|cuart(?:o|a)?|quint(?:o|a)?|sext(?:o|a)?|séptim(?:o|a)?|septim(?:o|a)?|octav(?:o|a)?|noven(?:o|a)?|décim(?:o|a)?|decim(?:o|a)?|\d{1,2})\s+d[ií]a\s+del\s+viaje\b/i
@@ -265,11 +283,34 @@ function resolveRequestedDates(params: { hintText: string; tripStart: string | n
   if (rangeMatch) {
     const a = inferDateLoose(rangeMatch[1]);
     const b = inferDateLoose(rangeMatch[2]);
-    if (a && b) return expandIsoRange(a, b, 14);
+    if (a && b) return expandIsoRange(a, b, 31);
+  }
+
+  if (wantsFullTripSpan(hint) && tripStart && tripEnd) {
+    return expandIsoRange(tripStart, tripEnd, 45);
   }
 
   const one = inferDateLoose(hint);
   return one ? [one] : null;
+}
+
+function reservationCoversDate(
+  row: { check_in_date?: string | null; check_out_date?: string | null },
+  date: string
+): boolean {
+  const ci = typeof row.check_in_date === "string" ? row.check_in_date : null;
+  const co = typeof row.check_out_date === "string" ? row.check_out_date : null;
+  if (!ci) return false;
+  if (date < ci) return false;
+  if (co && date > co) return false;
+  return true;
+}
+
+function isLodgingActivity(a: Record<string, unknown> | null | undefined): boolean {
+  if (!a) return false;
+  const k = typeof a.activity_kind === "string" ? a.activity_kind.toLowerCase() : "";
+  const t = typeof a.activity_type === "string" ? a.activity_type.toLowerCase() : "";
+  return k === "lodging" || t === "lodging" || k === "hotel";
 }
 
 function compareActivityTime(a: unknown, b: unknown): number {
@@ -532,28 +573,6 @@ function asTravelMode(mode: DayPlanPayload["travelMode"]): "DRIVING" | "WALKING"
   return "DRIVING";
 }
 
-async function geocode(query: string) {
-  const url = new URL("https://photon.komoot.io/api/");
-  url.searchParams.set("q", query);
-  url.searchParams.set("limit", "1");
-  const resp = await fetch(url.toString(), { method: "GET", cache: "no-store" });
-  const payload: any = await resp.json().catch(() => null);
-  const feature = Array.isArray(payload?.features) ? payload.features[0] : null;
-  const coords = feature?.geometry?.coordinates;
-  const lng = Array.isArray(coords) ? Number(coords[0]) : null;
-  const lat = Array.isArray(coords) ? Number(coords[1]) : null;
-  return {
-    lat: Number.isFinite(lat as any) ? (lat as number) : null,
-    lng: Number.isFinite(lng as any) ? (lng as number) : null,
-    label:
-      (feature?.properties && typeof feature.properties === "object"
-        ? [feature.properties.name, feature.properties.street, feature.properties.city, feature.properties.country]
-            .filter(Boolean)
-            .join(", ")
-        : "") || null,
-  };
-}
-
 async function wikidataOfficialWebsite(query: string): Promise<string | null> {
   // 1) search entity
   const searchUrl = new URL("https://www.wikidata.org/w/api.php");
@@ -699,11 +718,15 @@ export async function POST(req: Request) {
     const context = await buildTripContext(tripId);
     const { data: tripRow } = await supabase
       .from("trips")
-      .select("start_date,end_date")
+      .select("start_date,end_date,destination")
       .eq("id", tripId)
       .maybeSingle();
     const tripStart = typeof (tripRow as any)?.start_date === "string" ? String((tripRow as any).start_date) : null;
     const tripEnd = typeof (tripRow as any)?.end_date === "string" ? String((tripRow as any).end_date) : null;
+    const tripDestination =
+      typeof (tripRow as any)?.destination === "string" ? String((tripRow as any).destination).trim() || null : null;
+    const regionHints = regionHintsFromDestination(tripDestination);
+    const anchor = await geocodeTripAnchor(tripDestination);
     const historyBlock =
       conversationSlice.length > 0
         ? [
@@ -730,10 +753,115 @@ export async function POST(req: Request) {
 
       const { data: rawActs, error: actsErr } = await supabase
         .from("trip_activities")
-        .select("id,title,activity_date,activity_time,place_name,address,latitude,longitude,activity_kind")
+        .select("id,title,activity_date,activity_time,place_name,address,latitude,longitude,activity_kind,activity_type")
         .eq("trip_id", tripId)
         .in("activity_date", resolvedDates);
       if (actsErr) throw new Error(actsErr.message);
+
+      const { data: rawLodging } = await supabase
+        .from("trip_reservations")
+        .select("id, reservation_name, address, city, country, check_in_date, check_out_date")
+        .eq("trip_id", tripId)
+        .eq("reservation_type", "lodging");
+      const lodgingRows = Array.isArray(rawLodging) ? rawLodging : [];
+      const lodgingGeoCache = new Map<string, { lat: number; lng: number; label: string }>();
+
+      const resolveLodgingOrCenterStart = async (
+        date: string
+      ): Promise<{ lat: number; lng: number; name: string; address: string | null } | null> => {
+        const covering = lodgingRows.filter((r) => reservationCoversDate(r, date));
+        for (const r of covering) {
+          const joined = [r.address, r.city, r.country].filter(Boolean).join(", ").trim();
+          const rid = typeof r.id === "string" ? r.id : String(r.id || "");
+          if (rid && lodgingGeoCache.has(rid)) {
+            const g = lodgingGeoCache.get(rid)!;
+            return { lat: g.lat, lng: g.lng, name: String(r.reservation_name || "Alojamiento").trim(), address: g.label };
+          }
+          if (joined) {
+            const g = await geocodePhotonPreferred(joined, { anchor, regionHints });
+            if (g && rid) lodgingGeoCache.set(rid, g);
+            if (g) {
+              return {
+                lat: g.lat,
+                lng: g.lng,
+                name: String(r.reservation_name || "Alojamiento").trim(),
+                address: g.label,
+              };
+            }
+          }
+        }
+        if (!tripDestination) return null;
+        const g = await geocodePhotonPreferred(`Centro ${tripDestination}`, {
+          anchor,
+          regionHints,
+          maxDistanceKm: 650,
+        });
+        if (!g) return null;
+        return { lat: g.lat, lng: g.lng, name: `Punto de partida (${tripDestination})`, address: g.label };
+      };
+
+      const appendOsrmRoute = async (params: {
+        date: string;
+        oName: string;
+        oAddr: string | null;
+        oLat: number;
+        oLng: number;
+        dName: string;
+        dAddr: string | null;
+        dLat: number;
+        dLng: number;
+      }) => {
+        const route = await osrmRoute({
+          origin,
+          originPoint: { lat: params.oLat, lng: params.oLng },
+          destination: { lat: params.dLat, lng: params.dLng },
+          profile,
+        });
+        const title = `${params.oName.trim()} → ${params.dName.trim()}`;
+        const distance_text =
+          typeof route.distanceMeters === "number" ? `${(route.distanceMeters / 1000).toFixed(1)} km` : null;
+        const duration_text =
+          typeof route.durationSeconds === "number" ? `${Math.max(1, Math.round(route.durationSeconds / 60))} min` : null;
+        const fields = {
+          title,
+          route_day: params.date,
+          departure_time: null,
+          travel_mode: travelMode,
+          notes: null,
+          origin_name: params.oName.trim(),
+          origin_address: params.oAddr,
+          origin_latitude: params.oLat,
+          origin_longitude: params.oLng,
+          destination_name: params.dName.trim(),
+          destination_address: params.dAddr,
+          destination_latitude: params.dLat,
+          destination_longitude: params.dLng,
+          path_points: route.points,
+          route_points: route.points,
+          distance_text,
+          duration_text,
+        };
+        operations.push({ op: "create_route", fields });
+        draftRoutes.push({
+          title,
+          route_day: params.date,
+          departure_time: null,
+          travel_mode: travelMode,
+          origin_name: fields.origin_name,
+          origin_address: fields.origin_address,
+          origin_latitude: params.oLat,
+          origin_longitude: params.oLng,
+          destination_name: fields.destination_name,
+          destination_address: fields.destination_address,
+          destination_latitude: params.dLat,
+          destination_longitude: params.dLng,
+          path_points: route.points,
+          route_points: route.points,
+          distance_text,
+          duration_text,
+          notes: null,
+        });
+      };
 
       const acts = Array.isArray(rawActs) ? rawActs : [];
       const byDate = new Map<string, any[]>();
@@ -768,6 +896,30 @@ export async function POST(req: Request) {
           }
         }
 
+        const firstWithCoords = dayActs.find((x) => {
+          const la = typeof x?.latitude === "number" ? x.latitude : null;
+          const ln = typeof x?.longitude === "number" ? x.longitude : null;
+          return la != null && ln != null;
+        });
+        if (firstWithCoords && !isLodgingActivity(firstWithCoords)) {
+          const startPt = await resolveLodgingOrCenterStart(date);
+          const fLat = typeof firstWithCoords.latitude === "number" ? firstWithCoords.latitude : null;
+          const fLng = typeof firstWithCoords.longitude === "number" ? firstWithCoords.longitude : null;
+          if (startPt && fLat != null && fLng != null) {
+            await appendOsrmRoute({
+              date,
+              oName: startPt.name,
+              oAddr: startPt.address,
+              oLat: startPt.lat,
+              oLng: startPt.lng,
+              dName: String(firstWithCoords.title || firstWithCoords.place_name || "Primera parada"),
+              dAddr: typeof firstWithCoords.address === "string" ? firstWithCoords.address : null,
+              dLat: fLat,
+              dLng: fLng,
+            });
+          }
+        }
+
         for (let i = 0; i < dayActs.length - 1; i++) {
           const a = dayActs[i];
           const b = dayActs[i + 1];
@@ -777,60 +929,16 @@ export async function POST(req: Request) {
           const bLng = typeof b?.longitude === "number" ? b.longitude : null;
           if (aLat == null || aLng == null || bLat == null || bLng == null) continue;
 
-          const route = await osrmRoute({
-            origin,
-            originPoint: { lat: aLat, lng: aLng },
-            destination: { lat: bLat, lng: bLng },
-            profile,
-          });
-
-          const title = `${String(a?.title || a?.place_name || "Origen").trim()} → ${String(
-            b?.title || b?.place_name || "Destino"
-          ).trim()}`;
-          const distance_text =
-            typeof route.distanceMeters === "number" ? `${(route.distanceMeters / 1000).toFixed(1)} km` : null;
-          const duration_text =
-            typeof route.durationSeconds === "number" ? `${Math.max(1, Math.round(route.durationSeconds / 60))} min` : null;
-
-          const fields = {
-            title,
-            route_day: date,
-            departure_time: null,
-            travel_mode: travelMode,
-            notes: null,
-            origin_name: String(a?.title || a?.place_name || "Origen").trim(),
-            origin_address: typeof a?.address === "string" ? a.address : null,
-            origin_latitude: aLat,
-            origin_longitude: aLng,
-            destination_name: String(b?.title || b?.place_name || "Destino").trim(),
-            destination_address: typeof b?.address === "string" ? b.address : null,
-            destination_latitude: bLat,
-            destination_longitude: bLng,
-            path_points: route.points,
-            route_points: route.points,
-            distance_text,
-            duration_text,
-          };
-
-          operations.push({ op: "create_route", fields });
-          draftRoutes.push({
-            title,
-            route_day: date,
-            departure_time: null,
-            travel_mode: travelMode,
-            origin_name: fields.origin_name,
-            origin_address: fields.origin_address,
-            origin_latitude: aLat,
-            origin_longitude: aLng,
-            destination_name: fields.destination_name,
-            destination_address: fields.destination_address,
-            destination_latitude: bLat,
-            destination_longitude: bLng,
-            path_points: route.points,
-            route_points: route.points,
-            distance_text,
-            duration_text,
-            notes: null,
+          await appendOsrmRoute({
+            date,
+            oName: String(a?.title || a?.place_name || "Origen").trim(),
+            oAddr: typeof a?.address === "string" ? a.address : null,
+            oLat: aLat,
+            oLng: aLng,
+            dName: String(b?.title || b?.place_name || "Destino").trim(),
+            dAddr: typeof b?.address === "string" ? b.address : null,
+            dLat: bLat,
+            dLng: bLng,
           });
         }
       }
@@ -869,7 +977,7 @@ export async function POST(req: Request) {
       "- Si ya tienes fecha + ventana horaria + preferencia de transporte + intereses, DEBES generar EN ESTA MISMA RESPUESTA el plan en JSON con los marcadores literales TRIPBOARD_DAYPLAN_JSON_START y TRIPBOARD_DAYPLAN_JSON_END (sin envolverlos en ``` markdown).",
       "- Si el usuario da reglas mixtas (p. ej. andar si el tramo es corto y bici si es largo), elige travelMode \"cycling\" o \"walking\" según lo que predomine en el día y explica la regla en el texto humano antes del JSON.",
       "- travelMode debe ser exactamente uno de: driving | walking | cycling.",
-      "- El JSON debe ser válido (comillas dobles, sin comentarios). Incluye al menos 4 items con query geocodable (nombre + ciudad).",
+      "- El JSON debe ser válido (comillas dobles, sin comentarios). Incluye al menos 4 items con query geocodable (nombre + ciudad + país o región del viaje, para evitar homónimos lejanos).",
       "- Si aún faltan datos imprescindibles, haz solo preguntas breves y NO incluyas el bloque JSON todavía.",
       "",
       "Primero pregunta lo mínimo solo si faltan datos (fecha, transporte, horario, preferencias).",
@@ -914,7 +1022,8 @@ export async function POST(req: Request) {
 
     for (const item of plan.items) {
       const q = (item.query || "").trim();
-      const geo = q ? await geocode(q) : { lat: null, lng: null, label: null };
+      const geoHit = q ? await geocodePhotonPreferred(q, { anchor, regionHints }) : null;
+      const geo = geoHit ? { lat: geoHit.lat, lng: geoHit.lng, label: geoHit.label } : { lat: null, lng: null, label: null };
       let website: string | null = null;
       let notes = item.notes;
 

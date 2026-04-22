@@ -69,10 +69,6 @@ export default async function AccountPage() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
               <h2 className="text-sm font-extrabold uppercase tracking-[0.14em] text-slate-600">Uso de IA este mes</h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Límite: <span className="font-semibold">{monthlyBudgetEur.toFixed(2)}€</span> · Consumido:{" "}
-                <span className="font-semibold">{estimatedCostEur.toFixed(2)}€</span>
-              </p>
               <p className="mt-1 text-xs text-slate-500">Mes: {monthKey}</p>
             </div>
             <div className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">

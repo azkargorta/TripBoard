@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ExecutableItineraryPayload } from "@/lib/trip-ai/tripCreationTypes";
+import { geocodePhotonPreferred, geocodeTripAnchor, regionHintsFromDestination } from "@/lib/geocoding/photonGeocode";
 
 type ItineraryItem = ExecutableItineraryPayload["days"][number]["items"][number];
 type ItineraryDay = ExecutableItineraryPayload["days"][number];
@@ -50,30 +51,6 @@ function buildGeocodeQuery(opts: { placeName: string | null; address: string | n
   const parts = [opts.address, opts.placeName, opts.tripDestination].map((s) => (typeof s === "string" ? s.trim() : "")).filter(Boolean);
   if (!parts.length) return null;
   return parts.join(", ");
-}
-
-async function geocodeAddress(address: string): Promise<{ latitude: number | null; longitude: number | null; formattedAddress?: string | null }> {
-  const url = new URL("https://photon.komoot.io/api/");
-  url.searchParams.set("q", address);
-  url.searchParams.set("limit", "1");
-  const response = await fetch(url.toString(), { method: "GET", cache: "no-store" });
-  const payload: any = await response.json().catch(() => null);
-  const feature = Array.isArray(payload?.features) ? payload.features[0] : null;
-  const coords = feature?.geometry?.coordinates;
-  const longitude = Array.isArray(coords) ? Number(coords[0]) : null;
-  const latitude = Array.isArray(coords) ? Number(coords[1]) : null;
-  const formattedAddress =
-    (feature?.properties && typeof feature.properties === "object"
-      ? [feature.properties.name, feature.properties.street, feature.properties.city, feature.properties.country]
-          .filter(Boolean)
-          .join(", ")
-      : "") || null;
-  if (!response.ok) return { latitude: null, longitude: null, formattedAddress: null };
-  return {
-    latitude: Number.isFinite(latitude as any) ? latitude : null,
-    longitude: Number.isFinite(longitude as any) ? longitude : null,
-    formattedAddress,
-  };
 }
 
 function itineraryProfile(itinerary: ItineraryPayload): "driving" | "walking" | "cycling" {
@@ -193,6 +170,9 @@ export async function executePlanOnTrip(params: {
     let geocodeCount = 0;
     const GEOCODE_LIMIT = 40;
 
+    const anchor = await geocodeTripAnchor(tripDestination ?? null);
+    const regionHints = regionHintsFromDestination(tripDestination ?? null);
+
     const rows: Record<string, unknown>[] = [];
     const slotMeta: SlotMeta[] = [];
 
@@ -216,12 +196,21 @@ export async function executePlanOnTrip(params: {
         const query = buildGeocodeQuery({ placeName: place_name, address, tripDestination });
         if (query && geocodeCount < GEOCODE_LIMIT) {
           const cached = geocodeCache.get(query);
-          const geo = cached ?? (await geocodeAddress(query));
-          if (!cached) geocodeCache.set(query, geo);
+          const hit =
+            cached ??
+            (await (async () => {
+              const g = await geocodePhotonPreferred(query, { anchor, regionHints });
+              return {
+                latitude: g ? g.lat : null,
+                longitude: g ? g.lng : null,
+                formattedAddress: g ? g.label : null,
+              };
+            })());
+          if (!cached) geocodeCache.set(query, hit);
           geocodeCount += 1;
-          latitude = geo.latitude ?? null;
-          longitude = geo.longitude ?? null;
-          if (geo.formattedAddress) normalizedAddress = geo.formattedAddress;
+          latitude = hit.latitude ?? null;
+          longitude = hit.longitude ?? null;
+          if (hit.formattedAddress) normalizedAddress = hit.formattedAddress;
         }
 
         rows.push({
