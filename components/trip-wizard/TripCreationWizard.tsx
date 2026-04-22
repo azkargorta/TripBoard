@@ -8,6 +8,7 @@ import type { ExecutableItineraryPayload, ItineraryItemPayload } from "@/lib/tri
 import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
 import TripParticipantsView from "@/components/trip/participants/TripParticipantsView";
+import TripPlanView from "@/components/trip/plan/TripPlanView";
 
 type Props = {
   isPremium: boolean;
@@ -346,11 +347,8 @@ export default function TripCreationWizard({ isPremium }: Props) {
   const [previewGeo, setPreviewGeo] = useState<Record<string, { lat: number; lng: number; address: string }>>({});
   const [previewGeoLoading, setPreviewGeoLoading] = useState(false);
   const [previewExpandedDays, setPreviewExpandedDays] = useState<Set<number>>(() => new Set());
-  const [editing, setEditing] = useState<{
-    dayIndex: number;
-    itemIndex: number | null;
-    values: ItineraryItemPayload;
-  } | null>(null);
+  const [previewDbOpen, setPreviewDbOpen] = useState(false);
+  const [previewDbSelectedDate, setPreviewDbSelectedDate] = useState<string | null>(null);
 
   const [lodgingLoading, setLodgingLoading] = useState(false);
   const [lodgingError, setLodgingError] = useState<string | null>(null);
@@ -678,7 +676,8 @@ export default function TripCreationWizard({ isPremium }: Props) {
     setPreviewGeo({});
     setPreviewGeoLoading(false);
     setPreviewExpandedDays(new Set());
-    setEditing(null);
+    setPreviewDbOpen(false);
+    setPreviewDbSelectedDate(null);
     try {
       const res = await fetch("/api/trips/auto-preview-plans", {
         method: "POST",
@@ -802,67 +801,13 @@ export default function TripCreationWizard({ isPremium }: Props) {
     };
   }, [destinationLabel, previewGeo, previewGeoLoading, previewItinerary?.days, previewOpen, previewTab]);
 
-  function startAddItem(dayIndex: number) {
-    setEditing({
-      dayIndex,
-      itemIndex: null,
-      values: { title: "", activity_kind: "visit", place_name: "", address: "", start_time: "10:00", notes: "" },
-    });
-  }
-
-  function startEditItem(dayIndex: number, itemIndex: number, item: ItineraryItemPayload) {
-    setEditing({
-      dayIndex,
-      itemIndex,
-      values: {
-        title: item.title || "",
-        activity_kind: item.activity_kind ?? "visit",
-        place_name: item.place_name ?? "",
-        address: item.address ?? "",
-        start_time: item.start_time ?? "",
-        notes: item.notes ?? "",
-      },
-    });
-  }
-
-  function deleteItem(dayIndex: number, itemIndex: number) {
-    setPreviewItinerary((prev) => {
-      if (!prev) return prev;
-      const days = prev.days.map((d) => ({ ...d, items: [...(d.items || [])] }));
-      const day = days[dayIndex];
-      if (!day) return prev;
-      day.items.splice(itemIndex, 1);
-      return { ...prev, days };
-    });
-  }
-
-  function saveEditing() {
-    if (!editing) return;
-    const { dayIndex, itemIndex, values } = editing;
-    const title = String(values.title || "").trim();
-    if (!title) return;
-    setPreviewItinerary((prev) => {
-      if (!prev) return prev;
-      const days = prev.days.map((d) => ({ ...d, items: [...(d.items || [])] }));
-      const day = days[dayIndex];
-      if (!day) return prev;
-      const normalized: ItineraryItemPayload = {
-        title,
-        activity_kind: String(values.activity_kind || "visit"),
-        place_name: String(values.place_name || "").trim() || null,
-        address: String(values.address || "").trim() || null,
-        start_time: String(values.start_time || "").trim() || null,
-        notes: String(values.notes || "").trim() || null,
-      };
-      if (itemIndex == null) {
-        day.items.push(normalized);
-      } else {
-        day.items[itemIndex] = normalized;
-      }
-      day.items.sort((a, b) => String(a.start_time || "").localeCompare(String(b.start_time || "")));
-      return { ...prev, days };
-    });
-    setEditing(null);
+  async function openDbPlanEditor(selectedDate: string | null) {
+    setPreviewDbSelectedDate(selectedDate);
+    if (!createdTripId) {
+      const id = await finalizeCreateTrip({ redirectToSummary: false });
+      if (!id) return;
+    }
+    setPreviewDbOpen(true);
   }
 
   if (!isPremium) {
@@ -1670,7 +1615,32 @@ export default function TripCreationWizard({ isPremium }: Props) {
 
             <div className="grid max-h-[calc(92vh-60px)] gap-4 overflow-y-auto p-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)]">
               <section className="min-w-0 space-y-3">
-                {previewLoading ? (
+                {previewDbOpen && createdTripId ? (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2 px-1 pb-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-extrabold text-slate-950">Plan (modo BD)</div>
+                        <div className="mt-1 text-xs text-slate-600">
+                          Aquí estás usando el <span className="font-semibold">mismo formulario</span> que el Plan manual, guardando en la BD.
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewDbOpen(false)}
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
+                      >
+                        Volver a previsualización
+                      </button>
+                    </div>
+
+                    <TripPlanView
+                      tripId={createdTripId}
+                      premiumEnabled
+                      initialWorkspaceTab="itinerary"
+                      initialSelectedDate={previewDbSelectedDate}
+                    />
+                  </div>
+                ) : previewLoading ? (
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
                     Generando previsualización…
                   </div>
@@ -1714,13 +1684,14 @@ export default function TripCreationWizard({ isPremium }: Props) {
                                     </div>
                                   </button>
 
-                                  <button
-                                    type="button"
-                                    onClick={() => startAddItem(dayIndex)}
-                                    className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-800 hover:bg-slate-50"
-                                  >
-                                    + Añadir plan
-                                  </button>
+                          <button
+                            type="button"
+                            onClick={() => void openDbPlanEditor(day.date || null)}
+                            className="rounded-full border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-extrabold text-violet-950 hover:bg-violet-100"
+                            title="Abrir el formulario real (BD) para este día"
+                          >
+                            Editar en Plan
+                          </button>
                                 </div>
 
                                 {expanded ? (
@@ -1737,20 +1708,13 @@ export default function TripCreationWizard({ isPremium }: Props) {
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => startEditItem(dayIndex, itemIndex, it)}
-                                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
-                                    >
-                                      Editar
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => deleteItem(dayIndex, itemIndex)}
-                                      className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-extrabold text-rose-900 hover:bg-rose-100"
-                                    >
-                                      Eliminar
-                                    </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => void openDbPlanEditor(day.date || null)}
+                                    className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-extrabold text-violet-950 hover:bg-violet-100"
+                                  >
+                                    Editar en Plan
+                                  </button>
                                   </div>
                                 </div>
                               </div>
@@ -1809,111 +1773,11 @@ export default function TripCreationWizard({ isPremium }: Props) {
 
               <aside className="min-w-0 space-y-3">
                 <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Edición</div>
+                  <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Editar en la BD</div>
                   <div className="mt-1 text-xs text-slate-600">
-                    Los cambios aquí son una previsualización. (En la siguiente iteración los aplicaremos a la creación final.)
+                    Para usar el formulario real con autocompletar y guardar en la base de datos, pulsa <span className="font-semibold">Editar en Plan</span>.
                   </div>
                 </div>
-
-                {editing ? (
-                  <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4">
-                    <div className="text-sm font-extrabold text-violet-950">
-                      {editing.itemIndex == null ? "Nuevo plan" : "Editar plan"}
-                    </div>
-                    <div className="mt-3 grid gap-3">
-                      <label className="space-y-1">
-                        <span className="text-xs font-extrabold text-slate-700">Título</span>
-                        <input
-                          value={editing.values.title}
-                          onChange={(e) => setEditing((p) => (p ? { ...p, values: { ...p.values, title: e.target.value } } : p))}
-                          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-violet-200"
-                        />
-                      </label>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <label className="space-y-1">
-                          <span className="text-xs font-extrabold text-slate-700">Hora</span>
-                          <input
-                            value={String(editing.values.start_time || "")}
-                            onChange={(e) =>
-                              setEditing((p) => (p ? { ...p, values: { ...p.values, start_time: e.target.value } } : p))
-                            }
-                            placeholder="10:00"
-                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-violet-200"
-                          />
-                        </label>
-                        <label className="space-y-1">
-                          <span className="text-xs font-extrabold text-slate-700">Tipo</span>
-                          <select
-                            value={String(editing.values.activity_kind || "visit")}
-                            onChange={(e) =>
-                              setEditing((p) => (p ? { ...p, values: { ...p.values, activity_kind: e.target.value } } : p))
-                            }
-                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-violet-200"
-                          >
-                            <option value="visit">Visita</option>
-                            <option value="museum">Museo</option>
-                            <option value="food">Comida</option>
-                            <option value="activity">Actividad</option>
-                            <option value="transport">Transporte</option>
-                            <option value="shopping">Compras</option>
-                            <option value="nightlife">Noche</option>
-                          </select>
-                        </label>
-                      </div>
-                      <label className="space-y-1">
-                        <span className="text-xs font-extrabold text-slate-700">Lugar visible</span>
-                        <input
-                          value={String(editing.values.place_name || "")}
-                          onChange={(e) =>
-                            setEditing((p) => (p ? { ...p, values: { ...p.values, place_name: e.target.value } } : p))
-                          }
-                          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-violet-200"
-                        />
-                      </label>
-                      <label className="space-y-1">
-                        <span className="text-xs font-extrabold text-slate-700">Dirección</span>
-                        <input
-                          value={String(editing.values.address || "")}
-                          onChange={(e) =>
-                            setEditing((p) => (p ? { ...p, values: { ...p.values, address: e.target.value } } : p))
-                          }
-                          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-violet-200"
-                        />
-                      </label>
-                      <label className="space-y-1">
-                        <span className="text-xs font-extrabold text-slate-700">Notas</span>
-                        <textarea
-                          value={String(editing.values.notes || "")}
-                          onChange={(e) =>
-                            setEditing((p) => (p ? { ...p, values: { ...p.values, notes: e.target.value } } : p))
-                          }
-                          rows={3}
-                          className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-violet-200"
-                        />
-                      </label>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={saveEditing}
-                          className="inline-flex min-h-10 items-center justify-center rounded-2xl bg-slate-950 px-4 py-2 text-xs font-extrabold text-white hover:bg-slate-800"
-                        >
-                          Guardar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setEditing(null)}
-                          className="inline-flex min-h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2 text-xs font-extrabold text-slate-800 hover:bg-slate-50"
-                        >
-                          Cancelar
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-                    Pulsa <span className="font-semibold">Editar</span> en un plan o <span className="font-semibold">Añadir plan</span> en un día.
-                  </div>
-                )}
               </aside>
             </div>
           </div>
