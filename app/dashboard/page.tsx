@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import CreateTripSection from "@/components/dashboard/CreateTripSection";
 import DashboardPageHeader from "@/components/dashboard/DashboardPageHeader";
-import DashboardCreateTripCta from "@/components/dashboard/DashboardCreateTripCta";
 import OnboardingNudge from "@/components/dashboard/OnboardingNudge";
 import DashboardAiShortcuts from "@/components/dashboard/DashboardAiShortcuts";
 import DashboardTripSection from "@/components/dashboard/DashboardTripSection";
@@ -148,10 +147,6 @@ export default async function DashboardPage() {
         className={`mx-auto max-w-2xl px-4 py-4 md:px-5 md:py-5 ${surfaceAccentCyan} dark:border-slate-700/50 dark:bg-slate-950/40`}
       >
         <DashboardCreateFlowStepper isPremium={isPremium} />
-
-        <div className="mx-auto max-w-md">
-          <DashboardCreateTripCta disabled={freeTripLimitReached} />
-        </div>
 
         <div className="mx-auto mt-4 max-w-2xl border-t border-slate-100 pt-4 md:mt-5 md:pt-5 dark:border-slate-700/50">
           {isPremium ? (

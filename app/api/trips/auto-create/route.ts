@@ -20,6 +20,51 @@ import type { TripAiUsage } from "@/lib/trip-ai/providers";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
+function hasExplicitYear(text: string): boolean {
+  return /\b(19|20)\d{2}\b/.test(text);
+}
+
+function shiftIsoYear(iso: string, addYears: number): string {
+  // iso: YYYY-MM-DD
+  const d = new Date(`${iso}T12:00:00Z`);
+  if (Number.isNaN(d.getTime())) return iso;
+  d.setUTCFullYear(d.getUTCFullYear() + addYears);
+  return d.toISOString().slice(0, 10);
+}
+
+function coerceIntentDatesToFuture(intent: TripCreationIntent, sourceText: string): TripCreationIntent {
+  const s = typeof intent.startDate === "string" ? intent.startDate : null;
+  const e = typeof intent.endDate === "string" ? intent.endDate : null;
+  if (!s) return intent;
+  if (hasExplicitYear(sourceText)) return intent;
+
+  const todayIso = new Date().toISOString().slice(0, 10);
+
+  // Si el LLM ha puesto un año pasado o una fecha ya pasada, movemos el rango al próximo año que sea futuro.
+  let start = s;
+  let end = e;
+
+  // Primer salto: si el año está claramente atrás, súbelo al año actual.
+  const startYear = Number.parseInt(start.slice(0, 4), 10);
+  const thisYear = new Date().getUTCFullYear();
+  if (Number.isFinite(startYear) && startYear < thisYear) {
+    const bump = thisYear - startYear;
+    start = shiftIsoYear(start, bump);
+    if (end) end = shiftIsoYear(end, bump);
+  }
+
+  // Si aún queda en pasado (p. ej. ya pasó este año), empuja al siguiente año hasta que esté en futuro.
+  let guard = 0;
+  while (start < todayIso && guard < 3) {
+    start = shiftIsoYear(start, 1);
+    if (end) end = shiftIsoYear(end, 1);
+    guard += 1;
+  }
+
+  if (start === s && end === e) return intent;
+  return { ...intent, startDate: start, endDate: end ?? intent.endDate ?? null };
+}
+
 async function trackIfCountable(params: {
   supabase: Awaited<ReturnType<typeof createClient>>;
   userId: string;
@@ -88,6 +133,7 @@ export async function POST(req: Request) {
     }
 
     let intent: TripCreationIntent;
+    const sourceText = [prompt, followUp].filter(Boolean).join("\n");
 
     // Permitir creación/preview usando solo el borrador (sin followUp) para el paso "Generar viaje".
     if (!prompt && !followUp && draftIntent) {
@@ -103,6 +149,8 @@ export async function POST(req: Request) {
     } else {
       return NextResponse.json({ error: "Falta el texto del viaje (prompt) o una aclaración (followUp)." }, { status: 400 });
     }
+
+    intent = coerceIntentDatesToFuture(intent, sourceText);
 
     const miss = getTripCreationFollowUp(intent);
     if (miss) {

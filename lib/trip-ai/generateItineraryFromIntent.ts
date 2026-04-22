@@ -4,6 +4,7 @@ import type { ExecutableItineraryPayload } from "@/lib/trip-ai/tripCreationTypes
 import type { ResolvedTripCreation } from "@/lib/trip-ai/tripCreationResolve";
 import { extractJsonObject } from "@/lib/trip-ai/tripCreationJson";
 import { addDaysIso } from "@/lib/trip-ai/tripCreationDates";
+import { geocodePhotonPreferred, geocodeTripAnchor, regionHintsFromDestination } from "@/lib/geocoding/photonGeocode";
 
 const ITIN_PROMPT = `Genera un itinerario JSON para la app Kaviro. Devuelve SOLO JSON válido (sin markdown).
 Esquema exacto:
@@ -90,6 +91,113 @@ function normalizeMustSeeTokens(raw: string[]): string[] {
   return [...new Set(out.map((x) => x.replace(/\s+/g, " ").trim()).filter(Boolean))].slice(0, 12);
 }
 
+function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const R = 6371;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLon = ((b.lng - a.lng) * Math.PI) / 180;
+  const lat1 = (a.lat * Math.PI) / 180;
+  const lat2 = (b.lat * Math.PI) / 180;
+  const s1 = Math.sin(dLat / 2);
+  const s2 = Math.sin(dLon / 2);
+  const h = s1 * s1 + Math.cos(lat1) * Math.cos(lat2) * s2 * s2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+async function optimizeMustSeeOrder(resolved: ResolvedTripCreation, tokens: string[]): Promise<string[]> {
+  if (!resolved.intent.wantsRouteOptimization) return tokens;
+  if (tokens.length < 3) return tokens;
+
+  const regionHints = regionHintsFromDestination(resolved.destination);
+  const anchor = await geocodeTripAnchor(resolved.destination);
+  const cache = new Map<string, { lat: number; lng: number }>();
+
+  const geocodeToken = async (label: string) => {
+    const key = label.toLowerCase();
+    if (cache.has(key)) return cache.get(key)!;
+    const hit = await geocodePhotonPreferred(`${label}, ${resolved.destination}`, { anchor, regionHints }).catch(() => null);
+    if (hit && typeof hit.lat === "number" && typeof hit.lng === "number") {
+      cache.set(key, { lat: hit.lat, lng: hit.lng });
+      return { lat: hit.lat, lng: hit.lng };
+    }
+    return null;
+  };
+
+  const startLabel = (resolved.intent.startLocation || "").trim();
+  const endLabel = (resolved.intent.endLocation || "").trim();
+  const startPoint = startLabel ? await geocodeToken(startLabel) : null;
+  const endPoint = endLabel ? await geocodeToken(endLabel) : null;
+
+  const points: Array<{ token: string; lat: number; lng: number }> = [];
+  for (const t of tokens) {
+    const p = await geocodeToken(t);
+    if (p) points.push({ token: t, lat: p.lat, lng: p.lng });
+  }
+  if (points.length < 3) return tokens;
+
+  const remaining = points.slice();
+  const ordered: Array<{ token: string; lat: number; lng: number }> = [];
+
+  // Elegimos punto inicial:
+  // - si hay startPoint, el más cercano al origen
+  // - si no, el más “extremo” respecto al ancla (para evitar centro→extremos→centro)
+  let cur: { lat: number; lng: number } | null = null;
+  if (startPoint) {
+    let bestIdx = 0;
+    let bestD = Infinity;
+    for (let i = 0; i < remaining.length; i++) {
+      const d = haversineKm(startPoint, remaining[i]!);
+      if (d < bestD) {
+        bestD = d;
+        bestIdx = i;
+      }
+    }
+    const first = remaining.splice(bestIdx, 1)[0]!;
+    ordered.push(first);
+    cur = { lat: first.lat, lng: first.lng };
+  } else if (anchor) {
+    let bestIdx = 0;
+    let bestD = -1;
+    for (let i = 0; i < remaining.length; i++) {
+      const d = haversineKm(anchor, remaining[i]!);
+      if (d > bestD) {
+        bestD = d;
+        bestIdx = i;
+      }
+    }
+    const first = remaining.splice(bestIdx, 1)[0]!;
+    ordered.push(first);
+    cur = { lat: first.lat, lng: first.lng };
+  } else {
+    const first = remaining.shift()!;
+    ordered.push(first);
+    cur = { lat: first.lat, lng: first.lng };
+  }
+
+  while (remaining.length) {
+    let bestIdx = 0;
+    let bestScore = Infinity;
+    for (let i = 0; i < remaining.length; i++) {
+      const cand = remaining[i]!;
+      const distFromCur = cur ? haversineKm(cur, cand) : 0;
+      const distToEnd = endPoint ? haversineKm(endPoint, cand) : 0;
+      // Bias hacia el destino si existe, para evitar ir y volver.
+      const score = distFromCur + (endPoint ? distToEnd * 0.35 : 0);
+      if (score < bestScore) {
+        bestScore = score;
+        bestIdx = i;
+      }
+    }
+    const next = remaining.splice(bestIdx, 1)[0]!;
+    ordered.push(next);
+    cur = { lat: next.lat, lng: next.lng };
+  }
+
+  // Conservamos tokens sin geocódigo al final en orden original.
+  const geocodedSet = new Set(ordered.map((x) => x.token));
+  const leftovers = tokens.filter((t) => !geocodedSet.has(t));
+  return [...ordered.map((x) => x.token), ...leftovers];
+}
+
 function itineraryMentionsToken(dayText: string, token: string): boolean {
   const hay = dayText.toLowerCase();
   const t = token.toLowerCase();
@@ -165,24 +273,32 @@ export async function generateExecutableItineraryFromIntent(
     dayLines.push(`Día ${i + 1}: ${date}`);
   }
 
+  const mustSeeRaw = normalizeMustSeeTokens(resolved.intent.mustSee || []);
+  const mustSeeOptimized = await optimizeMustSeeOrder(resolved, mustSeeRaw);
+
+  // Importante: mantenemos el intent original intacto salvo el orden de mustSee cuando el usuario lo pide.
+  const resolvedForPrompt: ResolvedTripCreation = resolved.intent.wantsRouteOptimization
+    ? { ...resolved, intent: { ...resolved.intent, mustSee: mustSeeOptimized } }
+    : resolved;
+
   const prompt = `${ITIN_PROMPT}
 
-Destino principal: ${resolved.destination}
-Ciudad/punto inicio (si existe): ${resolved.intent.startLocation || "—"}
-Ciudad/punto fin (si existe): ${resolved.intent.endLocation || "—"}
+Destino principal: ${resolvedForPrompt.destination}
+Ciudad/punto inicio (si existe): ${resolvedForPrompt.intent.startLocation || "—"}
+Ciudad/punto fin (si existe): ${resolvedForPrompt.intent.endLocation || "—"}
 Fechas por día:
 ${dayLines.join("\n")}
-Duración: ${resolved.durationDays} días.
-Tipo viajeros: ${resolved.intent.travelersType || "general"}
-Presupuesto: ${resolved.intent.budgetLevel || "medium"}
-Intereses: ${(resolved.intent.interests || []).join(", ") || "mixto"}
-Estilos: ${(resolved.intent.travelStyle || []).join(", ") || "equilibrado"}
-Paradas obligatorias (mustSee): ${normalizeMustSeeTokens(resolved.intent.mustSee || []).join(" | ") || "—"}
-${resolved.intent.wantsRouteOptimization ? "Prioriza orden geográfico razonable dentro de cada día." : ""}
+Duración: ${resolvedForPrompt.durationDays} días.
+Tipo viajeros: ${resolvedForPrompt.intent.travelersType || "general"}
+Presupuesto: ${resolvedForPrompt.intent.budgetLevel || "medium"}
+Intereses: ${(resolvedForPrompt.intent.interests || []).join(", ") || "mixto"}
+Estilos: ${(resolvedForPrompt.intent.travelStyle || []).join(", ") || "equilibrado"}
+Paradas obligatorias (mustSee, en este orden): ${mustSeeOptimized.join(" | ") || "—"}
+${resolvedForPrompt.intent.wantsRouteOptimization ? "Si hay múltiples ciudades/regiones, organiza los días para minimizar idas y vueltas (progresión norte→sur, oeste→este, etc. si aplica) respetando origen y destino." : ""}
 `;
 
   const { text, usage } = await askTripAIWithUsage(prompt, "planning", { provider: options?.provider ?? null });
   const parsed = validateItinerary(extractJsonObject(text));
-  const aligned = alignItineraryDates(parsed, resolved);
-  return { itinerary: enforceMustSee(aligned, resolved), usage };
+  const aligned = alignItineraryDates(parsed, resolvedForPrompt);
+  return { itinerary: enforceMustSee(aligned, resolvedForPrompt), usage };
 }

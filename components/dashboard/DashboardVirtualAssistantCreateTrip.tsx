@@ -128,6 +128,7 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
   const [followUp, setFollowUp] = useState("");
   const [notes, setNotes] = useState("");
   const [mustSeeText, setMustSeeText] = useState("");
+  const [optimizeOrder, setOptimizeOrder] = useState(true);
   const [aiBudgetExceeded, setAiBudgetExceeded] = useState(false);
   const [stage, setStage] = useState<"collecting" | "clarifying" | "ready">("collecting");
 
@@ -193,6 +194,7 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
     setFollowUp("");
     setNotes("");
     setMustSeeText("");
+    setOptimizeOrder(true);
     setError(null);
     setLoading(false);
     setAiBudgetExceeded(false);
@@ -233,10 +235,15 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
     setQuestion(null);
     setFollowUp("");
     try {
-      const data = await callAutoCreate({ prompt: prompt.trim(), draftIntent, previewOnly: true });
+      const data = await callAutoCreate({
+        prompt: prompt.trim(),
+        draftIntent: { ...(draftIntent || {}), wantsRouteOptimization: optimizeOrder },
+        previewOnly: true,
+      });
       if (data?.status === "needs_clarification") {
         const payload = data as ApiNeedsClarification;
         setDraftIntent(payload.draftIntent || null);
+        setOptimizeOrder(Boolean(payload.draftIntent?.wantsRouteOptimization ?? optimizeOrder));
         setQuestion(payload.question || "¿Puedes darme un detalle más?");
         setStage("clarifying");
         return;
@@ -245,6 +252,7 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
         const ready = data as ApiReady;
         setDraftIntent(ready.draftIntent || null);
         setMustSeeText((ready.draftIntent?.mustSee || []).join("\n"));
+        setOptimizeOrder(Boolean(ready.draftIntent?.wantsRouteOptimization));
         setQuestion(null);
         setFollowUp("");
         setStage("ready");
@@ -263,10 +271,15 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
     setLoading(true);
     setError(null);
     try {
-      const data = await callAutoCreate({ followUp: followUp.trim(), draftIntent, previewOnly: true });
+      const data = await callAutoCreate({
+        followUp: followUp.trim(),
+        draftIntent: { ...(draftIntent || {}), wantsRouteOptimization: optimizeOrder },
+        previewOnly: true,
+      });
       if (data?.status === "needs_clarification") {
         const payload = data as ApiNeedsClarification;
         setDraftIntent(payload.draftIntent || null);
+        setOptimizeOrder(Boolean(payload.draftIntent?.wantsRouteOptimization ?? optimizeOrder));
         setQuestion(payload.question || "¿Puedes darme un detalle más?");
         setFollowUp("");
         setStage("clarifying");
@@ -276,6 +289,7 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
         const ready = data as ApiReady;
         setDraftIntent(ready.draftIntent || null);
         setMustSeeText((ready.draftIntent?.mustSee || []).join("\n"));
+        setOptimizeOrder(Boolean(ready.draftIntent?.wantsRouteOptimization));
         setQuestion(null);
         setFollowUp("");
         setStage("ready");
@@ -301,7 +315,7 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
     try {
       const data = await callAutoCreate({
         followUp: notes.trim(),
-        draftIntent: intent,
+        draftIntent: { ...intent, wantsRouteOptimization: optimizeOrder },
         previewOnly: false,
       });
       if (data?.status === "created" || data?.status === "partial") {
@@ -314,6 +328,7 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
       if (data?.status === "needs_clarification") {
         const payload = data as ApiNeedsClarification;
         setDraftIntent(payload.draftIntent || null);
+        setOptimizeOrder(Boolean(payload.draftIntent?.wantsRouteOptimization ?? optimizeOrder));
         setQuestion(payload.question || "¿Puedes darme un detalle más?");
         setStage("clarifying");
         return;
@@ -334,6 +349,7 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
     if (s) parts.push(`Empiezo en: ${s}.`);
     if (e) parts.push(`Termino en: ${e}.`);
     if (mustSee.length) parts.push(`Sitios a visitar: ${mustSee.join(", ")}.`);
+    parts.push(`Optimizar orden: ${draftIntent?.wantsRouteOptimization ? "sí" : "no"}.`);
     if (notes.trim()) parts.push(`Detalles: ${notes.trim()}`);
     return parts.join(" ");
   }
@@ -349,7 +365,7 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
     try {
       const data = await callAutoCreate({
         followUp: buildRecalcFollowUp(),
-        draftIntent,
+        draftIntent: { ...(draftIntent || {}), wantsRouteOptimization: optimizeOrder },
         previewOnly: true,
       });
       if (data?.status === "needs_clarification") {
@@ -363,6 +379,7 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
         const ready = data as ApiReady;
         setDraftIntent(ready.draftIntent || null);
         setMustSeeText((ready.draftIntent?.mustSee || []).join("\n"));
+        setOptimizeOrder(Boolean(ready.draftIntent?.wantsRouteOptimization));
         setQuestion(null);
         setFollowUp("");
         setStage("ready");
@@ -400,7 +417,7 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
 
       {open ? (
         <div
-          className="fixed inset-0 z-[1200] flex items-end justify-center bg-slate-950/40 p-4 sm:items-center"
+          className="fixed inset-0 z-[1200] flex items-end justify-center bg-slate-950/50 p-4 backdrop-blur-sm sm:items-center"
           role="presentation"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) setOpen(false);
@@ -411,13 +428,16 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
             role="dialog"
             aria-modal="true"
             aria-labelledby="virtual-assistant-create-trip-title"
-            className="max-h-[min(820px,90vh)] w-full max-w-3xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl"
+            className="max-h-[min(860px,92vh)] w-full max-w-3xl overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-white via-white to-slate-50 shadow-2xl"
           >
-            <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-200/70 bg-white/70 px-5 py-4 backdrop-blur sm:px-6">
               <div className="flex min-w-0 flex-1 items-start gap-3">
                 <TripBoardLogo variant="dark" size="lg" withWordmark className="shrink-0" />
                 <div className="min-w-0">
-                  <p id="virtual-assistant-create-trip-title" className="text-sm font-extrabold text-slate-900 sm:text-base">
+                  <p
+                    id="virtual-assistant-create-trip-title"
+                    className="text-sm font-extrabold tracking-tight text-slate-950 sm:text-base"
+                  >
                     Crear viaje con tu asistente virtual
                   </p>
                   <p className="mt-1 text-xs text-slate-600 sm:text-sm">
@@ -438,7 +458,7 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
               </button>
             </div>
 
-            <div className="grid gap-4 overflow-y-auto p-5 md:grid-cols-[1fr_340px] md:p-6">
+            <div className="grid gap-4 overflow-y-auto p-5 md:grid-cols-[1fr_340px] md:gap-5 md:p-6">
               <div className="space-y-4">
                 {error ? (
                   <div className="sticky top-0 z-10 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900 shadow-sm">
@@ -454,7 +474,7 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
                 ) : null}
 
                 {stage === "collecting" ? (
-                  <div className="space-y-3">
+                  <div className="space-y-3 rounded-3xl border border-slate-200 bg-white/80 p-4 shadow-sm backdrop-blur sm:p-5">
                     <div>
                       <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">
                         Cuéntame tu viaje
@@ -507,7 +527,7 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
                     </div>
                   </div>
                 ) : stage === "clarifying" ? (
-                  <div className="space-y-3">
+                  <div className="space-y-3 rounded-3xl border border-slate-200 bg-white/80 p-4 shadow-sm backdrop-blur sm:p-5">
                     <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-sky-50 p-4">
                       <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-violet-700">
                         Solo una pregunta más
@@ -559,7 +579,7 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-3 rounded-3xl border border-slate-200 bg-white/80 p-4 shadow-sm backdrop-blur sm:p-5">
                     <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
                       <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-emerald-800">Borrador listo</p>
                       <p className="mt-1 text-sm font-semibold text-slate-900">
@@ -623,7 +643,46 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
                         rows={3}
                         className="mt-2 w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
                       />
+                      {draftIntent?.mustSee?.length ? (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {(draftIntent.mustSee || []).map((tag) => (
+                            <button
+                              key={tag}
+                              type="button"
+                              disabled={loading || disabled || aiBudgetExceeded}
+                              onClick={() => {
+                                const next = (draftIntent.mustSee || []).filter((x) => x !== tag);
+                                setDraftIntent((prev) => ({ ...(prev || {}), mustSee: next.length ? next : undefined }));
+                                setMustSeeText(next.join("\n"));
+                              }}
+                              className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
+                              title="Quitar"
+                            >
+                              <span className="max-w-[240px] truncate">{tag}</span>
+                              <span className="text-slate-400">×</span>
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
+
+                    <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-violet-600"
+                        checked={optimizeOrder}
+                        disabled={loading || disabled || aiBudgetExceeded}
+                        onChange={(e) => {
+                          const v = Boolean(e.target.checked);
+                          setOptimizeOrder(v);
+                          setDraftIntent((prev) => ({ ...(prev || {}), wantsRouteOptimization: v }));
+                        }}
+                      />
+                      <span className="min-w-0">
+                        <span className="font-semibold text-slate-950">Optimizar orden</span>{" "}
+                        <span className="text-slate-600">(si hay varias ciudades, reduce idas y vueltas)</span>
+                      </span>
+                    </label>
 
                     <div>
                       <label className="block text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">
@@ -690,44 +749,60 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
                 {/* el error se muestra arriba en sticky */}
               </div>
 
-              <div className="space-y-3">
-                <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="space-y-3 md:sticky md:top-4 md:self-start">
+                <div className="rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm backdrop-blur">
                   <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Resumen</p>
                   {summary ? (
-                    <div className="mt-3 space-y-2 text-sm">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-slate-500">Inicio</span>
-                        <span className="font-semibold text-slate-900">{summary.startLocation}</span>
+                    <dl className="mt-3 divide-y divide-slate-100 text-sm">
+                      <div className="flex items-start gap-3 py-2">
+                        <dt className="w-[120px] shrink-0 text-slate-500">Inicio</dt>
+                        <dd className="min-w-0 flex-1 text-right font-semibold text-slate-950 break-words">
+                          {summary.startLocation}
+                        </dd>
                       </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-slate-500">Fin</span>
-                        <span className="font-semibold text-slate-900">{summary.endLocation}</span>
+                      <div className="flex items-start gap-3 py-2">
+                        <dt className="w-[120px] shrink-0 text-slate-500">Fin</dt>
+                        <dd className="min-w-0 flex-1 text-right font-semibold text-slate-950 break-words">
+                          {summary.endLocation}
+                        </dd>
                       </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-slate-500">Destino</span>
-                        <span className="font-semibold text-slate-900">{summary.destination}</span>
+                      <div className="flex items-start gap-3 py-2">
+                        <dt className="w-[120px] shrink-0 text-slate-500">Destino</dt>
+                        <dd className="min-w-0 flex-1 text-right font-semibold text-slate-950 break-words">
+                          {summary.destination}
+                        </dd>
                       </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-slate-500">Fechas / duración</span>
-                        <span className="font-semibold text-slate-900">{summary.dates}</span>
+                      <div className="flex items-start gap-3 py-2">
+                        <dt className="w-[120px] shrink-0 text-slate-500">Fechas / duración</dt>
+                        <dd className="min-w-0 flex-1 text-right font-semibold text-slate-950 break-words">
+                          {summary.dates}
+                        </dd>
                       </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-slate-500">Viajeros</span>
-                        <span className="font-semibold text-slate-900">{summary.travelers}</span>
+                      <div className="flex items-start gap-3 py-2">
+                        <dt className="w-[120px] shrink-0 text-slate-500">Viajeros</dt>
+                        <dd className="min-w-0 flex-1 text-right font-semibold text-slate-950 break-words">
+                          {summary.travelers}
+                        </dd>
                       </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-slate-500">Presupuesto</span>
-                        <span className="font-semibold text-slate-900">{summary.budget}</span>
+                      <div className="flex items-start gap-3 py-2">
+                        <dt className="w-[120px] shrink-0 text-slate-500">Presupuesto</dt>
+                        <dd className="min-w-0 flex-1 text-right font-semibold text-slate-950 break-words">
+                          {summary.budget}
+                        </dd>
                       </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-slate-500">Estilo</span>
-                        <span className="font-semibold text-slate-900">{summary.style}</span>
+                      <div className="flex items-start gap-3 py-2">
+                        <dt className="w-[120px] shrink-0 text-slate-500">Estilo</dt>
+                        <dd className="min-w-0 flex-1 text-right font-semibold text-slate-950 break-words">
+                          {summary.style}
+                        </dd>
                       </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-slate-500">Sitios</span>
-                        <span className="font-semibold text-slate-900">{summary.mustSee}</span>
+                      <div className="flex items-start gap-3 py-2">
+                        <dt className="w-[120px] shrink-0 text-slate-500">Sitios</dt>
+                        <dd className="min-w-0 flex-1 text-right font-semibold text-slate-950 break-words">
+                          {summary.mustSee}
+                        </dd>
                       </div>
-                    </div>
+                    </dl>
                   ) : (
                     <p className="mt-2 text-sm text-slate-600">
                       Aquí verás lo que el asistente virtual ha entendido cuando pulses <span className="font-semibold">Leer lo que he entendido</span>.
@@ -735,8 +810,8 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
                   )}
                 </div>
 
-                <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600">
-                  <p className="font-semibold text-slate-800">Cómo funciona</p>
+                <div className="rounded-3xl border border-slate-200 bg-slate-50/80 p-4 text-xs text-slate-600">
+                  <p className="font-semibold text-slate-900">Cómo funciona</p>
                   <p className="mt-1">
                     1) Escribes tu idea. 2) El asistente virtual crea un borrador y te lo enseña. 3) Si te gusta, generas el viaje.
                   </p>
