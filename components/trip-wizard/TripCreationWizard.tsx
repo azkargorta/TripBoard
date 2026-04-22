@@ -365,6 +365,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
   const [travelerNamesText, setTravelerNamesText] = useState("");
   const [createdTripId, setCreatedTripId] = useState<string | null>(null);
   const [createdTripPartialError, setCreatedTripPartialError] = useState<string | null>(null);
+  const [creatingTripSilently, setCreatingTripSilently] = useState(false);
 
   const travelerNames = useMemo(
     () =>
@@ -644,10 +645,12 @@ export default function TripCreationWizard({ isPremium }: Props) {
     }
   }
 
-  async function finalizeCreateTrip(options?: { redirectTo?: "participants" | "summary" | "none" }) {
-    if (loading || !draftIntent) return null;
-    setLoading(true);
-    setError(null);
+  async function finalizeCreateTrip(options?: { redirectTo?: "participants" | "summary" | "none"; silent?: boolean }) {
+    if ((loading || creatingTripSilently) || !draftIntent) return null;
+    const silent = Boolean(options?.silent);
+    if (silent) setCreatingTripSilently(true);
+    else setLoading(true);
+    if (!silent) setError(null);
     try {
       const mergedFollowUp = buildWizardFollowUp({
         intent: { ...draftIntent, mustSee: derivedPlaces, wantsRouteOptimization: optimizeOrder },
@@ -690,10 +693,11 @@ export default function TripCreationWizard({ isPremium }: Props) {
       }
       throw new Error("Respuesta inesperada del servidor.");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo crear el viaje.");
+      if (!silent) setError(e instanceof Error ? e.message : "No se pudo crear el viaje.");
       return null;
     } finally {
-      setLoading(false);
+      if (silent) setCreatingTripSilently(false);
+      else setLoading(false);
     }
   }
 
@@ -739,7 +743,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
 
   async function ensureTripForPreviewEditor() {
     if (createdTripId) return createdTripId;
-    const id = await finalizeCreateTrip({ redirectTo: "none" });
+    const id = await finalizeCreateTrip({ redirectTo: "none", silent: true });
     return id;
   }
 
