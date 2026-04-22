@@ -65,6 +65,53 @@ const SUGGESTED_CHIPS = [
   "Food tour",
 ] as const;
 
+function inferExamplesFromDestination(destination: string | null | undefined) {
+  const d = (destination || "").toLowerCase();
+  const is = (s: string) => d.includes(s);
+
+  if (is("polonia") || is("poland") || is("krak") || is("craco") || is("gdansk") || is("varsovia") || is("warsaw")) {
+    return {
+      start: "Ej.: Cracovia",
+      end: "Ej.: Gdansk",
+      mustSee: "Ej. (uno por línea):\nCracovia\nAuschwitz\nGdansk",
+    };
+  }
+  if (is("italia") || is("italy") || is("roma") || is("rome") || is("florencia") || is("florence") || is("venecia") || is("venice")) {
+    return {
+      start: "Ej.: Roma",
+      end: "Ej.: Venecia",
+      mustSee: "Ej. (uno por línea):\nColiseo\nVaticano\nTrastevere",
+    };
+  }
+  if (is("portugal") || is("lisboa") || is("lisbon") || is("oporto") || is("porto")) {
+    return {
+      start: "Ej.: Lisboa",
+      end: "Ej.: Oporto",
+      mustSee: "Ej. (uno por línea):\nTorre de Belém\nAlfama\nRibeira",
+    };
+  }
+  if (is("francia") || is("france") || is("parís") || is("paris")) {
+    return {
+      start: "Ej.: París",
+      end: "Ej.: Versalles",
+      mustSee: "Ej. (uno por línea):\nTorre Eiffel\nLouvre\nMontmartre",
+    };
+  }
+  if (is("jap") || is("tokio") || is("tokyo") || is("kioto") || is("kyoto")) {
+    return {
+      start: "Ej.: Tokio",
+      end: "Ej.: Kioto",
+      mustSee: "Ej. (uno por línea):\nShibuya\nFushimi Inari\nArashiyama",
+    };
+  }
+
+  return {
+    start: "Ej.: Madrid",
+    end: "Ej.: Barcelona",
+    mustSee: "Ej. (uno por línea):\nLugar 1\nLugar 2\nLugar 3",
+  };
+}
+
 function prettyTripDraft(intent: TripCreationIntent | null) {
   if (!intent) return null;
   const dest = (intent.destination || "").trim();
@@ -135,6 +182,7 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
   const panelRef = useRef<HTMLDivElement | null>(null);
 
   const summary = useMemo(() => prettyTripDraft(draftIntent), [draftIntent]);
+  const examples = useMemo(() => inferExamplesFromDestination(draftIntent?.destination ?? null), [draftIntent?.destination]);
 
   // Botones un poco más estilizados (menos “bastos”) para este modal, sin afectar al resto de la app.
   const btnPrimarySlim =
@@ -430,9 +478,9 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
             aria-labelledby="virtual-assistant-create-trip-title"
             className="max-h-[min(860px,92vh)] w-full max-w-3xl overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-white via-white to-slate-50 shadow-2xl"
           >
-            <div className="flex items-start justify-between gap-3 border-b border-slate-200/70 bg-white/70 px-5 py-4 backdrop-blur sm:px-6">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-200/70 bg-white/70 px-5 py-3 backdrop-blur sm:px-6">
               <div className="flex min-w-0 flex-1 items-start gap-3">
-                <TripBoardLogo variant="dark" size="lg" withWordmark className="shrink-0" />
+                <TripBoardLogo variant="dark" size="md" withWordmark className="shrink-0" />
                 <div className="min-w-0">
                   <p
                     id="virtual-assistant-create-trip-title"
@@ -440,8 +488,8 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
                   >
                     Crear viaje con tu asistente virtual
                   </p>
-                  <p className="mt-1 text-xs text-slate-600 sm:text-sm">
-                    Primero leeré lo que has dicho y te enseñaré un borrador. Después decides si generar el viaje.
+                  <p className="mt-0.5 text-xs text-slate-600 sm:text-sm">
+                    Te enseño un borrador primero. Luego decides si lo generamos.
                   </p>
                 </div>
               </div>
@@ -451,15 +499,15 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
                   setOpen(false);
                   resetFlow();
                 }}
-                className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:bg-slate-50 ${iconSlotFill40}`}
+                className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:bg-slate-50 ${iconSlotFill40}`}
                 aria-label="Cerrar"
               >
                 <X aria-hidden />
               </button>
             </div>
 
-            <div className="grid gap-4 overflow-y-auto p-5 md:grid-cols-[1fr_340px] md:gap-5 md:p-6">
-              <div className="space-y-4">
+            <div className="grid gap-4 overflow-y-auto p-5 md:grid-cols-[minmax(0,1fr)_minmax(280px,360px)] md:gap-5 md:p-6">
+              <div className="min-w-0 space-y-4">
                 {error ? (
                   <div className="sticky top-0 z-10 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900 shadow-sm">
                     <span className="font-semibold">Error:</span> {error}
@@ -590,7 +638,7 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div>
                         <label className="block text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">
-                          Ciudad inicio (opcional)
+                          Ciudad inicio
                         </label>
                         <input
                           value={(draftIntent?.startLocation || "") ?? ""}
@@ -598,13 +646,13 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
                             setDraftIntent((prev) => ({ ...(prev || {}), startLocation: e.target.value.trim() || null }))
                           }
                           disabled={loading || disabled || aiBudgetExceeded}
-                          placeholder="Ej.: Madrid"
+                          placeholder={examples.start}
                           className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
                         />
                       </div>
                       <div>
                         <label className="block text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">
-                          Ciudad fin (opcional)
+                          Ciudad fin
                         </label>
                         <input
                           value={(draftIntent?.endLocation || "") ?? ""}
@@ -612,7 +660,7 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
                             setDraftIntent((prev) => ({ ...(prev || {}), endLocation: e.target.value.trim() || null }))
                           }
                           disabled={loading || disabled || aiBudgetExceeded}
-                          placeholder="Ej.: Barcelona"
+                          placeholder={examples.end}
                           className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
                         />
                       </div>
@@ -639,7 +687,7 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
                           setDraftIntent((prev) => ({ ...(prev || {}), mustSee: items.length ? items : undefined }));
                         }}
                         disabled={loading || disabled || aiBudgetExceeded}
-                        placeholder={"Ej. (uno por línea):\nColiseo\nVaticano\nTrastevere"}
+                        placeholder={examples.mustSee}
                         rows={3}
                         className="mt-2 w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
                       />
@@ -749,7 +797,7 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
                 {/* el error se muestra arriba en sticky */}
               </div>
 
-              <div className="space-y-3 md:sticky md:top-4 md:self-start">
+              <div className="min-w-0 space-y-3 md:sticky md:top-4 md:self-start">
                 <div className="rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm backdrop-blur">
                   <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Resumen</p>
                   {summary ? (
