@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, X } from "lucide-react";
+import { ArrowLeft, Sparkles, X } from "lucide-react";
 import type { TripCreationIntent } from "@/lib/trip-ai/tripCreationTypes";
 import { btnPrimary, btnNeutral, btnSecondary } from "@/components/ui/brandStyles";
 import { iconInline16, iconSlotFill40 } from "@/components/ui/iconTokens";
@@ -69,11 +69,29 @@ function inferExamplesFromDestination(destination: string | null | undefined) {
   const d = (destination || "").toLowerCase();
   const is = (s: string) => d.includes(s);
 
+  if (
+    is("croacia") ||
+    is("croatia") ||
+    is("dubrovnik") ||
+    is("split") ||
+    is("zagreb") ||
+    is("plitvice") ||
+    is("hvar") ||
+    is("zadar")
+  ) {
+    return {
+      start: "Ej.: Dubrovnik",
+      end: "Ej.: Split",
+      mustSee: "Ej. (uno por línea):\nDubrovnik\nLagos de Plitvice\nSplit",
+      prompt: "Ej.: Croacia 10 días en pareja, queremos Dubrovnik + Split + alguna isla, ritmo tranquilo…",
+    };
+  }
   if (is("polonia") || is("poland") || is("krak") || is("craco") || is("gdansk") || is("varsovia") || is("warsaw")) {
     return {
       start: "Ej.: Cracovia",
       end: "Ej.: Gdansk",
       mustSee: "Ej. (uno por línea):\nCracovia\nAuschwitz\nGdansk",
+      prompt: "Ej.: Polonia 6 días, empezamos en Cracovia y terminamos en Gdansk, nos gusta cultura y buena comida…",
     };
   }
   if (is("italia") || is("italy") || is("roma") || is("rome") || is("florencia") || is("florence") || is("venecia") || is("venice")) {
@@ -81,6 +99,7 @@ function inferExamplesFromDestination(destination: string | null | undefined) {
       start: "Ej.: Roma",
       end: "Ej.: Venecia",
       mustSee: "Ej. (uno por línea):\nColiseo\nVaticano\nTrastevere",
+      prompt: "Ej.: Italia 5 días, Roma + Florencia, presupuesto medio, nos encanta comer bien…",
     };
   }
   if (is("portugal") || is("lisboa") || is("lisbon") || is("oporto") || is("porto")) {
@@ -88,6 +107,7 @@ function inferExamplesFromDestination(destination: string | null | undefined) {
       start: "Ej.: Lisboa",
       end: "Ej.: Oporto",
       mustSee: "Ej. (uno por línea):\nTorre de Belém\nAlfama\nRibeira",
+      prompt: "Ej.: Portugal 4 días, Lisboa + Oporto, ruta optimizada, evitamos madrugar…",
     };
   }
   if (is("francia") || is("france") || is("parís") || is("paris")) {
@@ -95,6 +115,7 @@ function inferExamplesFromDestination(destination: string | null | undefined) {
       start: "Ej.: París",
       end: "Ej.: Versalles",
       mustSee: "Ej. (uno por línea):\nTorre Eiffel\nLouvre\nMontmartre",
+      prompt: "Ej.: París 3 días, con mi pareja, romántico, museos y paseos…",
     };
   }
   if (is("jap") || is("tokio") || is("tokyo") || is("kioto") || is("kyoto")) {
@@ -102,6 +123,7 @@ function inferExamplesFromDestination(destination: string | null | undefined) {
       start: "Ej.: Tokio",
       end: "Ej.: Kioto",
       mustSee: "Ej. (uno por línea):\nShibuya\nFushimi Inari\nArashiyama",
+      prompt: "Ej.: Japón 7 días, Tokio + Kioto, cultura y barrios, ritmo medio…",
     };
   }
 
@@ -109,6 +131,7 @@ function inferExamplesFromDestination(destination: string | null | undefined) {
     start: "Ej.: Madrid",
     end: "Ej.: Barcelona",
     mustSee: "Ej. (uno por línea):\nLugar 1\nLugar 2\nLugar 3",
+    prompt: "Ej.: Roma 4 días con mi pareja, presupuesto medio, nos gusta comer bien y ver monumentos…",
   };
 }
 
@@ -175,6 +198,7 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
   const [followUp, setFollowUp] = useState("");
   const [notes, setNotes] = useState("");
   const [mustSeeText, setMustSeeText] = useState("");
+  const [mustSeeAdd, setMustSeeAdd] = useState("");
   const [optimizeOrder, setOptimizeOrder] = useState(true);
   const [aiBudgetExceeded, setAiBudgetExceeded] = useState(false);
   const [stage, setStage] = useState<"collecting" | "clarifying" | "ready">("collecting");
@@ -242,11 +266,35 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
     setFollowUp("");
     setNotes("");
     setMustSeeText("");
+    setMustSeeAdd("");
     setOptimizeOrder(true);
     setError(null);
     setLoading(false);
     setAiBudgetExceeded(false);
     setStage("collecting");
+  }
+
+  function goBack() {
+    if (loading) return;
+    if (stage === "ready" || stage === "clarifying") {
+      setStage("collecting");
+      setQuestion(null);
+      setFollowUp("");
+      setError(null);
+      return;
+    }
+    setOpen(false);
+    resetFlow();
+  }
+
+  function addMustSeeTag(raw: string) {
+    const v = String(raw || "").trim();
+    if (!v) return;
+    const prev = (draftIntent?.mustSee || []).map((x) => String(x || "").trim()).filter(Boolean);
+    const next = [...new Set([...prev, v])].slice(0, 12);
+    setDraftIntent((p) => ({ ...(p || {}), mustSee: next }));
+    setMustSeeText(next.join("\n"));
+    setMustSeeAdd("");
   }
 
   async function callAutoCreate(params: {
@@ -478,35 +526,175 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
             aria-labelledby="virtual-assistant-create-trip-title"
             className="max-h-[min(860px,92vh)] w-full max-w-3xl overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-white via-white to-slate-50 shadow-2xl"
           >
-            <div className="flex items-start justify-between gap-3 border-b border-slate-200/70 bg-white/70 px-5 py-3 backdrop-blur sm:px-6">
-              <div className="flex min-w-0 flex-1 items-start gap-3">
-                <TripBoardLogo variant="dark" size="md" withWordmark className="shrink-0" />
-                <div className="min-w-0">
-                  <p
-                    id="virtual-assistant-create-trip-title"
-                    className="text-sm font-extrabold tracking-tight text-slate-950 sm:text-base"
+            <div className="border-b border-slate-200/70 bg-white/70 px-4 py-2.5 backdrop-blur sm:px-6">
+              <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={goBack}
+                    disabled={loading}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
+                    aria-label="Atrás"
+                    title="Atrás"
                   >
-                    Crear viaje con tu asistente virtual
+                    <ArrowLeft className="h-4 w-4" aria-hidden />
+                  </button>
+                  <div className="flex h-9 w-[132px] items-center justify-start rounded-2xl border border-slate-200 bg-white px-2 shadow-sm">
+                    <TripBoardLogo variant="dark" size="sm" withWordmark className="shrink-0" />
+                  </div>
+                </div>
+
+                <div className="min-w-0">
+                  <p id="virtual-assistant-create-trip-title" className="truncate text-sm font-semibold text-slate-950">
+                    <span className="text-violet-700 italic">1. Crea planes</span>
+                    <span className="mx-2 text-slate-300" aria-hidden>
+                      →
+                    </span>
+                    <span className="text-slate-900">2. Define rutas</span>
+                    <span className="mx-2 text-slate-300" aria-hidden>
+                      →
+                    </span>
+                    <span className="text-slate-900">3. Invita a tus compañeros y ultima detalles</span>
                   </p>
-                  <p className="mt-0.5 text-xs text-slate-600 sm:text-sm">
+                  <p className="mt-0.5 truncate text-xs text-slate-600">
                     Te enseño un borrador primero. Luego decides si lo generamos.
                   </p>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    resetFlow();
+                  }}
+                  className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:bg-slate-50 ${iconSlotFill40}`}
+                  aria-label="Cerrar"
+                >
+                  <X aria-hidden />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setOpen(false);
-                  resetFlow();
-                }}
-                className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:bg-slate-50 ${iconSlotFill40}`}
-                aria-label="Cerrar"
-              >
-                <X aria-hidden />
-              </button>
             </div>
 
-            <div className="grid gap-4 overflow-y-auto p-5 md:grid-cols-[minmax(0,1fr)_minmax(280px,360px)] md:gap-5 md:p-6">
+            <div className="grid gap-4 overflow-y-auto p-5 md:grid-cols-[minmax(320px,360px)_minmax(0,1fr)] md:gap-5 md:p-6">
+              <div className="min-w-0 space-y-3 md:sticky md:top-4 md:self-start">
+                <div className="rounded-3xl border border-slate-200 bg-slate-50/80 p-4 text-xs text-slate-600">
+                  <p className="font-semibold text-slate-900">Cómo funciona</p>
+                  <p className="mt-1">
+                    1) Escribes tu idea. 2) El asistente virtual crea un borrador y te lo enseña. 3) Si te gusta, generas el viaje.
+                  </p>
+                </div>
+
+                <div className="rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm backdrop-blur">
+                  <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Resumen</p>
+                  {summary ? (
+                    <dl className="mt-3 divide-y divide-slate-100 text-sm">
+                      <div className="flex items-start gap-3 py-2">
+                        <dt className="w-[120px] shrink-0 text-slate-500">Inicio</dt>
+                        <dd className="min-w-0 flex-1 text-right font-semibold text-slate-950 break-words">
+                          {summary.startLocation}
+                        </dd>
+                      </div>
+                      <div className="flex items-start gap-3 py-2">
+                        <dt className="w-[120px] shrink-0 text-slate-500">Fin</dt>
+                        <dd className="min-w-0 flex-1 text-right font-semibold text-slate-950 break-words">
+                          {summary.endLocation}
+                        </dd>
+                      </div>
+                      <div className="flex items-start gap-3 py-2">
+                        <dt className="w-[120px] shrink-0 text-slate-500">Destino</dt>
+                        <dd className="min-w-0 flex-1 text-right font-semibold text-slate-950 break-words">
+                          {summary.destination}
+                        </dd>
+                      </div>
+                      <div className="flex items-start gap-3 py-2">
+                        <dt className="w-[120px] shrink-0 text-slate-500">Fechas / duración</dt>
+                        <dd className="min-w-0 flex-1 text-right font-semibold text-slate-950 break-words">
+                          {summary.dates}
+                        </dd>
+                      </div>
+                      <div className="flex items-start gap-3 py-2">
+                        <dt className="w-[120px] shrink-0 text-slate-500">Viajeros</dt>
+                        <dd className="min-w-0 flex-1 text-right font-semibold text-slate-950 break-words">
+                          {summary.travelers}
+                        </dd>
+                      </div>
+                      <div className="flex items-start gap-3 py-2">
+                        <dt className="w-[120px] shrink-0 text-slate-500">Presupuesto</dt>
+                        <dd className="min-w-0 flex-1 text-right font-semibold text-slate-950 break-words">
+                          {summary.budget}
+                        </dd>
+                      </div>
+                      <div className="flex items-start gap-3 py-2">
+                        <dt className="w-[120px] shrink-0 text-slate-500">Estilo</dt>
+                        <dd className="min-w-0 flex-1 text-right font-semibold text-slate-950 break-words">
+                          {summary.style}
+                        </dd>
+                      </div>
+                      <div className="flex items-start gap-3 py-2">
+                        <dt className="w-[120px] shrink-0 text-slate-500">Sitios</dt>
+                        <dd className="min-w-0 flex-1 text-right font-semibold text-slate-950 break-words">
+                          {summary.mustSee}
+                        </dd>
+                      </div>
+                    </dl>
+                  ) : (
+                    <p className="mt-2 text-sm text-slate-600">
+                      Aquí verás lo que el asistente virtual ha entendido cuando pulses{" "}
+                      <span className="font-semibold">Leer lo que he entendido</span>.
+                    </p>
+                  )}
+                </div>
+
+                {stage === "ready" ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={generateTripNow}
+                      disabled={loading || disabled || aiBudgetExceeded}
+                      className={btnPrimarySlim}
+                    >
+                      {loading ? "Creando…" : "Generar viaje"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={recalculateDraft}
+                      disabled={loading || disabled || aiBudgetExceeded}
+                      className={btnSecondarySlim}
+                    >
+                      {loading ? "Recalculando…" : "Recalcular"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={() => {
+                        setStage("collecting");
+                        setDraftIntent(null);
+                        setQuestion(null);
+                        setFollowUp("");
+                        setNotes("");
+                        setMustSeeText("");
+                        setMustSeeAdd("");
+                        setError(null);
+                      }}
+                      className={btnSecondarySlim}
+                    >
+                      Editar texto
+                    </button>
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={() => {
+                        setOpen(false);
+                        resetFlow();
+                      }}
+                      className={btnNeutralSlim}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+
               <div className="min-w-0 space-y-4">
                 {error ? (
                   <div className="sticky top-0 z-10 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900 shadow-sm">
@@ -538,7 +726,7 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
                       onChange={(e) => setPrompt(e.target.value)}
                       rows={4}
                       disabled={loading || disabled || aiBudgetExceeded}
-                      placeholder="Viaje a Lisboa un finde con mi novia, algo barato y tranquilo…"
+                      placeholder={examples.prompt}
                       className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
                     />
 
@@ -691,6 +879,29 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
                         rows={3}
                         className="mt-2 w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
                       />
+                      <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <input
+                          value={mustSeeAdd}
+                          onChange={(e) => setMustSeeAdd(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              addMustSeeTag(mustSeeAdd);
+                            }
+                          }}
+                          disabled={loading || disabled || aiBudgetExceeded}
+                          placeholder="Escribe un lugar y pulsa Añadir…"
+                          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => addMustSeeTag(mustSeeAdd)}
+                          disabled={!mustSeeAdd.trim() || loading || disabled || aiBudgetExceeded}
+                          className={btnSecondarySlim}
+                        >
+                          Añadir
+                        </button>
+                      </div>
                       {draftIntent?.mustSee?.length ? (
                         <div className="mt-2 flex flex-wrap gap-2">
                           {(draftIntent.mustSee || []).map((tag) => (
@@ -746,124 +957,11 @@ export default function DashboardVirtualAssistantCreateTrip({ isPremium, disable
                       />
                     </div>
 
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <button
-                        type="button"
-                        onClick={generateTripNow}
-                        disabled={loading || disabled || aiBudgetExceeded}
-                        className={btnPrimarySlim}
-                      >
-                        {loading ? "Creando…" : "Generar viaje"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={recalculateDraft}
-                        disabled={loading || disabled || aiBudgetExceeded}
-                        className={btnSecondarySlim}
-                      >
-                        {loading ? "Recalculando…" : "Recalcular viaje"}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={loading}
-                        onClick={() => {
-                          setStage("collecting");
-                          setDraftIntent(null);
-                          setQuestion(null);
-                          setFollowUp("");
-                          setNotes("");
-                          setMustSeeText("");
-                          setError(null);
-                        }}
-                        className={btnSecondarySlim}
-                      >
-                        Editar texto
-                      </button>
-                      <button
-                        type="button"
-                        disabled={loading}
-                        onClick={() => {
-                          setOpen(false);
-                          resetFlow();
-                        }}
-                        className={btnNeutralSlim}
-                      >
-                        Cancelar
-                      </button>
-                    </div>
+                    {/* Botones se muestran en la columna izquierda para el paso de revisión */}
                   </div>
                 )}
 
                 {/* el error se muestra arriba en sticky */}
-              </div>
-
-              <div className="min-w-0 space-y-3 md:sticky md:top-4 md:self-start">
-                <div className="rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm backdrop-blur">
-                  <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Resumen</p>
-                  {summary ? (
-                    <dl className="mt-3 divide-y divide-slate-100 text-sm">
-                      <div className="flex items-start gap-3 py-2">
-                        <dt className="w-[120px] shrink-0 text-slate-500">Inicio</dt>
-                        <dd className="min-w-0 flex-1 text-right font-semibold text-slate-950 break-words">
-                          {summary.startLocation}
-                        </dd>
-                      </div>
-                      <div className="flex items-start gap-3 py-2">
-                        <dt className="w-[120px] shrink-0 text-slate-500">Fin</dt>
-                        <dd className="min-w-0 flex-1 text-right font-semibold text-slate-950 break-words">
-                          {summary.endLocation}
-                        </dd>
-                      </div>
-                      <div className="flex items-start gap-3 py-2">
-                        <dt className="w-[120px] shrink-0 text-slate-500">Destino</dt>
-                        <dd className="min-w-0 flex-1 text-right font-semibold text-slate-950 break-words">
-                          {summary.destination}
-                        </dd>
-                      </div>
-                      <div className="flex items-start gap-3 py-2">
-                        <dt className="w-[120px] shrink-0 text-slate-500">Fechas / duración</dt>
-                        <dd className="min-w-0 flex-1 text-right font-semibold text-slate-950 break-words">
-                          {summary.dates}
-                        </dd>
-                      </div>
-                      <div className="flex items-start gap-3 py-2">
-                        <dt className="w-[120px] shrink-0 text-slate-500">Viajeros</dt>
-                        <dd className="min-w-0 flex-1 text-right font-semibold text-slate-950 break-words">
-                          {summary.travelers}
-                        </dd>
-                      </div>
-                      <div className="flex items-start gap-3 py-2">
-                        <dt className="w-[120px] shrink-0 text-slate-500">Presupuesto</dt>
-                        <dd className="min-w-0 flex-1 text-right font-semibold text-slate-950 break-words">
-                          {summary.budget}
-                        </dd>
-                      </div>
-                      <div className="flex items-start gap-3 py-2">
-                        <dt className="w-[120px] shrink-0 text-slate-500">Estilo</dt>
-                        <dd className="min-w-0 flex-1 text-right font-semibold text-slate-950 break-words">
-                          {summary.style}
-                        </dd>
-                      </div>
-                      <div className="flex items-start gap-3 py-2">
-                        <dt className="w-[120px] shrink-0 text-slate-500">Sitios</dt>
-                        <dd className="min-w-0 flex-1 text-right font-semibold text-slate-950 break-words">
-                          {summary.mustSee}
-                        </dd>
-                      </div>
-                    </dl>
-                  ) : (
-                    <p className="mt-2 text-sm text-slate-600">
-                      Aquí verás lo que el asistente virtual ha entendido cuando pulses <span className="font-semibold">Leer lo que he entendido</span>.
-                    </p>
-                  )}
-                </div>
-
-                <div className="rounded-3xl border border-slate-200 bg-slate-50/80 p-4 text-xs text-slate-600">
-                  <p className="font-semibold text-slate-900">Cómo funciona</p>
-                  <p className="mt-1">
-                    1) Escribes tu idea. 2) El asistente virtual crea un borrador y te lo enseña. 3) Si te gusta, generas el viaje.
-                  </p>
-                </div>
               </div>
             </div>
           </div>
