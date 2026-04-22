@@ -241,15 +241,29 @@ async function callAutoCreate(params: {
     }),
   });
 
-  const data = (await res.json().catch(() => null)) as (ApiNeedsClarification | ApiReady | ApiCreated | ApiError | null) & any;
+  const rawText = await res.text().catch(() => "");
+  const data = ((): any => {
+    try {
+      return rawText ? JSON.parse(rawText) : null;
+    } catch {
+      return null;
+    }
+  })() as (ApiNeedsClarification | ApiReady | ApiCreated | ApiError | null) & any;
+
   if (!res.ok) {
     const code = typeof data?.code === "string" ? data.code : null;
-    const msg = typeof data?.error === "string" ? data.error : "No se pudo continuar con el asistente.";
-    const err = new Error(msg) as Error & { code?: string | null; budget?: any };
+    const serverMsg = typeof data?.error === "string" ? data.error : "";
+    const msg =
+      serverMsg ||
+      (rawText && rawText.length < 400 ? rawText : "") ||
+      `No se pudo continuar con el asistente (HTTP ${res.status}).`;
+    const err = new Error(msg) as Error & { code?: string | null; budget?: any; httpStatus?: number };
     err.code = code;
     err.budget = data?.budget;
+    err.httpStatus = res.status;
     throw err;
   }
+
   return data;
 }
 
@@ -404,6 +418,12 @@ export default function TripCreationWizard({ isPremium }: Props) {
   async function ensureLodgingItinerary() {
     if (!draftIntent || lodgingLoading) return;
     if (lodgingItinerary && lodgingResolved) return;
+    // Si ya hemos previsualizado planes en el paso anterior, reutilizamos ese itinerary para evitar otra llamada a la IA.
+    if (previewItinerary?.days?.length && previewResolved) {
+      setLodgingResolved(previewResolved);
+      setLodgingItinerary(previewItinerary);
+      return;
+    }
     setLodgingLoading(true);
     setLodgingError(null);
     try {
@@ -438,7 +458,18 @@ export default function TripCreationWizard({ isPremium }: Props) {
   const lodgingCities = useMemo(() => {
     const itin = lodgingItinerary;
     if (!itin?.days?.length) return [];
-    const map = new Map<string, { city: string; nights: number; dates: string[] }>();
+    const map = new Map<
+      string,
+      { city: string; nights: number; dates: string[]; startDate: string | null; endDate: string | null }
+    >();
+
+    const addDays = (isoDate: string, days: number) => {
+      const d = new Date(`${isoDate}T12:00:00`);
+      if (Number.isNaN(d.getTime())) return isoDate;
+      d.setDate(d.getDate() + days);
+      return d.toISOString().slice(0, 10);
+    };
+
     for (const day of itin.days) {
       const items = day.items || [];
       const lodgingItem =
@@ -448,12 +479,25 @@ export default function TripCreationWizard({ isPremium }: Props) {
       const addr = String(lodgingItem?.address || "").trim();
       const city = cityFromAddress(addr) || cityFromAddress(String(items[items.length - 1]?.address || "")) || "";
       const key = city || "Sin ciudad";
-      const prev = map.get(key) || { city: key, nights: 0, dates: [] };
+      const prev = map.get(key) || { city: key, nights: 0, dates: [], startDate: null, endDate: null };
       prev.nights += 1;
-      if (day.date) prev.dates.push(day.date);
+      if (day.date) {
+        prev.dates.push(day.date);
+        const sortedDates = [...prev.dates].sort((a, b) => a.localeCompare(b));
+        prev.startDate = sortedDates[0] || null;
+        // checkout: día siguiente al último día con noche
+        const last = sortedDates[sortedDates.length - 1] || null;
+        prev.endDate = last ? addDays(last, 1) : null;
+      }
       map.set(key, prev);
     }
-    return Array.from(map.values()).sort((a, b) => b.nights - a.nights);
+    return Array.from(map.values()).sort((a, b) => {
+      const ad = a.startDate || "9999-12-31";
+      const bd = b.startDate || "9999-12-31";
+      const byDate = ad.localeCompare(bd);
+      if (byDate !== 0) return byDate;
+      return b.nights - a.nights;
+    });
   }, [lodgingItinerary]);
 
   function hotelOptionsFor(city: string, tier: "asequible" | "medio" | "lujo", resolvedLabel: string) {
@@ -1342,7 +1386,15 @@ export default function TripCreationWizard({ isPremium }: Props) {
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <div className="text-sm font-extrabold text-slate-950">{city}</div>
-                          <div className="text-xs font-semibold text-slate-600">Noches: {row.nights}</div>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-slate-600">
+                            <span>Noches: {row.nights}</span>
+                            {row.startDate && row.endDate ? <span>{row.startDate} → {row.endDate}</span> : null}
+                          </div>
+                          {selected ? (
+                            <div className="mt-1 truncate text-xs font-extrabold text-emerald-900" title={selected.name}>
+                              {selected.name}
+                            </div>
+                          ) : null}
                         </div>
                         <button
                           type="button"
