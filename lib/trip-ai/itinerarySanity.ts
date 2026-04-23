@@ -1,5 +1,14 @@
 import type { ExecutableItineraryPayload } from "@/lib/trip-ai/tripCreationTypes";
 
+function normalizeTimeToMinutes(raw: string): number | null {
+  const s = String(raw || "").trim().replace(".", ":");
+  const m = /^(\d{1,2}):(\d{2})$/.exec(s);
+  if (!m) return null;
+  const hh = Math.max(0, Math.min(23, Number(m[1])));
+  const mm = Math.max(0, Math.min(59, Number(m[2])));
+  return hh * 60 + mm;
+}
+
 function cityFromAddress(addressRaw: string): string {
   const raw = String(addressRaw || "").trim();
   if (!raw) return "";
@@ -23,29 +32,43 @@ function normalizeCity(x: string): string {
     .replace(/\s+/g, " ");
 }
 
-function isTimeLike(s: string): boolean {
-  return /^\d{1,2}:\d{2}$/.test(String(s || "").trim());
+function guessCityFromText(text: string): string {
+  const t = String(text || "").trim();
+  if (!t) return "";
+  // Caso típico: "Visita: Split" / "Excursión a Hvar"
+  const m = /(?:visita|excursion|excursión|paseo|day\s*trip)\s*(?:a|:)?\s*([A-Za-zÀ-ÿ'’\-\s]{3,})$/i.exec(t);
+  const cand = (m?.[1] || "").trim();
+  if (cand && cand.length <= 40) return cand;
+  // Última palabra si parece un topónimo corto.
+  const last = t.split(/\s+/).slice(-1)[0] || "";
+  return last.length >= 3 && last.length <= 22 ? last : "";
 }
 
 export type ItinerarySanityIssue =
   | { code: "day_city_mix"; message: string; dayIndex: number }
   | { code: "day_times_unsorted"; message: string; dayIndex: number }
+  | { code: "addresses_too_generic"; message: string; dayIndex: number }
   | { code: "too_many_placeholders"; message: string };
 
-export function sanityCheckItinerary(itinerary: ExecutableItineraryPayload): { ok: true } | { ok: false; issues: ItinerarySanityIssue[] } {
+export function sanityCheckItinerary(
+  itinerary: ExecutableItineraryPayload,
+  opts?: { destinationLabel?: string | null }
+): { ok: true } | { ok: false; issues: ItinerarySanityIssue[] } {
   const issues: ItinerarySanityIssue[] = [];
   const days = Array.isArray(itinerary?.days) ? itinerary.days : [];
+  const dest = normalizeCity(opts?.destinationLabel || "");
+  const countryWords = new Set(["croacia", "croatia", "italia", "italy", "francia", "france", "espana", "españa", "spain", dest].filter(Boolean));
 
   for (let di = 0; di < days.length; di++) {
     const day = days[di]!;
     const items = Array.isArray(day?.items) ? day.items : [];
 
     // 1) Horas crecientes (si hay start_time)
-    const times = items
-      .map((it) => String((it as any)?.start_time || "").trim())
-      .filter((t) => isTimeLike(t));
-    const sorted = [...times].sort((a, b) => a.localeCompare(b));
-    if (times.length >= 2 && times.join("|") !== sorted.join("|")) {
+    const mins = items
+      .map((it) => normalizeTimeToMinutes(String((it as any)?.start_time || "")))
+      .filter((x): x is number => typeof x === "number");
+    const sorted = [...mins].sort((a, b) => a - b);
+    if (mins.length >= 2 && mins.join("|") !== sorted.join("|")) {
       issues.push({
         code: "day_times_unsorted",
         dayIndex: di,
@@ -58,10 +81,37 @@ export function sanityCheckItinerary(itinerary: ExecutableItineraryPayload): { o
     if (hasTransport) continue;
 
     const cities = new Set<string>();
+    let genericAddrCount = 0;
     for (const it of items) {
       const addr = String((it as any)?.address || "");
-      const city = normalizeCity(cityFromAddress(addr));
-      if (city) cities.add(city);
+      const place = String((it as any)?.place_name || "");
+      const title = String((it as any)?.title || "");
+
+      const addrCity = normalizeCity(cityFromAddress(addr));
+      const placeCity = normalizeCity(place);
+      const titleCity = normalizeCity(guessCityFromText(title));
+
+      // Address muy genérica (solo país/destino) -> no la usamos para coherencia.
+      if (addrCity && countryWords.has(addrCity)) genericAddrCount += 1;
+
+      const add = (c: string) => {
+        if (!c) return;
+        if (countryWords.has(c)) return;
+        cities.add(c);
+      };
+      add(addrCity);
+      // place_name suele ser el POI: si es un topónimo (una palabra/corto) lo tratamos como ciudad.
+      if (placeCity && placeCity.length <= 22 && !placeCity.includes(" ")) add(placeCity);
+      if (titleCity && titleCity.length <= 22 && !titleCity.includes(" ")) add(titleCity);
+    }
+
+    // Si casi todo viene con address genérica, es señal de mala calidad (teletransportes suelen venir así).
+    if (items.length >= 4 && genericAddrCount / Math.max(1, items.length) > 0.6) {
+      issues.push({
+        code: "addresses_too_generic",
+        dayIndex: di,
+        message: `Día ${di + 1}: direcciones demasiado genéricas (falta ciudad/país en muchos items).`,
+      });
     }
     // Si hay más de una ciudad distinta, casi seguro es un itinerario incoherente.
     if (cities.size >= 2) {
