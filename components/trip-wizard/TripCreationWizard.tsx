@@ -757,7 +757,11 @@ export default function TripCreationWizard({ isPremium }: Props) {
   }
 
   async function finalizeCreateTrip(options?: { redirectTo?: "participants" | "summary" | "none"; silent?: boolean }) {
-    if ((loading || creatingTripSilently) || !draftIntent) return null;
+    if ((loading || creatingTripSilently) || !draftIntent) {
+      // Evita “click muerto” si hay creación silenciosa en curso.
+      if (!loading && creatingTripSilently) setError("Ya hay una creación de viaje en curso. Espera unos segundos e inténtalo de nuevo.");
+      return null;
+    }
     const silent = Boolean(options?.silent);
     if (silent) setCreatingTripSilently(true);
     else setLoading(true);
@@ -1856,7 +1860,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
                   <button
                     type="button"
                     onClick={() => void finalizeCreateTrip({ redirectTo: "participants" })}
-                    disabled={loading || !draftIntent}
+                    disabled={loading || creatingTripSilently || !draftIntent}
                     className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-extrabold text-white shadow-sm hover:bg-slate-800 disabled:opacity-60"
                   >
                     Crear viaje
