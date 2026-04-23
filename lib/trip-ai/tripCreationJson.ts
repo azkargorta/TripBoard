@@ -123,16 +123,25 @@ function replaceOutsideStrings(input: string, fromChar: string, toChar: string):
 
 function insertMissingArrayCommas(input: string): string {
   const isWs = (c: string) => c === " " || c === "\n" || c === "\r" || c === "\t";
+  const isDigit = (c: string) => c >= "0" && c <= "9";
   const isValueStart = (c: string) =>
-    c === "{" || c === "[" || c === '"' || c === "-" || (c >= "0" && c <= "9") || c === "t" || c === "f" || c === "n";
-  const isValueEndSig = (c: string) =>
-    c === "}" || c === "]" || c === '"' || (c >= "0" && c <= "9") || c === "e" || c === "l" || c === "t";
+    c === "{" || c === "[" || c === '"' || c === "-" || isDigit(c) || c === "t" || c === "f" || c === "n";
 
   let out = "";
   const stack: Array<"array" | "object"> = [];
   let inString = false;
   let escape = false;
-  let lastSig: string | null = null; // último char no-espacio fuera de string
+
+  // Marca si acabamos de emitir un valor completo dentro de un array.
+  let justEndedArrayValue = false;
+
+  const peekNextNonWs = (src: string, from: number) => {
+    for (let j = from; j < src.length; j++) {
+      const cj = src[j]!;
+      if (!isWs(cj)) return { ch: cj, idx: j };
+    }
+    return { ch: "", idx: src.length };
+  };
 
   for (let i = 0; i < input.length; i++) {
     const ch = input[i]!;
@@ -147,55 +156,108 @@ function insertMissingArrayCommas(input: string): string {
         escape = true;
         continue;
       }
-      if (ch === '"') inString = false;
+      if (ch === '"') {
+        inString = false;
+        // Una string completa cuenta como valor finalizado (si estamos en array).
+        if (stack[stack.length - 1] === "array") justEndedArrayValue = true;
+      }
+      continue;
+    }
+
+    // Si estamos en array y acabamos de cerrar un valor, y el siguiente token es otro valor (sin coma),
+    // insertamos una coma ANTES de consumir ese siguiente token.
+    if (stack[stack.length - 1] === "array" && justEndedArrayValue) {
+      const next = peekNextNonWs(input, i);
+      if (next.idx === i && next.ch && next.ch !== "," && next.ch !== "]" && isValueStart(next.ch)) {
+        out += ",";
+        justEndedArrayValue = false;
+        // no avanzamos i: seguimos procesando el mismo char actual
+      }
+    }
+
+    if (isWs(ch)) {
+      out += ch;
       continue;
     }
 
     if (ch === '"') {
-      // Si estamos dentro de un array y el último token parecía terminar un valor,
-      // y el próximo valor empieza sin coma, insertamos coma antes de la comilla.
-      if (stack[stack.length - 1] === "array" && lastSig && isValueEndSig(lastSig) && lastSig !== "," && lastSig !== "[") {
-        // Evita casos tipo: [ "a" ] (no hay siguiente valor)
-        out += ",";
-        lastSig = ",";
-      }
       inString = true;
       out += ch;
+      justEndedArrayValue = false;
       continue;
     }
 
-    if (ch === "[" || ch === "{") {
-      // Si estamos en array y empieza un nuevo valor inmediatamente tras otro valor (sin coma), inserta coma.
-      if (stack[stack.length - 1] === "array" && lastSig && isValueEndSig(lastSig) && lastSig !== "," && lastSig !== "[") {
-        out += ",";
-        lastSig = ",";
-      }
-      stack.push(ch === "[" ? "array" : "object");
+    if (ch === "[") {
+      stack.push("array");
       out += ch;
-      lastSig = ch;
+      justEndedArrayValue = false;
+      continue;
+    }
+
+    if (ch === "{") {
+      stack.push("object");
+      out += ch;
+      justEndedArrayValue = false;
       continue;
     }
 
     if (ch === "]" || ch === "}") {
+      const top = stack[stack.length - 1];
       if (stack.length) stack.pop();
       out += ch;
-      lastSig = ch;
-      continue;
-    }
-
-    // Para valores que empiezan con número / - / true/false/null
-    if (stack[stack.length - 1] === "array" && isValueStart(ch)) {
-      if (lastSig && isValueEndSig(lastSig) && lastSig !== "," && lastSig !== "[") {
-        out += ",";
-        lastSig = ",";
+      // Cerrar un objeto/array completo cuenta como valor finalizado si el contenedor es un array.
+      if (top && stack[stack.length - 1] === "array") {
+        justEndedArrayValue = true;
+      } else if (stack[stack.length - 1] !== "array") {
+        justEndedArrayValue = false;
       }
-      out += ch;
-      if (!isWs(ch)) lastSig = ch;
       continue;
     }
 
+    if (ch === ",") {
+      out += ch;
+      justEndedArrayValue = false;
+      continue;
+    }
+
+    if (ch === ":") {
+      out += ch;
+      justEndedArrayValue = false;
+      continue;
+    }
+
+    // Números
+    if (ch === "-" || isDigit(ch)) {
+      let j = i;
+      while (j < input.length) {
+        const cj = input[j]!;
+        if (isDigit(cj) || cj === "-" || cj === "+" || cj === "." || cj === "e" || cj === "E") j++;
+        else break;
+      }
+      out += input.slice(i, j);
+      i = j - 1;
+      if (stack[stack.length - 1] === "array") justEndedArrayValue = true;
+      continue;
+    }
+
+    // Literales: true/false/null (y cualquier palabra “accidental” la tratamos como token)
+    if ((ch >= "a" && ch <= "z") || (ch >= "A" && ch <= "Z")) {
+      let j = i;
+      while (j < input.length) {
+        const cj = input[j]!;
+        const isAlpha = (cj >= "a" && cj <= "z") || (cj >= "A" && cj <= "Z");
+        if (isAlpha) j++;
+        else break;
+      }
+      out += input.slice(i, j);
+      i = j - 1;
+      if (stack[stack.length - 1] === "array") justEndedArrayValue = true;
+      continue;
+    }
+
+    // Cualquier otro símbolo lo copiamos tal cual.
     out += ch;
-    if (!isWs(ch)) lastSig = ch;
+    justEndedArrayValue = false;
   }
 
   return out;
