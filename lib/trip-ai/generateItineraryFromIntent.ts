@@ -338,6 +338,7 @@ export async function generateExecutableItineraryFromIntent(
 
   for (const ch of chunks) {
     const chunkLines = ch.dayIdxs.map((idx) => dayLines[idx]!).join("\n");
+    const requiredDayNums = ch.dayIdxs.map((i) => i + 1);
     const chunkPrompt = `${ITIN_PROMPT}
 
 Destino principal: ${baseContext.destination}
@@ -365,21 +366,21 @@ ${baseContext.optimizeHint}
 `;
 
     const first = await runOnce(chunkPrompt);
-    const aligned1 = alignItineraryDates(first.itinerary, resolvedForPrompt);
-    const sanity1 = sanityCheckItinerary(aligned1, { destinationLabel: resolvedForPrompt.destination, baseCityByDay: baseCitySchedule });
-    const placeholders1 = sanityCheckPlaceholders(aligned1, { generateDays, destinationLabel: resolvedForPrompt.destination });
+    const normalized1 = normalizeChunkDays(first.itinerary, resolvedForPrompt, requiredDayNums);
+    const sanity1 = sanityCheckItinerary(normalized1, { destinationLabel: resolvedForPrompt.destination, baseCityByDay: baseCitySchedule });
+    const placeholders1 = sanityCheckPlaceholders(normalized1, { generateDays: requiredDayNums.length, destinationLabel: resolvedForPrompt.destination });
 
     let final = first;
-    let alignedFinal = aligned1;
+    let normalizedFinal = normalized1;
     if (!sanity1.ok || !placeholders1.ok) {
       const strictHint = `\n\nIMPORTANTE: Corrige estos problemas:\n- NO mezcles ciudades en el mismo día.\n- Si un día es Zagreb, NO incluyas Split/Hvar/Dubrovnik.\n- start_time estrictamente creciente.\n- NO uses placeholders tipo \"Explorar ...\".\nDevuelve SOLO JSON válido.\n`;
       final = await runOnce(`${chunkPrompt}${strictHint}`);
-      alignedFinal = alignItineraryDates(final.itinerary, resolvedForPrompt);
+      normalizedFinal = normalizeChunkDays(final.itinerary, resolvedForPrompt, requiredDayNums);
     }
 
-    const daysArr = Array.isArray(alignedFinal.days) ? alignedFinal.days : [];
+    const daysArr = Array.isArray(normalizedFinal.days) ? normalizedFinal.days : [];
     for (const d of daysArr) {
-      if (typeof d?.day === "number" && ch.dayIdxs.includes(d.day - 1)) {
+      if (typeof d?.day === "number" && requiredDayNums.includes(d.day)) {
         dayMap.set(d.day, d);
       }
     }
@@ -421,6 +422,33 @@ ${baseContext.optimizeHint}
 
   // Validación final: si aún quedan demasiados placeholders, dejamos el itinerario pero forzaremos al usuario a regenerar días concretos.
   return { itinerary: finalItinerary, usage: usageAgg };
+}
+
+function normalizeChunkDays(
+  itinerary: ExecutableItineraryPayload,
+  resolved: ResolvedTripCreation,
+  requiredDayNums: number[]
+): ExecutableItineraryPayload {
+  const wanted = new Set(requiredDayNums.map((x) => Math.round(x)));
+  const rawDays = Array.isArray(itinerary?.days) ? itinerary.days : [];
+  const outDays: ExecutableItineraryPayload["days"] = [];
+  for (const d of rawDays) {
+    const dayNum = typeof (d as any)?.day === "number" ? Math.round((d as any).day) : null;
+    if (!dayNum || !wanted.has(dayNum)) continue;
+    const idx = dayNum - 1;
+    outDays.push({
+      day: dayNum,
+      date: addDaysIso(resolved.startDate, idx),
+      items: Array.isArray((d as any)?.items) ? ((d as any).items as any[]) : [],
+    });
+  }
+  outDays.sort((a, b) => a.day - b.day);
+  return {
+    version: 1,
+    title: itinerary.title,
+    travelMode: itinerary.travelMode,
+    days: outDays,
+  };
 }
 
 function buildDayChunks(baseCityByDay: string[], opts: { maxDaysPerChunk: number }) {

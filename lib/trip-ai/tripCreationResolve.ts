@@ -33,7 +33,8 @@ export function getTripCreationFollowUp(intent: TripCreationIntent): TripCreatio
   }
 
   const dur = typeof intent.durationDays === "number" && Number.isFinite(intent.durationDays) ? Math.round(intent.durationDays) : null;
-  const hasDuration = dur != null && dur > 0 && dur <= 30;
+  // Sin límite “duro” de días: si el usuario indica duración, la aceptamos (y mostraremos aviso si es muy larga).
+  const hasDuration = dur != null && dur > 0;
   const hasRange = isIsoDate(intent.startDate) && isIsoDate(intent.endDate);
   const hasStartAndDuration = isIsoDate(intent.startDate) && hasDuration;
 

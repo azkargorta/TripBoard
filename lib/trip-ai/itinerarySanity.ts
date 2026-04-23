@@ -123,14 +123,15 @@ export function sanityCheckItinerary(
     }
 
     // 3) Si tenemos ciudad base por día, exigimos que no aparezcan ciudades claramente distintas.
-    const base = normalizeCity(String(opts?.baseCityByDay?.[di] || ""));
+    const baseIdx = typeof (day as any)?.day === "number" ? Math.max(0, Number((day as any).day) - 1) : di;
+    const base = normalizeCity(String(opts?.baseCityByDay?.[baseIdx] || ""));
     if (base && cities.size === 1) {
       const only = Array.from(cities.values())[0] || "";
       if (only && only !== base) {
         issues.push({
           code: "day_city_mix",
           dayIndex: di,
-          message: `Día ${di + 1}: planes en "${only}" pero la ciudad base prevista es "${base}".`,
+          message: `Día ${typeof (day as any)?.day === "number" ? (day as any).day : di + 1}: planes en "${only}" pero la ciudad base prevista es "${base}".`,
         });
       }
     }
