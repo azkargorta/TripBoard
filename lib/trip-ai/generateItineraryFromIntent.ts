@@ -310,60 +310,134 @@ export async function generateExecutableItineraryFromIntent(
     ? { ...resolved, intent: { ...resolved.intent, mustSee: mustSeeOptimized } }
     : resolved;
 
-  const prompt = `${ITIN_PROMPT}
+  const provider = options?.provider ?? null;
+  const baseContext = {
+    destination: resolvedForPrompt.destination,
+    start: resolvedForPrompt.intent.startLocation || "—",
+    end: resolvedForPrompt.intent.endLocation || "—",
+    travelersType: resolvedForPrompt.intent.travelersType || "general",
+    budget: resolvedForPrompt.intent.budgetLevel || "medium",
+    interests: (resolvedForPrompt.intent.interests || []).join(", ") || "mixto",
+    styles: (resolvedForPrompt.intent.travelStyle || []).join(", ") || "equilibrado",
+    mustSee: mustSeeOptimized.join(" | ") || "—",
+    optimizeHint: resolvedForPrompt.intent.wantsRouteOptimization
+      ? "Si hay múltiples ciudades/regiones, organiza los días para minimizar idas y vueltas (progresión norte→sur, oeste→este, etc. si aplica) respetando origen y destino."
+      : "",
+  };
 
-Destino principal: ${resolvedForPrompt.destination}
-Ciudad/punto inicio (si existe): ${resolvedForPrompt.intent.startLocation || "—"}
-Ciudad/punto fin (si existe): ${resolvedForPrompt.intent.endLocation || "—"}
+  const runOnce = async (p: string) => {
+    const { text, usage } = await askTripAIWithUsage(p, "planning", { provider });
+    const parsed = validateItinerary(extractJsonObject(text));
+    return { itinerary: parsed, usage };
+  };
+
+  // Generación por bloques: evita truncado de salida y mejora coherencia.
+  const chunks = buildDayChunks(baseCitySchedule, { maxDaysPerChunk: 5 });
+  const dayMap = new Map<number, ExecutableItineraryPayload["days"][number]>();
+  const usageAgg: TripAiUsage = { provider: "gemini", model: null, inputTokens: 0, outputTokens: 0 };
+
+  for (const ch of chunks) {
+    const chunkLines = ch.dayIdxs.map((idx) => dayLines[idx]!).join("\n");
+    const chunkPrompt = `${ITIN_PROMPT}
+
+Destino principal: ${baseContext.destination}
+Ciudad/punto inicio (si existe): ${baseContext.start}
+Ciudad/punto fin (si existe): ${baseContext.end}
 Ritmo: entre ${cfg.pace.itemsPerDayMin} y ${cfg.pace.itemsPerDayMax} items por día.
 Coherencia geográfica: ${cfg.geo.strictness === "strict" ? "muy estricta" : cfg.geo.strictness === "loose" ? "flexible" : "equilibrada"}.
 Preferencias de transporte: ${cfg.transport.notes || "—"}
-Fechas por día:
-${dayLines.join("\n")}
-Duración total del viaje: ${resolvedForPrompt.durationDays} días. Genera planes detallados para TODOS los días listados.
-Tipo viajeros: ${resolvedForPrompt.intent.travelersType || "general"}
-Presupuesto: ${resolvedForPrompt.intent.budgetLevel || "medium"}
-Intereses: ${(resolvedForPrompt.intent.interests || []).join(", ") || "mixto"}
-Estilos: ${(resolvedForPrompt.intent.travelStyle || []).join(", ") || "equilibrado"}
-Paradas obligatorias (mustSee, en este orden): ${mustSeeOptimized.join(" | ") || "—"}
-${resolvedForPrompt.intent.wantsRouteOptimization ? "Si hay múltiples ciudades/regiones, organiza los días para minimizar idas y vueltas (progresión norte→sur, oeste→este, etc. si aplica) respetando origen y destino." : ""}
+Fechas por día (SOLO estas fechas):
+${chunkLines}
+
+Instrucciones:
+- Devuelve EXACTAMENTE ${ch.dayIdxs.length} objetos en "days" correspondientes a esas fechas.
+- Los campos "day" deben coincidir con el número de Día mostrado arriba (no renumeres).
+- Para cada día, respeta la "Ciudad base" indicada.
+- Cada día debe tener entre ${cfg.pace.itemsPerDayMin} y ${cfg.pace.itemsPerDayMax} items.
+- Direcciones: siempre \"..., Ciudad, País\" (no uses solo el país).
+
+Tipo viajeros: ${baseContext.travelersType}
+Presupuesto: ${baseContext.budget}
+Intereses: ${baseContext.interests}
+Estilos: ${baseContext.styles}
+Paradas obligatorias (mustSee, en este orden): ${baseContext.mustSee}
+${baseContext.optimizeHint}
 `;
 
-  const provider = options?.provider ?? null;
-  const run = async (p: string) => {
-    const { text, usage } = await askTripAIWithUsage(p, "planning", { provider });
-    const parsed = validateItinerary(extractJsonObject(text));
-    const aligned = alignItineraryDates(parsed, resolvedForPrompt);
-    return { itinerary: enforceMustSee(aligned, resolvedForPrompt), usage };
-  };
+    const first = await runOnce(chunkPrompt);
+    const aligned1 = alignItineraryDates(first.itinerary, resolvedForPrompt);
+    const sanity1 = sanityCheckItinerary(aligned1, { destinationLabel: resolvedForPrompt.destination, baseCityByDay: baseCitySchedule });
+    const placeholders1 = sanityCheckPlaceholders(aligned1, { generateDays, destinationLabel: resolvedForPrompt.destination });
 
-  // 1) Intento normal
-  const first = await run(prompt);
-  const sanity1 = sanityCheckItinerary(first.itinerary, {
-    destinationLabel: resolvedForPrompt.destination,
-    baseCityByDay: baseCitySchedule,
-  });
-  const placeholders1 = sanityCheckPlaceholders(first.itinerary, {
-    generateDays,
-    destinationLabel: resolvedForPrompt.destination,
-  });
-  if (sanity1.ok && placeholders1.ok) return first;
+    let final = first;
+    let alignedFinal = aligned1;
+    if (!sanity1.ok || !placeholders1.ok) {
+      const strictHint = `\n\nIMPORTANTE: Corrige estos problemas:\n- NO mezcles ciudades en el mismo día.\n- Si un día es Zagreb, NO incluyas Split/Hvar/Dubrovnik.\n- start_time estrictamente creciente.\n- NO uses placeholders tipo \"Explorar ...\".\nDevuelve SOLO JSON válido.\n`;
+      final = await runOnce(`${chunkPrompt}${strictHint}`);
+      alignedFinal = alignItineraryDates(final.itinerary, resolvedForPrompt);
+    }
 
-  // 2) Reintento con prompt más estricto si detectamos incoherencias típicas
-  const strictHint = `\n\nIMPORTANTE: Tu salida anterior no era válida para la app.\n- Devuelve EXACTAMENTE ${generateDays} objetos dentro de "days" (uno por cada fecha listada arriba), con "day" 1..${generateDays}.\n- Cada día debe tener entre ${cfg.pace.itemsPerDayMin} y ${cfg.pace.itemsPerDayMax} items (no uses placeholders tipo \"Explorar ...\").\n- Regla clave: una ciudad por día. NO pongas \"Visita: Split\" o \"Visita: Hvar\" en un día de Zagreb. Si un día es Split, TODOS los items deben ser Split (o alrededores cercanos).\n- Si hay cambio de ciudad/isla, ese día debe incluir un item activity_kind=\"transport\" (tren/coche/ferry) y el resto del día ser ya en el destino.\n- Direcciones: cada item debe tener \"..., Ciudad, País\" (no uses solo \"Croacia\").\n- Mantén start_time estrictamente creciente.\nDevuelve SOLO JSON válido.\n`;
-  const second = await run(`${prompt}${strictHint}`);
-  const sanity2 = sanityCheckItinerary(second.itinerary, {
-    destinationLabel: resolvedForPrompt.destination,
-    baseCityByDay: baseCitySchedule,
-  });
-  const placeholders2 = sanityCheckPlaceholders(second.itinerary, {
-    generateDays,
-    destinationLabel: resolvedForPrompt.destination,
-  });
-  if (sanity2.ok && placeholders2.ok) return second;
+    const daysArr = Array.isArray(alignedFinal.days) ? alignedFinal.days : [];
+    for (const d of daysArr) {
+      if (typeof d?.day === "number" && ch.dayIdxs.includes(d.day - 1)) {
+        dayMap.set(d.day, d);
+      }
+    }
 
-  // 3) Degradación segura: devolvemos el itinerario alineado (con placeholders) aunque no sea perfecto.
-  return second;
+    usageAgg.model = final.usage.model ?? usageAgg.model;
+    usageAgg.inputTokens = (usageAgg.inputTokens || 0) + (final.usage.inputTokens || 0);
+    usageAgg.outputTokens = (usageAgg.outputTokens || 0) + (final.usage.outputTokens || 0);
+  }
+
+  // Construimos itinerario final en orden, rellenando faltantes con placeholder.
+  const daysOut: ExecutableItineraryPayload["days"] = [];
+  for (let i = 0; i < generateDays; i++) {
+    const dayNum = i + 1;
+    const got = dayMap.get(dayNum);
+    if (got && Array.isArray(got.items) && got.items.length) {
+      daysOut.push({ day: dayNum, date: addDaysIso(resolvedForPrompt.startDate, i), items: got.items as any });
+    } else {
+      daysOut.push({
+        day: dayNum,
+        date: addDaysIso(resolvedForPrompt.startDate, i),
+        items: [
+          {
+            title: `Explorar ${resolvedForPrompt.destination}`,
+            activity_kind: "visit",
+            place_name: resolvedForPrompt.destination,
+            address: resolvedForPrompt.destination,
+            start_time: "10:00",
+            notes: "Propuesta automática — ajústala en Plan o con el asistente.",
+          },
+        ],
+      });
+    }
+  }
+
+  const finalItinerary = enforceMustSee(
+    validateItinerary({ version: 1, title: `${resolvedForPrompt.destination} (${generateDays} días)`, travelMode: "driving", days: daysOut }),
+    resolvedForPrompt
+  );
+
+  // Validación final: si aún quedan demasiados placeholders, dejamos el itinerario pero forzaremos al usuario a regenerar días concretos.
+  return { itinerary: finalItinerary, usage: usageAgg };
+}
+
+function buildDayChunks(baseCityByDay: string[], opts: { maxDaysPerChunk: number }) {
+  const max = Math.max(2, Math.min(7, Math.round(opts.maxDaysPerChunk)));
+  const chunks: Array<{ dayIdxs: number[]; baseCity: string }> = [];
+  let cur: { dayIdxs: number[]; baseCity: string } | null = null;
+  for (let i = 0; i < baseCityByDay.length; i++) {
+    const base = String(baseCityByDay[i] || "").trim() || "Destino";
+    if (!cur || cur.baseCity !== base || cur.dayIdxs.length >= max) {
+      if (cur) chunks.push(cur);
+      cur = { baseCity: base, dayIdxs: [i] };
+    } else {
+      cur.dayIdxs.push(i);
+    }
+  }
+  if (cur) chunks.push(cur);
+  return chunks;
 }
 
 function buildBaseCitySchedule(params: {
