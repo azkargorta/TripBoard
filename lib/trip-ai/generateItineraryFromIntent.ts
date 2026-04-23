@@ -40,6 +40,7 @@ Reglas:
 - Coherencia geográfica (CRÍTICO): en un mismo día, todos los items deben estar en la MISMA ciudad/área (o a <~30 km). No “teletransportes” entre ciudades lejanas o islas.
 - Si cambias de ciudad/región, hazlo como máximo 1 vez por día e incluye un item con activity_kind="transport" (tren/coche/ferry) con origen→destino y una address acorde.
 - **address (MUY IMPORTANTE):** en cada item debe figurar la **ciudad y el país del viaje** del "Destino principal" (ej. comercio en Venecia → "…, Venecia, Italia"). No uses solo nombres de calle o de establecimiento que puedan existir en otro país (ej. evita "Calle Venecia" sin ciudad/país si el viaje es Italia).
+- **País (CRÍTICO):** todos los items deben estar dentro del país del viaje. Si el destino es Croacia, el país en address debe ser "Croacia/Croatia" (nunca Argentina u otro país). Si dudas, usa la ciudad base del día + el país del destino.
 - **place_name:** el nombre visible del sitio en la zona del destino (no inventes sucursales en países distintos al del viaje).
 - version siempre 1.
 - travelMode "walking" si el usuario prefiere andar o ciudad compacta; si no, "driving".

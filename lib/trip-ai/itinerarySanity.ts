@@ -48,6 +48,7 @@ export type ItinerarySanityIssue =
   | { code: "day_city_mix"; message: string; dayIndex: number }
   | { code: "day_times_unsorted"; message: string; dayIndex: number }
   | { code: "addresses_too_generic"; message: string; dayIndex: number }
+  | { code: "wrong_country"; message: string; dayIndex: number }
   | { code: "too_many_placeholders"; message: string };
 
 export function sanityCheckItinerary(
@@ -56,8 +57,92 @@ export function sanityCheckItinerary(
 ): { ok: true } | { ok: false; issues: ItinerarySanityIssue[] } {
   const issues: ItinerarySanityIssue[] = [];
   const days = Array.isArray(itinerary?.days) ? itinerary.days : [];
-  const dest = normalizeCity(opts?.destinationLabel || "");
-  const countryWords = new Set(["croacia", "croatia", "italia", "italy", "francia", "france", "espana", "españa", "spain", dest].filter(Boolean));
+  const destLabel = String(opts?.destinationLabel || "");
+  const dest = normalizeCity(destLabel);
+  const destParts = destLabel
+    .split(/[,|;]+/g)
+    .map((s) => normalizeCity(s))
+    .filter(Boolean);
+  const expectedCountry = destParts.length ? destParts[destParts.length - 1]! : dest;
+  const expected = new Set([dest, expectedCountry].filter(Boolean));
+
+  // Lista corta de países para detectar “fuera de país”.
+  const knownCountries = new Set(
+    [
+      "argentina",
+      "chile",
+      "uruguay",
+      "paraguay",
+      "bolivia",
+      "brasil",
+      "brazil",
+      "mexico",
+      "méxico",
+      "peru",
+      "perú",
+      "colombia",
+      "venezuela",
+      "ecuador",
+      "panama",
+      "panamá",
+      "costa rica",
+      "guatemala",
+      "honduras",
+      "nicaragua",
+      "el salvador",
+      "usa",
+      "united states",
+      "estados unidos",
+      "canada",
+      "canadá",
+      "uk",
+      "united kingdom",
+      "reino unido",
+      "ireland",
+      "irlanda",
+      "portugal",
+      "spain",
+      "espana",
+      "españa",
+      "france",
+      "francia",
+      "italy",
+      "italia",
+      "germany",
+      "alemania",
+      "austria",
+      "suiza",
+      "switzerland",
+      "croatia",
+      "croacia",
+      "slovenia",
+      "slovenia",
+      "hungary",
+      "hungria",
+      "hungría",
+      "bosnia",
+      "bosnia and herzegovina",
+      "serbia",
+      "montenegro",
+      "greece",
+      "grecia",
+      "turkey",
+      "turquia",
+      "turquía",
+    ].map((x) => normalizeCity(x))
+  );
+
+  // Para el chequeo de direcciones genéricas (país en vez de ciudad), aceptamos el país esperado y el destino.
+  const countryWords = new Set([...Array.from(expected.values()), ...Array.from(knownCountries.values())].filter(Boolean));
+
+  const extractCountryFromAddress = (addrRaw: string) => {
+    const parts = String(addrRaw || "")
+      .split(",")
+      .map((p) => normalizeCity(p))
+      .filter(Boolean);
+    if (!parts.length) return "";
+    return parts[parts.length - 1] || "";
+  };
 
   for (let di = 0; di < days.length; di++) {
     const day = days[di]!;
@@ -82,14 +167,20 @@ export function sanityCheckItinerary(
 
     const cities = new Set<string>();
     let genericAddrCount = 0;
+    let wrongCountryCount = 0;
     for (const it of items) {
       const addr = String((it as any)?.address || "");
       const place = String((it as any)?.place_name || "");
       const title = String((it as any)?.title || "");
 
       const addrCity = normalizeCity(cityFromAddress(addr));
+      const addrCountry = extractCountryFromAddress(addr);
       const placeCity = normalizeCity(place);
       const titleCity = normalizeCity(guessCityFromText(title));
+
+      if (addrCountry && knownCountries.has(addrCountry) && expected.size && !expected.has(addrCountry)) {
+        wrongCountryCount += 1;
+      }
 
       // Address muy genérica (solo país/destino) -> no la usamos para coherencia.
       if (addrCity && countryWords.has(addrCity)) genericAddrCount += 1;
@@ -111,6 +202,15 @@ export function sanityCheckItinerary(
         code: "addresses_too_generic",
         dayIndex: di,
         message: `Día ${di + 1}: direcciones demasiado genéricas (falta ciudad/país en muchos items).`,
+      });
+    }
+
+    // País incorrecto: cualquier indicio fuerte debe invalidar el día.
+    if (wrongCountryCount >= 1) {
+      issues.push({
+        code: "wrong_country",
+        dayIndex: di,
+        message: `Día ${di + 1}: hay lugares con país fuera del destino (revisa address).`,
       });
     }
     // Si hay más de una ciudad distinta, casi seguro es un itinerario incoherente.

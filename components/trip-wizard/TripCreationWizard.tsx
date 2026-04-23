@@ -301,6 +301,7 @@ function Stepper({ activeStep }: { activeStep: WizardStep }) {
 export default function TripCreationWizard({ isPremium }: Props) {
   const router = useRouter();
   const topRef = useRef<HTMLDivElement | null>(null);
+  const creatingOverlay = loading || creatingTripSilently;
 
   const [step, setStep] = useState<WizardStep>(1);
 
@@ -1277,6 +1278,32 @@ export default function TripCreationWizard({ isPremium }: Props) {
 
   return (
     <div ref={topRef} className="mx-auto max-w-4xl px-4">
+      {creatingOverlay ? (
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-slate-950/60 p-6 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-3xl border border-white/10 bg-slate-950 px-7 py-8 text-center text-white shadow-2xl">
+            <img
+              src="/icons/icon-512.png"
+              alt="Kaviro"
+              className="mx-auto h-20 w-20 rounded-[24px] object-cover shadow-2xl"
+            />
+            <div
+              className="mt-5 text-3xl font-black tracking-tight"
+              style={{
+                backgroundImage: "linear-gradient(135deg, #2563eb, #06b6d4)",
+                WebkitBackgroundClip: "text",
+                backgroundClip: "text",
+                color: "transparent",
+              }}
+            >
+              Kaviro
+            </div>
+            <div className="mt-2 text-sm font-semibold text-slate-200">Creando viaje…</div>
+            <div className="mt-6 h-2 w-full overflow-hidden rounded-full bg-slate-800">
+              <div className="h-full w-1/2 animate-pulse rounded-full bg-cyan-500" />
+            </div>
+          </div>
+        </div>
+      ) : null}
       <header className="sticky top-0 z-30 -mx-4 border-b border-slate-200 bg-white/80 px-4 py-3 backdrop-blur">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
