@@ -33,6 +33,19 @@ export function extractJsonObject(text: string): unknown {
   }
 }
 
+let _jsonrepair: ((input: string) => string) | null = null;
+function getJsonRepair() {
+  if (_jsonrepair) return _jsonrepair;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const mod = require("jsonrepair") as { jsonrepair?: (input: string) => string } | ((input: string) => string);
+    _jsonrepair = typeof mod === "function" ? mod : (mod?.jsonrepair ?? null);
+  } catch {
+    _jsonrepair = null;
+  }
+  return _jsonrepair;
+}
+
 function extractBalancedJsonObject(text: string): string | null {
   const start = text.indexOf("{");
   if (start < 0) return null;
@@ -74,6 +87,16 @@ function repairModelJson(input: string): string {
 
   // Normaliza separadores de línea “raros” que a veces aparecen en respuestas.
   s = s.replace(/\u2028|\u2029/g, "\n");
+
+  // Reparación estándar (maneja comas faltantes, quotes simples, etc.).
+  const jr = getJsonRepair();
+  if (jr) {
+    try {
+      s = jr(s);
+    } catch {
+      // seguimos con heurísticas locales
+    }
+  }
 
   // Reemplaza ';' por ',' fuera de strings (error típico en arrays).
   s = replaceOutsideStrings(s, ";", ",");

@@ -19,6 +19,7 @@
     "@supabase/ssr": "^0.9.0",
     "@supabase/supabase-js": "^2.100.0",
     "canvas": "^3.2.2",
+    "jsonrepair": "^3.14.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.7.0",
     "next": "14.2.33",
