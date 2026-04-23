@@ -372,6 +372,27 @@ export default function TripCreationWizard({ isPremium }: Props) {
   const [creatingTripSilently, setCreatingTripSilently] = useState(false);
   const [autoConfig, setAutoConfig] = useState<TripAutoConfig>(() => DEFAULT_TRIP_AUTO_CONFIG);
 
+  function lodgingSearchBaseLabel() {
+    const base = String(autoConfig?.lodging?.baseCity || "").trim();
+    if (autoConfig?.lodging?.baseCityMode === "single" && base) return base;
+    return String(destinationLabel || "").trim() || String(draftIntent?.destination || "").trim() || "Destino";
+  }
+
+  function bookingHotelsUrl(params: { city: string; checkin: string | null; checkout: string | null }) {
+    const ss = encodeURIComponent(params.city.trim());
+    const qs = new URLSearchParams({ ss });
+    if (params.checkin) qs.set("checkin", params.checkin);
+    if (params.checkout) qs.set("checkout", params.checkout);
+    return `https://www.booking.com/searchresults.html?${qs.toString()}`;
+  }
+
+  function googleHotelsUrl(params: { city: string; checkin: string | null; checkout: string | null }) {
+    const parts = [`hotels in ${params.city}`];
+    if (params.checkin && params.checkout) parts.push(`${params.checkin} to ${params.checkout}`);
+    const q = encodeURIComponent(parts.join(" "));
+    return `https://www.google.com/search?q=${q}`;
+  }
+
   function syncDurationFromDates(next: TripCreationIntent): TripCreationIntent {
     const s = isIsoDate(next.startDate) ? next.startDate : null;
     const e = isIsoDate(next.endDate) ? next.endDate : null;
@@ -1531,6 +1552,35 @@ export default function TripCreationWizard({ isPremium }: Props) {
                       ) : (
                         <div className="text-[11px] font-semibold text-slate-500">El asistente repartirá días por ciudades para reducir traslados.</div>
                       )}
+
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <a
+                          href={bookingHotelsUrl({
+                            city: lodgingSearchBaseLabel(),
+                            checkin: (draftIntent?.startDate || null) as any,
+                            checkout: (draftIntent?.endDate || null) as any,
+                          })}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
+                          title="Abrir búsqueda de hoteles en Booking"
+                        >
+                          Ver en Booking
+                        </a>
+                        <a
+                          href={googleHotelsUrl({
+                            city: lodgingSearchBaseLabel(),
+                            checkin: (draftIntent?.startDate || null) as any,
+                            checkout: (draftIntent?.endDate || null) as any,
+                          })}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
+                          title="Abrir búsqueda de hoteles en Google"
+                        >
+                          Ver en Google
+                        </a>
+                      </div>
                     </label>
                   </div>
 
