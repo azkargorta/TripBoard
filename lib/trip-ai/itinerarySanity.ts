@@ -52,7 +52,7 @@ export type ItinerarySanityIssue =
 
 export function sanityCheckItinerary(
   itinerary: ExecutableItineraryPayload,
-  opts?: { destinationLabel?: string | null }
+  opts?: { destinationLabel?: string | null; baseCityByDay?: string[] | null }
 ): { ok: true } | { ok: false; issues: ItinerarySanityIssue[] } {
   const issues: ItinerarySanityIssue[] = [];
   const days = Array.isArray(itinerary?.days) ? itinerary.days : [];
@@ -120,6 +120,19 @@ export function sanityCheckItinerary(
         dayIndex: di,
         message: `Día ${di + 1}: mezcla varias ciudades sin un traslado explícito.`,
       });
+    }
+
+    // 3) Si tenemos ciudad base por día, exigimos que no aparezcan ciudades claramente distintas.
+    const base = normalizeCity(String(opts?.baseCityByDay?.[di] || ""));
+    if (base && cities.size === 1) {
+      const only = Array.from(cities.values())[0] || "";
+      if (only && only !== base) {
+        issues.push({
+          code: "day_city_mix",
+          dayIndex: di,
+          message: `Día ${di + 1}: planes en "${only}" pero la ciudad base prevista es "${base}".`,
+        });
+      }
     }
   }
 

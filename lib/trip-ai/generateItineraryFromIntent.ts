@@ -284,10 +284,22 @@ export async function generateExecutableItineraryFromIntent(
 ): Promise<{ itinerary: ExecutableItineraryPayload; usage: TripAiUsage }> {
   const cfg = options?.config || DEFAULT_TRIP_AUTO_CONFIG;
   const generateDays = Math.max(1, resolved.durationDays);
+
+  const baseCitySchedule = buildBaseCitySchedule({
+    durationDays: generateDays,
+    destination: resolved.destination,
+    startCity: (resolved.intent.startLocation || "").trim(),
+    endCity: (resolved.intent.endLocation || "").trim(),
+    mustSee: normalizeMustSeeTokens(resolved.intent.mustSee || []),
+    lodgingBaseMode: cfg.lodging.baseCityMode,
+    lodgingBaseCity: cfg.lodging.baseCity,
+  });
+
   const dayLines: string[] = [];
   for (let i = 0; i < generateDays; i++) {
     const date = addDaysIso(resolved.startDate, i);
-    dayLines.push(`Día ${i + 1}: ${date}`);
+    const base = baseCitySchedule[i] || resolved.destination;
+    dayLines.push(`Día ${i + 1}: ${date} — Ciudad base: ${base}`);
   }
 
   const mustSeeRaw = normalizeMustSeeTokens(resolved.intent.mustSee || []);
@@ -327,7 +339,10 @@ ${resolvedForPrompt.intent.wantsRouteOptimization ? "Si hay múltiples ciudades/
 
   // 1) Intento normal
   const first = await run(prompt);
-  const sanity1 = sanityCheckItinerary(first.itinerary, { destinationLabel: resolvedForPrompt.destination });
+  const sanity1 = sanityCheckItinerary(first.itinerary, {
+    destinationLabel: resolvedForPrompt.destination,
+    baseCityByDay: baseCitySchedule,
+  });
   const placeholders1 = sanityCheckPlaceholders(first.itinerary, {
     generateDays,
     destinationLabel: resolvedForPrompt.destination,
@@ -337,7 +352,10 @@ ${resolvedForPrompt.intent.wantsRouteOptimization ? "Si hay múltiples ciudades/
   // 2) Reintento con prompt más estricto si detectamos incoherencias típicas
   const strictHint = `\n\nIMPORTANTE: Tu salida anterior no era válida para la app.\n- Devuelve EXACTAMENTE ${generateDays} objetos dentro de "days" (uno por cada fecha listada arriba), con "day" 1..${generateDays}.\n- Cada día debe tener entre ${cfg.pace.itemsPerDayMin} y ${cfg.pace.itemsPerDayMax} items (no uses placeholders tipo \"Explorar ...\").\n- Regla clave: una ciudad por día. NO pongas \"Visita: Split\" o \"Visita: Hvar\" en un día de Zagreb. Si un día es Split, TODOS los items deben ser Split (o alrededores cercanos).\n- Si hay cambio de ciudad/isla, ese día debe incluir un item activity_kind=\"transport\" (tren/coche/ferry) y el resto del día ser ya en el destino.\n- Direcciones: cada item debe tener \"..., Ciudad, País\" (no uses solo \"Croacia\").\n- Mantén start_time estrictamente creciente.\nDevuelve SOLO JSON válido.\n`;
   const second = await run(`${prompt}${strictHint}`);
-  const sanity2 = sanityCheckItinerary(second.itinerary, { destinationLabel: resolvedForPrompt.destination });
+  const sanity2 = sanityCheckItinerary(second.itinerary, {
+    destinationLabel: resolvedForPrompt.destination,
+    baseCityByDay: baseCitySchedule,
+  });
   const placeholders2 = sanityCheckPlaceholders(second.itinerary, {
     generateDays,
     destinationLabel: resolvedForPrompt.destination,
@@ -346,6 +364,63 @@ ${resolvedForPrompt.intent.wantsRouteOptimization ? "Si hay múltiples ciudades/
 
   // 3) Degradación segura: devolvemos el itinerario alineado (con placeholders) aunque no sea perfecto.
   return second;
+}
+
+function buildBaseCitySchedule(params: {
+  durationDays: number;
+  destination: string;
+  startCity: string;
+  endCity: string;
+  mustSee: string[];
+  lodgingBaseMode: "rotate" | "single";
+  lodgingBaseCity: string;
+}): string[] {
+  const n = Math.max(1, Math.round(params.durationDays));
+  const clean = (s: string) => String(s || "").trim();
+  const baseCity = clean(params.lodgingBaseCity);
+  if (params.lodgingBaseMode === "single" && baseCity) {
+    return Array.from({ length: n }, () => baseCity);
+  }
+
+  const candidates: string[] = [];
+  const push = (s: string) => {
+    const t = clean(s);
+    if (!t) return;
+    const k = t.toLowerCase();
+    if (candidates.some((x) => x.toLowerCase() === k)) return;
+    candidates.push(t);
+  };
+
+  // Priorizamos inicio/fin
+  push(params.startCity);
+  // Extraemos posibles ciudades de mustSee (una palabra suele ser ciudad/isla: Split, Hvar, Dubrovnik…)
+  for (const t of params.mustSee) {
+    const tok = clean(t);
+    if (!tok) continue;
+    const oneWord = tok.split(/\s+/).length === 1;
+    if (oneWord && tok.length >= 3 && tok.length <= 22) push(tok);
+  }
+  push(params.endCity);
+
+  if (!candidates.length) return Array.from({ length: n }, () => clean(params.destination) || "Destino");
+  if (candidates.length === 1) return Array.from({ length: n }, () => candidates[0]!);
+
+  // Reparto simple en segmentos: mínimo 2 días por ciudad cuando sea posible, inicio al principio y fin al final.
+  const minSeg = n >= candidates.length * 2 ? 2 : 1;
+  const segDays = new Array<number>(candidates.length).fill(minSeg);
+  let remaining = n - segDays.reduce((a, b) => a + b, 0);
+  let idx = 0;
+  while (remaining > 0) {
+    segDays[idx] = (segDays[idx] || 0) + 1;
+    remaining -= 1;
+    idx = (idx + 1) % segDays.length;
+  }
+
+  const schedule: string[] = [];
+  for (let i = 0; i < candidates.length; i++) {
+    for (let d = 0; d < (segDays[i] || 0); d++) schedule.push(candidates[i]!);
+  }
+  return schedule.slice(0, n);
 }
 
 /**

@@ -1506,6 +1506,32 @@ export default function TripCreationWizard({ isPremium }: Props) {
                             : "Se sugerirán alojamientos (puedes cambiarlos después)."}
                       </div>
                     </label>
+
+                    <label className="space-y-1">
+                      <span className="text-xs font-extrabold text-slate-700">Ciudad base de alojamiento</span>
+                      <select
+                        value={autoConfig.lodging.baseCityMode}
+                        onChange={(e) =>
+                          setAutoConfig((p) => ({ ...p, lodging: { ...p.lodging, baseCityMode: e.target.value as any } }))
+                        }
+                        disabled={loading}
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                      >
+                        <option value="rotate">Rotar entre ciudades</option>
+                        <option value="single">Siempre la misma ciudad</option>
+                      </select>
+                      {autoConfig.lodging.baseCityMode === "single" ? (
+                        <input
+                          value={autoConfig.lodging.baseCity}
+                          onChange={(e) => setAutoConfig((p) => ({ ...p, lodging: { ...p.lodging, baseCity: e.target.value } }))}
+                          disabled={loading}
+                          placeholder="Ej. Zagreb"
+                          className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                        />
+                      ) : (
+                        <div className="text-[11px] font-semibold text-slate-500">El asistente repartirá días por ciudades para reducir traslados.</div>
+                      )}
+                    </label>
                   </div>
 
                   <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800">

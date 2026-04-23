@@ -13,6 +13,8 @@ export type TripAutoConfig = {
   };
   lodging: {
     mode: "proposal" | "manual" | "omit";
+    baseCityMode: "rotate" | "single";
+    baseCity: string;
   };
   routes: {
     enabled: boolean;
@@ -23,7 +25,7 @@ export const DEFAULT_TRIP_AUTO_CONFIG: TripAutoConfig = {
   pace: { itemsPerDayMin: 3, itemsPerDayMax: 5 },
   geo: { strictness: "balanced" },
   transport: { notes: "" },
-  lodging: { mode: "proposal" },
+  lodging: { mode: "proposal", baseCityMode: "rotate", baseCity: "" },
   routes: { enabled: true },
 };
 
@@ -50,11 +52,16 @@ export function normalizeTripAutoConfig(input: unknown): TripAutoConfig {
       ? lodgingModeRaw
       : DEFAULT_TRIP_AUTO_CONFIG.lodging.mode;
 
+  const baseCityModeRaw = str(i?.lodging?.baseCityMode || i?.lodgingBaseCityMode || "");
+  const baseCityMode: TripAutoConfig["lodging"]["baseCityMode"] =
+    baseCityModeRaw === "single" || baseCityModeRaw === "rotate" ? baseCityModeRaw : DEFAULT_TRIP_AUTO_CONFIG.lodging.baseCityMode;
+  const baseCity = str(i?.lodging?.baseCity || i?.lodgingBaseCity || DEFAULT_TRIP_AUTO_CONFIG.lodging.baseCity).trim();
+
   return {
     pace: { itemsPerDayMin, itemsPerDayMax },
     geo: { strictness },
     transport: { notes: str(i?.transport?.notes || "") },
-    lodging: { mode: lodgingMode },
+    lodging: { mode: lodgingMode, baseCityMode, baseCity },
     routes: { enabled: bool(i?.routes?.enabled ?? DEFAULT_TRIP_AUTO_CONFIG.routes.enabled) },
   };
 }
