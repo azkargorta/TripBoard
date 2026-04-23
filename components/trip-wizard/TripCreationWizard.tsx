@@ -881,6 +881,10 @@ export default function TripCreationWizard({ isPremium }: Props) {
       if (data?.status !== "ok" || !data?.itinerary) throw new Error("Respuesta inesperada del servidor.");
       setPreviewResolved(data.resolved || null);
       setPreviewItinerary(data.itinerary || null);
+      // Si el usuario quiere propuesta/manual de alojamientos, derivamos tramos por ciudad desde el itinerario.
+      if (autoConfig.lodging.mode !== "omit") {
+        void ensureLodgingItinerary();
+      }
     } catch (e) {
       setPreviewError(e instanceof Error ? e.message : "No se pudo previsualizar los planes.");
       setPreviewItinerary(null);
@@ -1468,7 +1472,38 @@ export default function TripCreationWizard({ isPremium }: Props) {
                     </label>
 
                     <label className="space-y-1">
-                      <span className="text-xs font-extrabold text-slate-700">Coherencia geográfica</span>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-extrabold text-slate-700">Coherencia geográfica</span>
+                        <details className="relative">
+                          <summary
+                            className="list-none cursor-pointer rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] font-extrabold text-slate-600 hover:bg-slate-50"
+                            title="Ayuda"
+                            aria-label="Ayuda sobre coherencia geográfica"
+                          >
+                            ?
+                          </summary>
+                          <div className="absolute right-0 top-8 z-20 w-[min(320px,80vw)] rounded-2xl border border-slate-200 bg-white p-3 text-xs text-slate-700 shadow-xl">
+                            <div className="text-xs font-extrabold text-slate-950">¿Qué significa cada opción?</div>
+                            <ul className="mt-2 space-y-1">
+                              <li>
+                                <span className="font-extrabold">Equilibrada</span>: una ciudad principal por día; permite excursiones cercanas
+                                (aprox. 30–60 km) sin “teletransportes”.
+                              </li>
+                              <li>
+                                <span className="font-extrabold">Muy estricta</span>: misma ciudad por día. Cambios de ciudad solo con un bloque de{" "}
+                                <span className="font-extrabold">transporte</span>.
+                              </li>
+                              <li>
+                                <span className="font-extrabold">Flexible</span>: permite mezclar más cosas en un día, pensado para que luego lo ajustes
+                                manualmente.
+                              </li>
+                            </ul>
+                            <div className="mt-2 text-[11px] font-semibold text-slate-500">
+                              Tip: si ves días imposibles, usa <span className="font-extrabold">Muy estricta</span>.
+                            </div>
+                          </div>
+                        </details>
+                      </div>
                       <select
                         value={autoConfig.geo.strictness}
                         onChange={(e) =>
@@ -1552,35 +1587,6 @@ export default function TripCreationWizard({ isPremium }: Props) {
                       ) : (
                         <div className="text-[11px] font-semibold text-slate-500">El asistente repartirá días por ciudades para reducir traslados.</div>
                       )}
-
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        <a
-                          href={bookingHotelsUrl({
-                            city: lodgingSearchBaseLabel(),
-                            checkin: (draftIntent?.startDate || null) as any,
-                            checkout: (draftIntent?.endDate || null) as any,
-                          })}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
-                          title="Abrir búsqueda de hoteles en Booking"
-                        >
-                          Ver en Booking
-                        </a>
-                        <a
-                          href={googleHotelsUrl({
-                            city: lodgingSearchBaseLabel(),
-                            checkin: (draftIntent?.startDate || null) as any,
-                            checkout: (draftIntent?.endDate || null) as any,
-                          })}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
-                          title="Abrir búsqueda de hoteles en Google"
-                        >
-                          Ver en Google
-                        </a>
-                      </div>
                     </label>
                   </div>
 
@@ -1651,6 +1657,72 @@ export default function TripCreationWizard({ isPremium }: Props) {
                     </div>
                   )}
                 </div>
+
+                {autoConfig.lodging.mode !== "omit" ? (
+                  <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Alojamientos</div>
+                    <div className="mt-1 text-sm font-extrabold text-slate-950">Búsqueda por ciudad y noches</div>
+                    <div className="mt-1 text-xs text-slate-600">
+                      Generamos tramos de noches por ciudad a partir del itinerario. Usa los botones para buscar hoteles con fechas reales.
+                    </div>
+
+                    {lodgingLoading ? (
+                      <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                        Calculando tramos de alojamiento…
+                      </div>
+                    ) : lodgingError ? (
+                      <div className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
+                        <span className="font-semibold">Error:</span> {lodgingError}
+                      </div>
+                    ) : lodgingCities.length ? (
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                        {lodgingCities.map((seg) => {
+                          const city = seg.city || "Sin ciudad";
+                          const checkin = seg.startDate || draftIntent?.startDate || null;
+                          const checkout = seg.endDate || null;
+                          return (
+                            <div key={seg.segmentKey} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="text-sm font-extrabold text-slate-950">{city}</div>
+                                  <div className="mt-0.5 text-xs font-semibold text-slate-600">
+                                    {seg.nights} noche{seg.nights === 1 ? "" : "s"}
+                                    {seg.startDate && seg.endDate ? ` · ${seg.startDate} → ${seg.endDate}` : ""}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                <a
+                                  href={bookingHotelsUrl({ city, checkin, checkout })}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
+                                  title="Abrir búsqueda de hoteles en Booking"
+                                >
+                                  Ver en Booking
+                                </a>
+                                <a
+                                  href={googleHotelsUrl({ city, checkin, checkout })}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
+                                  title="Abrir búsqueda de hoteles en Google"
+                                >
+                                  Ver en Google
+                                </a>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                        Aún no se pudieron derivar ciudades/noches (revisa que las direcciones incluyan ciudad y país).
+                      </div>
+                    )}
+                  </div>
+                ) : null}
 
                 <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm">
                   <input
