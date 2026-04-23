@@ -12,7 +12,7 @@ export type TripAutoConfig = {
     notes: string;
   };
   lodging: {
-    mode: "proposal" | "manual" | "omit";
+    mode: "proposal" | "manual" | "scan" | "omit";
     baseCityMode: "rotate" | "single";
     baseCity: string;
   };
@@ -48,7 +48,7 @@ export function normalizeTripAutoConfig(input: unknown): TripAutoConfig {
 
   const lodgingModeRaw = str(i?.lodging?.mode || "");
   const lodgingMode: TripAutoConfig["lodging"]["mode"] =
-    lodgingModeRaw === "manual" || lodgingModeRaw === "omit" || lodgingModeRaw === "proposal"
+    lodgingModeRaw === "manual" || lodgingModeRaw === "scan" || lodgingModeRaw === "omit" || lodgingModeRaw === "proposal"
       ? lodgingModeRaw
       : DEFAULT_TRIP_AUTO_CONFIG.lodging.mode;
 

@@ -150,7 +150,8 @@ function inferPopularSuggestions(destinationRaw: string) {
     return ["Tokio", "Kioto", "Osaka", "Nara", "Shibuya", "Fushimi Inari", "Arashiyama", "Dotonbori"];
   }
   if (has("croacia") || has("croatia")) {
-    return ["Dubrovnik", "Split", "Zadar", "Hvar", "Lagos de Plitvice", "Trogir"];
+    // Solo ciudades/pueblos (sin atracciones/parques) para que al añadir etiquetas no “contamine” el orden de pernocta.
+    return ["Zagreb", "Dubrovnik", "Split", "Zadar", "Šibenik", "Trogir", "Pula", "Rovinj", "Korčula"];
   }
   if (has("portugal")) {
     return ["Lisboa", "Oporto", "Sintra", "Belém", "Ribeira", "Cascais", "Braga"];
@@ -158,7 +159,8 @@ function inferPopularSuggestions(destinationRaw: string) {
   if (has("polonia") || has("poland")) {
     return ["Cracovia", "Auschwitz", "Gdansk", "Varsovia", "Wroclaw", "Zakopane"];
   }
-  return ["Centro histórico", "Mirador", "Mercado local", "Museo principal", "Barrio gastronómico", "Excursión cercana"];
+  // Solo ciudades/pueblos genéricos
+  return ["Centro histórico (ciudad principal)", "Ciudad costera", "Pueblo con encanto", "Ciudad universitaria", "Villa vinícola", "Ciudad medieval"];
 }
 
 // Nota: la pestaña "Explorar mapa" del asistente automático está desactivada por ahora.
@@ -462,7 +464,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
 
   async function ensureLodgingItinerary() {
     if (!draftIntent || lodgingLoading) return;
-    if (autoConfig.lodging.mode === "omit") return;
+    if (autoConfig.lodging.mode !== "proposal") return;
     if (lodgingItinerary && lodgingResolved) return;
     // Si ya hemos previsualizado planes en el paso anterior, reutilizamos ese itinerary para evitar otra llamada a la IA.
     if (previewItinerary?.days?.length && previewResolved) {
@@ -943,7 +945,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
         setPreviewMemory({ itinerary: data.itinerary, resolved: (data.resolved || null) as any, key });
       }
       // Precalienta alojamientos en segundo plano reutilizando el itinerario ya generado (evita otra llamada IA).
-      if (autoConfig.lodging.mode !== "omit") {
+      if (autoConfig.lodging.mode === "proposal") {
         setLodgingResolved(data.resolved || null);
         setLodgingItinerary(data.itinerary || null);
       }
@@ -1607,7 +1609,11 @@ export default function TripCreationWizard({ isPremium }: Props) {
                       <select
                         value={autoConfig.geo.strictness}
                         onChange={(e) =>
-                          setAutoConfig((p) => ({ ...p, geo: { ...p.geo, strictness: e.target.value as any } }))
+                          setAutoConfig((p) => {
+                            const v = String(e.target.value || "");
+                            const strictness = v === "strict" || v === "loose" || v === "balanced" ? v : "balanced";
+                            return { ...p, geo: { ...p.geo, strictness } };
+                          })
                         }
                         disabled={loading}
                         className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
@@ -1646,18 +1652,25 @@ export default function TripCreationWizard({ isPremium }: Props) {
                       <span className="text-xs font-extrabold text-slate-700">Alojamiento</span>
                       <select
                         value={autoConfig.lodging.mode}
-                        onChange={(e) => setAutoConfig((p) => ({ ...p, lodging: { ...p.lodging, mode: e.target.value as any } }))}
+                        onChange={(e) =>
+                          setAutoConfig((p) => {
+                            const v = String(e.target.value || "");
+                            const mode = v === "proposal" || v === "manual" || v === "scan" || v === "omit" ? v : "proposal";
+                            return { ...p, lodging: { ...p.lodging, mode } };
+                          })
+                        }
                         disabled={loading}
                         className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
                       >
                         <option value="proposal">Propuesta</option>
                         <option value="manual">Manual</option>
+                        <option value="scan">Escanear</option>
                         <option value="omit">Omitir</option>
                       </select>
                       <div className="text-[11px] font-semibold text-slate-500">
                         {autoConfig.lodging.mode === "omit"
                           ? "No se sugerirán alojamientos automáticamente."
-                          : autoConfig.lodging.mode === "manual"
+                          : autoConfig.lodging.mode === "manual" || autoConfig.lodging.mode === "scan"
                             ? "Podrás añadir alojamientos manualmente después de crear el viaje."
                             : "Se sugerirán alojamientos (puedes cambiarlos después)."}
                       </div>
@@ -1758,7 +1771,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
                   )}
                 </div>
 
-                {autoConfig.lodging.mode !== "omit" ? (
+                {autoConfig.lodging.mode === "proposal" ? (
                   <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                     <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Alojamientos</div>
                     <div className="mt-1 text-sm font-extrabold text-slate-950">Búsqueda por ciudad y noches</div>
