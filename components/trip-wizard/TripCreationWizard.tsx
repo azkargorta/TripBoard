@@ -771,9 +771,12 @@ export default function TripCreationWizard({ isPremium }: Props) {
         travelerNames,
       });
       const mergedFollowUpWithNotes = `${mergedFollowUp}${planChangeNotes.trim() ? `\n\nCambios solicitados para el plan: ${planChangeNotes.trim()}` : ""}`;
+      // Si ya tenemos un itinerario previsualizado, NO re-ejecutamos la “fusión” de intent con IA al crear:
+      // reutilizamos el itinerario para evitar que una nota de cambios provoque un needs_clarification inesperado.
+      const followUpForCreate = previewItinerary?.days?.length ? "" : mergedFollowUpWithNotes;
 
       const data = await callAutoCreate({
-        followUp: mergedFollowUpWithNotes,
+        followUp: followUpForCreate,
         draftIntent: { ...draftIntent, mustSee: derivedPlaces, wantsRouteOptimization: optimizeOrder },
         previewOnly: false,
         itinerary: previewItinerary,
