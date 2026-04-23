@@ -285,7 +285,7 @@ export async function generateExecutableItineraryFromIntent(
   const cfg = options?.config || DEFAULT_TRIP_AUTO_CONFIG;
   const generateDays = Math.max(1, resolved.durationDays);
 
-  const baseCitySchedule = buildBaseCitySchedule({
+  const baseCitySchedule = await buildBaseCitySchedule({
     durationDays: generateDays,
     destination: resolved.destination,
     startCity: (resolved.intent.startLocation || "").trim(),
@@ -526,7 +526,96 @@ function buildDayChunks(baseCityByDay: string[], opts: { maxDaysPerChunk: number
   return chunks;
 }
 
-function buildBaseCitySchedule(params: {
+async function orderCitiesByDistance(params: {
+  destination: string;
+  startCity: string;
+  endCity: string;
+  candidates: string[];
+}): Promise<string[]> {
+  const clean = (s: string) => String(s || "").trim();
+  const start = clean(params.startCity);
+  const end = clean(params.endCity);
+
+  const uniq: string[] = [];
+  const pushUniq = (s: string) => {
+    const t = clean(s);
+    if (!t) return;
+    const k = t.toLowerCase();
+    if (uniq.some((x) => x.toLowerCase() === k)) return;
+    uniq.push(t);
+  };
+
+  // Fuerza start/end presentes.
+  if (start) pushUniq(start);
+  for (const c of params.candidates) pushUniq(c);
+  if (end) pushUniq(end);
+
+  if (uniq.length <= 2) return uniq;
+
+  const anchor = await geocodeTripAnchor(params.destination).catch(() => null);
+  const regionHints = regionHintsFromDestination(params.destination);
+
+  const coords = new Map<string, { lat: number; lng: number }>();
+  await Promise.all(
+    uniq.map(async (label) => {
+      const q = `${label}, ${params.destination}`.trim();
+      const hit = await geocodePhotonPreferred(q, { anchor, regionHints }).catch(() => null);
+      if (hit) coords.set(label, { lat: hit.lat, lng: hit.lng });
+    })
+  );
+
+  const hasStart = start && coords.has(start);
+  const hasEnd = end && coords.has(end);
+  if (!hasStart || !hasEnd) {
+    // Sin coordenadas fiables: mantenemos el orden (start ... end).
+    const middle = uniq.filter((x) => x !== start && x !== end);
+    return [start, ...middle, end].filter(Boolean);
+  }
+
+  const havKm = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
+    const R = 6371;
+    const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+    const dLon = ((b.lng - a.lng) * Math.PI) / 180;
+    const lat1 = (a.lat * Math.PI) / 180;
+    const lat2 = (b.lat * Math.PI) / 180;
+    const s1 = Math.sin(dLat / 2);
+    const s2 = Math.sin(dLon / 2);
+    const h = s1 * s1 + Math.cos(lat1) * Math.cos(lat2) * s2 * s2;
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+  };
+
+  // Greedy desde start con sesgo hacia end para evitar saltos tontos (p.ej. ir al sur y volver al norte).
+  const remaining = uniq.filter((x) => x !== start && x !== end);
+  const ordered: string[] = [start];
+  let cur = coords.get(start)!;
+  const endPt = coords.get(end)!;
+
+  while (remaining.length) {
+    let bestIdx = 0;
+    let bestScore = Infinity;
+    for (let i = 0; i < remaining.length; i++) {
+      const lab = remaining[i]!;
+      const pt = coords.get(lab);
+      if (!pt) continue;
+      const dCur = havKm(cur, pt);
+      const dEnd = havKm(pt, endPt);
+      const score = dCur + dEnd * 0.25;
+      if (score < bestScore) {
+        bestScore = score;
+        bestIdx = i;
+      }
+    }
+    const next = remaining.splice(bestIdx, 1)[0]!;
+    ordered.push(next);
+    const nextPt = coords.get(next);
+    if (nextPt) cur = nextPt;
+  }
+
+  ordered.push(end);
+  return ordered.filter(Boolean);
+}
+
+async function buildBaseCitySchedule(params: {
   durationDays: number;
   destination: string;
   startCity: string;
@@ -534,7 +623,7 @@ function buildBaseCitySchedule(params: {
   mustSee: string[];
   lodgingBaseMode: "rotate" | "single";
   lodgingBaseCity: string;
-}): string[] {
+}): Promise<string[]> {
   const n = Math.max(1, Math.round(params.durationDays));
   const clean = (s: string) => String(s || "").trim();
   const baseCity = clean(params.lodgingBaseCity);
@@ -565,20 +654,31 @@ function buildBaseCitySchedule(params: {
   if (!candidates.length) return Array.from({ length: n }, () => clean(params.destination) || "Destino");
   if (candidates.length === 1) return Array.from({ length: n }, () => candidates[0]!);
 
-  // Reparto simple en segmentos: mínimo 2 días por ciudad cuando sea posible, inicio al principio y fin al final.
-  const minSeg = n >= candidates.length * 2 ? 2 : 1;
-  const segDays = new Array<number>(candidates.length).fill(minSeg);
+  const orderedCities = await orderCitiesByDistance({
+    destination: params.destination,
+    startCity: params.startCity,
+    endCity: params.endCity,
+    candidates,
+  });
+
+  // Reparto en segmentos: mínimo 2 noches por ciudad si hay margen.
+  // Bias: si sobran días, damos algo más a origen y destino.
+  const cityCount = orderedCities.length;
+  const minSeg = n >= cityCount * 2 ? 2 : 1;
+  const segDays = new Array<number>(cityCount).fill(minSeg);
   let remaining = n - segDays.reduce((a, b) => a + b, 0);
+  const biasOrder = [0, cityCount - 1, ...Array.from({ length: cityCount }, (_, i) => i).filter((i) => i !== 0 && i !== cityCount - 1)];
   let idx = 0;
   while (remaining > 0) {
-    segDays[idx] = (segDays[idx] || 0) + 1;
+    const target = biasOrder[idx % biasOrder.length]!;
+    segDays[target] = (segDays[target] || 0) + 1;
     remaining -= 1;
-    idx = (idx + 1) % segDays.length;
+    idx += 1;
   }
 
   const schedule: string[] = [];
-  for (let i = 0; i < candidates.length; i++) {
-    for (let d = 0; d < (segDays[i] || 0); d++) schedule.push(candidates[i]!);
+  for (let i = 0; i < orderedCities.length; i++) {
+    for (let d = 0; d < (segDays[i] || 0); d++) schedule.push(orderedCities[i]!);
   }
   return schedule.slice(0, n);
 }

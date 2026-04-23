@@ -432,6 +432,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
 
   const placesPlaceholder = useMemo(() => inferPlacesPlaceholder(destinationLabel), [destinationLabel]);
   const popularSuggestions = useMemo(() => inferPopularSuggestions(destinationLabel), [destinationLabel]);
+  const [popularSuggestionsOpen, setPopularSuggestionsOpen] = useState(false);
 
   const promptForAi = useMemo(() => {
     const base = prompt.trim();
@@ -1818,7 +1819,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
                   Ciudades, pueblos, museos o visitas populares para <span className="font-semibold">{destinationLabel || "tu destino"}</span>.
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {popularSuggestions.map((x) => (
+                  {(popularSuggestionsOpen ? popularSuggestions : popularSuggestions.slice(0, 6)).map((x) => (
                     <button
                       key={x}
                       type="button"
@@ -1830,6 +1831,17 @@ export default function TripCreationWizard({ isPremium }: Props) {
                       + {x}
                     </button>
                   ))}
+                  {popularSuggestions.length > 6 ? (
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={() => setPopularSuggestionsOpen((v) => !v)}
+                      className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-50 disabled:opacity-60"
+                      title={popularSuggestionsOpen ? "Mostrar menos sugerencias" : "Mostrar más sugerencias"}
+                    >
+                      {popularSuggestionsOpen ? "Menos" : "Más"}
+                    </button>
+                  ) : null}
                 </div>
               </div>
             </aside>
