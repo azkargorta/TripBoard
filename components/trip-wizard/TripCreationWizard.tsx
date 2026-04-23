@@ -14,7 +14,7 @@ type Props = {
   isAdmin?: boolean;
 };
 
-type WizardStep = 1 | 2 | 3 | 4;
+type WizardStep = 1 | 2;
 
 type ApiNeedsClarification = {
   status: "needs_clarification";
@@ -50,10 +50,8 @@ type PreviewPlansOk = {
 };
 
 const STEP_LABELS: Array<{ step: WizardStep; label: string }> = [
-  { step: 1, label: "Viaje" },
-  { step: 2, label: "Planes" },
-  { step: 3, label: "Alojamientos" },
-  { step: 4, label: "Rutas" },
+  { step: 1, label: "Describe" },
+  { step: 2, label: "Revisión" },
 ];
 
 const PROMPT_EXAMPLE =
@@ -184,8 +182,7 @@ function cityFromAddress(addressRaw: string) {
 
 function clampStep(n: number): WizardStep {
   if (n <= 1) return 1;
-  if (n >= 4) return 4;
-  return n as WizardStep;
+  return 2;
 }
 
 function stepTitle(step: WizardStep) {
@@ -398,7 +395,6 @@ export default function TripCreationWizard({ isPremium }: Props) {
     if (loading) return false;
     if (step === 1) return Boolean(prompt.trim());
     if (step === 2) return Boolean(draftIntent);
-    if (step === 4) return true;
     return true;
   }, [draftIntent, loading, prompt, step]);
 
@@ -470,10 +466,10 @@ export default function TripCreationWizard({ isPremium }: Props) {
   }
 
   useEffect(() => {
-    if (step !== 3) return;
-    void ensureLodgingItinerary();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step]);
+    // El flujo “rápido” ya no obliga a pasar por alojamientos: se calcularán solo si el usuario previsualiza planes.
+    // (Se reutiliza previewItinerary cuando exista).
+    return;
+  }, []);
 
   const lodgingCities = useMemo(() => {
     const itin = lodgingItinerary;
@@ -623,6 +619,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
         prompt: promptForAi,
         draftIntent: { ...(draftIntent || {}), wantsRouteOptimization: optimizeOrder },
         previewOnly: true,
+        config: autoConfig,
       });
       if (data?.status === "needs_clarification") {
         const payload = data as ApiNeedsClarification;
@@ -643,6 +640,8 @@ export default function TripCreationWizard({ isPremium }: Props) {
         setPlaces(placesFromIntent(ready.draftIntent || null));
         setStep(2);
         scrollTop();
+        // Auto-abre la previsualización en cuanto tengamos el borrador listo.
+        void previewPlans();
         return;
       }
       throw new Error("Respuesta inesperada del servidor.");
@@ -662,6 +661,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
         followUp: followUp.trim(),
         draftIntent: { ...(draftIntent || {}), wantsRouteOptimization: optimizeOrder },
         previewOnly: true,
+        config: autoConfig,
       });
       if (data?.status === "needs_clarification") {
         const payload = data as ApiNeedsClarification;
@@ -681,6 +681,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
         setPlaces(placesFromIntent(ready.draftIntent || null));
         setStep(2);
         scrollTop();
+        void previewPlans();
         return;
       }
       throw new Error("Respuesta inesperada del servidor.");
@@ -1311,7 +1312,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
                   className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-extrabold text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-60"
                 >
                   <Check className="h-4 w-4" aria-hidden />
-                  {loading ? "Leyendo…" : "Continuar"}
+                  {loading ? "Generando…" : "Generar viaje"}
                 </button>
                 <button
                   type="button"
@@ -1330,9 +1331,9 @@ export default function TripCreationWizard({ isPremium }: Props) {
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
             <div className="min-w-0 space-y-4">
               <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div className="text-base font-extrabold text-slate-950">Datos del viaje</div>
+                <div className="text-base font-extrabold text-slate-950">Revisión rápida</div>
                 <p className="mt-1 text-sm text-slate-600">
-                  Hemos rellenado lo posible. Ajusta lo que necesites y añade los lugares clave del viaje.
+                  Ajusta lo imprescindible y previsualiza. Luego crea el viaje y podrás editarlo todo.
                 </p>
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -1589,23 +1590,15 @@ export default function TripCreationWizard({ isPremium }: Props) {
                     className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-violet-200 bg-violet-50 px-5 py-3 text-sm font-extrabold text-violet-950 shadow-sm hover:bg-violet-100 disabled:opacity-60"
                     title="Ver un calendario de planes propuestos (sin crear el viaje todavía)"
                   >
-                    Previsualizar planes
+                    Ver previsualización
                   </button>
                   <button
                     type="button"
-                    onClick={goBack}
-                    disabled={loading}
-                    className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
-                  >
-                    Ir atrás
-                  </button>
-                  <button
-                    type="button"
-                    onClick={goNext}
+                    onClick={() => void finalizeCreateTrip({ redirectTo: "participants" })}
                     disabled={loading || !draftIntent}
                     className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-extrabold text-white shadow-sm hover:bg-slate-800 disabled:opacity-60"
                   >
-                    Siguiente paso
+                    Crear viaje
                   </button>
                   <button
                     type="button"
@@ -1679,350 +1672,6 @@ export default function TripCreationWizard({ isPremium }: Props) {
                 </div>
               </div>
             </aside>
-          </div>
-        ) : null}
-
-        {step === 3 ? (
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="text-base font-extrabold text-slate-950">Alojamientos</div>
-            <p className="mt-1 text-sm text-slate-600">
-              Te mostramos las ciudades donde pasas noche y el número de noches. Puedes añadir un alojamiento manual, escanear una reserva o elegir una propuesta.
-            </p>
-
-            {lodgingLoading ? (
-              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                Calculando noches por ciudad…
-              </div>
-            ) : lodgingError ? (
-              <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
-                <span className="font-semibold">Error:</span> {lodgingError}
-              </div>
-            ) : lodgingCities.length ? (
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
-                {lodgingCities.map((row) => {
-                  const city = row.city;
-                  const segmentKey = row.segmentKey;
-                  const open = lodgingOpenSegment === segmentKey;
-                  const action = lodgingActionBySegment[segmentKey] || "none";
-                  const manual = lodgingManualBySegment[segmentKey] || { name: "", address: "", notes: "" };
-                  const tier = lodgingProposalTierBySegment[segmentKey] || "medio";
-                  const resolvedLabel = lodgingResolved?.destination || destinationLabel || "";
-                  const options = hotelOptionsFor(city, tier, resolvedLabel);
-                  const selected = lodgingSelectedHotelBySegment[segmentKey] ?? null;
-
-                  return (
-                    <div
-                      key={segmentKey}
-                      className="relative rounded-2xl border border-slate-200 bg-slate-50 p-4"
-                      style={{ minHeight: 112 }}
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-sm font-extrabold text-slate-950">{city}</div>
-                          <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-slate-600">
-                            <span>Noches: {row.nights}</span>
-                            {row.startDate && row.endDate ? <span>{row.startDate} → {row.endDate}</span> : null}
-                          </div>
-                          {selected ? (
-                            <div className="mt-1 truncate text-xs font-extrabold text-emerald-900" title={selected.name}>
-                              {selected.name}
-                            </div>
-                          ) : null}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setLodgingOpenSegment((prev) => (prev === segmentKey ? null : segmentKey))}
-                          className={`rounded-full border px-3 py-1 text-xs font-extrabold transition ${
-                            open ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                          }`}
-                        >
-                          {open ? "Cerrar" : "Abrir"}
-                        </button>
-                      </div>
-
-                      {open ? (
-                        <div className="absolute left-0 right-0 top-[68px] z-10 mt-3 max-h-[min(60vh,520px)] overflow-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-xl">
-                          <div className="mb-3 flex items-center justify-between gap-2">
-                            <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">
-                              {city} · {row.nights} noche{row.nights === 1 ? "" : "s"}
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setLodgingOpenSegment(null)}
-                              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
-                            >
-                              Cerrar
-                            </button>
-                          </div>
-
-                          <div className="space-y-3">
-                        {selected ? (
-                          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
-                            <span className="font-extrabold">Seleccionado:</span> {selected.name}{" "}
-                            <span className="ml-2 rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-xs font-extrabold text-emerald-900">
-                              {selected.priceLabel}
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
-                            Puedes dejar esta ciudad sin alojamiento. Para rutas usaremos el centro de {city}.
-                          </div>
-                        )}
-
-                        <div className="grid gap-2 sm:grid-cols-3">
-                          <button
-                            type="button"
-                            onClick={() => setLodgingActionBySegment((p) => ({ ...p, [segmentKey]: "manual" }))}
-                            className={`w-full rounded-2xl border px-4 py-3 text-sm font-extrabold transition ${
-                              action === "manual"
-                                ? "border-violet-300 bg-violet-50 text-violet-950"
-                                : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50"
-                            }`}
-                          >
-                            Manual
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setLodgingActionBySegment((p) => ({ ...p, [segmentKey]: "scan" }))}
-                            className={`w-full rounded-2xl border px-4 py-3 text-sm font-extrabold transition ${
-                              action === "scan"
-                                ? "border-violet-300 bg-violet-50 text-violet-950"
-                                : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50"
-                            }`}
-                          >
-                            Escanear
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setLodgingActionBySegment((p) => ({ ...p, [segmentKey]: "proposal" }))}
-                            className={`w-full rounded-2xl border px-4 py-3 text-sm font-extrabold transition ${
-                              action === "proposal"
-                                ? "border-slate-950 bg-slate-950 text-white"
-                                : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50"
-                            }`}
-                          >
-                            Propuesta
-                          </button>
-                        </div>
-
-                        {action === "manual" ? (
-                          <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                            <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Alojamiento manual</div>
-                            <div className="mt-3 grid gap-3">
-                              <label className="space-y-1">
-                                <span className="text-xs font-extrabold text-slate-700">Nombre</span>
-                                <input
-                                  value={manual.name}
-                                  onChange={(e) =>
-                                    setLodgingManualBySegment((p) => ({
-                                      ...p,
-                                      [segmentKey]: { ...manual, name: e.target.value },
-                                    }))
-                                  }
-                                  placeholder={`Ej. Hotel en ${city}`}
-                                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-violet-200"
-                                />
-                              </label>
-                              <label className="space-y-1">
-                                <span className="text-xs font-extrabold text-slate-700">Dirección</span>
-                                <input
-                                  value={manual.address}
-                                  onChange={(e) =>
-                                    setLodgingManualBySegment((p) => ({
-                                      ...p,
-                                      [segmentKey]: { ...manual, address: e.target.value },
-                                    }))
-                                  }
-                                  placeholder={`Ej. Calle..., ${city}`}
-                                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-violet-200"
-                                />
-                              </label>
-                              <label className="space-y-1">
-                                <span className="text-xs font-extrabold text-slate-700">Notas</span>
-                                <textarea
-                                  value={manual.notes}
-                                  onChange={(e) =>
-                                    setLodgingManualBySegment((p) => ({
-                                      ...p,
-                                      [segmentKey]: { ...manual, notes: e.target.value },
-                                    }))
-                                  }
-                                  rows={3}
-                                  className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-violet-200"
-                                />
-                              </label>
-                              <div className="flex flex-wrap gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setLodgingSelectedHotelBySegment((p) => ({
-                                      ...p,
-                                      [segmentKey]: {
-                                        name: manual.name.trim() || `Alojamiento en ${city}`,
-                                        priceLabel: "—",
-                                        url: `https://www.google.com/search?q=${encodeURIComponent(`${manual.name || "hotel"} ${city}`)}`,
-                                      },
-                                    }))
-                                  }
-                                  className="inline-flex min-h-10 items-center justify-center rounded-2xl bg-slate-950 px-4 py-2 text-xs font-extrabold text-white hover:bg-slate-800"
-                                >
-                                  Guardar alojamiento
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setLodgingSelectedHotelBySegment((p) => ({ ...p, [segmentKey]: null }))}
-                                  className="inline-flex min-h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2 text-xs font-extrabold text-slate-800 hover:bg-slate-50"
-                                >
-                                  Dejar vacío
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        ) : null}
-
-                        {action === "scan" ? (
-                          <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                            <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Escanear reserva</div>
-                            <div className="mt-2 text-sm text-slate-600">
-                              Sube una captura o PDF de la reserva y rellenaremos el alojamiento automáticamente. (UI lista; parser en la siguiente iteración.)
-                            </div>
-                            <div className="mt-3 flex flex-col gap-2">
-                              <input type="file" accept=".pdf,image/*" className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm" />
-                              <button
-                                type="button"
-                                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-extrabold text-slate-700"
-                                disabled
-                                title="Pendiente de integrar lector de reservas"
-                              >
-                                Leer reserva (próximamente)
-                              </button>
-                            </div>
-                          </div>
-                        ) : null}
-
-                        {action === "proposal" ? (
-                          <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                            <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Propuesta de alojamiento</div>
-                            <div className="mt-2 text-sm text-slate-600">
-                              Elige rango. Mostramos 3 opciones y puedes añadir una al viaje.
-                            </div>
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {(["asequible", "medio", "lujo"] as const).map((t) => {
-                                const active = tier === t;
-                                return (
-                                  <button
-                                    key={t}
-                                    type="button"
-                                    onClick={() => setLodgingProposalTierBySegment((p) => ({ ...p, [segmentKey]: t }))}
-                                    className={`rounded-full border px-3 py-2 text-xs font-extrabold transition ${
-                                      active
-                                        ? "border-violet-300 bg-violet-50 text-violet-950"
-                                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                                    }`}
-                                  >
-                                    {t === "asequible" ? "Asequible" : t === "medio" ? "Medio" : "Lujo"}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                            <div className="mt-3 grid gap-2">
-                              {options.map((h) => (
-                                <div key={`${segmentKey}-${h.name}`} className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                                  <div className="min-w-0">
-                                    <div className="text-sm font-extrabold text-slate-950">{h.name}</div>
-                                    <div className="mt-0.5 text-xs font-semibold text-slate-600">Rango: {h.priceLabel}</div>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => setLodgingSelectedHotelBySegment((p) => ({ ...p, [segmentKey]: h }))}
-                                      className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-extrabold text-white hover:bg-slate-800"
-                                    >
-                                      Añadir hotel
-                                    </button>
-                                    <a
-                                      href={h.url}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
-                                    >
-                                      Web hotel
-                                    </a>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ) : null}
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                Aún no tenemos suficientes datos para calcular las noches. Vuelve a Planes y pulsa “Previsualizar planes” o revisa las fechas.
-              </div>
-            )}
-
-            <div className="mt-5 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={goBack}
-                disabled={loading}
-                className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
-              >
-                Ir atrás
-              </button>
-              <button
-                type="button"
-                onClick={goNext}
-                disabled={loading}
-                className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-extrabold text-white shadow-sm hover:bg-slate-800 disabled:opacity-60"
-              >
-                Siguiente paso
-              </button>
-            </div>
-          </div>
-        ) : null}
-
-        {step === 4 ? (
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="text-base font-extrabold text-slate-950">Rutas</div>
-            <p className="mt-1 text-sm text-slate-600">
-              Dime qué tipo de transporte quieres. Puedes especificar reglas por duración u hora, y también excepciones para una ruta concreta.
-            </p>
-
-            <textarea
-              value={transportNotes}
-              onChange={(e) => setTransportNotes(e.target.value)}
-              rows={4}
-              disabled={loading}
-              placeholder="Ej.: Dentro de ciudad a pie + metro. Traslados entre ciudades en tren. Si la ruta supera 3h, avión. De noche, taxi."
-              className="mt-4 w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
-            />
-
-            <div className="mt-5 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={goBack}
-                disabled={loading}
-                className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
-              >
-                Ir atrás
-              </button>
-              <button
-                type="button"
-                onClick={() => void finalizeCreateTrip({ redirectTo: "participants" })}
-                disabled={loading || !draftIntent}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-violet-600 px-5 py-3 text-sm font-extrabold text-white shadow-sm hover:bg-violet-700 disabled:opacity-60"
-              >
-                <Sparkles className="h-4 w-4" aria-hidden />
-                {loading ? "Creando…" : "Finalizar"}
-              </button>
-            </div>
           </div>
         ) : null}
       </section>
