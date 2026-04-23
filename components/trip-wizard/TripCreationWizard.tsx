@@ -1681,7 +1681,18 @@ export default function TripCreationWizard({ isPremium }: Props) {
                       <select
                         value={autoConfig.lodging.baseCityMode}
                         onChange={(e) =>
-                          setAutoConfig((p) => ({ ...p, lodging: { ...p.lodging, baseCityMode: e.target.value as any } }))
+                          setAutoConfig((p) => {
+                            const v = String(e.target.value || "");
+                            const baseCityMode = v === "single" || v === "rotate" ? v : p.lodging.baseCityMode;
+                            return {
+                              ...p,
+                              lodging: {
+                                ...p.lodging,
+                                baseCityMode,
+                                ...(baseCityMode === "rotate" ? { baseCity: "" } : {}),
+                              },
+                            };
+                          })
                         }
                         disabled={loading}
                         className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
