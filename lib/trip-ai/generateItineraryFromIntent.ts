@@ -332,14 +332,11 @@ export async function generateExecutableItineraryFromIntent(
   };
 
   // Generación por bloques: evita truncado de salida y mejora coherencia.
-  const chunks = buildDayChunks(baseCitySchedule, { maxDaysPerChunk: 5 });
+  const chunks = buildDayChunks(baseCitySchedule, { maxDaysPerChunk: 4 });
   const dayMap = new Map<number, ExecutableItineraryPayload["days"][number]>();
   const usageAgg: TripAiUsage = { provider: "gemini", model: null, inputTokens: 0, outputTokens: 0 };
 
-  for (const ch of chunks) {
-    const chunkLines = ch.dayIdxs.map((idx) => dayLines[idx]!).join("\n");
-    const requiredDayNums = ch.dayIdxs.map((i) => i + 1);
-    const chunkPrompt = `${ITIN_PROMPT}
+  const chunkPrompt = (chunkLines: string, requiredCount: number) => `${ITIN_PROMPT}
 
 Destino principal: ${baseContext.destination}
 Ciudad/punto inicio (si existe): ${baseContext.start}
@@ -351,7 +348,7 @@ Fechas por día (SOLO estas fechas):
 ${chunkLines}
 
 Instrucciones:
-- Devuelve EXACTAMENTE ${ch.dayIdxs.length} objetos en "days" correspondientes a esas fechas.
+- Devuelve EXACTAMENTE ${requiredCount} objetos en "days" correspondientes a esas fechas.
 - Los campos "day" deben coincidir con el número de Día mostrado arriba (no renumeres).
 - Para cada día, respeta la "Ciudad base" indicada.
 - Cada día debe tener entre ${cfg.pace.itemsPerDayMin} y ${cfg.pace.itemsPerDayMax} items.
@@ -365,29 +362,56 @@ Paradas obligatorias (mustSee, en este orden): ${baseContext.mustSee}
 ${baseContext.optimizeHint}
 `;
 
-    const first = await runOnce(chunkPrompt);
-    const normalized1 = normalizeChunkDays(first.itinerary, resolvedForPrompt, requiredDayNums);
-    const sanity1 = sanityCheckItinerary(normalized1, { destinationLabel: resolvedForPrompt.destination, baseCityByDay: baseCitySchedule });
-    const placeholders1 = sanityCheckPlaceholders(normalized1, { generateDays: requiredDayNums.length, destinationLabel: resolvedForPrompt.destination });
+  const strictHint =
+    `\n\nIMPORTANTE: Corrige estos problemas:\n` +
+    `- NO mezcles ciudades en el mismo día.\n` +
+    `- Si un día es Zagreb, NO incluyas Split/Hvar/Dubrovnik.\n` +
+    `- start_time estrictamente creciente.\n` +
+    `- NO uses placeholders tipo \"Explorar ...\".\n` +
+    `Devuelve SOLO JSON válido.\n`;
 
-    let final = first;
-    let normalizedFinal = normalized1;
+  const processChunk = async (ch: { dayIdxs: number[]; baseCity: string }) => {
+    const chunkLines = ch.dayIdxs.map((idx) => dayLines[idx]!).join("\n");
+    const requiredDayNums = ch.dayIdxs.map((i) => i + 1);
+    const prompt = chunkPrompt(chunkLines, requiredDayNums.length);
+
+    const first = await runOnce(prompt);
+    let normalized = normalizeChunkDays(first.itinerary, resolvedForPrompt, requiredDayNums);
+    const sanity1 = sanityCheckItinerary(normalized, {
+      destinationLabel: resolvedForPrompt.destination,
+      baseCityByDay: baseCitySchedule,
+    });
+    const placeholders1 = sanityCheckPlaceholders(normalized, {
+      generateDays: requiredDayNums.length,
+      destinationLabel: resolvedForPrompt.destination,
+    });
+    let finalUsage = first.usage;
+
     if (!sanity1.ok || !placeholders1.ok) {
-      const strictHint = `\n\nIMPORTANTE: Corrige estos problemas:\n- NO mezcles ciudades en el mismo día.\n- Si un día es Zagreb, NO incluyas Split/Hvar/Dubrovnik.\n- start_time estrictamente creciente.\n- NO uses placeholders tipo \"Explorar ...\".\nDevuelve SOLO JSON válido.\n`;
-      final = await runOnce(`${chunkPrompt}${strictHint}`);
-      normalizedFinal = normalizeChunkDays(final.itinerary, resolvedForPrompt, requiredDayNums);
+      const second = await runOnce(`${prompt}${strictHint}`);
+      normalized = normalizeChunkDays(second.itinerary, resolvedForPrompt, requiredDayNums);
+      finalUsage = second.usage;
     }
 
-    const daysArr = Array.isArray(normalizedFinal.days) ? normalizedFinal.days : [];
-    for (const d of daysArr) {
-      if (typeof d?.day === "number" && requiredDayNums.includes(d.day)) {
-        dayMap.set(d.day, d);
+    const daysArr = Array.isArray(normalized.days) ? normalized.days : [];
+    return { daysArr, requiredDayNums, usage: finalUsage };
+  };
+
+  // Ejecutamos hasta 2 chunks en paralelo para bajar el tiempo total.
+  const CONCURRENCY = 2;
+  for (let i = 0; i < chunks.length; i += CONCURRENCY) {
+    const batch = chunks.slice(i, i + CONCURRENCY);
+    const results = await Promise.all(batch.map((ch) => processChunk(ch)));
+    for (const r of results) {
+      for (const d of r.daysArr) {
+        if (typeof d?.day === "number" && r.requiredDayNums.includes(d.day)) {
+          dayMap.set(d.day, d);
+        }
       }
+      usageAgg.model = r.usage.model ?? usageAgg.model;
+      usageAgg.inputTokens = (usageAgg.inputTokens || 0) + (r.usage.inputTokens || 0);
+      usageAgg.outputTokens = (usageAgg.outputTokens || 0) + (r.usage.outputTokens || 0);
     }
-
-    usageAgg.model = final.usage.model ?? usageAgg.model;
-    usageAgg.inputTokens = (usageAgg.inputTokens || 0) + (final.usage.inputTokens || 0);
-    usageAgg.outputTokens = (usageAgg.outputTokens || 0) + (final.usage.outputTokens || 0);
   }
 
   // Construimos itinerario final en orden, rellenando faltantes con placeholder.
@@ -398,19 +422,14 @@ ${baseContext.optimizeHint}
     if (got && Array.isArray(got.items) && got.items.length) {
       daysOut.push({ day: dayNum, date: addDaysIso(resolvedForPrompt.startDate, i), items: got.items as any });
     } else {
+      const baseCity = String(baseCitySchedule[i] || resolvedForPrompt.destination).trim() || resolvedForPrompt.destination;
       daysOut.push({
         day: dayNum,
         date: addDaysIso(resolvedForPrompt.startDate, i),
-        items: [
-          {
-            title: `Explorar ${resolvedForPrompt.destination}`,
-            activity_kind: "visit",
-            place_name: resolvedForPrompt.destination,
-            address: resolvedForPrompt.destination,
-            start_time: "10:00",
-            notes: "Propuesta automática — ajústala en Plan o con el asistente.",
-          },
-        ],
+        items: fallbackDayItems({
+          destination: resolvedForPrompt.destination,
+          baseCity,
+        }),
       });
     }
   }
@@ -422,6 +441,45 @@ ${baseContext.optimizeHint}
 
   // Validación final: si aún quedan demasiados placeholders, dejamos el itinerario pero forzaremos al usuario a regenerar días concretos.
   return { itinerary: finalItinerary, usage: usageAgg };
+}
+
+function fallbackDayItems(params: { destination: string; baseCity: string }) {
+  const city = params.baseCity || params.destination;
+  const country = params.destination;
+  return [
+    {
+      title: `Paseo por el centro de ${city}`,
+      activity_kind: "visit",
+      place_name: city,
+      address: `${city}, ${country}`,
+      start_time: "10:00",
+      notes: "Día de respaldo (generación automática). Ajusta actividades y horarios a tu gusto.",
+    },
+    {
+      title: `Mercado local y almuerzo en ${city}`,
+      activity_kind: "food",
+      place_name: `Mercado de ${city}`,
+      address: `${city}, ${country}`,
+      start_time: "13:00",
+      notes: null,
+    },
+    {
+      title: `Barrio emblemático / mirador de ${city}`,
+      activity_kind: "visit",
+      place_name: city,
+      address: `${city}, ${country}`,
+      start_time: "16:30",
+      notes: null,
+    },
+    {
+      title: `Cena tradicional en ${city}`,
+      activity_kind: "food",
+      place_name: `Restaurante típico (${city})`,
+      address: `${city}, ${country}`,
+      start_time: "20:30",
+      notes: null,
+    },
+  ] as any[];
 }
 
 function normalizeChunkDays(
