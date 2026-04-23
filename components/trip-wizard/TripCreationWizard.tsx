@@ -301,7 +301,6 @@ function Stepper({ activeStep }: { activeStep: WizardStep }) {
 export default function TripCreationWizard({ isPremium }: Props) {
   const router = useRouter();
   const topRef = useRef<HTMLDivElement | null>(null);
-  const creatingOverlay = loading || creatingTripSilently;
 
   const [step, setStep] = useState<WizardStep>(1);
 
@@ -378,6 +377,8 @@ export default function TripCreationWizard({ isPremium }: Props) {
   const [createdTripPartialError, setCreatedTripPartialError] = useState<string | null>(null);
   const [creatingTripSilently, setCreatingTripSilently] = useState(false);
   const [autoConfig, setAutoConfig] = useState<TripAutoConfig>(() => DEFAULT_TRIP_AUTO_CONFIG);
+
+  const creatingOverlay = loading || creatingTripSilently;
 
   function lodgingSearchBaseLabel() {
     const base = String(autoConfig?.lodging?.baseCity || "").trim();
