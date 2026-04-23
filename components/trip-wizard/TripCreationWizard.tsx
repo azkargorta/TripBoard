@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, ChevronDown, ChevronRight, Compass, Plus, Sparkles, Trash2, X } from "lucide-react";
 import type { TripCreationIntent } from "@/lib/trip-ai/tripCreationTypes";
 import type { ExecutableItineraryPayload, ItineraryItemPayload } from "@/lib/trip-ai/tripCreationTypes";
+import { daysBetweenInclusive, isIsoDate } from "@/lib/trip-ai/tripCreationDates";
+import { DEFAULT_TRIP_AUTO_CONFIG, normalizeTripAutoConfig, type TripAutoConfig } from "@/lib/trip-ai/tripAutoConfig";
 import PlanForm, { type PlanFormValues } from "@/components/trip/plan/PlanForm";
 
 type Props = {
@@ -43,7 +45,7 @@ type ApiError = { error: string; code?: string | null; budget?: any };
 type PreviewPlansOk = {
   status: "ok";
   draftIntent: TripCreationIntent;
-  resolved: { destination: string; startDate: string; endDate: string; durationDays: number };
+  resolved: { destination: string; startDate: string; endDate: string; durationDays: number; durationWarning?: string | null };
   itinerary: ExecutableItineraryPayload;
 };
 
@@ -228,6 +230,7 @@ async function callAutoCreate(params: {
   followUp?: string;
   draftIntent?: TripCreationIntent | null;
   previewOnly: boolean;
+  config?: TripAutoConfig | null;
   /** Si viene del paso Planes (previsualización), se reutiliza orden/contenido y se evita otra llamada IA al crear. */
   itinerary?: ExecutableItineraryPayload | null;
 }) {
@@ -240,6 +243,7 @@ async function callAutoCreate(params: {
       draftIntent: params.draftIntent || undefined,
       provider: "gemini",
       previewOnly: Boolean(params.previewOnly),
+      config: params.config ? normalizeTripAutoConfig(params.config) : undefined,
       ...(params.itinerary && params.itinerary.days?.length ? { itinerary: params.itinerary } : {}),
     }),
   });
@@ -369,6 +373,16 @@ export default function TripCreationWizard({ isPremium }: Props) {
   const [createdTripId, setCreatedTripId] = useState<string | null>(null);
   const [createdTripPartialError, setCreatedTripPartialError] = useState<string | null>(null);
   const [creatingTripSilently, setCreatingTripSilently] = useState(false);
+  const [autoConfig, setAutoConfig] = useState<TripAutoConfig>(() => DEFAULT_TRIP_AUTO_CONFIG);
+
+  function syncDurationFromDates(next: TripCreationIntent): TripCreationIntent {
+    const s = isIsoDate(next.startDate) ? next.startDate : null;
+    const e = isIsoDate(next.endDate) ? next.endDate : null;
+    if (s && e && e >= s) {
+      return { ...next, durationDays: daysBetweenInclusive(s, e) };
+    }
+    return next;
+  }
 
   const travelerNames = useMemo(
     () =>
@@ -438,6 +452,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
         body: JSON.stringify({
           provider: "gemini",
           draftIntent: { ...draftIntent, mustSee: derivedPlaces, wantsRouteOptimization: optimizeOrder },
+          config: normalizeTripAutoConfig(autoConfig),
         }),
       });
       const data = (await res.json().catch(() => null)) as any;
@@ -696,6 +711,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
         draftIntent: { ...draftIntent, mustSee: derivedPlaces, wantsRouteOptimization: optimizeOrder },
         previewOnly: false,
         itinerary: previewItinerary,
+        config: autoConfig,
       });
 
       if (data?.status === "created" || data?.status === "partial") {
@@ -834,6 +850,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
         body: JSON.stringify({
           provider: "gemini",
           draftIntent: { ...draftIntent, mustSee: derivedPlaces, wantsRouteOptimization: optimizeOrder },
+          config: normalizeTripAutoConfig(autoConfig),
         }),
       });
       const data = (await res.json().catch(() => null)) as any;
@@ -987,6 +1004,47 @@ export default function TripCreationWizard({ isPremium }: Props) {
       if (!cur) return cur;
       if (cur.dayIndex === dayIndex && cur.itemIndex === itemIndex) return null;
       return cur;
+    });
+  }
+
+  function swap<T>(arr: T[], a: number, b: number) {
+    const tmp = arr[a];
+    arr[a] = arr[b] as T;
+    arr[b] = tmp as T;
+  }
+
+  function movePreviewItem(params: { fromDay: number; fromIndex: number; toDay: number; toIndex: number }) {
+    setPreviewItinerary((prev) => {
+      if (!prev?.days?.length) return prev;
+      const days = prev.days.map((d) => ({
+        ...d,
+        items: Array.isArray((d as any).items) ? [...((d as any).items as any[])] : [],
+      })) as any[];
+      const srcDay = days[params.fromDay];
+      const dstDay = days[params.toDay];
+      if (!srcDay || !dstDay) return prev;
+      const srcItems = (srcDay.items || []) as any[];
+      const dstItems = (dstDay.items || []) as any[];
+      if (params.fromIndex < 0 || params.fromIndex >= srcItems.length) return prev;
+      const [moved] = srcItems.splice(params.fromIndex, 1);
+      const insertAt = Math.max(0, Math.min(dstItems.length, params.toIndex));
+      dstItems.splice(insertAt, 0, moved);
+      srcDay.items = srcItems;
+      dstDay.items = dstItems;
+      return { ...prev, days };
+    });
+  }
+
+  function reorderPreviewItem(dayIndex: number, itemIndex: number, dir: -1 | 1) {
+    setPreviewItinerary((prev) => {
+      if (!prev?.days?.length) return prev;
+      const days = prev.days.map((d) => ({ ...d, items: Array.isArray((d as any).items) ? [...((d as any).items as any[])] : [] })) as any[];
+      const day = days[dayIndex];
+      if (!day?.items?.length) return prev;
+      const nextIndex = itemIndex + dir;
+      if (nextIndex < 0 || nextIndex >= day.items.length) return prev;
+      swap(day.items, itemIndex, nextIndex);
+      return { ...prev, days };
     });
   }
 
@@ -1299,6 +1357,156 @@ export default function TripCreationWizard({ isPremium }: Props) {
                       disabled={loading}
                       className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
                     />
+                  </label>
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <label className="space-y-1">
+                    <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Fecha inicio</span>
+                    <input
+                      type="date"
+                      value={(draftIntent?.startDate || "") ?? ""}
+                      onChange={(e) =>
+                        setDraftIntent((prev) => syncDurationFromDates({ ...(prev || {}), startDate: e.target.value || null }))
+                      }
+                      disabled={loading}
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                    />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Fecha fin</span>
+                    <input
+                      type="date"
+                      value={(draftIntent?.endDate || "") ?? ""}
+                      onChange={(e) =>
+                        setDraftIntent((prev) => syncDurationFromDates({ ...(prev || {}), endDate: e.target.value || null }))
+                      }
+                      disabled={loading}
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                    />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Duración</span>
+                    <input
+                      value={
+                        typeof draftIntent?.durationDays === "number" && draftIntent.durationDays
+                          ? `${draftIntent.durationDays} días`
+                          : "—"
+                      }
+                      disabled
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none"
+                    />
+                  </label>
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-600">
+                    Ajustes de generación (editable)
+                  </div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                    <label className="space-y-1">
+                      <span className="text-xs font-extrabold text-slate-700">Ritmo (planes/día)</span>
+                      <div className="flex gap-2">
+                        <input
+                          value={autoConfig.pace.itemsPerDayMin}
+                          onChange={(e) =>
+                            setAutoConfig((p) => ({
+                              ...p,
+                              pace: { ...p.pace, itemsPerDayMin: Math.max(1, Math.min(12, Number(e.target.value) || 1)) },
+                            }))
+                          }
+                          disabled={loading}
+                          inputMode="numeric"
+                          className="w-20 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                        />
+                        <span className="self-center text-xs font-extrabold text-slate-500">a</span>
+                        <input
+                          value={autoConfig.pace.itemsPerDayMax}
+                          onChange={(e) =>
+                            setAutoConfig((p) => ({
+                              ...p,
+                              pace: { ...p.pace, itemsPerDayMax: Math.max(1, Math.min(12, Number(e.target.value) || 1)) },
+                            }))
+                          }
+                          disabled={loading}
+                          inputMode="numeric"
+                          className="w-20 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                        />
+                      </div>
+                    </label>
+
+                    <label className="space-y-1">
+                      <span className="text-xs font-extrabold text-slate-700">Coherencia geográfica</span>
+                      <select
+                        value={autoConfig.geo.strictness}
+                        onChange={(e) =>
+                          setAutoConfig((p) => ({ ...p, geo: { ...p.geo, strictness: e.target.value as any } }))
+                        }
+                        disabled={loading}
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                      >
+                        <option value="balanced">Equilibrada</option>
+                        <option value="strict">Muy estricta</option>
+                        <option value="loose">Flexible</option>
+                      </select>
+                    </label>
+
+                    <label className="space-y-1">
+                      <span className="text-xs font-extrabold text-slate-700">Autogenerar días</span>
+                      <input
+                        value={autoConfig.autoGenerateDays}
+                        onChange={(e) =>
+                          setAutoConfig((p) => ({ ...p, autoGenerateDays: Math.max(1, Math.min(60, Number(e.target.value) || 1)) }))
+                        }
+                        disabled={loading}
+                        inputMode="numeric"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                      />
+                      <div className="text-[11px] font-semibold text-slate-500">
+                        Para viajes largos, el resto quedará como días editables.
+                      </div>
+                    </label>
+                  </div>
+
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <label className="space-y-1">
+                      <span className="text-xs font-extrabold text-slate-700">Preferencias de transporte</span>
+                      <input
+                        value={autoConfig.transport.notes}
+                        onChange={(e) => setAutoConfig((p) => ({ ...p, transport: { ...p.transport, notes: e.target.value } }))}
+                        disabled={loading}
+                        placeholder="Ej. Dentro ciudad a pie+metro, entre ciudades en tren, islas en ferry…"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                      />
+                    </label>
+
+                    <label className="space-y-1">
+                      <span className="text-xs font-extrabold text-slate-700">Alojamiento</span>
+                      <select
+                        value={autoConfig.lodging.mode}
+                        onChange={(e) => setAutoConfig((p) => ({ ...p, lodging: { ...p.lodging, mode: e.target.value as any } }))}
+                        disabled={loading}
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                      >
+                        <option value="proposal">Propuesta</option>
+                        <option value="manual">Manual</option>
+                        <option value="omit">Omitir</option>
+                      </select>
+                    </label>
+                  </div>
+
+                  <label className="mt-3 flex cursor-pointer items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-violet-600"
+                      checked={autoConfig.routes.enabled}
+                      disabled={loading}
+                      onChange={(e) => setAutoConfig((p) => ({ ...p, routes: { ...p.routes, enabled: Boolean(e.target.checked) } }))}
+                    />
+                    <span className="min-w-0">
+                      <span className="font-extrabold text-slate-950">Generar rutas</span>{" "}
+                      <span className="text-slate-600">(se calcularán rutas en mapa cuando sea posible)</span>
+                    </span>
                   </label>
                 </div>
 
@@ -1835,6 +2043,9 @@ export default function TripCreationWizard({ isPremium }: Props) {
                   {previewResolved?.destination || destinationLabel || "Viaje"}
                   {previewResolved?.startDate && previewResolved?.endDate ? ` · ${previewResolved.startDate} → ${previewResolved.endDate}` : ""}
                 </div>
+                {previewResolved?.durationWarning ? (
+                  <div className="mt-0.5 text-xs font-semibold text-amber-700">{previewResolved.durationWarning}</div>
+                ) : null}
               </div>
               <div className="flex items-center gap-2">
                 <div className="inline-flex rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700">
@@ -1921,6 +2132,42 @@ export default function TripCreationWizard({ isPremium }: Props) {
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => reorderPreviewItem(dayIndex, itemIndex, -1)}
+                                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+                                    disabled={itemIndex === 0}
+                                    title="Subir"
+                                  >
+                                    ↑
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => reorderPreviewItem(dayIndex, itemIndex, 1)}
+                                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+                                    disabled={itemIndex === (day.items?.length || 0) - 1}
+                                    title="Bajar"
+                                  >
+                                    ↓
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => movePreviewItem({ fromDay: dayIndex, fromIndex: itemIndex, toDay: Math.max(0, dayIndex - 1), toIndex: 999 })}
+                                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+                                    disabled={dayIndex === 0}
+                                    title="Mover al día anterior"
+                                  >
+                                    ← Día
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => movePreviewItem({ fromDay: dayIndex, fromIndex: itemIndex, toDay: Math.min((previewItinerary?.days?.length || 1) - 1, dayIndex + 1), toIndex: 0 })}
+                                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+                                    disabled={dayIndex === (previewItinerary?.days?.length || 1) - 1}
+                                    title="Mover al día siguiente"
+                                  >
+                                    Día →
+                                  </button>
                                   <button
                                     type="button"
                                     onClick={() => void openPreviewEditorForEdit(dayIndex, itemIndex, day.date || null, it as ItineraryItemPayload)}

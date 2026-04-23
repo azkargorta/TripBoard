@@ -4,6 +4,7 @@ import { enforceAiMonthlyBudgetOrThrow, trackAiUsage } from "@/lib/ai-budget";
 import { monthKeyUtc } from "@/lib/ai-usage";
 import type { ExecutableItineraryPayload, TripCreationIntent } from "@/lib/trip-ai/tripCreationTypes";
 import { mergeTripCreationIntentLLM, parseTripCreationIntentLLM } from "@/lib/trip-ai/parseTripCreationIntent";
+import { normalizeTripAutoConfig } from "@/lib/trip-ai/tripAutoConfig";
 import {
   buildDefaultTripName,
   getTripCreationFollowUp,
@@ -93,6 +94,7 @@ export async function POST(req: Request) {
     const followUp = typeof body?.followUp === "string" ? body.followUp.trim() : "";
     const draftIntent = body?.draftIntent as TripCreationIntent | undefined;
     const previewOnly = Boolean(body?.previewOnly);
+    const config = normalizeTripAutoConfig(body?.config);
 
     const monthKey = monthKeyUtc();
     let supabase: Awaited<ReturnType<typeof createClient>>;
@@ -195,6 +197,7 @@ export async function POST(req: Request) {
           startDate: resolved.startDate,
           endDate: resolved.endDate,
           durationDays: resolved.durationDays,
+          durationWarning: resolved.durationWarning ?? null,
         },
       });
     }
@@ -242,12 +245,12 @@ export async function POST(req: Request) {
       try {
         itinerary = normalizeClientExecutableItinerary(body.itinerary, resolved);
       } catch {
-        const gen = await generateExecutableItineraryFromIntent(resolved, { provider });
+        const gen = await generateExecutableItineraryFromIntent(resolved, { provider, config });
         itinerary = gen.itinerary;
         itineraryUsage = gen.usage;
       }
     } else {
-      const gen = await generateExecutableItineraryFromIntent(resolved, { provider });
+      const gen = await generateExecutableItineraryFromIntent(resolved, { provider, config });
       itinerary = gen.itinerary;
       itineraryUsage = gen.usage;
     }
@@ -275,6 +278,7 @@ export async function POST(req: Request) {
           startDate: resolved.startDate,
           endDate: resolved.endDate,
           durationDays: resolved.durationDays,
+          durationWarning: resolved.durationWarning ?? null,
         },
       });
     }
@@ -290,6 +294,7 @@ export async function POST(req: Request) {
         startDate: resolved.startDate,
         endDate: resolved.endDate,
         durationDays: resolved.durationDays,
+        durationWarning: resolved.durationWarning ?? null,
       },
     });
   } catch (error) {

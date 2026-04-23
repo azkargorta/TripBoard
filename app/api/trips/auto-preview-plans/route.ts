@@ -6,6 +6,7 @@ import type { TripCreationIntent } from "@/lib/trip-ai/tripCreationTypes";
 import { mergeTripCreationIntentLLM } from "@/lib/trip-ai/parseTripCreationIntent";
 import { getTripCreationFollowUp, resolveTripCreationDates } from "@/lib/trip-ai/tripCreationResolve";
 import { generateExecutableItineraryFromIntent } from "@/lib/trip-ai/generateItineraryFromIntent";
+import { normalizeTripAutoConfig } from "@/lib/trip-ai/tripAutoConfig";
 import type { TripAiUsage } from "@/lib/trip-ai/providers";
 
 export const runtime = "nodejs";
@@ -37,6 +38,7 @@ export async function POST(req: Request) {
     if (!draftIntent) {
       return NextResponse.json({ error: "Falta draftIntent." }, { status: 400 });
     }
+    const config = normalizeTripAutoConfig(body?.config);
 
     const monthKey = monthKeyUtc();
     let supabase: Awaited<ReturnType<typeof createClient>>;
@@ -112,7 +114,7 @@ export async function POST(req: Request) {
       });
     }
 
-    const { itinerary, usage } = await generateExecutableItineraryFromIntent(resolved, { provider });
+    const { itinerary, usage } = await generateExecutableItineraryFromIntent(resolved, { provider, config });
     await trackIfCountable({ supabase, userId, monthKey, usage });
 
     return NextResponse.json({
@@ -123,8 +125,10 @@ export async function POST(req: Request) {
         startDate: resolved.startDate,
         endDate: resolved.endDate,
         durationDays: resolved.durationDays,
+        durationWarning: resolved.durationWarning ?? null,
       },
       itinerary,
+      config,
     });
   } catch (error) {
     return NextResponse.json(
