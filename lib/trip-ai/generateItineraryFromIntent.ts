@@ -44,6 +44,8 @@ Reglas:
 - version siempre 1.
 - travelMode "walking" si el usuario prefiere andar o ciudad compacta; si no, "driving".
 - Si el usuario ha pedido paradas obligatorias (mustSee), DEBES incluirlas como items (title/place_name) repartiéndolas por los días disponibles.
+- Si un día incluye "Cambio: A → B" y/o "Parada en ruta", usa ese día para el traslado (item "transport") y coloca la parada intermedia EN ESE DÍA (no como ida/vuelta desde A) manteniendo la "Ciudad base" del día.
+- Si un día incluye "Traslado aprox: Xh Ym", incluye un item "transport" con ese tiempo aproximado y reduce actividades ese día (no lo llenes como un día normal).
 - NO añadas ciudades “grandes típicas” (p. ej. capital) si no encajan con las paradas obligatorias, salvo que sea un traslado explícito entre dos paradas obligatorias.
 `;
 
@@ -213,6 +215,139 @@ async function optimizeMustSeeOrder(resolved: ResolvedTripCreation, tokens: stri
   return [...ordered.map((x) => x.token), ...leftovers];
 }
 
+async function assignMustSeeToTransitions(params: {
+  resolved: ResolvedTripCreation;
+  baseCityByDay: string[];
+  mustSeeTokens: string[];
+}): Promise<Map<number, string[]>> {
+  const out = new Map<number, string[]>();
+  if (!params.mustSeeTokens.length) return out;
+  if (params.baseCityByDay.length < 2) return out;
+
+  const clean = (s: string) => String(s || "").trim();
+  const destination = clean(params.resolved.destination);
+  const regionHints = regionHintsFromDestination(destination);
+  const anchor = await geocodeTripAnchor(destination).catch(() => null);
+
+  const lc = (s: string) => clean(s).toLowerCase();
+  const baseSet = new Set(params.baseCityByDay.map((x) => lc(x)));
+
+  // Solo tokens que NO son ciudades base (ej. "Lagos de Plitvice").
+  const tokens = params.mustSeeTokens.map(clean).filter(Boolean).filter((t) => !baseSet.has(lc(t)));
+  if (!tokens.length) return out;
+
+  const cache = new Map<string, { lat: number; lng: number }>();
+  const geocode = async (label: string) => {
+    const key = lc(label);
+    if (cache.has(key)) return cache.get(key)!;
+    const q = `${label}, ${destination}`.trim();
+    const hit = await geocodePhotonPreferred(q, { anchor, regionHints }).catch(() => null);
+    if (hit && typeof hit.lat === "number" && typeof hit.lng === "number") {
+      const pt = { lat: hit.lat, lng: hit.lng };
+      cache.set(key, pt);
+      return pt;
+    }
+    return null;
+  };
+
+  // Transiciones: día i (1-based) cuando cambia la ciudad base respecto al día anterior.
+  const transitions: Array<{ dayNum: number; from: string; to: string }> = [];
+  for (let i = 1; i < params.baseCityByDay.length; i++) {
+    const prev = clean(params.baseCityByDay[i - 1]);
+    const cur = clean(params.baseCityByDay[i]);
+    if (prev && cur && lc(prev) !== lc(cur)) transitions.push({ dayNum: i + 1, from: prev, to: cur });
+  }
+  if (!transitions.length) return out;
+
+  const cityPoints = await Promise.all(
+    Array.from(new Set(transitions.flatMap((t) => [t.from, t.to]))).map(async (c) => [c, await geocode(c)] as const)
+  );
+  const cityMap = new Map<string, { lat: number; lng: number }>();
+  for (const [c, pt] of cityPoints) if (pt) cityMap.set(c, pt);
+
+  const tokPoints = await Promise.all(tokens.map(async (t) => [t, await geocode(t)] as const));
+  const tokMap = new Map<string, { lat: number; lng: number }>();
+  for (const [t, pt] of tokPoints) if (pt) tokMap.set(t, pt);
+  if (!tokMap.size) return out;
+
+  // Asignación greedy: cada token a la transición que minimiza el desvío.
+  for (const token of tokens) {
+    const p = tokMap.get(token);
+    if (!p) continue;
+    let best: { dayNum: number; score: number } | null = null;
+    for (const tr of transitions) {
+      const a = cityMap.get(tr.from);
+      const b = cityMap.get(tr.to);
+      if (!a || !b) continue;
+      const direct = haversineKm(a, b);
+      const via = haversineKm(a, p) + haversineKm(p, b);
+      const detour = via - direct;
+      // Filtros suaves para “paradas en ruta”: no absurdamente lejos y sin gran desvío.
+      if (haversineKm(a, p) > 260) continue;
+      if (haversineKm(p, b) > 260) continue;
+      if (detour > 120) continue;
+      const score = detour + direct * 0.05;
+      if (!best || score < best.score) best = { dayNum: tr.dayNum, score };
+    }
+    if (best) {
+      const list = out.get(best.dayNum) || [];
+      if (!list.some((x) => lc(x) === lc(token))) list.push(token);
+      out.set(best.dayNum, list);
+    }
+  }
+
+  return out;
+}
+
+async function estimateTransfersByDay(params: {
+  resolved: ResolvedTripCreation;
+  baseCityByDay: string[];
+}): Promise<
+  Map<
+    number,
+    {
+      from: string;
+      to: string;
+      distanceKm: number;
+      durationMin: number;
+    }
+  >
+> {
+  const out = new Map<number, { from: string; to: string; distanceKm: number; durationMin: number }>();
+  if (params.baseCityByDay.length < 2) return out;
+
+  const clean = (s: string) => String(s || "").trim();
+  const lc = (s: string) => clean(s).toLowerCase();
+  const destination = clean(params.resolved.destination);
+  const regionHints = regionHintsFromDestination(destination);
+  const anchor = await geocodeTripAnchor(destination).catch(() => null);
+
+  const uniqCities = Array.from(new Set(params.baseCityByDay.map((c) => clean(c)).filter(Boolean)));
+  const coords = new Map<string, { lat: number; lng: number }>();
+  await Promise.all(
+    uniqCities.map(async (city) => {
+      const q = `${city}, ${destination}`.trim();
+      const hit = await geocodePhotonPreferred(q, { anchor, regionHints }).catch(() => null);
+      if (hit && typeof hit.lat === "number" && typeof hit.lng === "number") coords.set(city, { lat: hit.lat, lng: hit.lng });
+    })
+  );
+
+  const speedKmH = 65; // aproximación “coche/carretera”
+  for (let i = 1; i < params.baseCityByDay.length; i++) {
+    const from = clean(params.baseCityByDay[i - 1]);
+    const to = clean(params.baseCityByDay[i]);
+    if (!from || !to) continue;
+    if (lc(from) === lc(to)) continue;
+    const a = coords.get(from);
+    const b = coords.get(to);
+    if (!a || !b) continue;
+    const km = haversineKm(a, b);
+    const minutes = Math.max(20, Math.round((km / speedKmH) * 60));
+    out.set(i + 1, { from, to, distanceKm: Math.round(km), durationMin: minutes });
+  }
+  return out;
+}
+
 function itineraryMentionsToken(dayText: string, token: string): boolean {
   const hay = dayText.toLowerCase();
   const t = token.toLowerCase();
@@ -295,13 +430,6 @@ export async function generateExecutableItineraryFromIntent(
     lodgingBaseCity: cfg.lodging.baseCity,
   });
 
-  const dayLines: string[] = [];
-  for (let i = 0; i < generateDays; i++) {
-    const date = addDaysIso(resolved.startDate, i);
-    const base = baseCitySchedule[i] || resolved.destination;
-    dayLines.push(`Día ${i + 1}: ${date} — Ciudad base: ${base}`);
-  }
-
   const mustSeeRaw = normalizeMustSeeTokens(resolved.intent.mustSee || []);
   const mustSeeOptimized = await optimizeMustSeeOrder(resolved, mustSeeRaw);
 
@@ -309,6 +437,31 @@ export async function generateExecutableItineraryFromIntent(
   const resolvedForPrompt: ResolvedTripCreation = resolved.intent.wantsRouteOptimization
     ? { ...resolved, intent: { ...resolved.intent, mustSee: mustSeeOptimized } }
     : resolved;
+
+  // Asignamos paradas “en ruta” a días de cambio de ciudad (ej. Plitvice entre Zagreb→Split).
+  const enRouteByDay = await assignMustSeeToTransitions({
+    resolved: resolvedForPrompt,
+    baseCityByDay: baseCitySchedule,
+    mustSeeTokens: mustSeeOptimized,
+  });
+
+  const transferByDay = await estimateTransfersByDay({ resolved: resolvedForPrompt, baseCityByDay: baseCitySchedule });
+
+  const dayLines: string[] = [];
+  for (let i = 0; i < generateDays; i++) {
+    const date = addDaysIso(resolved.startDate, i);
+    const base = baseCitySchedule[i] || resolved.destination;
+    const dayNum = i + 1;
+    const prevBase = i >= 1 ? String(baseCitySchedule[i - 1] || "").trim() : "";
+    const isChange = i >= 1 && prevBase && String(prevBase).toLowerCase() !== String(base).toLowerCase();
+    const enRoute = enRouteByDay.get(dayNum) || [];
+    const tr = transferByDay.get(dayNum) || null;
+    const extra =
+      (isChange ? ` — Cambio: ${prevBase} → ${base}` : "") +
+      (tr ? ` — Traslado aprox: ${Math.max(1, Math.round(tr.durationMin / 60))}h ${String(tr.durationMin % 60).padStart(2, "0")}m (${tr.distanceKm} km)` : "") +
+      (enRoute.length ? ` — Parada en ruta (OBLIGATORIA si cabe): ${enRoute.join(" · ")}` : "");
+    dayLines.push(`Día ${dayNum}: ${date} — Ciudad base: ${base}${extra}`);
+  }
 
   const provider = options?.provider ?? null;
   const baseContext = {
@@ -432,6 +585,45 @@ ${baseContext.optimizeHint}
         }),
       });
     }
+  }
+
+  // Post-proceso: si hay cambio de ciudad base y falta un item de transporte, lo inyectamos con duración aproximada
+  // para “liberar” el día y evitar que la IA lo llene de actividades como si no hubiera traslado.
+  for (let i = 1; i < daysOut.length; i++) {
+    const dayNum = i + 1;
+    const prevBase = String(baseCitySchedule[i - 1] || "").trim();
+    const curBase = String(baseCitySchedule[i] || "").trim();
+    if (!prevBase || !curBase) continue;
+    if (prevBase.toLowerCase() === curBase.toLowerCase()) continue;
+    const tr = transferByDay.get(dayNum) || null;
+    const day = daysOut[i]!;
+    const items = Array.isArray(day.items) ? [...(day.items as any[])] : [];
+    const hasTransport = items.some((it) => String((it as any)?.activity_kind || "").toLowerCase() === "transport");
+    if (hasTransport) continue;
+
+    const mins = tr?.durationMin ?? 180;
+    const km = tr?.distanceKm ?? null;
+    const hh = Math.floor(mins / 60);
+    const mm = mins % 60;
+    const durTxt = `${hh}h ${String(mm).padStart(2, "0")}m`;
+    const title = `Traslado ${prevBase} → ${curBase} (aprox. ${durTxt}${typeof km === "number" ? `, ${km} km` : ""})`;
+    items.unshift({
+      title,
+      activity_kind: "transport",
+      place_name: `${prevBase} → ${curBase}`,
+      address: `${prevBase} → ${curBase}, ${resolvedForPrompt.destination}`,
+      start_time: "08:30",
+      notes: "Tiempo aproximado para ajustar el día. Puedes cambiar medio/hora según tu plan real.",
+    });
+
+    // Si el traslado es largo, recortamos el exceso de items para que el día no quede sobrecargado.
+    const maxItems = mins >= 210 ? 3 : mins >= 150 ? 4 : 5;
+    const minItems = 3;
+    if (items.length > maxItems) items.splice(maxItems);
+    if (items.length < minItems) {
+      // si por alguna razón quedase corto, no rellenamos aquí: la UI ya permite editar/regenerar.
+    }
+    daysOut[i] = { ...day, items };
   }
 
   const finalItinerary = enforceMustSee(

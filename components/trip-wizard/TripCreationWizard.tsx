@@ -323,6 +323,12 @@ export default function TripCreationWizard({ isPremium }: Props) {
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewItinerary, setPreviewItinerary] = useState<ExecutableItineraryPayload | null>(null);
   const [previewResolved, setPreviewResolved] = useState<PreviewPlansOk["resolved"] | null>(null);
+  const [previewMemory, setPreviewMemory] = useState<{
+    itinerary: ExecutableItineraryPayload;
+    resolved: PreviewPlansOk["resolved"] | null;
+    key: string;
+  } | null>(null);
+  const [planChangeNotes, setPlanChangeNotes] = useState("");
   // (Mapa desactivado por ahora)
   const [previewExpandedDays, setPreviewExpandedDays] = useState<Set<number>>(() => new Set());
   const [previewEditor, setPreviewEditor] = useState<
@@ -498,6 +504,18 @@ export default function TripCreationWizard({ isPremium }: Props) {
     const itin = lodgingItinerary;
     if (!itin?.days?.length) return [];
 
+    const normCity = (raw: string) => {
+      const s = String(raw || "").trim();
+      if (!s) return "";
+      return s
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\bisla\b|\bisland\b|\bprovince\b|\bregion\b/gi, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
+    };
+
     const addDays = (isoDate: string, days: number) => {
       const d = new Date(`${isoDate}T12:00:00`);
       if (Number.isNaN(d.getTime())) return isoDate;
@@ -518,21 +536,44 @@ export default function TripCreationWizard({ isPremium }: Props) {
       .filter((d) => typeof d?.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d.date))
       .sort((a, b) => String(a.date).localeCompare(String(b.date)));
 
-    const segments: LodgingSeg[] = [];
-    let current: LodgingSeg | null = null;
-
-    for (const day of sortedDays) {
+    // 1) Derivamos una ciudad "de alojamiento" por día.
+    // 2) Suavizamos cambios de 1 solo día sin check-in explícito (típico de excursiones).
+    const dayRows = sortedDays.map((day) => {
       const items = day.items || [];
       const lodgingItem =
         items.find((it) => String(it.activity_kind || "").toLowerCase() === "lodging") ||
         items.find((it) => /check[-\s]?in|hotel|aloj/i.test(String(it.title || ""))) ||
         null;
+      const hasExplicit = Boolean(lodgingItem);
       const addr = String(lodgingItem?.address || "").trim();
-      const city =
+      const inferred =
         cityFromAddress(addr) || cityFromAddress(String(items[items.length - 1]?.address || "")) || "Sin ciudad";
+      return { day, city: inferred, hasExplicit };
+    });
+
+    for (let i = 1; i < dayRows.length - 1; i++) {
+      const prev = dayRows[i - 1]!;
+      const cur = dayRows[i]!;
+      const next = dayRows[i + 1]!;
+      if (cur.hasExplicit) continue;
+      const p = normCity(prev.city);
+      const c = normCity(cur.city);
+      const n = normCity(next.city);
+      if (p && n && p === n && c && c !== p) {
+        // Patrón A-B-A sin check-in: asumimos que B era una excursión y no un cambio de alojamiento.
+        dayRows[i] = { ...cur, city: prev.city };
+      }
+    }
+
+    const segments: LodgingSeg[] = [];
+    let current: LodgingSeg | null = null;
+
+    for (const row of dayRows) {
+      const day = row.day;
+      const city = row.city;
 
       // Tramos consecutivos por ciudad: si vuelves a la misma ciudad más tarde en el viaje, es otro tramo (otro check-in).
-      if (!current || current.city !== city) {
+      if (!current || normCity(current.city) !== normCity(city)) {
         if (current) segments.push(current);
         const startDate = typeof day.date === "string" ? day.date : null;
         const segOrdinal: number = segments.length;
@@ -729,9 +770,10 @@ export default function TripCreationWizard({ isPremium }: Props) {
         travelersCount,
         travelerNames,
       });
+      const mergedFollowUpWithNotes = `${mergedFollowUp}${planChangeNotes.trim() ? `\n\nCambios solicitados para el plan: ${planChangeNotes.trim()}` : ""}`;
 
       const data = await callAutoCreate({
-        followUp: mergedFollowUp,
+        followUp: mergedFollowUpWithNotes,
         draftIntent: { ...draftIntent, mustSee: derivedPlaces, wantsRouteOptimization: optimizeOrder },
         previewOnly: false,
         itinerary: previewItinerary,
@@ -874,6 +916,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
         body: JSON.stringify({
           provider: "gemini",
           draftIntent: { ...draftIntent, mustSee: derivedPlaces, wantsRouteOptimization: optimizeOrder },
+          followUp: planChangeNotes.trim() ? `Cambios solicitados para el plan: ${planChangeNotes.trim()}` : "",
           config: normalizeTripAutoConfig(autoConfig),
         }),
       });
@@ -882,9 +925,18 @@ export default function TripCreationWizard({ isPremium }: Props) {
       if (data?.status !== "ok" || !data?.itinerary) throw new Error("Respuesta inesperada del servidor.");
       setPreviewResolved(data.resolved || null);
       setPreviewItinerary(data.itinerary || null);
-      // Si el usuario quiere propuesta/manual de alojamientos, derivamos tramos por ciudad desde el itinerario.
+      {
+        const key = JSON.stringify({
+          intent: { ...draftIntent, mustSee: derivedPlaces, wantsRouteOptimization: optimizeOrder },
+          config: normalizeTripAutoConfig(autoConfig),
+          notes: planChangeNotes.trim(),
+        });
+        setPreviewMemory({ itinerary: data.itinerary, resolved: (data.resolved || null) as any, key });
+      }
+      // Precalienta alojamientos en segundo plano reutilizando el itinerario ya generado (evita otra llamada IA).
       if (autoConfig.lodging.mode !== "omit") {
-        void ensureLodgingItinerary();
+        setLodgingResolved(data.resolved || null);
+        setLodgingItinerary(data.itinerary || null);
       }
     } catch (e) {
       setPreviewError(e instanceof Error ? e.message : "No se pudo previsualizar los planes.");
@@ -902,6 +954,18 @@ export default function TripCreationWizard({ isPremium }: Props) {
     setPreviewEditor(null);
     setPreviewEditorError(null);
     setPreviewEditorSaving(false);
+  }
+
+  function openPreviewFromMemory() {
+    if (!previewMemory) return;
+    setPreviewResolved(previewMemory.resolved || null);
+    setPreviewItinerary(previewMemory.itinerary || null);
+    setPreviewExpandedDays(new Set());
+    setPreviewEditor(null);
+    setPreviewEditorError(null);
+    setPreviewError(null);
+    setPreviewLoading(false);
+    setPreviewOpen(true);
   }
 
   async function ensureTripForPreviewEditor() {
@@ -1744,16 +1808,48 @@ export default function TripCreationWizard({ isPremium }: Props) {
                   </span>
                 </label>
 
+                <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Cambios para recalcular</div>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Pide ajustes al asistente (ritmo, traslados, “mete Plitvice en el día de cambio”, “menos museos”, etc.). Se tendrán en cuenta al
+                    recalcular planes y al crear el viaje.
+                  </p>
+                  <textarea
+                    value={planChangeNotes}
+                    onChange={(e) => setPlanChangeNotes(e.target.value)}
+                    rows={3}
+                    placeholder="Ej. El día de traslado Zagreb → Split incluye Plitvice en ruta y reduce actividades. No quiero volver a Hvar dos veces."
+                    className="mt-3 w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
+                    disabled={loading}
+                  />
+                  {previewMemory ? (
+                    <div className="mt-2 text-xs font-semibold text-slate-500">
+                      Hay una previsualización guardada. Pulsa <span className="font-extrabold">Recalcular planes</span> para aplicar cambios.
+                    </div>
+                  ) : null}
+                </div>
+
                 <div className="mt-4 flex flex-wrap gap-2">
                   <button
                     type="button"
-                    onClick={previewPlans}
+                    onClick={() => (previewMemory ? openPreviewFromMemory() : void previewPlans())}
                     disabled={loading || !draftIntent}
                     className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-violet-200 bg-violet-50 px-5 py-3 text-sm font-extrabold text-violet-950 shadow-sm hover:bg-violet-100 disabled:opacity-60"
                     title="Ver un calendario de planes propuestos (sin crear el viaje todavía)"
                   >
-                    Ver previsualización
+                    {previewMemory ? "Ver planes" : "Ver previsualización"}
                   </button>
+                  {previewMemory ? (
+                    <button
+                      type="button"
+                      onClick={previewPlans}
+                      disabled={loading || !draftIntent}
+                      className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-slate-800 shadow-sm hover:bg-slate-50 disabled:opacity-60"
+                      title="Recalcular planes aplicando los cambios anteriores"
+                    >
+                      Recalcular planes
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => void finalizeCreateTrip({ redirectTo: "participants" })}
