@@ -265,6 +265,7 @@ export async function POST(req: Request) {
       conflictResolution: "add",
       access: { userId: access.userId, can_manage_map: access.can_manage_map },
       tripDestination: resolved.destination,
+      generateRoutes: Boolean(config?.routes?.enabled ?? true),
     });
 
     if (!exec.ok) {

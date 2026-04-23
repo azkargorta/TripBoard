@@ -147,12 +147,15 @@ export async function executePlanOnTrip(params: {
   conflictResolution: "replace" | "add";
   access: ExecutePlanAccess;
   tripDestination: string | null;
+  /** Si false, no genera rutas OSRM (solo actividades). */
+  generateRoutes?: boolean;
 }): Promise<
   | { ok: true; created: number; routesCreated: number; routesNote?: string }
   | { ok: false; error: string }
 > {
   try {
     const { supabase, tripId, itinerary, conflictResolution, access, tripDestination } = params;
+    const generateRoutes = params.generateRoutes !== false;
 
     const itineraryDates: string[] = [];
     for (const day of itinerary.days) {
@@ -170,7 +173,7 @@ export async function executePlanOnTrip(params: {
         .is("linked_reservation_id", null);
       if (delActErr) throw new Error(delActErr.message);
 
-      if (access.can_manage_map) {
+      if (generateRoutes && access.can_manage_map) {
         for (const d of uniqueItineraryDates) {
           const { error: r1 } = await supabase.from("trip_routes").delete().eq("trip_id", tripId).eq("route_day", d);
           if (r1) throw new Error(r1.message);
@@ -322,6 +325,10 @@ export async function executePlanOnTrip(params: {
     }
 
     let routesCreated = 0;
+
+    if (!generateRoutes) {
+      return { ok: true, created, routesCreated: 0, routesNote: "Actividades creadas. La generación de rutas está desactivada." };
+    }
 
     if (!access.can_manage_map) {
       return {

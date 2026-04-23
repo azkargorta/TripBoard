@@ -45,6 +45,8 @@ export async function POST(req: Request) {
       conflictResolution,
       access: { userId: access.userId, can_manage_map: access.can_manage_map },
       tripDestination,
+      // En ejecución manual, generamos rutas por defecto.
+      generateRoutes: true,
     });
 
     if (!result.ok) {

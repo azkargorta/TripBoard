@@ -800,96 +800,100 @@ export default function TripCreationWizard({ isPremium }: Props) {
         }
         setCreatedTripId(created.tripId);
 
-        // Guardar alojamientos elegidos en el wizard como actividades "lodging" en BD.
-        // (Antes se quedaban solo en estado local y se perdían al crear el viaje).
-        if (!silent && lodgingCities.length) {
-          const sortedLodging = [...lodgingCities].sort((a, b) => {
-            const ad = a.startDate || "";
-            const bd = b.startDate || "";
-            if (ad !== bd) return ad.localeCompare(bd);
-            return a.segmentKey.localeCompare(b.segmentKey);
-          });
-          for (let li = 0; li < sortedLodging.length; li++) {
-            const row = sortedLodging[li]!;
-            const city = row.city;
-            const segmentKey = row.segmentKey;
-            const selected = lodgingSelectedHotelBySegment[segmentKey] ?? null;
-            const manual = lodgingManualBySegment[segmentKey] || { name: "", address: "", notes: "" };
-            const name = String(selected?.name || manual.name || "").trim();
-            const address = String(manual.address || "").trim();
-            if (!name) continue;
-
-            const query = [address, city, destinationLabel].filter(Boolean).join(", ");
-            let latitude: number | null = null;
-            let longitude: number | null = null;
-            let formattedAddress: string | null = address || null;
-
-            if (query) {
-              const resp = await fetch("/api/geocode", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ address: query, tripId: created.tripId }),
-              });
-              const payload = await resp.json().catch(() => null);
-              if (resp.ok) {
-                latitude = typeof payload?.latitude === "number" ? payload.latitude : null;
-                longitude = typeof payload?.longitude === "number" ? payload.longitude : null;
-                formattedAddress = typeof payload?.formattedAddress === "string" ? payload.formattedAddress : formattedAddress;
-              }
-            }
-
-            const baseMin = 12 * 60 + 20;
-            const m = baseMin + li * 4;
-            const hh = Math.floor(m / 60);
-            const mm = m % 60;
-            const activity_time = `${String(Math.min(23, hh)).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
-
-            const notesParts: string[] = [];
-            if (selected?.url) notesParts.push(`Web: ${selected.url}`);
-            if (manual.notes?.trim()) notesParts.push(manual.notes.trim());
-            const notes = notesParts.length ? notesParts.join("\n\n") : null;
-
-            const destParts = destinationLabel
-              .split(/[,|;]+/g)
-              .map((s) => s.trim())
-              .filter(Boolean);
-            const countryHint = destParts.length > 1 ? destParts[destParts.length - 1]! : destParts[0] || null;
-
-            await fetch("/api/trip-reservations", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                tripId: created.tripId,
-                reservation_type: "lodging",
-                reservation_name: name,
-                reservation_code: null,
-                address: formattedAddress,
-                city: city && city !== "Sin ciudad" ? city : null,
-                country: countryHint,
-                check_in_date: row.startDate || draftIntent?.startDate || null,
-                check_in_time: activity_time,
-                check_out_date: row.endDate || null,
-                check_out_time: null,
-                guests: null,
-                total_amount: null,
-                currency: "EUR",
-                payment_status: "pending",
-                notes,
-                detected_document_type: "wizard_lodging",
-                detected_data: { source: "trip_creation_wizard", segment_key: segmentKey },
-                sync_to_plan: true,
-                latitude,
-                longitude,
-              }),
-            });
-          }
-        }
-
+        // Redirige cuanto antes para no “bloquear” la UX con tareas extra (geocoding / reservas).
+        // El resto de guardados se pueden hacer en segundo plano.
         const redirectTo = options?.redirectTo ?? "participants";
         if (redirectTo === "summary") {
           router.push(`/trip/${encodeURIComponent(created.tripId)}/summary?recien=1`);
         } else if (redirectTo === "participants") {
           router.push(`/trip/${encodeURIComponent(created.tripId)}/participants?recien=1`);
+        }
+
+        // Guardar alojamientos elegidos en el wizard como actividades "lodging" en BD.
+        // (Antes se quedaban solo en estado local y se perdían al crear el viaje).
+        if (!silent && lodgingCities.length) {
+          void (async () => {
+            const sortedLodging = [...lodgingCities].sort((a, b) => {
+              const ad = a.startDate || "";
+              const bd = b.startDate || "";
+              if (ad !== bd) return ad.localeCompare(bd);
+              return a.segmentKey.localeCompare(b.segmentKey);
+            });
+            for (let li = 0; li < sortedLodging.length; li++) {
+              const row = sortedLodging[li]!;
+              const city = row.city;
+              const segmentKey = row.segmentKey;
+              const selected = lodgingSelectedHotelBySegment[segmentKey] ?? null;
+              const manual = lodgingManualBySegment[segmentKey] || { name: "", address: "", notes: "" };
+              const name = String(selected?.name || manual.name || "").trim();
+              const address = String(manual.address || "").trim();
+              if (!name) continue;
+
+              const query = [address, city, destinationLabel].filter(Boolean).join(", ");
+              let latitude: number | null = null;
+              let longitude: number | null = null;
+              let formattedAddress: string | null = address || null;
+
+              if (query) {
+                const resp = await fetch("/api/geocode", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ address: query, tripId: created.tripId }),
+                });
+                const payload = await resp.json().catch(() => null);
+                if (resp.ok) {
+                  latitude = typeof payload?.latitude === "number" ? payload.latitude : null;
+                  longitude = typeof payload?.longitude === "number" ? payload.longitude : null;
+                  formattedAddress = typeof payload?.formattedAddress === "string" ? payload.formattedAddress : formattedAddress;
+                }
+              }
+
+              const baseMin = 12 * 60 + 20;
+              const m = baseMin + li * 4;
+              const hh = Math.floor(m / 60);
+              const mm = m % 60;
+              const activity_time = `${String(Math.min(23, hh)).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+
+              const notesParts: string[] = [];
+              if (selected?.url) notesParts.push(`Web: ${selected.url}`);
+              if (manual.notes?.trim()) notesParts.push(manual.notes.trim());
+              const notes = notesParts.length ? notesParts.join("\n\n") : null;
+
+              const destParts = destinationLabel
+                .split(/[,|;]+/g)
+                .map((s) => s.trim())
+                .filter(Boolean);
+              const countryHint = destParts.length > 1 ? destParts[destParts.length - 1]! : destParts[0] || null;
+
+              await fetch("/api/trip-reservations", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  tripId: created.tripId,
+                  reservation_type: "lodging",
+                  reservation_name: name,
+                  reservation_code: null,
+                  address: formattedAddress,
+                  city: city && city !== "Sin ciudad" ? city : null,
+                  country: countryHint,
+                  check_in_date: row.startDate || draftIntent?.startDate || null,
+                  check_in_time: activity_time,
+                  check_out_date: row.endDate || null,
+                  check_out_time: null,
+                  guests: null,
+                  total_amount: null,
+                  currency: "EUR",
+                  payment_status: "pending",
+                  notes,
+                  detected_document_type: "wizard_lodging",
+                  detected_data: { source: "trip_creation_wizard", segment_key: segmentKey },
+                  sync_to_plan: true,
+                  latitude,
+                  longitude,
+                }),
+              });
+            }
+          })();
         }
         return created.tripId;
       }
