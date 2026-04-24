@@ -826,7 +826,20 @@ export default function TripCreationWizard({ isPremium }: Props) {
       });
       const data = (await res.json().catch(() => null)) as any;
       if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "No se pudieron calcular alojamientos.");
-      if (data?.status !== "ok" || !data?.itinerary) throw new Error("Respuesta inesperada del servidor.");
+      if (data?.status === "needs_clarification") {
+        const payload = data as ApiNeedsClarification;
+        setDraftIntent(payload.draftIntent || null);
+        setQuestion(payload.question || "¿Puedes darme un detalle más?");
+        setStage("clarifying");
+        setStep(1);
+        setPreviewOpen(false);
+        scrollTop();
+        throw new Error(payload.question || "Falta información para calcular el plan.");
+      }
+      if (data?.status !== "ok" || !data?.itinerary) {
+        const detail = typeof data?.status === "string" ? `status=${data.status}` : "sin status";
+        throw new Error(`Respuesta inesperada del servidor (${detail}).`);
+      }
       setLodgingResolved(data.resolved || null);
       setLodgingItinerary(data.itinerary || null);
     } catch (e) {
@@ -1279,7 +1292,20 @@ export default function TripCreationWizard({ isPremium }: Props) {
       });
       const data = (await res.json().catch(() => null)) as any;
       if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "No se pudo previsualizar los planes.");
-      if (data?.status !== "ok" || !data?.itinerary) throw new Error("Respuesta inesperada del servidor.");
+      if (data?.status === "needs_clarification") {
+        const payload = data as ApiNeedsClarification;
+        setDraftIntent(payload.draftIntent || null);
+        setQuestion(payload.question || "¿Puedes darme un detalle más?");
+        setStage("clarifying");
+        setStep(1);
+        setPreviewOpen(false);
+        scrollTop();
+        return;
+      }
+      if (data?.status !== "ok" || !data?.itinerary) {
+        const detail = typeof data?.status === "string" ? `status=${data.status}` : "sin status";
+        throw new Error(`Respuesta inesperada del servidor (${detail}).`);
+      }
       setPreviewResolved(data.resolved || null);
       setPreviewItinerary(data.itinerary || null);
       setPreviewFast(Boolean(data?.fast));
