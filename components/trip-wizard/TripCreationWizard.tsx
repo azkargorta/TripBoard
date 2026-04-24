@@ -157,6 +157,21 @@ function inferPopularSuggestions(destinationRaw: string) {
   ];
 
   // Destinos por país/región
+  if (has("argentina")) {
+    return uniq([
+      "Buenos Aires",
+      "Cataratas del Iguazú",
+      "Puerto Iguazú",
+      "Mendoza",
+      "El Calafate",
+      "Glaciar Perito Moreno",
+      "Ushuaia",
+      "Bariloche",
+      "Salta",
+      "Córdoba",
+      "Mar del Plata",
+    ]);
+  }
   if (has("italia") || has("italy")) {
     return uniq([
       "Roma",
@@ -1706,7 +1721,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
                       </div>
                     </label>
 
-                    <label className="space-y-1">
+                    <div className="space-y-1">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-xs font-extrabold text-slate-700">Coherencia geográfica</span>
                         <details className="relative">
@@ -1739,23 +1754,47 @@ export default function TripCreationWizard({ isPremium }: Props) {
                           </div>
                         </details>
                       </div>
-                      <select
-                        value={autoConfig.geo.strictness ?? "balanced"}
-                        onChange={(e) => {
-                          const v = String(e.currentTarget.value || "");
-                          setAutoConfig((p) => {
-                            const strictness = v === "strict" || v === "loose" || v === "balanced" ? v : "balanced";
-                            return { ...p, geo: { ...p.geo, strictness } };
-                          });
-                        }}
-                        disabled={creatingOverlay}
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                      <div
+                        role="radiogroup"
+                        aria-label="Coherencia geográfica"
+                        className="grid grid-cols-3 gap-2"
                       >
-                        <option value="balanced">Equilibrada</option>
-                        <option value="strict">Muy estricta</option>
-                        <option value="loose">Flexible</option>
-                      </select>
-                    </label>
+                        {(
+                          [
+                            { key: "balanced" as const, label: "Equilibrada" },
+                            { key: "strict" as const, label: "Muy estricta" },
+                            { key: "loose" as const, label: "Flexible" },
+                          ] as const
+                        ).map((opt) => {
+                          const active = (autoConfig.geo.strictness ?? "balanced") === opt.key;
+                          return (
+                            <button
+                              key={opt.key}
+                              type="button"
+                              disabled={creatingOverlay}
+                              onClick={() =>
+                                setAutoConfig((p) => ({ ...p, geo: { ...p.geo, strictness: opt.key } }))
+                              }
+                              className={`min-h-[42px] rounded-2xl border px-3 py-2 text-xs font-extrabold transition ${
+                                active
+                                  ? "border-violet-300 bg-violet-50 text-violet-900"
+                                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                              } disabled:opacity-60`}
+                              aria-pressed={active}
+                            >
+                              {opt.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <input
+                        value={autoConfig.geo.strictness ?? "balanced"}
+                        readOnly
+                        aria-hidden
+                        tabIndex={-1}
+                        className="sr-only"
+                      />
+                    </div>
 
                   </div>
 
