@@ -70,6 +70,22 @@ function buildGeocodeQuery(opts: { placeName: string | null; address: string | n
   return parts.join(", ");
 }
 
+function validCoord(n: unknown) {
+  return typeof n === "number" && Number.isFinite(n);
+}
+
+function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const R = 6371;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLon = ((b.lng - a.lng) * Math.PI) / 180;
+  const lat1 = (a.lat * Math.PI) / 180;
+  const lat2 = (b.lat * Math.PI) / 180;
+  const s1 = Math.sin(dLat / 2);
+  const s2 = Math.sin(dLon / 2);
+  const h = s1 * s1 + Math.cos(lat1) * Math.cos(lat2) * s2 * s2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
 async function runWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
   if (!items.length) return [];
   const results = new Array<R>(items.length);
@@ -241,6 +257,8 @@ export async function executePlanOnTrip(params: {
       place_name: string | null;
       address: string | null;
       activity_kind: string;
+      latHint: number | null;
+      lngHint: number | null;
     };
 
     const prepared: PreparedRow[] = [];
@@ -260,7 +278,9 @@ export async function executePlanOnTrip(params: {
         const place_name = typeof item?.place_name === "string" ? item.place_name.trim() : null;
         const address = typeof item?.address === "string" ? item.address.trim() : null;
         const activity_kind = normalizeKind(item?.activity_kind ?? null);
-        prepared.push({ date, item, title, place_name, address, activity_kind });
+        const latHint = validCoord((item as any)?.latitude) ? Number((item as any).latitude) : null;
+        const lngHint = validCoord((item as any)?.longitude) ? Number((item as any).longitude) : null;
+        prepared.push({ date, item, title, place_name, address, activity_kind, latHint, lngHint });
       }
     }
 
@@ -270,10 +290,22 @@ export async function executePlanOnTrip(params: {
       const query = buildGeocodeQuery({ placeName: r.place_name, address: r.address, tripDestination });
       let latitude: number | null = null;
       let longitude: number | null = null;
+
+      // Si la IA devolvió coordenadas, solo las aceptamos si están cerca del ancla del viaje.
+      if (typeof r.latHint === "number" && typeof r.lngHint === "number") {
+        const hinted = { lat: r.latHint, lng: r.lngHint };
+        const dist = anchor ? haversineKm(anchor, hinted) : 0;
+        // 650km es suficientemente amplio para viajes multi-ciudad dentro del país, pero evita saltos a otro país/continente.
+        if (!anchor || dist <= 650) {
+          latitude = hinted.lat;
+          longitude = hinted.lng;
+        }
+      }
+
       if (query) {
         const geo = await geocodeForItineraryItem(query);
-        latitude = geo.latitude ?? null;
-        longitude = geo.longitude ?? null;
+        latitude = geo.latitude ?? latitude;
+        longitude = geo.longitude ?? longitude;
         if (geo.formattedAddress) normalizedAddress = geo.formattedAddress;
       }
       if ((latitude == null || longitude == null) && tripDestination) {

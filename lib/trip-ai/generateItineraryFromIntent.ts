@@ -8,6 +8,7 @@ import { geocodePhotonPreferred, geocodeTripAnchor, regionHintsFromDestination }
 import type { TripAutoConfig } from "@/lib/trip-ai/tripAutoConfig";
 import { DEFAULT_TRIP_AUTO_CONFIG } from "@/lib/trip-ai/tripAutoConfig";
 import { sanityCheckItinerary, sanityCheckPlaceholders } from "@/lib/trip-ai/itinerarySanity";
+import { deriveRouteStructure, type RouteStructure } from "@/lib/trip-ai/routeStructure";
 
 const ITIN_PROMPT = `Genera un itinerario JSON para la app Kaviro. Devuelve SOLO JSON válido (sin markdown).
 Esquema exacto:
@@ -25,6 +26,8 @@ Esquema exacto:
           "activity_kind": "visit"|"food"|"museum"|"transport"|"nightlife"|"shopping"|"lodging",
           "place_name": string,
           "address": string con ciudad y país,
+          "latitude": number|null,
+          "longitude": number|null,
           "start_time": "HH:MM",
           "notes": string|null
         }
@@ -42,6 +45,7 @@ Reglas:
 - **address (MUY IMPORTANTE):** en cada item debe figurar la **ciudad y el país del viaje** del "Destino principal" (ej. comercio en Venecia → "…, Venecia, Italia"). No uses solo nombres de calle o de establecimiento que puedan existir en otro país (ej. evita "Calle Venecia" sin ciudad/país si el viaje es Italia).
 - **País (CRÍTICO):** todos los items deben estar dentro del país del viaje. Si el destino es Croacia, el país en address debe ser "Croacia/Croatia" (nunca Argentina u otro país). Si dudas, usa la ciudad base del día + el país del destino.
 - **place_name:** el nombre visible del sitio en la zona del destino (no inventes sucursales en países distintos al del viaje).
+- **latitude/longitude (opcional):** si conoces coordenadas reales del lugar, inclúyelas. Si no estás seguro, pon null. No inventes.
 - version siempre 1.
 - travelMode "walking" si el usuario prefiere andar o ciudad compacta; si no, "driving".
 - Si el usuario ha pedido paradas obligatorias (mustSee), DEBES incluirlas como items (title/place_name) repartiéndolas por los días disponibles.
@@ -643,28 +647,45 @@ ${baseContext.optimizeHint}
  */
 export async function generateExecutableItineraryFastFromIntent(
   resolved: ResolvedTripCreation,
-  options?: { config?: TripAutoConfig | null }
+  options?: { config?: TripAutoConfig | null; structure?: RouteStructure | null }
 ): Promise<{ itinerary: ExecutableItineraryPayload; usage: TripAiUsage }> {
   const cfg = options?.config || DEFAULT_TRIP_AUTO_CONFIG;
   const generateDays = Math.max(1, resolved.durationDays);
 
-  const baseCitySchedule = await buildBaseCitySchedule({
-    durationDays: generateDays,
-    destination: resolved.destination,
-    startCity: (resolved.intent.startLocation || "").trim(),
-    endCity: (resolved.intent.endLocation || "").trim(),
-    mustSee: normalizeMustSeeTokens(resolved.intent.mustSee || []),
-    lodgingBaseMode: cfg.lodging.baseCityMode,
-    lodgingBaseCity: cfg.lodging.baseCity,
-  });
+  const structure =
+    options?.structure?.version === 1 && Array.isArray(options.structure.baseCityByDay) && options.structure.baseCityByDay.length
+      ? options.structure
+      : await deriveRouteStructure({ resolved, config: cfg });
+  const baseCitySchedule = structure.baseCityByDay.slice(0, generateDays);
 
   const daysOut: ExecutableItineraryPayload["days"] = [];
   for (let i = 0; i < generateDays; i++) {
     const baseCity = String(baseCitySchedule[i] || resolved.destination).trim() || resolved.destination;
+    const prevBase = i >= 1 ? String(baseCitySchedule[i - 1] || "").trim() : "";
+    const isChange = i >= 1 && prevBase && prevBase.toLowerCase() !== baseCity.toLowerCase();
+    const baseItems = fallbackDayItems({
+      destination: resolved.destination,
+      baseCity,
+      minItems: cfg.pace.itemsPerDayMin,
+      maxItems: cfg.pace.itemsPerDayMax,
+    });
+    const items = isChange
+      ? [
+          {
+            title: `Traslado ${prevBase} → ${baseCity}`,
+            activity_kind: "transport",
+            place_name: `${prevBase} → ${baseCity}`,
+            address: `${prevBase} → ${baseCity}, ${resolved.destination}`,
+            start_time: "08:30",
+            notes: (cfg.transport.notes || "").trim() ? `Preferencias: ${cfg.transport.notes.trim()}` : null,
+          },
+          ...baseItems.slice(0, Math.max(1, cfg.pace.itemsPerDayMax - 1)),
+        ]
+      : baseItems;
     daysOut.push({
       day: i + 1,
       date: addDaysIso(resolved.startDate, i),
-      items: fallbackDayItems({ destination: resolved.destination, baseCity }),
+      items,
     });
   }
 
@@ -684,10 +705,10 @@ export async function generateExecutableItineraryFastFromIntent(
   };
 }
 
-function fallbackDayItems(params: { destination: string; baseCity: string }) {
+function fallbackDayItems(params: { destination: string; baseCity: string; minItems?: number; maxItems?: number }) {
   const city = params.baseCity || params.destination;
   const country = params.destination;
-  return [
+  const base = [
     {
       title: `Paseo por el centro de ${city}`,
       activity_kind: "visit",
@@ -720,7 +741,21 @@ function fallbackDayItems(params: { destination: string; baseCity: string }) {
       start_time: "20:30",
       notes: null,
     },
-  ] as any[];
+  ];
+  const min = typeof params.minItems === "number" ? Math.max(1, Math.round(params.minItems)) : 3;
+  const max = typeof params.maxItems === "number" ? Math.max(min, Math.round(params.maxItems)) : 5;
+  const sliced = base.slice(0, Math.min(base.length, max));
+  while (sliced.length < min) {
+    sliced.push({
+      title: `Explorar barrio local en ${city}`,
+      activity_kind: "visit",
+      place_name: city,
+      address: `${city}, ${country}`,
+      start_time: sliced.length === 4 ? "21:00" : "18:00",
+      notes: null,
+    } as any);
+  }
+  return sliced as any[];
 }
 
 function normalizeChunkDays(

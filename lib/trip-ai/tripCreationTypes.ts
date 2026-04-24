@@ -34,6 +34,9 @@ export type ItineraryItemPayload = {
   activity_kind?: string | null;
   place_name?: string | null;
   address?: string | null;
+  /** Coordenadas opcionales sugeridas por IA (se validan en servidor). */
+  latitude?: number | null;
+  longitude?: number | null;
   start_time?: string | null;
   notes?: string | null;
 };

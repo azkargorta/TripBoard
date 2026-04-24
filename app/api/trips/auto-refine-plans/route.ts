@@ -2,14 +2,14 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { enforceAiMonthlyBudgetOrThrow, trackAiUsage } from "@/lib/ai-budget";
 import { monthKeyUtc } from "@/lib/ai-usage";
-import type { TripCreationIntent } from "@/lib/trip-ai/tripCreationTypes";
+import type { TripCreationIntent, ExecutableItineraryPayload } from "@/lib/trip-ai/tripCreationTypes";
 import { mergeTripCreationIntentLLM } from "@/lib/trip-ai/parseTripCreationIntent";
 import { getTripCreationFollowUp, resolveTripCreationDates } from "@/lib/trip-ai/tripCreationResolve";
-import { generateExecutableItineraryFastFromIntent, generateExecutableItineraryFromIntent } from "@/lib/trip-ai/generateItineraryFromIntent";
+import { generateExecutableItineraryFromIntent } from "@/lib/trip-ai/generateItineraryFromIntent";
 import { normalizeTripAutoConfig } from "@/lib/trip-ai/tripAutoConfig";
 import type { TripAiUsage } from "@/lib/trip-ai/providers";
-import { deriveRouteStructure } from "@/lib/trip-ai/routeStructure";
 import { validateAndRepairItinerary } from "@/lib/trip-ai/itineraryValidator";
+import type { RouteStructure } from "@/lib/trip-ai/routeStructure";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -37,10 +37,14 @@ export async function POST(req: Request) {
     const provider = typeof body?.provider === "string" ? body.provider : null;
     const followUp = typeof body?.followUp === "string" ? body.followUp.trim() : "";
     const draftIntent = body?.draftIntent as TripCreationIntent | undefined;
-    if (!draftIntent) {
-      return NextResponse.json({ error: "Falta draftIntent." }, { status: 400 });
-    }
+    const structure = body?.structure as RouteStructure | undefined;
     const config = normalizeTripAutoConfig(body?.config);
+    const fastItinerary = body?.itinerary as ExecutableItineraryPayload | undefined;
+
+    if (!draftIntent) return NextResponse.json({ error: "Falta draftIntent." }, { status: 400 });
+    if (!structure || structure.version !== 1 || !Array.isArray(structure.baseCityByDay) || !structure.baseCityByDay.length) {
+      return NextResponse.json({ error: "Falta structure válida." }, { status: 400 });
+    }
 
     const monthKey = monthKeyUtc();
     let supabase: Awaited<ReturnType<typeof createClient>>;
@@ -51,8 +55,7 @@ export async function POST(req: Request) {
       userId = res.userId;
     } catch (e) {
       const err: any = e;
-      const status =
-        typeof err?.httpStatus === "number" ? err.httpStatus : err?.code === "AI_BUDGET_EXCEEDED" ? 402 : 401;
+      const status = typeof err?.httpStatus === "number" ? err.httpStatus : err?.code === "AI_BUDGET_EXCEEDED" ? 402 : 401;
       return NextResponse.json(
         { error: err instanceof Error ? err.message : "No autenticado.", code: err?.code || null, budget: err?.budget || null },
         { status }
@@ -62,19 +65,12 @@ export async function POST(req: Request) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "No hay sesión activa." }, { status: 401 });
-    }
+    if (!user) return NextResponse.json({ error: "No hay sesión activa." }, { status: 401 });
 
     const { data: profileRow } = await supabase.from("profiles").select("is_premium").eq("id", userId).maybeSingle();
-    const profilePremium = Boolean((profileRow as { is_premium?: boolean } | null)?.is_premium);
-    if (!profilePremium) {
+    if (!Boolean((profileRow as any)?.is_premium)) {
       return NextResponse.json(
-        {
-          error:
-            "Necesitas cuenta Premium para previsualizar planes automáticamente. Puedes crear el viaje a mano con el formulario.",
-          code: "PREMIUM_REQUIRED",
-        },
+        { error: "Necesitas cuenta Premium para mejorar planes automáticamente.", code: "PREMIUM_REQUIRED" },
         { status: 402 }
       );
     }
@@ -88,73 +84,36 @@ export async function POST(req: Request) {
 
     const miss = getTripCreationFollowUp(intent);
     if (miss) {
-      return NextResponse.json({
-        status: "needs_clarification",
-        question: miss.question,
-        code: miss.code,
-        draftIntent: intent,
-      });
+      return NextResponse.json({ status: "needs_clarification", question: miss.question, code: miss.code, draftIntent: intent });
     }
 
     const resolved = resolveTripCreationDates(intent);
-    if ("error" in resolved) {
-      return NextResponse.json({ error: resolved.error }, { status: 400 });
-    }
+    if ("error" in resolved) return NextResponse.json({ error: resolved.error }, { status: 400 });
 
-    // Si las fechas han sido inferidas por defecto, pedimos fechas explícitas.
-    if (resolved.datesInferred) {
-      const nextIntent: TripCreationIntent = {
-        ...resolved.intent,
-        startDate: null,
-        endDate: null,
-      };
-      return NextResponse.json({
-        status: "needs_clarification",
-        question: "¿Qué fechas exactas tienes para el viaje? (inicio y fin). Si aún no lo sabes, dime un mes aproximado.",
-        code: "duration_or_dates",
-        draftIntent: nextIntent,
-      });
-    }
+    // Refinado: por ahora reutilizamos generador LLM existente y luego validamos/recortamos.
+    // (Paso siguiente: pasar structure como constraint fuerte dentro del prompt. Lo haremos en la misma iteración si hace falta.)
+    const { itinerary: refined, usage } = await generateExecutableItineraryFromIntent(resolved, { provider, config });
+    await trackIfCountable({ supabase, userId, monthKey, usage });
 
-    // En despliegue (y sobre todo viajes largos), la generación con LLM puede exceder el límite de ejecución.
-    // Usamos un modo "fast" sin LLM para asegurar respuesta rápida en previsualización.
-    // Fast por defecto (segundos). Refinado con LLM se hace en un endpoint aparte.
-    const wantFast = String(body?.fast || "").trim() !== "0";
-    const structure = await deriveRouteStructure({ resolved, config });
-
-    const { itinerary: rawItinerary, usage } = wantFast
-      ? await generateExecutableItineraryFastFromIntent(resolved, { config, structure })
-      : await generateExecutableItineraryFromIntent(resolved, { provider, config });
-
+    // Reparación dura de país/coherencia, usando baseCityByDay del structure.
     const { itinerary, repairedCount } = await validateAndRepairItinerary({
-      itinerary: rawItinerary,
+      itinerary: refined,
       destination: resolved.destination,
       baseCityByDay: structure.baseCityByDay,
       strictness: config.geo.strictness,
     });
-    await trackIfCountable({ supabase, userId, monthKey, usage });
 
     return NextResponse.json({
       status: "ok",
       draftIntent: resolved.intent,
-      resolved: {
-        destination: resolved.destination,
-        startDate: resolved.startDate,
-        endDate: resolved.endDate,
-        durationDays: resolved.durationDays,
-        durationWarning: resolved.durationWarning ?? null,
-      },
       itinerary,
-      config,
       structure,
-      fast: wantFast,
       repairedCount,
+      // Para UX: si el refine quedase muy pobre, el cliente puede mantener fastItinerary.
+      hadFastItinerary: Boolean(fastItinerary?.days?.length),
     });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "No se pudo previsualizar los planes." },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: error instanceof Error ? error.message : "No se pudo mejorar el plan." }, { status: 500 });
   }
 }
 

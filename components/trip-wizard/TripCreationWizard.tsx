@@ -423,6 +423,8 @@ export default function TripCreationWizard({ isPremium }: Props) {
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewItinerary, setPreviewItinerary] = useState<ExecutableItineraryPayload | null>(null);
   const [previewResolved, setPreviewResolved] = useState<PreviewPlansOk["resolved"] | null>(null);
+  const [previewFast, setPreviewFast] = useState(false);
+  const [previewStructure, setPreviewStructure] = useState<any | null>(null);
   const [previewMemory, setPreviewMemory] = useState<{
     itinerary: ExecutableItineraryPayload;
     resolved: PreviewPlansOk["resolved"] | null;
@@ -456,6 +458,8 @@ export default function TripCreationWizard({ isPremium }: Props) {
   >(null);
   const [previewEditorSaving, setPreviewEditorSaving] = useState(false);
   const [previewEditorError, setPreviewEditorError] = useState<string | null>(null);
+  const [previewRefineLoading, setPreviewRefineLoading] = useState(false);
+  const [previewRefineError, setPreviewRefineError] = useState<string | null>(null);
 
   const [lodgingLoading, setLodgingLoading] = useState(false);
   const [lodgingError, setLodgingError] = useState<string | null>(null);
@@ -649,6 +653,9 @@ export default function TripCreationWizard({ isPremium }: Props) {
   }, []);
 
   const lodgingCities = useMemo(() => {
+    if (previewStructure && Array.isArray((previewStructure as any)?.segments) && (previewStructure as any).segments.length) {
+      return (previewStructure as any).segments;
+    }
     const itin = lodgingItinerary || previewItinerary;
     if (!itin?.days?.length) return [];
 
@@ -754,7 +761,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
       if (byDate !== 0) return byDate;
       return b.nights - a.nights;
     });
-  }, [lodgingItinerary, previewItinerary]);
+  }, [lodgingItinerary, previewItinerary, previewStructure]);
 
   function hotelOptionsFor(city: string, tier: "asequible" | "medio" | "lujo", resolvedLabel: string) {
     const base = encodeURIComponent(`${city} hotel ${resolvedLabel}`.trim());
@@ -1065,9 +1072,12 @@ export default function TripCreationWizard({ isPremium }: Props) {
     setPreviewOpen(true);
     setPreviewLoading(true);
     setPreviewError(null);
+    setPreviewFast(false);
+    setPreviewStructure(null);
     setPreviewExpandedDays(new Set());
     setPreviewEditor(null);
     setPreviewEditorError(null);
+    setPreviewRefineError(null);
     // Al recalcular, reseteamos el “cache” de alojamientos para que se derive de este nuevo itinerario.
     setLodgingError(null);
     setLodgingResolved(null);
@@ -1088,6 +1098,8 @@ export default function TripCreationWizard({ isPremium }: Props) {
       if (data?.status !== "ok" || !data?.itinerary) throw new Error("Respuesta inesperada del servidor.");
       setPreviewResolved(data.resolved || null);
       setPreviewItinerary(data.itinerary || null);
+      setPreviewFast(Boolean(data?.fast));
+      setPreviewStructure(data?.structure || null);
       {
         const key = JSON.stringify({
           intent: { ...draftIntent, mustSee: derivedPlaces, wantsRouteOptimization: optimizeOrder },
@@ -1103,10 +1115,49 @@ export default function TripCreationWizard({ isPremium }: Props) {
       setPreviewError(e instanceof Error ? e.message : "No se pudo previsualizar los planes.");
       setPreviewItinerary(null);
       setPreviewResolved(null);
+      setPreviewFast(false);
+      setPreviewStructure(null);
       setLodgingResolved(null);
       setLodgingItinerary(null);
     } finally {
       setPreviewLoading(false);
+    }
+  }
+
+  async function refinePreviewPlans() {
+    if (!draftIntent || previewLoading || previewRefineLoading) return;
+    if (!previewStructure) {
+      setPreviewRefineError("No hay estructura de viaje para mejorar el plan. Recalcula planes primero.");
+      return;
+    }
+    setPreviewRefineLoading(true);
+    setPreviewRefineError(null);
+    try {
+      const res = await fetch("/api/trips/auto-refine-plans", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: "gemini",
+          draftIntent: { ...draftIntent, mustSee: derivedPlaces, wantsRouteOptimization: optimizeOrder },
+          followUp: planChangeNotes.trim() ? `Cambios solicitados para el plan: ${planChangeNotes.trim()}` : "",
+          config: normalizeTripAutoConfig(autoConfig),
+          structure: previewStructure,
+          itinerary: previewItinerary,
+        }),
+      });
+      const data = (await res.json().catch(() => null)) as any;
+      if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "No se pudo mejorar el plan.");
+      if (data?.status !== "ok" || !data?.itinerary) throw new Error("Respuesta inesperada al mejorar el plan.");
+      setPreviewItinerary(data.itinerary || null);
+      setPreviewFast(false);
+      // Lodging debe derivarse del nuevo itinerario
+      setLodgingResolved(data.resolved || previewResolved || null);
+      setLodgingItinerary(data.itinerary || null);
+      setPreviewMemory((prev) => (prev ? { ...prev, itinerary: data.itinerary } : prev));
+    } catch (e) {
+      setPreviewRefineError(e instanceof Error ? e.message : "No se pudo mejorar el plan.");
+    } finally {
+      setPreviewRefineLoading(false);
     }
   }
 
@@ -2374,6 +2425,17 @@ export default function TripCreationWizard({ isPremium }: Props) {
                 <div className="inline-flex rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700">
                   Calendario
                 </div>
+                {previewFast ? (
+                  <button
+                    type="button"
+                    onClick={() => void refinePreviewPlans()}
+                    disabled={previewLoading || previewRefineLoading || !draftIntent}
+                    className="inline-flex min-h-10 items-center justify-center rounded-2xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-extrabold text-violet-950 hover:bg-violet-100 disabled:opacity-60"
+                    title="Mejorar el plan con el asistente (puede tardar un poco)"
+                  >
+                    {previewRefineLoading ? "Mejorando…" : "Mejorar plan"}
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={closePreviewModal}
@@ -2394,6 +2456,10 @@ export default function TripCreationWizard({ isPremium }: Props) {
                 ) : previewError ? (
                   <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
                     <span className="font-semibold">Error:</span> {previewError}
+                  </div>
+                ) : previewRefineError ? (
+                  <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
+                    <span className="font-semibold">Error:</span> {previewRefineError}
                   </div>
                 ) : previewItinerary?.days?.length ? (
                   <div className="space-y-3">
