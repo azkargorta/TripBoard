@@ -748,7 +748,12 @@ export default function TripCreationWizard({ isPremium }: Props) {
       const e = isIsoDate(draftIntent?.endDate) ? draftIntent?.endDate : null;
       const hasDates = Boolean(s && e && e >= s);
       const hasDuration = typeof draftIntent?.durationDays === "number" && draftIntent.durationDays >= 1;
-      return Boolean(dest) && (hasDates || hasDuration);
+      const hasStartCity = Boolean(String(draftIntent?.startLocation || "").trim());
+      const hasEndCity = Boolean(String(draftIntent?.endLocation || "").trim());
+      const hasTravelersType = Boolean(String(draftIntent?.travelersType || "").trim());
+      const hasTravelersCount =
+        typeof draftIntent?.travelersCount === "number" ? draftIntent.travelersCount >= 1 : true; // count es opcional
+      return Boolean(dest) && (hasDates || hasDuration) && hasStartCity && hasEndCity && hasTravelersType && hasTravelersCount;
     }
     if (step === 2) return Boolean(draftIntent);
     if (step === 3) return Boolean(draftIntent);
@@ -1853,7 +1858,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
               </label>
 
               <label className="space-y-1">
-                <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Origen (opcional)</span>
+                <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Ciudad de salida</span>
                 <input
                   value={String(draftIntent?.startLocation || "")}
                   onChange={(e) => setDraftIntent((prev) => ({ ...(prev || {}), startLocation: e.target.value || null }))}
@@ -1867,7 +1872,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
               </label>
 
               <label className="space-y-1">
-                <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Fin (opcional)</span>
+                <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Ciudad de vuelta</span>
                 <input
                   value={String(draftIntent?.endLocation || "")}
                   onChange={(e) => setDraftIntent((prev) => ({ ...(prev || {}), endLocation: e.target.value || null }))}
@@ -1877,21 +1882,46 @@ export default function TripCreationWizard({ isPremium }: Props) {
                   className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
                 />
               </label>
+
+              <label className="space-y-1">
+                <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Tipo de viaje</span>
+                <select
+                  value={String(draftIntent?.travelersType || travelersType || "couple")}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setTravelersType(v);
+                    setDraftIntent((prev) => ({ ...(prev || {}), travelersType: (v as any) || null }));
+                  }}
+                  disabled={loading}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                >
+                  <option value="couple">En pareja</option>
+                  <option value="friends">Con amigos</option>
+                  <option value="family">Con familia</option>
+                  <option value="solo">Solo</option>
+                </select>
+              </label>
+
+              <label className="space-y-1">
+                <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Nº viajeros</span>
+                <input
+                  value={typeof draftIntent?.travelersCount === "number" ? String(draftIntent.travelersCount) : ""}
+                  onChange={(e) => {
+                    const n = Number(e.target.value);
+                    const v = Number.isFinite(n) && n > 0 ? Math.min(50, Math.round(n)) : null;
+                    setTravelersCount(v);
+                    setDraftIntent((prev) => ({ ...(prev || {}), travelersCount: v }));
+                  }}
+                  disabled={loading}
+                  inputMode="numeric"
+                  placeholder="Ej. 2"
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                />
+              </label>
             </div>
 
-            <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-600">Opcional: cuéntame detalles</div>
-              <div className="mt-1 text-xs text-slate-600">
-                Si quieres, añade estilo/intereses. Si lo dejas vacío, no pasa nada.
-              </div>
-              <textarea
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                rows={3}
-                disabled={loading}
-                placeholder={PROMPT_EXAMPLE}
-                className="mt-3 w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
-              />
+            <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+              En el siguiente paso podrás afinar ritmo, presupuesto, intereses, horarios, comidas y restricciones.
             </div>
 
             <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -2354,20 +2384,14 @@ export default function TripCreationWizard({ isPremium }: Props) {
                   <button
                     type="button"
                     onClick={() => {
-                      setDraftIntent((prev) => ({
-                        ...(prev || {}),
-                        travelersType: (travelersType as any) || null,
-                        travelersCount: typeof travelersCount === "number" ? travelersCount : null,
-                      }));
                       setStep(3);
                       scrollTop();
-                      void previewPlans();
                     }}
                     disabled={!canContinue}
                     className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-extrabold text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-60"
                   >
                     <Check className="h-4 w-4" aria-hidden />
-                    Ver previsualización
+                    Continuar
                   </button>
                   <button
                     type="button"
@@ -3041,7 +3065,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
                     className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-violet-200 bg-violet-50 px-5 py-3 text-sm font-extrabold text-violet-950 shadow-sm hover:bg-violet-100 disabled:opacity-60"
                     title="Ver un calendario de planes propuestos (sin crear el viaje todavía)"
                   >
-                    {previewMemory ? "Ver planes" : "Ver previsualización"}
+                    {previewMemory ? "Ver planning" : "Calcular viaje"}
                   </button>
                   {previewMemory ? (
                     <button
