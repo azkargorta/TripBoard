@@ -523,8 +523,27 @@ export async function generateExecutableItineraryFromStructure(
 
   const runOnce = async (p: string) => {
     const { text, usage } = await askTripAIWithUsage(p, "planning", { provider });
-    const parsed = validateItinerary(extractJsonObject(text));
-    return { itinerary: parsed, usage };
+    try {
+      const parsed = validateItinerary(extractJsonObject(text));
+      return { itinerary: parsed, usage };
+    } catch (e1) {
+      // Reintento: a veces el modelo devuelve texto sin JSON (p.ej. por formato).
+      const retryPrompt =
+        `${p}\n\n` +
+        `IMPORTANTE: Debes responder con un ÚNICO objeto JSON válido. ` +
+        `La respuesta debe empezar con "{" y terminar con "}". No incluyas texto adicional.`;
+      const second = await askTripAIWithUsage(retryPrompt, "planning", { provider });
+      const parsed2 = validateItinerary(extractJsonObject(second.text));
+      return {
+        itinerary: parsed2,
+        usage: {
+          provider: usage.provider,
+          model: second.usage.model ?? usage.model,
+          inputTokens: (usage.inputTokens || 0) + (second.usage.inputTokens || 0),
+          outputTokens: (usage.outputTokens || 0) + (second.usage.outputTokens || 0),
+        },
+      };
+    }
   };
 
   // Estrategia de rendimiento:

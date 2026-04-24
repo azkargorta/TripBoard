@@ -94,7 +94,13 @@ export async function askGemini(prompt: string, mode: TripAiMode) {
     model: modelName,
     generationConfig: {
       temperature,
-      ...(mode === "planning" ? { maxOutputTokens: 6144 } : {}),
+      ...(mode === "planning"
+        ? {
+            maxOutputTokens: 6144,
+            // Forzar salida JSON cuando generamos itinerarios/estructura.
+            responseMimeType: "application/json",
+          }
+        : {}),
     },
   });
 
@@ -128,7 +134,12 @@ export async function askGeminiWithUsage(prompt: string, mode: TripAiMode): Prom
       model: modelName,
       generationConfig: {
         temperature,
-        ...(mode === "planning" ? { maxOutputTokens: 6144 } : {}),
+        ...(mode === "planning"
+          ? {
+              maxOutputTokens: 6144,
+              responseMimeType: "application/json",
+            }
+          : {}),
       },
     });
 
