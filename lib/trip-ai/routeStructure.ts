@@ -51,6 +51,7 @@ function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: num
 }
 
 function strictnessThresholdKm(strictness: TripAutoGeoStrictness): number {
+  if (strictness === "auto") return 240;
   if (strictness === "strict") return 140;
   if (strictness === "loose") return 380;
   return 240;

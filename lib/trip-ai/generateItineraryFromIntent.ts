@@ -458,6 +458,10 @@ export async function generateExecutableItineraryFromStructure(
     : [];
   while (baseCitySchedule.length < generateDays) baseCitySchedule.push(resolved.destination);
 
+  const distinctCities = new Set(baseCitySchedule.map((c) => String(c || "").trim().toLowerCase()).filter(Boolean)).size;
+  const effectiveStrictness =
+    cfg.geo.strictness === "auto" ? (cfg.lodging.baseCityMode === "single" || distinctCities <= 1 ? "strict" : "balanced") : cfg.geo.strictness;
+
   const mustSeeRaw = normalizeMustSeeTokens(resolved.intent.mustSee || []);
   const mustSeeOptimized = await optimizeMustSeeOrder(resolved, mustSeeRaw);
 
@@ -522,7 +526,7 @@ Destino principal: ${baseContext.destination}
 Ciudad/punto inicio (si existe): ${baseContext.start}
 Ciudad/punto fin (si existe): ${baseContext.end}
 Ritmo: entre ${cfg.pace.itemsPerDayMin} y ${cfg.pace.itemsPerDayMax} items por día.
-Coherencia geográfica: ${cfg.geo.strictness === "strict" ? "muy estricta" : cfg.geo.strictness === "loose" ? "flexible" : "equilibrada"}.
+Coherencia geográfica: ${effectiveStrictness === "strict" ? "muy estricta" : effectiveStrictness === "loose" ? "flexible" : "equilibrada"}.
 Preferencias de transporte: ${cfg.transport.notes || "—"}
 Fechas por día (SOLO estas fechas):
 ${chunkLines}

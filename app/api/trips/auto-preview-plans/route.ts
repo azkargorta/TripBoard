@@ -152,7 +152,12 @@ export async function POST(req: Request) {
       itinerary: rawItinerary,
       destination: resolved.destination,
       baseCityByDay: structure.baseCityByDay,
-      strictness: config.geo.strictness,
+      strictness:
+        config.geo.strictness === "auto"
+          ? new Set(structure.baseCityByDay.map((c) => String(c || "").trim().toLowerCase()).filter(Boolean)).size <= 1
+            ? "strict"
+            : "balanced"
+          : config.geo.strictness,
     });
     await trackIfCountable({ supabase, userId, monthKey, usage });
 

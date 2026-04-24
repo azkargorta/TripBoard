@@ -1,4 +1,4 @@
-export type TripAutoGeoStrictness = "strict" | "balanced" | "loose";
+export type TripAutoGeoStrictness = "auto" | "strict" | "balanced" | "loose";
 
 export type TripAutoConfig = {
   pace: {
@@ -23,7 +23,7 @@ export type TripAutoConfig = {
 
 export const DEFAULT_TRIP_AUTO_CONFIG: TripAutoConfig = {
   pace: { itemsPerDayMin: 3, itemsPerDayMax: 5 },
-  geo: { strictness: "balanced" },
+  geo: { strictness: "auto" },
   transport: { notes: "" },
   lodging: { mode: "proposal", baseCityMode: "rotate", baseCity: "" },
   routes: { enabled: true },
@@ -37,7 +37,7 @@ export function normalizeTripAutoConfig(input: unknown): TripAutoConfig {
 
   const strictnessRaw = str(i?.geo?.strictness || i?.geoStrictness || "");
   const strictness: TripAutoGeoStrictness =
-    strictnessRaw === "strict" || strictnessRaw === "loose" || strictnessRaw === "balanced"
+    strictnessRaw === "auto" || strictnessRaw === "strict" || strictnessRaw === "loose" || strictnessRaw === "balanced"
       ? strictnessRaw
       : DEFAULT_TRIP_AUTO_CONFIG.geo.strictness;
 

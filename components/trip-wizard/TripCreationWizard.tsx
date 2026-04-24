@@ -444,6 +444,8 @@ export default function TripCreationWizard({ isPremium }: Props) {
   const [followUp, setFollowUp] = useState("");
 
   const [draftIntent, setDraftIntent] = useState<TripCreationIntent | null>(null);
+  const [destinations, setDestinations] = useState<string[]>([]);
+  const [destinationAdd, setDestinationAdd] = useState("");
   const [places, setPlaces] = useState<string[]>([]);
   const [placeAdd, setPlaceAdd] = useState("");
   const [optimizeOrder, setOptimizeOrder] = useState(true);
@@ -515,6 +517,60 @@ export default function TripCreationWizard({ isPremium }: Props) {
   const [autoConfig, setAutoConfig] = useState<TripAutoConfig>(() => DEFAULT_TRIP_AUTO_CONFIG);
 
   const creatingOverlay = loading || creatingTripSilently;
+
+  // Destinos múltiples:
+  // - El primero es el "Destino principal" (se guarda en intent.destination).
+  // - El resto se añaden a mustSee para que entren en la estructura/plan.
+  useEffect(() => {
+    const raw = String(draftIntent?.destination || "").trim();
+    if (!raw) return;
+    if (destinations.length) return;
+    const initial = raw
+      .split(/[,;\n\r]+/g)
+      .map((x) => x.trim())
+      .filter(Boolean)
+      .slice(0, 10);
+    if (initial.length) setDestinations(initial);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftIntent?.destination]);
+
+  useEffect(() => {
+    if (!destinations.length) return;
+    setDraftIntent((prev) => {
+      const primary = destinations[0] || null;
+      const extras = destinations.slice(1);
+      const existing = Array.isArray(prev?.mustSee) ? prev!.mustSee!.map((x) => String(x || "").trim()).filter(Boolean) : [];
+      const mergedMustSee = normalizePlaces([...extras, ...existing]);
+      return { ...(prev || {}), destination: primary, mustSee: mergedMustSee };
+    });
+  }, [destinations]);
+
+  function addDestinationTag(raw: string) {
+    const v = String(raw || "").trim();
+    if (!v) return;
+    setDestinations((prev) => {
+      const next = normalizePlaces([...prev, v]).slice(0, 10);
+      return next;
+    });
+    setDestinationAdd("");
+  }
+
+  function removeDestinationTag(tag: string) {
+    setDestinations((prev) => prev.filter((x) => x !== tag));
+    // Si quitan todos, limpiamos destination para no bloquear canContinue.
+    setDraftIntent((prev) => {
+      const nextDest = destinations.filter((x) => x !== tag);
+      if (!nextDest.length) return { ...(prev || {}), destination: null };
+      return prev || null;
+    });
+  }
+
+  function makePrimaryDestination(tag: string) {
+    setDestinations((prev) => {
+      if (!prev.includes(tag)) return prev;
+      return [tag, ...prev.filter((x) => x !== tag)];
+    });
+  }
 
   function lodgingSearchBaseLabel() {
     const base = String(autoConfig?.lodging?.baseCity || "").trim();
@@ -1599,16 +1655,62 @@ export default function TripCreationWizard({ isPremium }: Props) {
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <label className="space-y-1 sm:col-span-2">
-                <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Destino principal</span>
-                <input
-                  value={String(draftIntent?.destination || "")}
-                  onChange={(e) =>
-                    setDraftIntent((prev) => ({ ...(prev || {}), destination: e.target.value.trim() || null }))
-                  }
-                  disabled={loading}
-                  placeholder="Ej. Argentina, Italia, Japón…"
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
-                />
+                <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Destinos (pueden ser varios)</span>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {destinations.map((tag, idx) => {
+                    const isPrimary = idx === 0;
+                    return (
+                      <span
+                        key={`${tag}-${idx}`}
+                        className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-extrabold ${
+                          isPrimary ? "border-violet-300 bg-violet-50 text-violet-950" : "border-slate-200 bg-white text-slate-800"
+                        }`}
+                        title={isPrimary ? "Destino principal" : "Click para hacerlo principal"}
+                      >
+                        <button
+                          type="button"
+                          disabled={loading}
+                          onClick={() => makePrimaryDestination(tag)}
+                          className="min-w-0 truncate text-left"
+                        >
+                          {isPrimary ? "Principal: " : ""}
+                          {tag}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={loading}
+                          onClick={() => removeDestinationTag(tag)}
+                          className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 disabled:opacity-60"
+                          title="Quitar"
+                          aria-label="Quitar destino"
+                        >
+                          <X className="h-3 w-3" aria-hidden />
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                  <input
+                    value={destinationAdd}
+                    onChange={(e) => setDestinationAdd(e.target.value)}
+                    disabled={loading}
+                    placeholder="Ej. Argentina · Uruguay · Buenos Aires · Iguazú…"
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => addDestinationTag(destinationAdd)}
+                    disabled={loading || !destinationAdd.trim()}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-slate-800 shadow-sm hover:bg-slate-50 disabled:opacity-60"
+                  >
+                    <Plus className="h-4 w-4" aria-hidden />
+                    Añadir
+                  </button>
+                </div>
+                <div className="mt-2 text-[11px] font-semibold text-slate-500">
+                  El primero es el <span className="font-extrabold">principal</span>; el resto se usarán como paradas/objetivos del plan.
+                </div>
               </label>
 
               <label className="space-y-1">
@@ -1641,7 +1743,8 @@ export default function TripCreationWizard({ isPremium }: Props) {
                 <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Origen (opcional)</span>
                 <input
                   value={String(draftIntent?.startLocation || "")}
-                  onChange={(e) =>
+                  onChange={(e) => setDraftIntent((prev) => ({ ...(prev || {}), startLocation: e.target.value || null }))}
+                  onBlur={(e) =>
                     setDraftIntent((prev) => ({ ...(prev || {}), startLocation: e.target.value.trim() || null }))
                   }
                   disabled={loading}
@@ -1654,9 +1757,8 @@ export default function TripCreationWizard({ isPremium }: Props) {
                 <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Fin (opcional)</span>
                 <input
                   value={String(draftIntent?.endLocation || "")}
-                  onChange={(e) =>
-                    setDraftIntent((prev) => ({ ...(prev || {}), endLocation: e.target.value.trim() || null }))
-                  }
+                  onChange={(e) => setDraftIntent((prev) => ({ ...(prev || {}), endLocation: e.target.value || null }))}
+                  onBlur={(e) => setDraftIntent((prev) => ({ ...(prev || {}), endLocation: e.target.value.trim() || null }))}
                   disabled={loading}
                   placeholder="Ej. Buenos Aires"
                   className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
@@ -1998,25 +2100,30 @@ export default function TripCreationWizard({ isPremium }: Props) {
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-xs font-extrabold text-slate-700">Coherencia geográfica</span>
                         </div>
-                        <div role="radiogroup" aria-label="Coherencia geográfica" className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                        <div
+                          role="radiogroup"
+                          aria-label="Coherencia geográfica"
+                          className="flex w-full gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-slate-50 p-1"
+                        >
                           {(
                             [
+                              { key: "auto" as const, label: "Auto" },
                               { key: "balanced" as const, label: "Equilibrada" },
-                              { key: "strict" as const, label: "Muy estricta" },
+                              { key: "strict" as const, label: "Estricta" },
                               { key: "loose" as const, label: "Flexible" },
                             ] as const
                           ).map((opt) => {
-                            const active = (autoConfig.geo.strictness ?? "balanced") === opt.key;
+                            const active = (autoConfig.geo.strictness ?? "auto") === opt.key;
                             return (
                               <button
                                 key={opt.key}
                                 type="button"
                                 disabled={creatingOverlay}
                                 onClick={() => setAutoConfig((p) => ({ ...p, geo: { ...p.geo, strictness: opt.key } }))}
-                                className={`min-h-[42px] min-w-0 whitespace-normal break-words leading-tight rounded-2xl border px-3 py-2 text-xs font-extrabold transition ${
+                                className={`min-h-[42px] shrink-0 whitespace-nowrap rounded-xl border px-3 py-2 text-xs font-extrabold transition ${
                                   active
-                                    ? "border-violet-300 bg-violet-50 text-violet-900"
-                                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                                    ? "border-violet-300 bg-white text-violet-900 shadow-sm"
+                                    : "border-transparent bg-transparent text-slate-700 hover:bg-white"
                                 } disabled:opacity-60`}
                                 aria-pressed={active}
                               >
@@ -2116,7 +2223,8 @@ export default function TripCreationWizard({ isPremium }: Props) {
                     <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Origen</span>
                     <input
                       value={(draftIntent?.startLocation || "") ?? ""}
-                      onChange={(e) =>
+                      onChange={(e) => setDraftIntent((prev) => ({ ...(prev || {}), startLocation: e.target.value || null }))}
+                      onBlur={(e) =>
                         setDraftIntent((prev) => ({ ...(prev || {}), startLocation: e.target.value.trim() || null }))
                       }
                       disabled={loading}
@@ -2127,9 +2235,8 @@ export default function TripCreationWizard({ isPremium }: Props) {
                     <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Destino</span>
                     <input
                       value={(draftIntent?.endLocation || "") ?? ""}
-                      onChange={(e) =>
-                        setDraftIntent((prev) => ({ ...(prev || {}), endLocation: e.target.value.trim() || null }))
-                      }
+                      onChange={(e) => setDraftIntent((prev) => ({ ...(prev || {}), endLocation: e.target.value || null }))}
+                      onBlur={(e) => setDraftIntent((prev) => ({ ...(prev || {}), endLocation: e.target.value.trim() || null }))}
                       disabled={loading}
                       className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
                     />
@@ -2256,16 +2363,17 @@ export default function TripCreationWizard({ isPremium }: Props) {
                       <div
                         role="radiogroup"
                         aria-label="Coherencia geográfica"
-                        className="grid grid-cols-1 gap-2 sm:grid-cols-3"
+                        className="flex w-full gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-slate-50 p-1"
                       >
                         {(
                           [
+                            { key: "auto" as const, label: "Auto" },
                             { key: "balanced" as const, label: "Equilibrada" },
-                            { key: "strict" as const, label: "Muy estricta" },
+                            { key: "strict" as const, label: "Estricta" },
                             { key: "loose" as const, label: "Flexible" },
                           ] as const
                         ).map((opt) => {
-                          const active = (autoConfig.geo.strictness ?? "balanced") === opt.key;
+                          const active = (autoConfig.geo.strictness ?? "auto") === opt.key;
                           return (
                             <button
                               key={opt.key}
@@ -2274,10 +2382,10 @@ export default function TripCreationWizard({ isPremium }: Props) {
                               onClick={() =>
                                 setAutoConfig((p) => ({ ...p, geo: { ...p.geo, strictness: opt.key } }))
                               }
-                              className={`min-h-[42px] min-w-0 whitespace-normal break-words leading-tight rounded-2xl border px-3 py-2 text-xs font-extrabold transition ${
+                              className={`min-h-[42px] shrink-0 whitespace-nowrap rounded-xl border px-3 py-2 text-xs font-extrabold transition ${
                                 active
-                                  ? "border-violet-300 bg-violet-50 text-violet-900"
-                                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                                  ? "border-violet-300 bg-white text-violet-900 shadow-sm"
+                                  : "border-transparent bg-transparent text-slate-700 hover:bg-white"
                               } disabled:opacity-60`}
                               aria-pressed={active}
                             >
