@@ -14,7 +14,7 @@ type Props = {
   isAdmin?: boolean;
 };
 
-type WizardStep = 1 | 2;
+type WizardStep = 1 | 2 | 3;
 
 type ApiNeedsClarification = {
   status: "needs_clarification";
@@ -60,7 +60,8 @@ type LodgingSeg = {
 
 const STEP_LABELS: Array<{ step: WizardStep; label: string }> = [
   { step: 1, label: "Datos" },
-  { step: 2, label: "Plan" },
+  { step: 2, label: "Preferencias" },
+  { step: 3, label: "Plan" },
 ];
 
 const PROMPT_EXAMPLE =
@@ -291,6 +292,7 @@ function cityFromAddress(addressRaw: string) {
 
 function clampStep(n: number): WizardStep {
   if (n <= 1) return 1;
+  if (n >= 3) return 3;
   return 2;
 }
 
@@ -590,6 +592,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
       return Boolean(dest) && (hasDates || hasDuration);
     }
     if (step === 2) return Boolean(draftIntent);
+    if (step === 3) return Boolean(draftIntent);
     return true;
   }, [draftIntent, loading, step]);
 
@@ -617,7 +620,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
   }, [prompt, tripIdeas]);
 
   useEffect(() => {
-    if (step !== 2) return;
+    if (step < 2) return;
     if (!draftIntent) return;
     // Asegura que "Optimizar orden" esté activado por defecto (si el usuario no lo ha tocado).
     if (!optimizeTouched) {
@@ -1670,6 +1673,269 @@ export default function TripCreationWizard({ isPremium }: Props) {
         ) : null}
 
         {step === 2 ? (
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
+            <div className="min-w-0 space-y-4">
+              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="text-base font-extrabold text-slate-950">Preferencias</div>
+                <p className="mt-1 text-sm text-slate-600">
+                  Ajusta el estilo del viaje. En el siguiente paso verás la previsualización y podrás crear el viaje.
+                </p>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <label className="space-y-1">
+                    <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Tipo de viajeros</span>
+                    <select
+                      value={travelersType}
+                      onChange={(e) => setTravelersType(e.target.value)}
+                      disabled={loading}
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                    >
+                      <option value="solo">Solo</option>
+                      <option value="couple">En pareja</option>
+                      <option value="friends">Con amigos</option>
+                      <option value="family">Con familia</option>
+                    </select>
+                  </label>
+
+                  <label className="space-y-1">
+                    <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Nº viajeros (opcional)</span>
+                    <input
+                      value={typeof travelersCount === "number" ? String(travelersCount) : ""}
+                      onChange={(e) => {
+                        const n = Number(e.target.value);
+                        setTravelersCount(Number.isFinite(n) && n > 0 ? Math.min(50, Math.round(n)) : null);
+                      }}
+                      inputMode="numeric"
+                      disabled={loading}
+                      placeholder="Ej. 2"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                    />
+                  </label>
+                </div>
+
+                <label className="mt-3 block space-y-1">
+                  <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Nombres (opcional)</span>
+                  <input
+                    value={travelerNamesText}
+                    onChange={(e) => setTravelerNamesText(e.target.value)}
+                    disabled={loading}
+                    placeholder="Ej. Unai, Ainhoa, ... (separados por comas)"
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                  />
+                </label>
+
+                <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Imprescindibles</div>
+                  <p className="mt-1 text-sm text-slate-600">Añade ciudades o sitios que quieres sí o sí.</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {derivedPlaces.map((tag) => (
+                      <span
+                        key={tag}
+                        className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-800"
+                      >
+                        {tag}
+                        <button
+                          type="button"
+                          onClick={() => removePlaceTag(tag)}
+                          className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
+                          title="Quitar"
+                        >
+                          <X className="h-3 w-3" aria-hidden />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                    <input
+                      value={placeAdd}
+                      onChange={(e) => setPlaceAdd(e.target.value)}
+                      disabled={loading}
+                      placeholder={placesPlaceholder}
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => addPlaceTag(placeAdd)}
+                      disabled={loading || !placeAdd.trim()}
+                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-slate-800 shadow-sm hover:bg-slate-50 disabled:opacity-60"
+                    >
+                      <Plus className="h-4 w-4" aria-hidden />
+                      Añadir
+                    </button>
+                  </div>
+                </div>
+
+                <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-violet-600"
+                    checked={optimizeOrder}
+                    disabled={loading}
+                    onChange={(e) => {
+                      const v = Boolean(e.target.checked);
+                      setOptimizeTouched(true);
+                      setOptimizeOrder(v);
+                      setDraftIntent((prev) => ({ ...(prev || {}), wantsRouteOptimization: v }));
+                    }}
+                  />
+                  <span className="min-w-0">
+                    <span className="font-extrabold text-slate-950">Optimizar orden</span>{" "}
+                    <span className="text-slate-600">(reduce traslados)</span>
+                  </span>
+                </label>
+
+                <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50 px-4 py-3">
+                    <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-700">
+                      Ajustes de generación
+                      <span className="ml-2 font-semibold tracking-normal text-slate-500">(editable)</span>
+                    </div>
+                    <div className="text-[11px] font-semibold text-slate-500">Afectan a la previsualización.</div>
+                  </div>
+
+                  <div className="p-4">
+                    <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                      <label className="space-y-1">
+                        <span className="text-xs font-extrabold text-slate-700">Ritmo (planes/día)</span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <input
+                            value={autoConfig.pace.itemsPerDayMin}
+                            onChange={(e) =>
+                              setAutoConfig((p) => ({
+                                ...p,
+                                pace: { ...p.pace, itemsPerDayMin: Math.max(1, Math.min(12, Number(e.target.value) || 1)) },
+                              }))
+                            }
+                            disabled={creatingOverlay}
+                            inputMode="numeric"
+                            className="w-20 shrink-0 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                          />
+                          <span className="self-center text-xs font-extrabold text-slate-500">a</span>
+                          <input
+                            value={autoConfig.pace.itemsPerDayMax}
+                            onChange={(e) =>
+                              setAutoConfig((p) => ({
+                                ...p,
+                                pace: { ...p.pace, itemsPerDayMax: Math.max(1, Math.min(12, Number(e.target.value) || 1)) },
+                              }))
+                            }
+                            disabled={creatingOverlay}
+                            inputMode="numeric"
+                            className="w-20 shrink-0 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                          />
+                          <span className="text-[11px] font-semibold text-slate-500">recomendado: 3–5</span>
+                        </div>
+                      </label>
+
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-extrabold text-slate-700">Coherencia geográfica</span>
+                        </div>
+                        <div role="radiogroup" aria-label="Coherencia geográfica" className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                          {(
+                            [
+                              { key: "balanced" as const, label: "Equilibrada" },
+                              { key: "strict" as const, label: "Muy estricta" },
+                              { key: "loose" as const, label: "Flexible" },
+                            ] as const
+                          ).map((opt) => {
+                            const active = (autoConfig.geo.strictness ?? "balanced") === opt.key;
+                            return (
+                              <button
+                                key={opt.key}
+                                type="button"
+                                disabled={creatingOverlay}
+                                onClick={() => setAutoConfig((p) => ({ ...p, geo: { ...p.geo, strictness: opt.key } }))}
+                                className={`min-h-[42px] min-w-0 whitespace-normal break-words leading-tight rounded-2xl border px-3 py-2 text-xs font-extrabold transition ${
+                                  active
+                                    ? "border-violet-300 bg-violet-50 text-violet-900"
+                                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                                } disabled:opacity-60`}
+                                aria-pressed={active}
+                              >
+                                {opt.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 grid gap-3 grid-cols-1 lg:grid-cols-2">
+                      <label className="space-y-1 lg:col-span-2">
+                        <span className="text-xs font-extrabold text-slate-700">Preferencias de transporte y rutas</span>
+                        <textarea
+                          value={autoConfig.transport.notes}
+                          onChange={(e) => setAutoConfig((p) => ({ ...p, transport: { ...p.transport, notes: e.target.value } }))}
+                          disabled={creatingOverlay}
+                          rows={4}
+                          placeholder="Ej.\n- Dentro de ciudad: a pie + metro\n- Entre ciudades: tren\n- Islas: ferry\n- Si una ruta supera 3h: vuelo\n- Por la noche: taxi"
+                          className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                        />
+                        <div className="text-[11px] font-semibold text-slate-500">
+                          Puedes escribir reglas por duración (“&gt; 3h”), por tipo de trayecto y excepciones.
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDraftIntent((prev) => ({
+                        ...(prev || {}),
+                        travelersType: (travelersType as any) || null,
+                        travelersCount: typeof travelersCount === "number" ? travelersCount : null,
+                      }));
+                      setStep(3);
+                      scrollTop();
+                      void previewPlans();
+                    }}
+                    disabled={!canContinue}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-extrabold text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-60"
+                  >
+                    <Check className="h-4 w-4" aria-hidden />
+                    Ver previsualización
+                  </button>
+                  <button
+                    type="button"
+                    onClick={goBack}
+                    disabled={loading}
+                    className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
+                  >
+                    Atrás
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <aside className="min-w-0 space-y-4">
+              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Resumen</div>
+                <div className="mt-3 grid gap-2 text-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="text-slate-500">Destino</span>
+                    <span className="text-right font-extrabold text-slate-950">{destinationLabel || "—"}</span>
+                  </div>
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="text-slate-500">Fechas</span>
+                    <span className="text-right font-semibold text-slate-900">
+                      {draftIntent?.startDate && draftIntent?.endDate ? `${draftIntent.startDate} → ${draftIntent.endDate}` : "—"}
+                    </span>
+                  </div>
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="text-slate-500">Imprescindibles</span>
+                    <span className="text-right font-semibold text-slate-900">{derivedPlaces.length ? derivedPlaces.length : "—"}</span>
+                  </div>
+                </div>
+              </div>
+            </aside>
+          </div>
+        ) : null}
+
+        {step === 3 ? (
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
             <div className="min-w-0 space-y-4">
               <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
