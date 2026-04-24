@@ -370,6 +370,8 @@ export default function TripCreationWizard({ isPremium }: Props) {
     Record<string, { name: string; priceLabel: string; url: string } | null>
   >({});
   const [lodgingOpenSegment, setLodgingOpenSegment] = useState<string | null>(null);
+  const [lodgingScanLoadingBySegment, setLodgingScanLoadingBySegment] = useState<Record<string, boolean>>({});
+  const [lodgingScanErrorBySegment, setLodgingScanErrorBySegment] = useState<Record<string, string>>({});
 
   const [transportNotes, setTransportNotes] = useState("");
   const [travelersType, setTravelersType] = useState<string>("family");
@@ -394,6 +396,50 @@ export default function TripCreationWizard({ isPremium }: Props) {
     if (params.checkin) qs.set("checkin", params.checkin);
     if (params.checkout) qs.set("checkout", params.checkout);
     return `https://www.booking.com/searchresults.html?${qs.toString()}`;
+  }
+
+  async function scanLodgingDocumentForSegment(params: { segmentKey: string; file: File }) {
+    const { segmentKey, file } = params;
+    setLodgingScanErrorBySegment((p) => ({ ...p, [segmentKey]: "" }));
+    setLodgingScanLoadingBySegment((p) => ({ ...p, [segmentKey]: true }));
+    try {
+      const fd = new FormData();
+      fd.set("file", file);
+      fd.set("enhance", "1");
+      const resp = await fetch("/api/document/analyze", { method: "POST", body: fd });
+      const payload = await resp.json().catch(() => null);
+      if (!resp.ok) throw new Error(payload?.error || `Error ${resp.status}`);
+
+      const llm = payload?.llmDetected || payload?.detected || null;
+      const name = String(llm?.reservationName || llm?.providerName || "").trim();
+      const addressParts = [llm?.address, llm?.city, llm?.country].filter((x: any) => typeof x === "string" && x.trim());
+      const address = String(addressParts.join(", ")).trim();
+      const code = typeof llm?.reservationCode === "string" ? llm.reservationCode.trim() : "";
+      const dates = [llm?.checkInDate, llm?.checkOutDate].filter((x: any) => typeof x === "string" && x.trim()).join(" → ");
+      const notesParts = [
+        code ? `Código: ${code}` : "",
+        dates ? `Fechas: ${dates}` : "",
+        typeof llm?.totalAmount === "string" || typeof llm?.totalAmount === "number"
+          ? `Total: ${String(llm.totalAmount)}${typeof llm?.currency === "string" && llm.currency ? ` ${llm.currency}` : ""}`
+          : "",
+      ].filter(Boolean);
+
+      setLodgingManualBySegment((p) => ({
+        ...p,
+        [segmentKey]: {
+          name: name || (p[segmentKey]?.name || ""),
+          address: address || (p[segmentKey]?.address || ""),
+          notes: notesParts.length ? notesParts.join("\n") : (p[segmentKey]?.notes || ""),
+        },
+      }));
+      setLodgingActionBySegment((p) => ({ ...p, [segmentKey]: "scan" }));
+      setLodgingOpenSegment(segmentKey);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "No se pudo escanear el documento.";
+      setLodgingScanErrorBySegment((p) => ({ ...p, [segmentKey]: msg }));
+    } finally {
+      setLodgingScanLoadingBySegment((p) => ({ ...p, [segmentKey]: false }));
+    }
   }
 
   function googleHotelsUrl(params: { city: string; checkin: string | null; checkout: string | null }) {
@@ -505,7 +551,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
   }, []);
 
   const lodgingCities = useMemo(() => {
-    const itin = lodgingItinerary;
+    const itin = lodgingItinerary || previewItinerary;
     if (!itin?.days?.length) return [];
 
     const normCity = (raw: string) => {
@@ -610,7 +656,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
       if (byDate !== 0) return byDate;
       return b.nights - a.nights;
     });
-  }, [lodgingItinerary]);
+  }, [lodgingItinerary, previewItinerary]);
 
   function hotelOptionsFor(city: string, tier: "asequible" | "medio" | "lujo", resolvedLabel: string) {
     const base = encodeURIComponent(`${city} hotel ${resolvedLabel}`.trim());
@@ -1628,12 +1674,6 @@ export default function TripCreationWizard({ isPremium }: Props) {
                       </select>
                     </label>
 
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                      <div className="text-xs font-extrabold text-slate-700">Generación</div>
-                      <div className="mt-1 text-xs font-semibold text-slate-600">
-                        Se generarán planes para <span className="font-extrabold text-slate-900">todos los días</span> del viaje.
-                      </div>
-                    </div>
                   </div>
 
                   <div className="mt-3 grid gap-3 grid-cols-1 lg:grid-cols-2">
@@ -1786,7 +1826,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
                   )}
                 </div>
 
-                {autoConfig.lodging.mode === "proposal" ? (
+                {autoConfig.lodging.mode === "proposal" || autoConfig.lodging.mode === "manual" || autoConfig.lodging.mode === "scan" ? (
                   <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                     <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Alojamientos</div>
                     <div className="mt-1 text-sm font-extrabold text-slate-950">Búsqueda por ciudad y noches</div>
@@ -1794,11 +1834,11 @@ export default function TripCreationWizard({ isPremium }: Props) {
                       Generamos tramos de noches por ciudad a partir del itinerario. Usa los botones para buscar hoteles con fechas reales.
                     </div>
 
-                    {lodgingLoading ? (
+                    {autoConfig.lodging.mode === "proposal" && lodgingLoading ? (
                       <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
                         Calculando tramos de alojamiento…
                       </div>
-                    ) : lodgingError ? (
+                    ) : autoConfig.lodging.mode === "proposal" && lodgingError ? (
                       <div className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
                         <span className="font-semibold">Error:</span> {lodgingError}
                       </div>
@@ -1808,6 +1848,12 @@ export default function TripCreationWizard({ isPremium }: Props) {
                           const city = seg.city || "Sin ciudad";
                           const checkin = seg.startDate || draftIntent?.startDate || null;
                           const checkout = seg.endDate || null;
+                          const segKey = seg.segmentKey;
+                          const action = lodgingActionBySegment[segKey] || "none";
+                          const open = lodgingOpenSegment === segKey;
+                          const manual = lodgingManualBySegment[segKey] || { name: "", address: "", notes: "" };
+                          const scanLoading = Boolean(lodgingScanLoadingBySegment[segKey]);
+                          const scanError = String(lodgingScanErrorBySegment[segKey] || "");
                           return (
                             <div key={seg.segmentKey} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                               <div className="flex items-start justify-between gap-3">
@@ -1821,25 +1867,158 @@ export default function TripCreationWizard({ isPremium }: Props) {
                               </div>
 
                               <div className="mt-3 flex flex-wrap gap-2">
-                                <a
-                                  href={bookingHotelsUrl({ city, checkin, checkout })}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
-                                  title="Abrir búsqueda de hoteles en Booking"
-                                >
-                                  Ver en Booking
-                                </a>
-                                <a
-                                  href={googleHotelsUrl({ city, checkin, checkout })}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
-                                  title="Abrir búsqueda de hoteles en Google"
-                                >
-                                  Ver en Google
-                                </a>
+                                {autoConfig.lodging.mode === "proposal" ? (
+                                  <>
+                                    <a
+                                      href={bookingHotelsUrl({ city, checkin, checkout })}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
+                                      title="Abrir búsqueda de hoteles en Booking"
+                                    >
+                                      Ver en Booking
+                                    </a>
+                                    <a
+                                      href={googleHotelsUrl({ city, checkin, checkout })}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
+                                      title="Abrir búsqueda de hoteles en Google"
+                                    >
+                                      Ver en Google
+                                    </a>
+                                  </>
+                                ) : null}
+
+                                {autoConfig.lodging.mode === "manual" ? (
+                                  <button
+                                    type="button"
+                                    disabled={loading}
+                                    onClick={() => {
+                                      setLodgingActionBySegment((p) => ({ ...p, [segKey]: "manual" }));
+                                      setLodgingOpenSegment((prev) => (prev === segKey ? null : segKey));
+                                    }}
+                                    className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                                    title="Añadir alojamiento para este tramo"
+                                  >
+                                    Añadir alojamiento
+                                  </button>
+                                ) : null}
+
+                                {autoConfig.lodging.mode === "scan" ? (
+                                  <label
+                                    className={`inline-flex cursor-pointer items-center justify-center rounded-xl border px-3 py-2 text-xs font-extrabold ${
+                                      scanLoading || loading
+                                        ? "border-slate-200 bg-white text-slate-400"
+                                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                                    }`}
+                                    title="Escanear un PDF/imagen para rellenar el alojamiento"
+                                  >
+                                    {scanLoading ? "Escaneando…" : "Escanear documento"}
+                                    <input
+                                      type="file"
+                                      accept=".pdf,image/*"
+                                      className="hidden"
+                                      disabled={scanLoading || loading}
+                                      onChange={(e) => {
+                                        const f = e.currentTarget.files?.[0] || null;
+                                        e.currentTarget.value = "";
+                                        if (!f) return;
+                                        void scanLodgingDocumentForSegment({ segmentKey: segKey, file: f });
+                                      }}
+                                    />
+                                  </label>
+                                ) : null}
                               </div>
+
+                              {scanError ? (
+                                <div className="mt-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">
+                                  <span className="font-semibold">Error:</span> {scanError}
+                                </div>
+                              ) : null}
+
+                              {open && (autoConfig.lodging.mode === "manual" || autoConfig.lodging.mode === "scan") ? (
+                                <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
+                                  <div className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-600">
+                                    {action === "scan" ? "Alojamiento (desde documento)" : "Alojamiento (manual)"}
+                                  </div>
+                                  <div className="mt-3 grid gap-2">
+                                    <label className="text-xs font-semibold text-slate-700">
+                                      Nombre
+                                      <input
+                                        value={manual.name}
+                                        onChange={(e) =>
+                                          setLodgingManualBySegment((p) => ({
+                                            ...p,
+                                            [segKey]: { ...(p[segKey] || { name: "", address: "", notes: "" }), name: e.target.value },
+                                          }))
+                                        }
+                                        disabled={loading}
+                                        className="mt-2 min-h-[40px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900 disabled:opacity-60"
+                                        placeholder="Ej. Hotel ABC"
+                                      />
+                                    </label>
+                                    <label className="text-xs font-semibold text-slate-700">
+                                      Dirección
+                                      <input
+                                        value={manual.address}
+                                        onChange={(e) =>
+                                          setLodgingManualBySegment((p) => ({
+                                            ...p,
+                                            [segKey]: { ...(p[segKey] || { name: "", address: "", notes: "" }), address: e.target.value },
+                                          }))
+                                        }
+                                        disabled={loading}
+                                        className="mt-2 min-h-[40px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900 disabled:opacity-60"
+                                        placeholder="Calle, ciudad, país"
+                                      />
+                                    </label>
+                                    <label className="text-xs font-semibold text-slate-700">
+                                      Notas
+                                      <textarea
+                                        value={manual.notes}
+                                        onChange={(e) =>
+                                          setLodgingManualBySegment((p) => ({
+                                            ...p,
+                                            [segKey]: { ...(p[segKey] || { name: "", address: "", notes: "" }), notes: e.target.value },
+                                          }))
+                                        }
+                                        disabled={loading}
+                                        rows={3}
+                                        className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm disabled:opacity-60"
+                                        placeholder="Código de reserva, notas, etc."
+                                      />
+                                    </label>
+                                    <div className="flex flex-wrap gap-2">
+                                      <button
+                                        type="button"
+                                        disabled={loading}
+                                        onClick={() => setLodgingOpenSegment(null)}
+                                        className="inline-flex min-h-[36px] items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-extrabold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                                      >
+                                        Listo
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={loading}
+                                        onClick={() => {
+                                          setLodgingManualBySegment((p) => {
+                                            const next = { ...p };
+                                            delete next[segKey];
+                                            return next;
+                                          });
+                                          setLodgingActionBySegment((p) => ({ ...p, [segKey]: "none" }));
+                                          setLodgingOpenSegment(null);
+                                        }}
+                                        className="inline-flex min-h-[36px] items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-extrabold text-rose-800 hover:bg-rose-100 disabled:opacity-60"
+                                        title="Quitar este alojamiento"
+                                      >
+                                        Quitar
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : null}
                             </div>
                           );
                         })}
