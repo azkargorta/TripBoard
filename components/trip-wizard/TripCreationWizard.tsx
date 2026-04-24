@@ -1814,25 +1814,42 @@ export default function TripCreationWizard({ isPremium }: Props) {
                       </div>
                     </label>
 
-                    <label className="space-y-1">
+                    <div className="space-y-1">
                       <span className="text-xs font-extrabold text-slate-700">Alojamiento</span>
-                      <select
-                        value={autoConfig.lodging.mode ?? "proposal"}
-                        onChange={(e) => {
-                          const v = String(e.currentTarget.value || "");
-                          setAutoConfig((p) => {
-                            const mode = v === "proposal" || v === "manual" || v === "scan" || v === "omit" ? v : "proposal";
-                            return { ...p, lodging: { ...p.lodging, mode } };
-                          });
-                        }}
-                        disabled={creatingOverlay}
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
-                      >
-                        <option value="proposal">Propuesta</option>
-                        <option value="manual">Manual</option>
-                        <option value="scan">Escanear</option>
-                        <option value="omit">Omitir</option>
-                      </select>
+                      <div role="radiogroup" aria-label="Alojamiento" className="grid grid-cols-2 gap-2">
+                        {(
+                          [
+                            { key: "proposal" as const, label: "Propuesta" },
+                            { key: "manual" as const, label: "Manual" },
+                            { key: "scan" as const, label: "Escanear" },
+                            { key: "omit" as const, label: "Omitir" },
+                          ] as const
+                        ).map((opt) => {
+                          const active = (autoConfig.lodging.mode ?? "proposal") === opt.key;
+                          return (
+                            <button
+                              key={opt.key}
+                              type="button"
+                              disabled={creatingOverlay}
+                              onClick={() =>
+                                setAutoConfig((p) => ({
+                                  ...p,
+                                  lodging: { ...p.lodging, mode: opt.key },
+                                }))
+                              }
+                              className={`min-h-[42px] rounded-2xl border px-3 py-2 text-xs font-extrabold transition ${
+                                active
+                                  ? "border-violet-300 bg-violet-50 text-violet-900"
+                                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                              } disabled:opacity-60`}
+                              aria-pressed={active}
+                            >
+                              {opt.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <input value={autoConfig.lodging.mode ?? "proposal"} readOnly aria-hidden tabIndex={-1} className="sr-only" />
                       <div className="text-[11px] font-semibold text-slate-500">
                         {autoConfig.lodging.mode === "omit"
                           ? "No se sugerirán alojamientos automáticamente."
@@ -1840,32 +1857,52 @@ export default function TripCreationWizard({ isPremium }: Props) {
                             ? "Podrás añadir alojamientos manualmente después de crear el viaje."
                             : "Se sugerirán alojamientos (puedes cambiarlos después)."}
                       </div>
-                    </label>
+                    </div>
 
-                    <label className="space-y-1">
+                    <div className="space-y-1">
                       <span className="text-xs font-extrabold text-slate-700">Ciudad base de alojamiento</span>
-                      <select
+                      <div role="radiogroup" aria-label="Ciudad base de alojamiento" className="grid grid-cols-2 gap-2">
+                        {(
+                          [
+                            { key: "rotate" as const, label: "Rotar entre ciudades" },
+                            { key: "single" as const, label: "Siempre la misma ciudad" },
+                          ] as const
+                        ).map((opt) => {
+                          const active = (autoConfig.lodging.baseCityMode ?? "rotate") === opt.key;
+                          return (
+                            <button
+                              key={opt.key}
+                              type="button"
+                              disabled={creatingOverlay}
+                              onClick={() =>
+                                setAutoConfig((p) => ({
+                                  ...p,
+                                  lodging: {
+                                    ...p.lodging,
+                                    baseCityMode: opt.key,
+                                    ...(opt.key === "rotate" ? { baseCity: "" } : {}),
+                                  },
+                                }))
+                              }
+                              className={`min-h-[42px] rounded-2xl border px-3 py-2 text-xs font-extrabold transition ${
+                                active
+                                  ? "border-violet-300 bg-violet-50 text-violet-900"
+                                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                              } disabled:opacity-60`}
+                              aria-pressed={active}
+                            >
+                              {opt.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <input
                         value={autoConfig.lodging.baseCityMode ?? "rotate"}
-                        onChange={(e) => {
-                          const v = String(e.currentTarget.value || "");
-                          setAutoConfig((p) => {
-                            const baseCityMode = v === "single" || v === "rotate" ? v : p.lodging.baseCityMode;
-                            return {
-                              ...p,
-                              lodging: {
-                                ...p.lodging,
-                                baseCityMode,
-                                ...(baseCityMode === "rotate" ? { baseCity: "" } : {}),
-                              },
-                            };
-                          });
-                        }}
-                        disabled={creatingOverlay}
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
-                      >
-                        <option value="rotate">Rotar entre ciudades</option>
-                        <option value="single">Siempre la misma ciudad</option>
-                      </select>
+                        readOnly
+                        aria-hidden
+                        tabIndex={-1}
+                        className="sr-only"
+                      />
                       {autoConfig.lodging.baseCityMode === "single" ? (
                         <input
                           value={autoConfig.lodging.baseCity}
@@ -1877,7 +1914,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
                       ) : (
                         <div className="text-[11px] font-semibold text-slate-500">El asistente repartirá días por ciudades para reducir traslados.</div>
                       )}
-                    </label>
+                    </div>
                   </div>
 
                   <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800">
