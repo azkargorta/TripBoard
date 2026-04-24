@@ -456,6 +456,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
   const [previewItinerary, setPreviewItinerary] = useState<ExecutableItineraryPayload | null>(null);
   const [previewResolved, setPreviewResolved] = useState<PreviewPlansOk["resolved"] | null>(null);
   const [previewFast, setPreviewFast] = useState(false);
+  const [previewFastReason, setPreviewFastReason] = useState<string | null>(null);
   const [previewStructure, setPreviewStructure] = useState<any | null>(null);
   const [previewMemory, setPreviewMemory] = useState<{
     itinerary: ExecutableItineraryPayload;
@@ -515,6 +516,9 @@ export default function TripCreationWizard({ isPremium }: Props) {
   const [createdTripPartialError, setCreatedTripPartialError] = useState<string | null>(null);
   const [creatingTripSilently, setCreatingTripSilently] = useState(false);
   const [autoConfig, setAutoConfig] = useState<TripAutoConfig>(() => DEFAULT_TRIP_AUTO_CONFIG);
+  const [suggestedMustSee, setSuggestedMustSee] = useState<string[]>([]);
+  const [suggestedMustSeeLoading, setSuggestedMustSeeLoading] = useState(false);
+  const [suggestedMustSeeError, setSuggestedMustSeeError] = useState<string | null>(null);
 
   const [mobilityWalkLimitMin, setMobilityWalkLimitMin] = useState<number>(45);
   const [mobilityCityLongMode, setMobilityCityLongMode] = useState<"public_transport" | "taxi" | "driving">("public_transport");
@@ -579,6 +583,51 @@ export default function TripCreationWizard({ isPremium }: Props) {
       return { ...(prev || {}), destination: primary, mustSee: mergedMustSee };
     });
   }, [destinations]);
+
+  useEffect(() => {
+    const dest = String(draftIntent?.destination || "").trim();
+    if (!dest) {
+      setSuggestedMustSee([]);
+      setSuggestedMustSeeError(null);
+      setSuggestedMustSeeLoading(false);
+      return;
+    }
+    if (!isPremium) {
+      setSuggestedMustSee([]);
+      return;
+    }
+
+    const ctrl = new AbortController();
+    const t = window.setTimeout(() => {
+      void (async () => {
+        try {
+          setSuggestedMustSeeLoading(true);
+          setSuggestedMustSeeError(null);
+          const res = await fetch("/api/trips/auto-suggest-mustsee", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ destination: dest }),
+            signal: ctrl.signal,
+          });
+          const data = (await res.json().catch(() => null)) as any;
+          if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "No se pudieron cargar sugerencias.");
+          const items = Array.isArray(data?.items) ? data.items.map((x: any) => String(x || "").trim()).filter(Boolean) : [];
+          setSuggestedMustSee(items.slice(0, 16));
+        } catch (e) {
+          if ((e as any)?.name === "AbortError") return;
+          setSuggestedMustSeeError(e instanceof Error ? e.message : "No se pudieron cargar sugerencias.");
+          setSuggestedMustSee([]);
+        } finally {
+          setSuggestedMustSeeLoading(false);
+        }
+      })();
+    }, 300);
+
+    return () => {
+      window.clearTimeout(t);
+      ctrl.abort();
+    };
+  }, [draftIntent?.destination, isPremium]);
 
   function addDestinationTag(raw: string) {
     const v = String(raw || "").trim();
@@ -1207,6 +1256,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
     setPreviewLoading(true);
     setPreviewError(null);
     setPreviewFast(false);
+    setPreviewFastReason(null);
     setPreviewStructure(null);
     setPreviewExpandedDays(new Set());
     setPreviewEditor(null);
@@ -1233,6 +1283,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
       setPreviewResolved(data.resolved || null);
       setPreviewItinerary(data.itinerary || null);
       setPreviewFast(Boolean(data?.fast));
+      setPreviewFastReason(typeof data?.fastFallbackReason === "string" ? data.fastFallbackReason : null);
       setPreviewStructure(data?.structure || null);
       {
         const key = JSON.stringify({
@@ -1250,6 +1301,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
       setPreviewItinerary(null);
       setPreviewResolved(null);
       setPreviewFast(false);
+      setPreviewFastReason(null);
       setPreviewStructure(null);
       setLodgingResolved(null);
       setLodgingItinerary(null);
@@ -2031,6 +2083,43 @@ export default function TripCreationWizard({ isPremium }: Props) {
                 <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
                   <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Imprescindibles</div>
                   <p className="mt-1 text-sm text-slate-600">Añade ciudades o sitios que quieres sí o sí.</p>
+
+                  {isPremium ? (
+                    <div className="mt-3">
+                      <div className="text-[11px] font-semibold text-slate-500">Sugerencias populares para {destinationLabel || "tu destino"}</div>
+                      {suggestedMustSeeLoading ? (
+                        <div className="mt-2 text-sm font-semibold text-slate-600">Cargando sugerencias…</div>
+                      ) : suggestedMustSeeError ? (
+                        <div className="mt-2 text-sm font-semibold text-rose-700">{suggestedMustSeeError}</div>
+                      ) : suggestedMustSee.length ? (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {suggestedMustSee
+                            .filter((s) => !derivedPlaces.some((x) => x.toLowerCase() === String(s).toLowerCase()))
+                            .slice(0, 14)
+                            .map((s) => (
+                              <button
+                                key={s}
+                                type="button"
+                                disabled={loading}
+                                onClick={() => addPlaceTag(s)}
+                                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-extrabold text-slate-800 hover:bg-slate-100 disabled:opacity-60"
+                                title="Añadir a imprescindibles"
+                              >
+                                <Plus className="h-3.5 w-3.5" aria-hidden />
+                                {s}
+                              </button>
+                            ))}
+                        </div>
+                      ) : (
+                        <div className="mt-2 text-sm font-semibold text-slate-600">No hay sugerencias.</div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="mt-3 text-[11px] font-semibold text-slate-500">
+                      Sugerencias populares disponibles con Premium.
+                    </div>
+                  )}
+
                   <div className="mt-3 flex flex-wrap gap-2">
                     {derivedPlaces.map((tag) => (
                       <span
@@ -3082,6 +3171,35 @@ export default function TripCreationWizard({ isPremium }: Props) {
 
             <div className="grid max-h-[calc(92vh-60px)] gap-4 overflow-y-auto p-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)]">
               <section className="min-w-0 space-y-3">
+                {previewFast ? (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+                    <div className="font-extrabold">Plan básico (fallback)</div>
+                    <div className="mt-1 text-amber-900/90">
+                      No se pudo generar un itinerario “real” con IA y se ha mostrado un plan genérico de respaldo.
+                      {previewFastReason ? ` Motivo: ${previewFastReason}` : ""}
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void previewPlans()}
+                        disabled={previewLoading || previewRefineLoading || !draftIntent}
+                        className="inline-flex min-h-10 items-center justify-center rounded-2xl border border-amber-300 bg-white px-3 py-2 text-xs font-extrabold text-amber-950 hover:bg-amber-100 disabled:opacity-60"
+                        title="Reintentar generar con IA"
+                      >
+                        Reintentar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void refinePreviewPlans()}
+                        disabled={previewLoading || previewRefineLoading || !draftIntent || !previewStructure}
+                        className="inline-flex min-h-10 items-center justify-center rounded-2xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-extrabold text-violet-950 hover:bg-violet-100 disabled:opacity-60"
+                        title="Mejorar el plan con IA (si está disponible)"
+                      >
+                        {previewRefineLoading ? "Mejorando…" : "Mejorar plan"}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
                 {previewLoading ? (
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
                     Generando previsualización…
