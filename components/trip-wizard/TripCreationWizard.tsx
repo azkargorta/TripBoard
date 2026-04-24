@@ -1068,6 +1068,10 @@ export default function TripCreationWizard({ isPremium }: Props) {
     setPreviewExpandedDays(new Set());
     setPreviewEditor(null);
     setPreviewEditorError(null);
+    // Al recalcular, reseteamos el “cache” de alojamientos para que se derive de este nuevo itinerario.
+    setLodgingError(null);
+    setLodgingResolved(null);
+    setLodgingItinerary(null);
     try {
       const res = await fetch("/api/trips/auto-preview-plans", {
         method: "POST",
@@ -1093,14 +1097,14 @@ export default function TripCreationWizard({ isPremium }: Props) {
         setPreviewMemory({ itinerary: data.itinerary, resolved: (data.resolved || null) as any, key });
       }
       // Precalienta alojamientos en segundo plano reutilizando el itinerario ya generado (evita otra llamada IA).
-      if (autoConfig.lodging.mode === "proposal") {
-        setLodgingResolved(data.resolved || null);
-        setLodgingItinerary(data.itinerary || null);
-      }
+      setLodgingResolved(data.resolved || null);
+      setLodgingItinerary(data.itinerary || null);
     } catch (e) {
       setPreviewError(e instanceof Error ? e.message : "No se pudo previsualizar los planes.");
       setPreviewItinerary(null);
       setPreviewResolved(null);
+      setLodgingResolved(null);
+      setLodgingItinerary(null);
     } finally {
       setPreviewLoading(false);
     }
