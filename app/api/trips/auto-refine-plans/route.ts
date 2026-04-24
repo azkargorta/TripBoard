@@ -5,7 +5,7 @@ import { monthKeyUtc } from "@/lib/ai-usage";
 import type { TripCreationIntent, ExecutableItineraryPayload } from "@/lib/trip-ai/tripCreationTypes";
 import { mergeTripCreationIntentLLM } from "@/lib/trip-ai/parseTripCreationIntent";
 import { getTripCreationFollowUp, resolveTripCreationDates } from "@/lib/trip-ai/tripCreationResolve";
-import { generateExecutableItineraryFromIntent } from "@/lib/trip-ai/generateItineraryFromIntent";
+import { generateExecutableItineraryFromStructure } from "@/lib/trip-ai/generateItineraryFromIntent";
 import { normalizeTripAutoConfig } from "@/lib/trip-ai/tripAutoConfig";
 import type { TripAiUsage } from "@/lib/trip-ai/providers";
 import { validateAndRepairItinerary } from "@/lib/trip-ai/itineraryValidator";
@@ -90,9 +90,8 @@ export async function POST(req: Request) {
     const resolved = resolveTripCreationDates(intent);
     if ("error" in resolved) return NextResponse.json({ error: resolved.error }, { status: 400 });
 
-    // Refinado: por ahora reutilizamos generador LLM existente y luego validamos/recortamos.
-    // (Paso siguiente: pasar structure como constraint fuerte dentro del prompt. Lo haremos en la misma iteración si hace falta.)
-    const { itinerary: refined, usage } = await generateExecutableItineraryFromIntent(resolved, { provider, config });
+    // Refinado: generamos respetando la estructura como constraint duro.
+    const { itinerary: refined, usage } = await generateExecutableItineraryFromStructure(resolved, { provider, config, structure });
     await trackIfCountable({ supabase, userId, monthKey, usage });
 
     // Reparación dura de país/coherencia, usando baseCityByDay del structure.

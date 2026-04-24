@@ -5,7 +5,11 @@ import { monthKeyUtc } from "@/lib/ai-usage";
 import type { TripCreationIntent } from "@/lib/trip-ai/tripCreationTypes";
 import { mergeTripCreationIntentLLM } from "@/lib/trip-ai/parseTripCreationIntent";
 import { getTripCreationFollowUp, resolveTripCreationDates } from "@/lib/trip-ai/tripCreationResolve";
-import { generateExecutableItineraryFastFromIntent, generateExecutableItineraryFromIntent } from "@/lib/trip-ai/generateItineraryFromIntent";
+import {
+  generateExecutableItineraryFastFromIntent,
+  generateExecutableItineraryFromIntent,
+  generateExecutableItineraryFromStructure,
+} from "@/lib/trip-ai/generateItineraryFromIntent";
 import { normalizeTripAutoConfig } from "@/lib/trip-ai/tripAutoConfig";
 import type { TripAiUsage } from "@/lib/trip-ai/providers";
 import { deriveRouteStructure } from "@/lib/trip-ai/routeStructure";
@@ -116,15 +120,33 @@ export async function POST(req: Request) {
       });
     }
 
-    // En despliegue (y sobre todo viajes largos), la generación con LLM puede exceder el límite de ejecución.
-    // Usamos un modo "fast" sin LLM para asegurar respuesta rápida en previsualización.
-    // Fast por defecto (segundos). Refinado con LLM se hace en un endpoint aparte.
-    const wantFast = String(body?.fast || "").trim() !== "0";
+    // Por defecto intentamos generar el itinerario completo con LLM (chunked) para evitar el efecto
+    // de "días clonados" del fallback. Si el cliente fuerza fast (fast=1) o si falla el LLM,
+    // caemos a fast para asegurar respuesta.
     const structure = await deriveRouteStructure({ resolved, config });
+    const wantFast = String(body?.fast || "").trim() === "1";
 
-    const { itinerary: rawItinerary, usage } = wantFast
-      ? await generateExecutableItineraryFastFromIntent(resolved, { config, structure })
-      : await generateExecutableItineraryFromIntent(resolved, { provider, config });
+    let rawItinerary: any = null;
+    let usage: TripAiUsage = { provider: "gemini", model: null, inputTokens: 0, outputTokens: 0 };
+    let usedFast = wantFast;
+    let fastFallbackReason: string | null = null;
+
+    if (!wantFast) {
+      try {
+        const llm = await generateExecutableItineraryFromStructure(resolved, { provider, config, structure });
+        rawItinerary = llm.itinerary;
+        usage = llm.usage;
+      } catch (e) {
+        usedFast = true;
+        fastFallbackReason = e instanceof Error ? e.message : "Error al generar con LLM";
+      }
+    }
+
+    if (usedFast) {
+      const fast = await generateExecutableItineraryFastFromIntent(resolved, { config, structure });
+      rawItinerary = fast.itinerary;
+      usage = fast.usage;
+    }
 
     const { itinerary, repairedCount } = await validateAndRepairItinerary({
       itinerary: rawItinerary,
@@ -147,7 +169,8 @@ export async function POST(req: Request) {
       itinerary,
       config,
       structure,
-      fast: wantFast,
+      fast: usedFast,
+      ...(fastFallbackReason ? { fastFallbackReason } : {}),
       repairedCount,
     });
   } catch (error) {

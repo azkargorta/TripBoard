@@ -12,6 +12,7 @@ import {
 } from "@/lib/trip-ai/tripCreationResolve";
 import {
   generateExecutableItineraryFromIntent,
+  generateExecutableItineraryFromStructure,
   normalizeClientExecutableItinerary,
 } from "@/lib/trip-ai/generateItineraryFromIntent";
 import { executePlanOnTrip } from "@/lib/trip-ai/executePlanOnTrip";
@@ -20,6 +21,7 @@ import { ensureUserCanCreateTrip } from "@/lib/trips/tripCreationLimits";
 import { getTripAccessForApi } from "@/lib/trip-access";
 import { isPremiumEnabledForTrip } from "@/lib/entitlements";
 import type { TripAiUsage } from "@/lib/trip-ai/providers";
+import type { RouteStructure } from "@/lib/trip-ai/routeStructure";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -241,16 +243,23 @@ export async function POST(req: Request) {
 
     let itinerary: ExecutableItineraryPayload;
     let itineraryUsage: TripAiUsage | null = null;
+    const structure = body?.structure as RouteStructure | undefined;
+    const hasValidStructure =
+      structure?.version === 1 && Array.isArray(structure.baseCityByDay) && structure.baseCityByDay.length > 0;
     if (body?.itinerary && typeof body.itinerary === "object") {
       try {
         itinerary = normalizeClientExecutableItinerary(body.itinerary, resolved);
       } catch {
-        const gen = await generateExecutableItineraryFromIntent(resolved, { provider, config });
+        const gen = hasValidStructure
+          ? await generateExecutableItineraryFromStructure(resolved, { provider, config, structure })
+          : await generateExecutableItineraryFromIntent(resolved, { provider, config });
         itinerary = gen.itinerary;
         itineraryUsage = gen.usage;
       }
     } else {
-      const gen = await generateExecutableItineraryFromIntent(resolved, { provider, config });
+      const gen = hasValidStructure
+        ? await generateExecutableItineraryFromStructure(resolved, { provider, config, structure })
+        : await generateExecutableItineraryFromIntent(resolved, { provider, config });
       itinerary = gen.itinerary;
       itineraryUsage = gen.usage;
     }

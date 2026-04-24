@@ -435,6 +435,29 @@ export async function generateExecutableItineraryFromIntent(
     lodgingBaseCity: cfg.lodging.baseCity,
   });
 
+  return await generateExecutableItineraryFromStructure(resolved, {
+    provider: options?.provider ?? null,
+    config: cfg,
+    structure: { version: 1, baseCityByDay: baseCitySchedule, segments: [] },
+  });
+}
+
+/**
+ * Genera un itinerario usando una estructura de ruta "dura" (baseCityByDay).
+ * Esto evita que el modelo invente ciudades/días y permite refinar sin perder la estructura.
+ */
+export async function generateExecutableItineraryFromStructure(
+  resolved: ResolvedTripCreation,
+  options: { provider?: string | null; config?: TripAutoConfig | null; structure: RouteStructure }
+): Promise<{ itinerary: ExecutableItineraryPayload; usage: TripAiUsage }> {
+  const cfg = options?.config || DEFAULT_TRIP_AUTO_CONFIG;
+  const provider = options?.provider ?? null;
+  const generateDays = Math.max(1, resolved.durationDays);
+  const baseCitySchedule = Array.isArray(options.structure?.baseCityByDay)
+    ? options.structure.baseCityByDay.slice(0, generateDays)
+    : [];
+  while (baseCitySchedule.length < generateDays) baseCitySchedule.push(resolved.destination);
+
   const mustSeeRaw = normalizeMustSeeTokens(resolved.intent.mustSee || []);
   const mustSeeOptimized = await optimizeMustSeeOrder(resolved, mustSeeRaw);
 
@@ -468,7 +491,6 @@ export async function generateExecutableItineraryFromIntent(
     dayLines.push(`Día ${dayNum}: ${date} — Ciudad base: ${base}${extra}`);
   }
 
-  const provider = options?.provider ?? null;
   const baseContext = {
     destination: resolvedForPrompt.destination,
     start: resolvedForPrompt.intent.startLocation || "—",
