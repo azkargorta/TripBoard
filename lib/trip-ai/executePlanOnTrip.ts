@@ -39,13 +39,73 @@ function inferTimes(items: ItineraryItem[]) {
 
 function normalizeKind(input: string | null | undefined): string {
   const k = (input || "visit").trim().toLowerCase();
-  if (k === "food" || k === "restaurant" || k === "eat") return "food";
+  // En la UI, "restaurant" tiene estilo propio; "food" se normaliza a restaurant.
+  if (k === "food" || k === "restaurant" || k === "eat") return "restaurant";
   if (k === "transport" || k === "transit") return "transport";
   if (k === "lodging" || k === "hotel") return "lodging";
   if (k === "shopping") return "shopping";
   if (k === "nightlife") return "nightlife";
-  if (k === "museum" || k === "activity" || k === "visit") return "visit";
+  if (k === "museum") return "museum";
+  if (k === "activity") return "activity";
+  if (k === "visit") return "visit";
   return "visit";
+}
+
+function inferKindFromVisitType(params: {
+  kind: string;
+  visitType: string;
+  title: string;
+  transportMode: string;
+}) {
+  const k = params.kind;
+  if (k && k !== "visit") return k;
+  const vt = (params.visitType || "").toLowerCase();
+  const title = (params.title || "").toLowerCase();
+  const tm = (params.transportMode || "").toLowerCase();
+
+  // Transportes
+  if (tm && ["walking", "public_transport", "taxi", "driving", "flight", "bus", "train", "ferry"].includes(tm)) return "transport";
+  if (/\b(traslado|transfer|vuelo|aeropuerto|tren|bus|autob[uú]s|ferry|barco)\b/iu.test(title)) return "transport";
+
+  // Museo / cultura de pago
+  if (/\b(museo|museum|galer[ií]a|exposici[oó]n|pinacoteca)\b/iu.test(vt)) return "museum";
+
+  // Gastronomía
+  if (/\b(gastro|gastronom[ií]a|comida|restaurante|parrilla|cena|almuerzo|desayuno|brunch|tapas|vino|bodega|cerveza|cervecer[ií]a|chocolate)\b/iu.test(vt))
+    return "restaurant";
+
+  // Actividad (show/experiencia)
+  if (/\b(show|espect[aá]culo|tango|teatro|concierto|tour|excursi[oó]n|actividad)\b/iu.test(vt)) return "activity";
+
+  return k || "visit";
+}
+
+function buildAiMetaDescription(item: ItineraryItem): string | null {
+  const lines: string[] = [];
+  const visitType = typeof (item as any)?.visit_type === "string" ? String((item as any).visit_type).trim() : "";
+  const dur =
+    typeof (item as any)?.duration_min === "number" && Number.isFinite((item as any).duration_min) ? Math.round((item as any).duration_min) : null;
+  const requiresTicket = typeof (item as any)?.requires_ticket === "boolean" ? Boolean((item as any).requires_ticket) : null;
+  const ticketNotes = typeof (item as any)?.ticket_notes === "string" ? String((item as any).ticket_notes).trim() : "";
+  const transportMode = typeof (item as any)?.transport_mode === "string" ? String((item as any).transport_mode).trim() : "";
+  const kind = String((item as any)?.activity_kind || "").toLowerCase();
+
+  if (visitType) lines.push(`Tipo: ${visitType}`);
+  if (dur != null && dur > 0) lines.push(`Duración aprox: ${dur} min`);
+  if (requiresTicket === true) lines.push(`Entrada: sí (requiere entrada/reserva)`);
+  if (requiresTicket === false) lines.push(`Entrada: no`);
+  if (requiresTicket === true && ticketNotes) lines.push(`Entradas: ${ticketNotes}`);
+  if (kind === "transport" && transportMode) lines.push(`Transporte: ${transportMode}`);
+
+  if (!lines.length) return null;
+  return `Detalles (IA)\n${lines.map((l) => `- ${l}`).join("\n")}`.trim();
+}
+
+function mergeDescriptions(primary: string | null, secondary: string | null) {
+  const a = typeof primary === "string" ? primary.trim() : "";
+  const b = typeof secondary === "string" ? secondary.trim() : "";
+  if (a && b) return `${a}\n\n${b}`;
+  return a || b || null;
 }
 
 function buildGeocodeQuery(opts: { placeName: string | null; address: string | null; tripDestination: string | null }) {
@@ -112,6 +172,18 @@ function dbTravelMode(profile: "driving" | "walking" | "cycling") {
   if (profile === "walking") return { travel_mode: "WALKING" as const, mode: "walking" as const };
   if (profile === "cycling") return { travel_mode: "BICYCLING" as const, mode: "cycling" as const };
   return { travel_mode: "DRIVING" as const, mode: "driving" as const };
+}
+
+function chooseRouteModeFromDurationSeconds(durationSeconds: number | null | undefined) {
+  // Heurística para “a pie si <45 min, si no transporte público”.
+  // La BD no tiene "TRANSIT", así que usamos DRIVING y anotamos en notes.
+  const s = typeof durationSeconds === "number" && Number.isFinite(durationSeconds) ? durationSeconds : null;
+  if (s != null && s <= 45 * 60) return { travel_mode: "WALKING" as const, mode: "walking" as const, notesHint: null as string | null };
+  return {
+    travel_mode: "DRIVING" as const,
+    mode: "driving" as const,
+    notesHint: "Recomendación: transporte público (trayecto largo a pie).",
+  };
 }
 
 async function insertTripRouteRow(supabase: SupabaseClient, payload: Record<string, unknown>) {
@@ -277,7 +349,10 @@ export async function executePlanOnTrip(params: {
 
         const place_name = typeof item?.place_name === "string" ? item.place_name.trim() : null;
         const address = typeof item?.address === "string" ? item.address.trim() : null;
-        const activity_kind = normalizeKind(item?.activity_kind ?? null);
+      const baseKind = normalizeKind(item?.activity_kind ?? null);
+      const visitType = typeof (item as any)?.visit_type === "string" ? String((item as any).visit_type).trim() : "";
+      const transportMode = typeof (item as any)?.transport_mode === "string" ? String((item as any).transport_mode).trim() : "";
+      const activity_kind = inferKindFromVisitType({ kind: baseKind, visitType, title, transportMode });
         const latHint = validCoord((item as any)?.latitude) ? Number((item as any).latitude) : null;
         const lngHint = validCoord((item as any)?.longitude) ? Number((item as any).longitude) : null;
         prepared.push({ date, item, title, place_name, address, activity_kind, latHint, lngHint });
@@ -320,10 +395,12 @@ export async function executePlanOnTrip(params: {
 
     for (const r of geocoded) {
       const activity_time = normalizeTime(r.item.start_time ?? null);
+      const notes = typeof r.item?.notes === "string" ? r.item.notes.trim() : null;
+      const aiMeta = buildAiMetaDescription(r.item as any);
       const row: Record<string, unknown> = {
         trip_id: tripId,
         title: r.title,
-        description: typeof r.item?.notes === "string" ? r.item.notes.trim() : null,
+        description: mergeDescriptions(notes, aiMeta),
         activity_date: r.date,
         activity_time,
         place_name: r.place_name,
@@ -373,7 +450,7 @@ export async function executePlanOnTrip(params: {
     }
 
     const profile = itineraryProfile(itinerary);
-    const { travel_mode, mode } = dbTravelMode(profile);
+    const baseMode = dbTravelMode(profile);
     let routeCalls = 0;
     const ROUTE_CALL_LIMIT = 80;
     let lastRouteInsertError: string | null = null;
@@ -400,6 +477,11 @@ export async function executePlanOnTrip(params: {
       const title = `${a.title} → ${b.title}`;
       const routeDay = a.route_day;
 
+      const autoMode =
+        profile === "walking"
+          ? chooseRouteModeFromDurationSeconds(route.durationSeconds ?? null)
+          : { ...baseMode, notesHint: null as string | null };
+
       const payload: Record<string, unknown> = {
         trip_id: tripId,
         title,
@@ -409,12 +491,17 @@ export async function executePlanOnTrip(params: {
         route_date: routeDay,
         day_date: routeDay,
         departure_time: null,
-        travel_mode,
-        mode,
-        notes:
+        travel_mode: autoMode.travel_mode,
+        mode: autoMode.mode,
+        notes: [
           rawPts.length >= 2
             ? null
             : "Geometría aproximada (línea recta): OSRM no devolvió trazado; revisa ferry/isla o modo de transporte.",
+          autoMode.notesHint,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .trim() || null,
         color: null,
         origin_name: a.title,
         origin_address: a.addressLabel,

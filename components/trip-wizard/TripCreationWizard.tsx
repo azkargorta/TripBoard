@@ -516,6 +516,41 @@ export default function TripCreationWizard({ isPremium }: Props) {
   const [creatingTripSilently, setCreatingTripSilently] = useState(false);
   const [autoConfig, setAutoConfig] = useState<TripAutoConfig>(() => DEFAULT_TRIP_AUTO_CONFIG);
 
+  const [mobilityWalkLimitMin, setMobilityWalkLimitMin] = useState<number>(45);
+  const [mobilityCityLongMode, setMobilityCityLongMode] = useState<"public_transport" | "taxi" | "driving">("public_transport");
+  const [mobilityIntercityPreference, setMobilityIntercityPreference] = useState<"best" | "train_first" | "flight_first" | "bus_first">("best");
+
+  const mobilityRulesText = useMemo(() => {
+    const walk = Math.max(10, Math.min(120, Math.round(mobilityWalkLimitMin || 45)));
+    const cityMode =
+      mobilityCityLongMode === "public_transport"
+        ? "transporte público"
+        : mobilityCityLongMode === "taxi"
+          ? "taxi"
+          : "coche";
+    const intercity =
+      mobilityIntercityPreference === "train_first"
+        ? "Entre ciudades: prioriza tren; si no es viable, autobús; y si es muy largo, vuelo."
+        : mobilityIntercityPreference === "flight_first"
+          ? "Entre ciudades: prioriza vuelo si reduce mucho el tiempo total; si no, tren; y si no, autobús."
+          : mobilityIntercityPreference === "bus_first"
+            ? "Entre ciudades: prioriza autobús (coste/experiencia) salvo que sea excesivo; si no, tren; y si no, vuelo."
+            : "Entre ciudades: elige la mejor opción entre vuelo, autobús y tren según duración total, fiabilidad y número de transbordos.";
+    return [
+      `Dentro de ciudad: andando si son <= ${walk} minutos; si es más, usa ${cityMode}.`,
+      intercity,
+    ].join("\n");
+  }, [mobilityWalkLimitMin, mobilityCityLongMode, mobilityIntercityPreference]);
+
+  useEffect(() => {
+    // Si el usuario no ha escrito notas manuales, generamos una base automática.
+    setAutoConfig((p) => {
+      const cur = String(p?.transport?.notes || "");
+      if (cur.trim()) return p;
+      return { ...p, transport: { ...p.transport, notes: mobilityRulesText } };
+    });
+  }, [mobilityRulesText]);
+
   const creatingOverlay = loading || creatingTripSilently;
 
   // Destinos múltiples:
@@ -2136,6 +2171,52 @@ export default function TripCreationWizard({ isPremium }: Props) {
                     </div>
 
                     <div className="mt-3 grid gap-3 grid-cols-1 lg:grid-cols-2">
+                      <div className="space-y-2 lg:col-span-2">
+                        <div className="text-xs font-extrabold text-slate-700">Reglas de movilidad (recomendado)</div>
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                          <label className="space-y-1">
+                            <span className="text-[11px] font-semibold text-slate-500">Andando hasta (min)</span>
+                            <input
+                              value={mobilityWalkLimitMin}
+                              onChange={(e) => setMobilityWalkLimitMin(Math.max(10, Math.min(120, Number(e.target.value) || 45)))}
+                              disabled={creatingOverlay}
+                              inputMode="numeric"
+                              className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                            />
+                          </label>
+                          <label className="space-y-1">
+                            <span className="text-[11px] font-semibold text-slate-500">En ciudad si es lejos</span>
+                            <select
+                              value={mobilityCityLongMode}
+                              onChange={(e) => setMobilityCityLongMode((e.target.value as any) || "public_transport")}
+                              disabled={creatingOverlay}
+                              className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                            >
+                              <option value="public_transport">Transporte público</option>
+                              <option value="taxi">Taxi</option>
+                              <option value="driving">Coche</option>
+                            </select>
+                          </label>
+                          <label className="space-y-1">
+                            <span className="text-[11px] font-semibold text-slate-500">Entre ciudades</span>
+                            <select
+                              value={mobilityIntercityPreference}
+                              onChange={(e) => setMobilityIntercityPreference((e.target.value as any) || "best")}
+                              disabled={creatingOverlay}
+                              className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                            >
+                              <option value="best">Mejor opción (auto)</option>
+                              <option value="train_first">Priorizar tren</option>
+                              <option value="flight_first">Priorizar vuelo</option>
+                              <option value="bus_first">Priorizar autobús</option>
+                            </select>
+                          </label>
+                        </div>
+                        <div className="text-[11px] font-semibold text-slate-500 whitespace-pre-wrap">
+                          {mobilityRulesText}
+                        </div>
+                      </div>
+
                       <label className="space-y-1 lg:col-span-2">
                         <span className="text-xs font-extrabold text-slate-700">Preferencias de transporte y rutas</span>
                         <textarea

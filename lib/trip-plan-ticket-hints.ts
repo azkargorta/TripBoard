@@ -32,6 +32,12 @@ export function activityLikelyNeedsTicket(activity: TicketHintActivity): boolean
   const kind = (activity.activity_kind || "").toLowerCase();
   const text = hintText(activity);
 
+  // Si el plan ya trae una marca explícita desde IA, confiamos en ella.
+  // (Ej.: "Entrada: sí (requiere entrada/reserva)")
+  if (/\bentrada:\s*s[ií]\b/iu.test(text) || /\brequires?\s+entrada\b/iu.test(text) || /\brequiere\s+entrada\b/iu.test(text)) {
+    return true;
+  }
+
   if (TICKET_HINT_EXCLUDE.test(text) && !TICKET_HINT_INCLUDE.test(text)) {
     return false;
   }

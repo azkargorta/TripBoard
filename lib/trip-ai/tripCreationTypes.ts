@@ -38,6 +38,18 @@ export type ItineraryItemPayload = {
   latitude?: number | null;
   longitude?: number | null;
   start_time?: string | null;
+  /** Duración estimada (min). Útil para planificar el día. */
+  duration_min?: number | null;
+  /** Hora fin opcional (HH:MM). Si viene, debe ser coherente con start_time + duration_min. */
+  end_time?: string | null;
+  /** Etiqueta de “tipo de visita” más específica (p. ej. "gastronomía", "naturaleza", "museo"). */
+  visit_type?: string | null;
+  /** Si requiere entrada/reserva. */
+  requires_ticket?: boolean | null;
+  /** Texto corto con info de entrada/reserva (precio aproximado, dónde reservar, etc.). */
+  ticket_notes?: string | null;
+  /** Para items de transporte: modo recomendado (walking/public_transport/taxi/flight/bus/train/ferry). */
+  transport_mode?: string | null;
   notes?: string | null;
 };
 

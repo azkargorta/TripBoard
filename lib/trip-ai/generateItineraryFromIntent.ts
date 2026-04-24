@@ -11,7 +11,7 @@ import { sanityCheckItinerary, sanityCheckPlaceholders } from "@/lib/trip-ai/iti
 import { deriveRouteStructure, type RouteStructure } from "@/lib/trip-ai/routeStructure";
 
 const ITIN_PROMPT = `Genera un itinerario JSON para la app Kaviro. Devuelve SOLO JSON válido (sin markdown).
-Esquema exacto:
+Esquema exacto (puedes incluir campos extra, pero estos deben existir):
 {
   "version": 1,
   "title": string breve en español,
@@ -29,6 +29,12 @@ Esquema exacto:
           "latitude": number|null,
           "longitude": number|null,
           "start_time": "HH:MM",
+          "duration_min": number|null,
+          "end_time": "HH:MM"|null,
+          "visit_type": string|null,
+          "requires_ticket": boolean|null,
+          "ticket_notes": string|null,
+          "transport_mode": string|null,
           "notes": string|null
         }
       ]
@@ -37,7 +43,13 @@ Esquema exacto:
 }
 
 Reglas:
-- Cada día: entre 3 y 5 items, start_time en orden creciente.
+- Cada día: entre 3 y 5 items (salvo días de traslado largo: 2–4), start_time en orden creciente.
+- Para cada item, rellena "duration_min" de forma realista (aprox). Si no estás seguro, usa null.
+- Si das "end_time", debe ser coherente con start_time + duration_min; si dudas, usa null.
+- "visit_type": usa categorías humanas (ej. "gastronomía", "naturaleza", "museo", "ruta panorámica", "barrio", "mercado", "mirador", "cultura").
+- "requires_ticket": true si suele requerir entrada/reserva (museos, parques nacionales, shows); false si es paseo libre; null si no estás seguro.
+- "ticket_notes": si requiere entrada/reserva, añade 1 frase (dónde o si conviene reservar). Si no, null.
+- "transport_mode": solo si activity_kind="transport". Usa: walking | public_transport | taxi | driving | flight | bus | train | ferry.
 - Debes devolver SIEMPRE el array "days" con todos los días solicitados (ver sección "Fechas por día"). No omitas días.
 - Lugares realistas para el destino indicado.
 - Coherencia geográfica (CRÍTICO): en un mismo día, todos los items deben estar en la MISMA ciudad/área (o a <~30 km). No “teletransportes” entre ciudades lejanas o islas.
@@ -515,10 +527,37 @@ export async function generateExecutableItineraryFromStructure(
     return { itinerary: parsed, usage };
   };
 
-  // Generación por bloques: evita truncado de salida y mejora coherencia.
-  const chunks = buildDayChunks(baseCitySchedule, { maxDaysPerChunk: 4 });
-  const dayMap = new Map<number, ExecutableItineraryPayload["days"][number]>();
+  // Estrategia de rendimiento:
+  // - Para viajes “normales” (<= 26 días) intentamos 1 sola llamada (más rápido, similar a Gemini en chat).
+  // - Si falla (JSON inválido/truncado) o el viaje es muy largo, caemos al modo chunked.
+  const SINGLE_CALL_DAYS_LIMIT = 26;
   const usageAgg: TripAiUsage = { provider: "gemini", model: null, inputTokens: 0, outputTokens: 0 };
+
+  const singlePrompt = () => `${ITIN_PROMPT}
+
+Destino principal: ${baseContext.destination}
+Ciudad/punto inicio (si existe): ${baseContext.start}
+Ciudad/punto fin (si existe): ${baseContext.end}
+Ritmo: entre ${cfg.pace.itemsPerDayMin} y ${cfg.pace.itemsPerDayMax} items por día.
+Coherencia geográfica: ${effectiveStrictness === "strict" ? "muy estricta" : effectiveStrictness === "loose" ? "flexible" : "equilibrada"}.
+Preferencias de transporte: ${cfg.transport.notes || "—"}
+Fechas por día (TODAS):
+${dayLines.join("\n")}
+
+Instrucciones:
+- Devuelve EXACTAMENTE ${generateDays} objetos en "days" correspondientes a esas fechas.
+- Los campos "day" deben coincidir con el número de Día mostrado arriba (no renumeres).
+- Para cada día, respeta la "Ciudad base" indicada.
+- Cada día debe tener entre ${cfg.pace.itemsPerDayMin} y ${cfg.pace.itemsPerDayMax} items (salvo días con traslado largo).
+- Direcciones: siempre \"..., Ciudad, País\" (no uses solo el país).
+
+Tipo viajeros: ${baseContext.travelersType}
+Presupuesto: ${baseContext.budget}
+Intereses: ${baseContext.interests}
+Estilos: ${baseContext.styles}
+Paradas obligatorias (mustSee, en este orden): ${baseContext.mustSee}
+${baseContext.optimizeHint}
+`;
 
   const chunkPrompt = (chunkLines: string, requiredCount: number) => `${ITIN_PROMPT}
 
@@ -581,20 +620,58 @@ ${baseContext.optimizeHint}
     return { daysArr, requiredDayNums, usage: finalUsage };
   };
 
-  // Ejecutamos hasta 2 chunks en paralelo para bajar el tiempo total.
-  const CONCURRENCY = 2;
-  for (let i = 0; i < chunks.length; i += CONCURRENCY) {
-    const batch = chunks.slice(i, i + CONCURRENCY);
-    const results = await Promise.all(batch.map((ch) => processChunk(ch)));
-    for (const r of results) {
-      for (const d of r.daysArr) {
-        if (typeof d?.day === "number" && r.requiredDayNums.includes(d.day)) {
-          dayMap.set(d.day, d);
-        }
+  let dayMap = new Map<number, ExecutableItineraryPayload["days"][number]>();
+
+  const trySingle = async (): Promise<boolean> => {
+    if (generateDays > SINGLE_CALL_DAYS_LIMIT) return false;
+    try {
+      const first = await runOnce(singlePrompt());
+      let normalized = normalizeChunkDays(first.itinerary, resolvedForPrompt, Array.from({ length: generateDays }, (_, i) => i + 1));
+      const sanity1 = sanityCheckItinerary(normalized, {
+        destinationLabel: resolvedForPrompt.destination,
+        baseCityByDay: baseCitySchedule,
+      });
+      const placeholders1 = sanityCheckPlaceholders(normalized, {
+        generateDays,
+        destinationLabel: resolvedForPrompt.destination,
+      });
+      let finalUsage = first.usage;
+      if (!sanity1.ok || !placeholders1.ok) {
+        const second = await runOnce(`${singlePrompt()}${strictHint}`);
+        normalized = normalizeChunkDays(second.itinerary, resolvedForPrompt, Array.from({ length: generateDays }, (_, i) => i + 1));
+        finalUsage = second.usage;
       }
-      usageAgg.model = r.usage.model ?? usageAgg.model;
-      usageAgg.inputTokens = (usageAgg.inputTokens || 0) + (r.usage.inputTokens || 0);
-      usageAgg.outputTokens = (usageAgg.outputTokens || 0) + (r.usage.outputTokens || 0);
+      const daysArr = Array.isArray(normalized.days) ? normalized.days : [];
+      for (const d of daysArr) if (typeof d?.day === "number") dayMap.set(d.day, d);
+
+      usageAgg.model = finalUsage.model ?? usageAgg.model;
+      usageAgg.inputTokens = (usageAgg.inputTokens || 0) + (finalUsage.inputTokens || 0);
+      usageAgg.outputTokens = (usageAgg.outputTokens || 0) + (finalUsage.outputTokens || 0);
+      return dayMap.size >= Math.max(1, Math.floor(generateDays * 0.85));
+    } catch {
+      return false;
+    }
+  };
+
+  const singleOk = await trySingle();
+  if (!singleOk) {
+    // Generación por bloques: evita truncado de salida y mejora coherencia.
+    const chunks = buildDayChunks(baseCitySchedule, { maxDaysPerChunk: 5 });
+    const CONCURRENCY = 3;
+    dayMap = new Map<number, ExecutableItineraryPayload["days"][number]>();
+    for (let i = 0; i < chunks.length; i += CONCURRENCY) {
+      const batch = chunks.slice(i, i + CONCURRENCY);
+      const results = await Promise.all(batch.map((ch) => processChunk(ch)));
+      for (const r of results) {
+        for (const d of r.daysArr) {
+          if (typeof d?.day === "number" && r.requiredDayNums.includes(d.day)) {
+            dayMap.set(d.day, d);
+          }
+        }
+        usageAgg.model = r.usage.model ?? usageAgg.model;
+        usageAgg.inputTokens = (usageAgg.inputTokens || 0) + (r.usage.inputTokens || 0);
+        usageAgg.outputTokens = (usageAgg.outputTokens || 0) + (r.usage.outputTokens || 0);
+      }
     }
   }
 
