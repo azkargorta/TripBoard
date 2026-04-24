@@ -5,7 +5,7 @@ import { monthKeyUtc } from "@/lib/ai-usage";
 import type { TripCreationIntent } from "@/lib/trip-ai/tripCreationTypes";
 import { mergeTripCreationIntentLLM } from "@/lib/trip-ai/parseTripCreationIntent";
 import { getTripCreationFollowUp, resolveTripCreationDates } from "@/lib/trip-ai/tripCreationResolve";
-import { generateExecutableItineraryFromIntent } from "@/lib/trip-ai/generateItineraryFromIntent";
+import { generateExecutableItineraryFastFromIntent, generateExecutableItineraryFromIntent } from "@/lib/trip-ai/generateItineraryFromIntent";
 import { normalizeTripAutoConfig } from "@/lib/trip-ai/tripAutoConfig";
 import type { TripAiUsage } from "@/lib/trip-ai/providers";
 
@@ -114,7 +114,16 @@ export async function POST(req: Request) {
       });
     }
 
-    const { itinerary, usage } = await generateExecutableItineraryFromIntent(resolved, { provider, config });
+    // En despliegue (y sobre todo viajes largos), la generación con LLM puede exceder el límite de ejecución.
+    // Usamos un modo "fast" sin LLM para asegurar respuesta rápida en previsualización.
+    const wantFast =
+      String(body?.fast || "").trim() === "1" ||
+      process.env.VERCEL === "1" ||
+      process.env.NODE_ENV === "production";
+
+    const { itinerary, usage } = wantFast
+      ? await generateExecutableItineraryFastFromIntent(resolved, { config })
+      : await generateExecutableItineraryFromIntent(resolved, { provider, config });
     await trackIfCountable({ supabase, userId, monthKey, usage });
 
     return NextResponse.json({
@@ -129,6 +138,7 @@ export async function POST(req: Request) {
       },
       itinerary,
       config,
+      fast: wantFast,
     });
   } catch (error) {
     return NextResponse.json(

@@ -636,6 +636,54 @@ ${baseContext.optimizeHint}
   return { itinerary: finalItinerary, usage: usageAgg };
 }
 
+/**
+ * Generación rápida sin LLM (para evitar timeouts en despliegue).
+ * Devuelve un itinerario válido con "Ciudad base" por día + items de fallback,
+ * reforzando mustSee cuando sea posible.
+ */
+export async function generateExecutableItineraryFastFromIntent(
+  resolved: ResolvedTripCreation,
+  options?: { config?: TripAutoConfig | null }
+): Promise<{ itinerary: ExecutableItineraryPayload; usage: TripAiUsage }> {
+  const cfg = options?.config || DEFAULT_TRIP_AUTO_CONFIG;
+  const generateDays = Math.max(1, resolved.durationDays);
+
+  const baseCitySchedule = await buildBaseCitySchedule({
+    durationDays: generateDays,
+    destination: resolved.destination,
+    startCity: (resolved.intent.startLocation || "").trim(),
+    endCity: (resolved.intent.endLocation || "").trim(),
+    mustSee: normalizeMustSeeTokens(resolved.intent.mustSee || []),
+    lodgingBaseMode: cfg.lodging.baseCityMode,
+    lodgingBaseCity: cfg.lodging.baseCity,
+  });
+
+  const daysOut: ExecutableItineraryPayload["days"] = [];
+  for (let i = 0; i < generateDays; i++) {
+    const baseCity = String(baseCitySchedule[i] || resolved.destination).trim() || resolved.destination;
+    daysOut.push({
+      day: i + 1,
+      date: addDaysIso(resolved.startDate, i),
+      items: fallbackDayItems({ destination: resolved.destination, baseCity }),
+    });
+  }
+
+  const itinerary = enforceMustSee(
+    validateItinerary({
+      version: 1,
+      title: `${resolved.destination} (${generateDays} días)`,
+      travelMode: "driving",
+      days: daysOut,
+    }),
+    resolved
+  );
+
+  return {
+    itinerary,
+    usage: { provider: "fast", model: null, inputTokens: 0, outputTokens: 0 },
+  };
+}
+
 function fallbackDayItems(params: { destination: string; baseCity: string }) {
   const city = params.baseCity || params.destination;
   const country = params.destination;
