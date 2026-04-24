@@ -1692,7 +1692,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
                   </label>
                 </div>
 
-                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   <label className="space-y-1">
                     <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Fecha inicio</span>
                     <input
@@ -1812,7 +1812,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
                       <div
                         role="radiogroup"
                         aria-label="Coherencia geográfica"
-                        className="grid grid-cols-3 gap-2"
+                        className="grid grid-cols-1 gap-2 sm:grid-cols-3"
                       >
                         {(
                           [
@@ -1830,7 +1830,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
                               onClick={() =>
                                 setAutoConfig((p) => ({ ...p, geo: { ...p.geo, strictness: opt.key } }))
                               }
-                              className={`min-h-[42px] rounded-2xl border px-3 py-2 text-xs font-extrabold transition ${
+                              className={`min-h-[42px] min-w-0 whitespace-normal break-words leading-tight rounded-2xl border px-3 py-2 text-xs font-extrabold transition ${
                                 active
                                   ? "border-violet-300 bg-violet-50 text-violet-900"
                                   : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
