@@ -140,27 +140,110 @@ function inferPlacesPlaceholder(destinationRaw: string) {
 function inferPopularSuggestions(destinationRaw: string) {
   const d = normalizeDestination(destinationRaw);
   const has = (s: string) => d.includes(s);
+  const uniq = (arr: string[]) => Array.from(new Set(arr.map((x) => String(x || "").trim()).filter(Boolean)));
+  const generic = [
+    "Casco histórico",
+    "Barrio antiguo",
+    "Pueblo medieval cercano",
+    "Mirador / atardecer",
+    "Mercado local",
+    "Catedral / basílica",
+    "Castillo / fortaleza",
+    "Ruta de vinos",
+    "Paseo por el río",
+    "Playa / calas",
+    "Museo principal",
+    "Excursión de un día (pueblo con encanto)",
+  ];
+
+  // Destinos por país/región
   if (has("italia") || has("italy")) {
-    return ["Roma", "Florencia", "Venecia", "Milán", "Pompeya", "Vaticano", "Uffizi", "Trastevere", "Cinque Terre"];
+    return uniq([
+      "Roma",
+      "Florencia",
+      "Venecia",
+      "Milán",
+      "Nápoles",
+      "Bolonia",
+      "Verona",
+      "Lago Como",
+      "Cinque Terre",
+      "Pompeya",
+      "Vaticano",
+      "Trastevere",
+      "Uffizi",
+      "Duomo",
+    ]);
   }
   if (has("francia") || has("france") || has("paris") || has("parís")) {
-    return ["París", "Louvre", "Torre Eiffel", "Montmartre", "Versalles", "Sena", "Museo d'Orsay", "Notre-Dame"];
+    return uniq([
+      "París",
+      "Louvre",
+      "Torre Eiffel",
+      "Montmartre",
+      "Versalles",
+      "Sena",
+      "Museo d'Orsay",
+      "Notre-Dame",
+      "Le Marais",
+      "Sainte-Chapelle",
+    ]);
   }
   if (has("japon") || has("japón") || has("japan") || has("tokyo") || has("tokio") || has("kyoto") || has("kioto")) {
-    return ["Tokio", "Kioto", "Osaka", "Nara", "Shibuya", "Fushimi Inari", "Arashiyama", "Dotonbori"];
+    return uniq([
+      "Tokio",
+      "Kioto",
+      "Osaka",
+      "Nara",
+      "Shibuya",
+      "Asakusa",
+      "Fushimi Inari",
+      "Arashiyama",
+      "Dotonbori",
+      "Castillo de Osaka",
+    ]);
   }
   if (has("croacia") || has("croatia")) {
     // Solo ciudades/pueblos (sin atracciones/parques) para que al añadir etiquetas no “contamine” el orden de pernocta.
-    return ["Zagreb", "Dubrovnik", "Split", "Zadar", "Šibenik", "Trogir", "Pula", "Rovinj", "Korčula"];
+    return uniq(["Zagreb", "Dubrovnik", "Split", "Zadar", "Šibenik", "Trogir", "Pula", "Rovinj", "Korčula", "Hvar"]);
   }
   if (has("portugal")) {
-    return ["Lisboa", "Oporto", "Sintra", "Belém", "Ribeira", "Cascais", "Braga"];
+    return uniq(["Lisboa", "Oporto", "Sintra", "Belém", "Ribeira", "Cascais", "Braga", "Coímbra", "Alfama"]);
   }
   if (has("polonia") || has("poland")) {
-    return ["Cracovia", "Auschwitz", "Gdansk", "Varsovia", "Wroclaw", "Zakopane"];
+    return uniq(["Cracovia", "Auschwitz", "Gdansk", "Varsovia", "Wroclaw", "Zakopane", "Barrio judío"]);
   }
-  // Solo ciudades/pueblos genéricos
-  return ["Centro histórico (ciudad principal)", "Ciudad costera", "Pueblo con encanto", "Ciudad universitaria", "Villa vinícola", "Ciudad medieval"];
+
+  // Destinos por ciudad (España)
+  if (has("madrid")) {
+    return uniq(["Madrid", "Museo del Prado", "Reina Sofía", "Parque del Retiro", "Gran Vía", "Malasaña", "Lavapiés", "Toledo", "Segovia"]);
+  }
+  if (has("barcelona")) {
+    return uniq([
+      "Barcelona",
+      "Sagrada Familia",
+      "Park Güell",
+      "Gótico",
+      "El Born",
+      "Montjuïc",
+      "Casa Batlló",
+      "Montserrat",
+      "Sitges",
+    ]);
+  }
+  if (has("sevilla") || has("seville")) {
+    return uniq(["Sevilla", "Real Alcázar", "Catedral", "Triana", "Plaza de España", "Barrio Santa Cruz", "Córdoba (excursión)"]);
+  }
+  if (has("granada")) {
+    return uniq(["Granada", "Alhambra", "Albaicín", "Mirador de San Nicolás", "Sierra Nevada", "Tapas por el centro"]);
+  }
+
+  // Fallback: mezcla destino + conceptos genéricos
+  const base =
+    destinationRaw && String(destinationRaw).trim()
+      ? [`Centro histórico de ${String(destinationRaw).trim()}`, `Miradores en ${String(destinationRaw).trim()}`]
+      : [];
+  return uniq([...base, ...generic]);
 }
 
 // Nota: la pestaña "Explorar mapa" del asistente automático está desactivada por ahora.
@@ -1602,7 +1685,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
                               pace: { ...p.pace, itemsPerDayMin: Math.max(1, Math.min(12, Number(e.target.value) || 1)) },
                             }))
                           }
-                          disabled={loading}
+                          disabled={creatingOverlay}
                           inputMode="numeric"
                           className="w-20 shrink-0 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
                         />
@@ -1615,7 +1698,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
                               pace: { ...p.pace, itemsPerDayMax: Math.max(1, Math.min(12, Number(e.target.value) || 1)) },
                             }))
                           }
-                          disabled={loading}
+                          disabled={creatingOverlay}
                           inputMode="numeric"
                           className="w-20 shrink-0 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
                         />
@@ -1665,7 +1748,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
                             return { ...p, geo: { ...p.geo, strictness } };
                           });
                         }}
-                        disabled={loading}
+                        disabled={creatingOverlay}
                         className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
                       >
                         <option value="balanced">Equilibrada</option>
@@ -1682,7 +1765,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
                       <textarea
                         value={autoConfig.transport.notes}
                         onChange={(e) => setAutoConfig((p) => ({ ...p, transport: { ...p.transport, notes: e.target.value } }))}
-                        disabled={loading}
+                        disabled={creatingOverlay}
                         rows={4}
                         placeholder="Ej.\n- Dentro de ciudad: a pie + metro\n- Entre ciudades: tren\n- Islas: ferry\n- Si una ruta supera 3h: vuelo\n- Por la noche: taxi"
                         className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
@@ -1703,7 +1786,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
                             return { ...p, lodging: { ...p.lodging, mode } };
                           });
                         }}
-                        disabled={loading}
+                        disabled={creatingOverlay}
                         className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
                       >
                         <option value="proposal">Propuesta</option>
@@ -1738,7 +1821,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
                             };
                           });
                         }}
-                        disabled={loading}
+                        disabled={creatingOverlay}
                         className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
                       >
                         <option value="rotate">Rotar entre ciudades</option>
@@ -1748,7 +1831,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
                         <input
                           value={autoConfig.lodging.baseCity}
                           onChange={(e) => setAutoConfig((p) => ({ ...p, lodging: { ...p.lodging, baseCity: e.target.value } }))}
-                          disabled={loading}
+                          disabled={creatingOverlay}
                           placeholder="Ej. Zagreb"
                           className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
                         />
@@ -2175,9 +2258,9 @@ export default function TripCreationWizard({ isPremium }: Props) {
                       disabled={loading}
                       onClick={() => setPopularSuggestionsOpen((v) => !v)}
                       className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-50 disabled:opacity-60"
-                      title={popularSuggestionsOpen ? "Mostrar menos sugerencias" : "Mostrar más sugerencias"}
+                      title={popularSuggestionsOpen ? "Ver menos sugerencias" : "Añadir más sugerencias"}
                     >
-                      {popularSuggestionsOpen ? "Menos" : "Más"}
+                      {popularSuggestionsOpen ? "Ver menos" : "Añadir más"}
                     </button>
                   ) : null}
                 </div>
