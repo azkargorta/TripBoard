@@ -49,6 +49,15 @@ type PreviewPlansOk = {
   itinerary: ExecutableItineraryPayload;
 };
 
+type LodgingSeg = {
+  segmentKey: string;
+  city: string;
+  nights: number;
+  dates: string[];
+  startDate: string | null;
+  endDate: string | null;
+};
+
 const STEP_LABELS: Array<{ step: WizardStep; label: string }> = [
   { step: 1, label: "Describe" },
   { step: 2, label: "Revisión" },
@@ -652,9 +661,9 @@ export default function TripCreationWizard({ isPremium }: Props) {
     return;
   }, []);
 
-  const lodgingCities = useMemo(() => {
+  const lodgingCities = useMemo<LodgingSeg[]>(() => {
     if (previewStructure && Array.isArray((previewStructure as any)?.segments) && (previewStructure as any).segments.length) {
-      return (previewStructure as any).segments;
+      return (previewStructure as any).segments as LodgingSeg[];
     }
     const itin = lodgingItinerary || previewItinerary;
     if (!itin?.days?.length) return [];
@@ -676,15 +685,6 @@ export default function TripCreationWizard({ isPremium }: Props) {
       if (Number.isNaN(d.getTime())) return isoDate;
       d.setDate(d.getDate() + days);
       return d.toISOString().slice(0, 10);
-    };
-
-    type LodgingSeg = {
-      segmentKey: string;
-      city: string;
-      nights: number;
-      dates: string[];
-      startDate: string | null;
-      endDate: string | null;
     };
 
     const sortedDays = [...itin.days]
@@ -2058,7 +2058,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
                       </div>
                     ) : lodgingCities.length ? (
                       <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                        {lodgingCities.map((seg) => {
+                        {lodgingCities.map((seg: LodgingSeg) => {
                           const city = seg.city || "Sin ciudad";
                           const checkin = seg.startDate || draftIntent?.startDate || null;
                           const checkout = seg.endDate || null;

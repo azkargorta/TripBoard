@@ -701,7 +701,7 @@ export async function generateExecutableItineraryFastFromIntent(
 
   return {
     itinerary,
-    usage: { provider: "fast", model: null, inputTokens: 0, outputTokens: 0 },
+    usage: { provider: "gemini", model: null, inputTokens: 0, outputTokens: 0 },
   };
 }
 
