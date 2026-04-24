@@ -13,7 +13,7 @@ import DuplicateRouteDialog from "@/components/trip/map/DuplicateRouteDialog";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 type UnknownRow = Record<string, unknown>;
 type RouteMode = "DRIVING";
@@ -134,6 +134,7 @@ type PlanSources = {
 
 type Props = {
   tripId: string;
+  isPremium?: boolean;
   trip?: { id: string; name: string; destination?: string | null; start_date?: string | null; end_date?: string | null };
   tripDates?: string[];
   planSources?: PlanSources;
@@ -536,8 +537,9 @@ function MapSurface({
   );
 }
 
-export default function TripMapView({ tripId, tripDates = [], planSources, routeSources, points, routes }: Props) {
+export default function TripMapView({ tripId, tripDates = [], planSources, routeSources, points, routes, isPremium = false }: Props) {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [mapRef, setMapRef] = useState<L.Map | null>(null);
   const allPlanPlaces = useMemo(() => {
     const fromSources =
@@ -631,6 +633,12 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   const [routesDraftIndex, setRoutesDraftIndex] = useState(0);
   const draftReviewActiveRef = useRef(false);
 
+  const [routesAutoNotes, setRoutesAutoNotes] = useState("");
+  const [routesAutoQuestion, setRoutesAutoQuestion] = useState<string | null>(null);
+  const [routesAutoFollowUp, setRoutesAutoFollowUp] = useState("");
+  const [routesAutoLoading, setRoutesAutoLoading] = useState(false);
+  const [routesAutoError, setRoutesAutoError] = useState<string | null>(null);
+
   useEffect(() => {
     const want = searchParams?.get("draftRoutes") === "1";
     if (!want) return;
@@ -652,6 +660,65 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tripId]);
+
+  async function generateRoutesDraft() {
+    setRoutesAutoError(null);
+    setRoutesAutoQuestion(null);
+    setInfo(null);
+    setError(null);
+
+    const date = selectedDate !== "all" ? selectedDate : null;
+    const dates = Array.isArray(tripDates) ? tripDates.filter((d) => typeof d === "string" && d) : [];
+    const startDate = !date && dates.length ? dates[0] : null;
+    const endDate = !date && dates.length ? dates[dates.length - 1] : null;
+
+    if (!date && (!startDate || !endDate)) {
+      setRoutesAutoError("No encuentro el calendario del viaje. Selecciona un día o define fechas del viaje.");
+      return;
+    }
+
+    setRoutesAutoLoading(true);
+    try {
+      const resp = await fetch("/api/trip-ai/generate-routes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tripId,
+          date,
+          startDate,
+          endDate,
+          transportNotes: routesAutoNotes,
+          followUp: routesAutoFollowUp,
+        }),
+      });
+      const payload = await resp.json().catch(() => null);
+      if (!resp.ok) throw new Error(payload?.error || `Error ${resp.status}`);
+
+      if (payload?.status === "needs_clarification") {
+        setRoutesAutoQuestion(typeof payload?.question === "string" ? payload.question : "Necesito un poco más de información.");
+        return;
+      }
+      if (payload?.status !== "ok" || !payload?.routesDraft) {
+        throw new Error(payload?.error || "Respuesta inesperada al generar rutas.");
+      }
+
+      const draft = payload.routesDraft as RoutesDraftPayload;
+      setRoutesDraft(draft);
+      setRoutesDraftIndex(0);
+      setShowRoutesList(true);
+      try {
+        const key = `tripboard_routes_draft:${tripId}`;
+        window.sessionStorage.setItem(key, JSON.stringify(draft));
+      } catch {
+        // ignore
+      }
+      router.push(`/trip/${encodeURIComponent(tripId)}/map?draftRoutes=1`);
+    } catch (e) {
+      setRoutesAutoError(e instanceof Error ? e.message : "No se pudieron generar las rutas.");
+    } finally {
+      setRoutesAutoLoading(false);
+    }
+  }
 
   const routeCalcKey = useMemo(() => {
     return JSON.stringify({
@@ -1376,6 +1443,74 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
 
   return (
     <div className="min-w-0 max-w-full space-y-4 overflow-x-hidden">
+      <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+        <div className="flex min-w-0 flex-col gap-3 border-b border-slate-100 px-4 py-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <div className="text-sm font-extrabold text-slate-950">Crear rutas automáticamente</div>
+            <div className="mt-1 text-xs text-slate-600">
+              Genera un borrador de rutas entre tus planes guardados (por día o para todo el viaje) y luego revísalas antes de guardar.
+            </div>
+          </div>
+          <div className="shrink-0">
+            <StatusChip active={isPremium}>Premium</StatusChip>
+          </div>
+        </div>
+        <div className="grid gap-3 px-4 py-4">
+          {!isPremium ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              Necesitas Premium (o que haya un participante Premium en este viaje) para crear rutas automáticamente.
+            </div>
+          ) : null}
+          {(routesAutoError || routesAutoQuestion) ? (
+            <div
+              className={`rounded-2xl border px-4 py-3 text-sm ${
+                routesAutoError ? "border-rose-200 bg-rose-50 text-rose-800" : "border-amber-200 bg-amber-50 text-amber-900"
+              }`}
+            >
+              {routesAutoError ? routesAutoError : routesAutoQuestion}
+            </div>
+          ) : null}
+
+          <label className="text-xs font-semibold text-slate-700">
+            Preferencias de transporte (para que el asistente elija el modo)
+            <textarea
+              value={routesAutoNotes}
+              onChange={(e) => setRoutesAutoNotes(e.target.value)}
+              rows={3}
+              placeholder="Ej. dentro de ciudad a pie/metro; entre ciudades tren; si un tramo > 3h, vuelo."
+              className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+            />
+          </label>
+
+          {routesAutoQuestion ? (
+            <label className="text-xs font-semibold text-slate-700">
+              Respuesta
+              <input
+                value={routesAutoFollowUp}
+                onChange={(e) => setRoutesAutoFollowUp(e.target.value)}
+                className="mt-2 min-h-[42px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900"
+                placeholder="Escribe aquí…"
+              />
+            </label>
+          ) : null}
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            <button
+              type="button"
+              onClick={() => void generateRoutesDraft()}
+              disabled={routesAutoLoading || !isPremium}
+              className={`${btnPrimary} inline-flex min-h-[44px] items-center justify-center rounded-2xl px-4 py-2 text-sm disabled:opacity-60`}
+              title="Crear rutas automáticamente"
+            >
+              {routesAutoLoading ? "Creando rutas…" : "Crear rutas"}
+            </button>
+          </div>
+          <div className="text-[11px] text-slate-500">
+            Nota: si faltan coordenadas en algún plan, esas paradas se omitirán al trazar.
+          </div>
+        </div>
+      </section>
+
       {routesDraft?.routes?.length ? (
         <div className="rounded-3xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-sky-50 px-5 py-4 shadow-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

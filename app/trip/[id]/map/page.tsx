@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireTripAccess } from "@/lib/trip-access";
+import { isPremiumEnabledForTrip } from "@/lib/entitlements";
 import TripMapView from "@/components/trip/map/TripMapView";
 import TripScreenActions from "@/components/trip/common/TripScreenActions";
 import TripBoardPageHeader from "@/components/layout/TripBoardPageHeader";
@@ -63,6 +64,9 @@ export default async function TripMapPage({ params, searchParams }: Props) {
 
   await requireTripAccess(tripId);
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const tripResponse = await supabase
     .from("trips")
@@ -83,6 +87,8 @@ export default async function TripMapPage({ params, searchParams }: Props) {
     safeSelect(supabase, "routes", tripId, "route_date"),
   ]);
 
+  const isPremium = user?.id ? await isPremiumEnabledForTrip({ supabase, userId: user.id, tripId }) : false;
+
   return (
     <main className="space-y-6">
       <TripBoardPageHeader
@@ -96,6 +102,7 @@ export default async function TripMapPage({ params, searchParams }: Props) {
 
       <TripMapView
         tripId={tripId}
+        isPremium={isPremium}
         trip={{
           id: trip.id,
           name: trip.name || "Viaje",

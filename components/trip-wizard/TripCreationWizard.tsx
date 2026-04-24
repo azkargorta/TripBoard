@@ -1588,7 +1588,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
                           >
                             ?
                           </summary>
-                          <div className="absolute right-0 top-8 z-20 w-[min(320px,80vw)] rounded-2xl border border-slate-200 bg-white p-3 text-xs text-slate-700 shadow-xl">
+                          <div className="absolute right-0 bottom-8 z-20 w-[min(320px,80vw)] rounded-2xl border border-slate-200 bg-white p-3 text-xs text-slate-700 shadow-xl">
                             <div className="text-xs font-extrabold text-slate-950">¿Qué significa cada opción?</div>
                             <ul className="mt-2 space-y-1">
                               <li>
@@ -1611,14 +1611,14 @@ export default function TripCreationWizard({ isPremium }: Props) {
                         </details>
                       </div>
                       <select
-                        value={autoConfig.geo.strictness}
-                        onChange={(e) =>
+                        value={autoConfig.geo.strictness ?? "balanced"}
+                        onChange={(e) => {
+                          const v = String(e.currentTarget.value || "");
                           setAutoConfig((p) => {
-                            const v = String(e.target.value || "");
                             const strictness = v === "strict" || v === "loose" || v === "balanced" ? v : "balanced";
                             return { ...p, geo: { ...p.geo, strictness } };
-                          })
-                        }
+                          });
+                        }}
                         disabled={loading}
                         className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
                       >
@@ -1655,14 +1655,14 @@ export default function TripCreationWizard({ isPremium }: Props) {
                     <label className="space-y-1">
                       <span className="text-xs font-extrabold text-slate-700">Alojamiento</span>
                       <select
-                        value={autoConfig.lodging.mode}
-                        onChange={(e) =>
+                        value={autoConfig.lodging.mode ?? "proposal"}
+                        onChange={(e) => {
+                          const v = String(e.currentTarget.value || "");
                           setAutoConfig((p) => {
-                            const v = String(e.target.value || "");
                             const mode = v === "proposal" || v === "manual" || v === "scan" || v === "omit" ? v : "proposal";
                             return { ...p, lodging: { ...p.lodging, mode } };
-                          })
-                        }
+                          });
+                        }}
                         disabled={loading}
                         className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
                       >
@@ -1683,10 +1683,10 @@ export default function TripCreationWizard({ isPremium }: Props) {
                     <label className="space-y-1">
                       <span className="text-xs font-extrabold text-slate-700">Ciudad base de alojamiento</span>
                       <select
-                        value={autoConfig.lodging.baseCityMode}
-                        onChange={(e) =>
+                        value={autoConfig.lodging.baseCityMode ?? "rotate"}
+                        onChange={(e) => {
+                          const v = String(e.currentTarget.value || "");
                           setAutoConfig((p) => {
-                            const v = String(e.target.value || "");
                             const baseCityMode = v === "single" || v === "rotate" ? v : p.lodging.baseCityMode;
                             return {
                               ...p,
@@ -1696,8 +1696,8 @@ export default function TripCreationWizard({ isPremium }: Props) {
                                 ...(baseCityMode === "rotate" ? { baseCity: "" } : {}),
                               },
                             };
-                          })
-                        }
+                          });
+                        }}
                         disabled={loading}
                         className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
                       >
