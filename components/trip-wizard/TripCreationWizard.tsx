@@ -59,8 +59,8 @@ type LodgingSeg = {
 };
 
 const STEP_LABELS: Array<{ step: WizardStep; label: string }> = [
-  { step: 1, label: "Describe" },
-  { step: 2, label: "Revisión" },
+  { step: 1, label: "Datos" },
+  { step: 2, label: "Plan" },
 ];
 
 const PROMPT_EXAMPLE =
@@ -581,10 +581,17 @@ export default function TripCreationWizard({ isPremium }: Props) {
 
   const canContinue = useMemo(() => {
     if (loading) return false;
-    if (step === 1) return Boolean(prompt.trim());
+    if (step === 1) {
+      const dest = String(draftIntent?.destination || draftIntent?.endLocation || "").trim();
+      const s = isIsoDate(draftIntent?.startDate) ? draftIntent?.startDate : null;
+      const e = isIsoDate(draftIntent?.endDate) ? draftIntent?.endDate : null;
+      const hasDates = Boolean(s && e && e >= s);
+      const hasDuration = typeof draftIntent?.durationDays === "number" && draftIntent.durationDays >= 1;
+      return Boolean(dest) && (hasDates || hasDuration);
+    }
     if (step === 2) return Boolean(draftIntent);
     return true;
-  }, [draftIntent, loading, prompt, step]);
+  }, [draftIntent, loading, step]);
 
   const derivedPlaces = useMemo(() => {
     if (places.length) return places;
@@ -1544,116 +1551,120 @@ export default function TripCreationWizard({ isPremium }: Props) {
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-start gap-3">
               <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-violet-600 text-white">
-                <Sparkles className="h-5 w-5" aria-hidden />
+                <Compass className="h-5 w-5" aria-hidden />
               </div>
               <div className="min-w-0">
-                <div className="text-base font-extrabold text-slate-950">Cuéntame sobre tu viaje</div>
+                <div className="text-base font-extrabold text-slate-950">Crea tu viaje en 1 minuto</div>
                 <p className="mt-1 text-sm text-slate-600">
-                  Escríbelo como si se lo contaras a un amigo. Luego lo convertimos en un borrador editable.
+                  Rellena lo básico. Luego afinas preferencias y previsualizas antes de crearlo.
                 </p>
               </div>
             </div>
 
-            {stage === "clarifying" ? (
-              <div className="mt-4 rounded-2xl border border-violet-200 bg-violet-50 p-4">
-                <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-violet-800">Solo una pregunta más</div>
-                <div className="mt-1 text-sm font-semibold text-slate-950">{question}</div>
-              </div>
-            ) : null}
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <label className="space-y-1 sm:col-span-2">
+                <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Destino principal</span>
+                <input
+                  value={String(draftIntent?.destination || "")}
+                  onChange={(e) =>
+                    setDraftIntent((prev) => ({ ...(prev || {}), destination: e.target.value.trim() || null }))
+                  }
+                  disabled={loading}
+                  placeholder="Ej. Argentina, Italia, Japón…"
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                />
+              </label>
 
-            <div className="mt-4 space-y-3">
+              <label className="space-y-1">
+                <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Fecha inicio</span>
+                <input
+                  type="date"
+                  value={String(draftIntent?.startDate || "")}
+                  onChange={(e) =>
+                    setDraftIntent((prev) => syncDurationFromDates({ ...(prev || {}), startDate: e.target.value || null }))
+                  }
+                  disabled={loading}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                />
+              </label>
+
+              <label className="space-y-1">
+                <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Fecha fin</span>
+                <input
+                  type="date"
+                  value={String(draftIntent?.endDate || "")}
+                  onChange={(e) =>
+                    setDraftIntent((prev) => syncDurationFromDates({ ...(prev || {}), endDate: e.target.value || null }))
+                  }
+                  disabled={loading}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                />
+              </label>
+
+              <label className="space-y-1">
+                <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Origen (opcional)</span>
+                <input
+                  value={String(draftIntent?.startLocation || "")}
+                  onChange={(e) =>
+                    setDraftIntent((prev) => ({ ...(prev || {}), startLocation: e.target.value.trim() || null }))
+                  }
+                  disabled={loading}
+                  placeholder="Ej. Madrid"
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                />
+              </label>
+
+              <label className="space-y-1">
+                <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Fin (opcional)</span>
+                <input
+                  value={String(draftIntent?.endLocation || "")}
+                  onChange={(e) =>
+                    setDraftIntent((prev) => ({ ...(prev || {}), endLocation: e.target.value.trim() || null }))
+                  }
+                  disabled={loading}
+                  placeholder="Ej. Buenos Aires"
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                />
+              </label>
+            </div>
+
+            <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-600">Opcional: cuéntame detalles</div>
+              <div className="mt-1 text-xs text-slate-600">
+                Si quieres, añade estilo/intereses. Si lo dejas vacío, no pasa nada.
+              </div>
               <textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                rows={5}
+                rows={3}
                 disabled={loading}
                 placeholder={PROMPT_EXAMPLE}
-                className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                className="mt-3 w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
               />
+            </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-600">
-                      Ideas de tipos de viaje
-                    </div>
-                    <div className="mt-1 text-xs text-slate-600">
-                      Selecciona varias para guiar al asistente (se añaden como contexto).
-                    </div>
-                  </div>
-                  {tripIdeas.size ? (
-                    <button
-                      type="button"
-                      disabled={loading}
-                      onClick={() => setTripIdeas(new Set())}
-                      className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-extrabold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                      title="Limpiar selección"
-                    >
-                      Limpiar ({tripIdeas.size})
-                    </button>
-                  ) : null}
-                </div>
-
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {TRIP_IDEAS.map((idea) => {
-                    const active = tripIdeas.has(idea);
-                    return (
-                      <button
-                        key={idea}
-                        type="button"
-                        disabled={loading}
-                        onClick={() =>
-                          setTripIdeas((prev) => {
-                            const next = new Set(prev);
-                            if (next.has(idea)) next.delete(idea);
-                            else next.add(idea);
-                            return next;
-                          })
-                        }
-                        className={`rounded-full border px-3 py-2 text-xs font-extrabold transition disabled:opacity-60 ${
-                          active
-                            ? "border-violet-300 bg-violet-50 text-violet-950"
-                            : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                        }`}
-                        aria-pressed={active}
-                        title={active ? "Quitar" : "Añadir"}
-                      >
-                        {idea}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {stage === "clarifying" ? (
-                <input
-                  value={followUp}
-                  onChange={(e) => setFollowUp(e.target.value)}
-                  disabled={loading}
-                  placeholder="Responde aquí…"
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
-                />
-              ) : null}
-
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <button
-                  type="button"
-                  onClick={stage === "clarifying" ? step1Clarify : step1Preview}
-                  disabled={loading || (stage === "clarifying" ? !followUp.trim() : !prompt.trim())}
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-extrabold text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-60"
-                >
-                  <Check className="h-4 w-4" aria-hidden />
-                  {loading ? "Generando…" : "Generar viaje"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => router.push("/dashboard")}
-                  disabled={loading}
-                  className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
-                >
-                  Cancelar
-                </button>
-              </div>
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+              <button
+                type="button"
+                onClick={() => {
+                  // asegura que exista draftIntent para el siguiente paso
+                  setDraftIntent((prev) => ({ ...(prev || {}) }));
+                  goNext();
+                }}
+                disabled={!canContinue}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-extrabold text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-60"
+              >
+                <Check className="h-4 w-4" aria-hidden />
+                Continuar
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push("/dashboard")}
+                disabled={loading}
+                className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
+              >
+                Cancelar
+              </button>
             </div>
           </div>
         ) : null}
