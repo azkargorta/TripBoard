@@ -94,6 +94,25 @@ const TRIP_IDEAS = [
   "Pet-friendly",
 ] as const;
 
+const INTEREST_TAGS = [
+  "Gastronomía",
+  "Cultura",
+  "Museos",
+  "Naturaleza",
+  "Playas",
+  "Senderismo",
+  "Compras",
+  "Fiesta/Noche",
+  "Historia",
+  "Arquitectura",
+  "Arte",
+  "Mercados",
+  "Miradores",
+  "Excursiones",
+] as const;
+
+const STYLE_TAGS = ["Tranquilo", "Equilibrado", "Intenso", "Road trip", "Ciudad + pueblos", "Relax", "Aventura"] as const;
+
 function normalizeDestination(raw: string) {
   return String(raw || "")
     .trim()
@@ -618,6 +637,20 @@ export default function TripCreationWizard({ isPremium }: Props) {
     // Lo añadimos como una línea extra para dar contexto sin “ensuciar” el texto original.
     return base ? `${base}\n\nIdeas/estilo: ${extras.join(" · ")}` : `Ideas/estilo: ${extras.join(" · ")}`;
   }, [prompt, tripIdeas]);
+
+  const intentInterests = useMemo(() => normalizePlaces((draftIntent?.interests || []) as any), [draftIntent?.interests]);
+  const intentStyles = useMemo(() => normalizePlaces((draftIntent?.travelStyle || []) as any), [draftIntent?.travelStyle]);
+
+  function toggleIntentTag(field: "interests" | "travelStyle", tag: string) {
+    const t = String(tag || "").trim();
+    if (!t) return;
+    setDraftIntent((prev) => {
+      const cur = (prev?.[field] as any) as string[] | undefined;
+      const list = Array.isArray(cur) ? cur.map((x) => String(x || "").trim()).filter(Boolean) : [];
+      const next = list.includes(t) ? list.filter((x) => x !== t) : [...list, t];
+      return { ...(prev || {}), [field]: next.slice(0, 20) } as any;
+    });
+  }
 
   useEffect(() => {
     if (step < 2) return;
@@ -1723,6 +1756,140 @@ export default function TripCreationWizard({ isPremium }: Props) {
                     className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
                   />
                 </label>
+
+                <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Presupuesto</div>
+                  <div role="radiogroup" aria-label="Presupuesto" className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    {(
+                      [
+                        { key: "low" as const, label: "Bajo" },
+                        { key: "medium" as const, label: "Medio" },
+                        { key: "high" as const, label: "Alto" },
+                      ] as const
+                    ).map((opt) => {
+                      const active = (draftIntent?.budgetLevel || "medium") === opt.key;
+                      return (
+                        <button
+                          key={opt.key}
+                          type="button"
+                          disabled={loading}
+                          onClick={() => setDraftIntent((prev) => ({ ...(prev || {}), budgetLevel: opt.key }))}
+                          className={`min-h-[42px] rounded-2xl border px-3 py-2 text-xs font-extrabold transition ${
+                            active
+                              ? "border-violet-300 bg-violet-50 text-violet-900"
+                              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                          } disabled:opacity-60`}
+                          aria-pressed={active}
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Intereses</div>
+                  <p className="mt-1 text-sm text-slate-600">Selecciona varios para guiar el plan.</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {INTEREST_TAGS.map((tag) => {
+                      const active = intentInterests.includes(tag);
+                      return (
+                        <button
+                          key={tag}
+                          type="button"
+                          disabled={loading}
+                          onClick={() => toggleIntentTag("interests", tag)}
+                          className={`rounded-full border px-3 py-2 text-xs font-extrabold transition disabled:opacity-60 ${
+                            active
+                              ? "border-violet-300 bg-violet-50 text-violet-950"
+                              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                          }`}
+                          aria-pressed={active}
+                        >
+                          {tag}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Estilo</div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {STYLE_TAGS.map((tag) => {
+                      const active = intentStyles.includes(tag);
+                      return (
+                        <button
+                          key={tag}
+                          type="button"
+                          disabled={loading}
+                          onClick={() => toggleIntentTag("travelStyle", tag)}
+                          className={`rounded-full border px-3 py-2 text-xs font-extrabold transition disabled:opacity-60 ${
+                            active
+                              ? "border-violet-300 bg-violet-50 text-violet-950"
+                              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                          }`}
+                          aria-pressed={active}
+                        >
+                          {tag}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Alojamiento</div>
+                  <p className="mt-1 text-sm text-slate-600">Base fija o rotar ciudades (afecta estructura y traslados).</p>
+                  <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {(
+                      [
+                        { key: "rotate" as const, label: "Rotar entre ciudades" },
+                        { key: "single" as const, label: "Siempre la misma ciudad" },
+                      ] as const
+                    ).map((opt) => {
+                      const active = (autoConfig.lodging.baseCityMode || "rotate") === opt.key;
+                      return (
+                        <button
+                          key={opt.key}
+                          type="button"
+                          disabled={loading}
+                          onClick={() =>
+                            setAutoConfig((p) => ({
+                              ...p,
+                              lodging: {
+                                ...p.lodging,
+                                baseCityMode: opt.key,
+                                baseCity: opt.key === "single" ? (p.lodging.baseCity || "") : "",
+                              },
+                            }))
+                          }
+                          className={`min-h-[42px] rounded-2xl border px-3 py-2 text-xs font-extrabold transition ${
+                            active
+                              ? "border-violet-300 bg-violet-50 text-violet-900"
+                              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                          } disabled:opacity-60`}
+                          aria-pressed={active}
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {autoConfig.lodging.baseCityMode === "single" ? (
+                    <label className="mt-3 block space-y-1">
+                      <span className="text-xs font-extrabold text-slate-700">Ciudad base de alojamiento</span>
+                      <input
+                        value={autoConfig.lodging.baseCity || ""}
+                        onChange={(e) => setAutoConfig((p) => ({ ...p, lodging: { ...p.lodging, baseCity: e.target.value } }))}
+                        disabled={loading}
+                        placeholder="Ej. Buenos Aires"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
+                      />
+                    </label>
+                  ) : null}
+                </div>
 
                 <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
                   <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Imprescindibles</div>
