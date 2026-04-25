@@ -7,6 +7,7 @@ import { normalizeTripAutoConfig } from "@/lib/trip-ai/tripAutoConfig";
 import { deriveRouteStructure } from "@/lib/trip-ai/routeStructure";
 import { generateExecutableItineraryFromStructure } from "@/lib/trip-ai/generateItineraryFromIntent";
 import { validateAndRepairItinerary } from "@/lib/trip-ai/itineraryValidator";
+import { generateExecutableItineraryFastFromIntent } from "@/lib/trip-ai/generateItineraryFromIntent";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -40,12 +41,37 @@ export async function POST(req: Request) {
     const config = normalizeTripAutoConfig(body?.config);
     const structure = await deriveRouteStructure({ resolved, config });
 
-    const llm = await generateExecutableItineraryFromStructure(resolved, {
-      provider,
-      config,
-      structure,
-      latencyMode: "preview",
-    });
+    // En despliegues serverless, viajes largos suelen disparar timeout.
+    // Estrategia: preview parcial con IA (primeros días) + esqueleto rápido para el resto.
+    const PREVIEW_AI_DAYS = 6;
+    let llm = await (async () => {
+      if (resolved.durationDays <= PREVIEW_AI_DAYS) {
+        return await generateExecutableItineraryFromStructure(resolved, { provider, config, structure, latencyMode: "preview" });
+      }
+      const partialResolved: typeof resolved = { ...resolved, durationDays: PREVIEW_AI_DAYS, endDate: resolved.endDate };
+      try {
+        return await generateExecutableItineraryFromStructure(partialResolved as any, {
+          provider,
+          config,
+          structure: { ...structure, baseCityByDay: structure.baseCityByDay.slice(0, PREVIEW_AI_DAYS) },
+          latencyMode: "preview",
+        });
+      } catch {
+        // Si IA falla, al menos devolvemos rápido para no bloquear UX.
+        return await generateExecutableItineraryFastFromIntent(partialResolved as any, {
+          config,
+          structure: { ...structure, baseCityByDay: structure.baseCityByDay.slice(0, PREVIEW_AI_DAYS) },
+        });
+      }
+    })();
+
+    // Completa con plan rápido si el viaje es más largo que el preview IA.
+    if (resolved.durationDays > PREVIEW_AI_DAYS) {
+      const fastAll = await generateExecutableItineraryFastFromIntent(resolved, { config, structure });
+      const head = llm.itinerary.days.slice(0, PREVIEW_AI_DAYS);
+      const tail = fastAll.itinerary.days.slice(PREVIEW_AI_DAYS);
+      llm = { ...llm, itinerary: { ...fastAll.itinerary, title: llm.itinerary.title || fastAll.itinerary.title, days: [...head, ...tail] } };
+    }
 
     const repaired = await validateAndRepairItinerary({
       itinerary: llm.itinerary,
@@ -71,6 +97,8 @@ export async function POST(req: Request) {
       repairedCount: repaired.repairedCount,
       structure,
       config,
+      partial: resolved.durationDays > PREVIEW_AI_DAYS,
+      partialAiDays: resolved.durationDays > PREVIEW_AI_DAYS ? PREVIEW_AI_DAYS : null,
     });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "No se pudo previsualizar el plan." }, { status: 500 });

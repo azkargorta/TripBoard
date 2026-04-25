@@ -554,8 +554,8 @@ export async function generateExecutableItineraryFromStructure(
       : "",
   };
 
-  // En preview damos más margen para evitar truncado de JSON.
-  const planningMaxOutputTokens = isPreviewLatency ? 7168 : undefined;
+  // En preview mantenemos output moderado para evitar timeouts.
+  const planningMaxOutputTokens = isPreviewLatency ? 5632 : undefined;
   const planningResponseMimeType = isPreviewLatency ? "application/json" : undefined;
 
   const runOnce = async (p: string) => {
