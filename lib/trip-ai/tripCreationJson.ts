@@ -13,12 +13,18 @@ export function extractJsonObject(text: string): unknown {
   // En ese caso intentamos repararlo/autocerrarlo.
   if (end <= start) {
     const tail = t.slice(start);
-    const repairedTruncated = repairModelJson(appendMissingClosers(tail));
-    try {
-      return JSON.parse(repairedTruncated);
-    } catch {
-      throw new Error("La respuesta no contiene JSON válido.");
+    // Intentos progresivos: autocierre + repair, y si sigue fallando, recorte a un “corte seguro”.
+    const attempts: string[] = [];
+    attempts.push(repairModelJson(appendMissingClosers(tail)));
+    attempts.push(repairModelJson(appendMissingClosers(truncateToSafeBoundary(tail))));
+    for (const a of attempts) {
+      try {
+        return JSON.parse(a);
+      } catch {
+        // seguimos
+      }
     }
+    throw new Error("La respuesta no contiene JSON válido.");
   }
 
   const raw = t.slice(start, end + 1);
@@ -47,7 +53,7 @@ export function extractJsonObject(text: string): unknown {
 }
 
 function appendMissingClosers(input: string): string {
-  const s = String(input || "");
+  let s = String(input || "");
   let inString = false;
   let escape = false;
   const stack: Array<"}" | "]"> = [];
@@ -77,8 +83,84 @@ function appendMissingClosers(input: string): string {
     }
   }
 
+  // Si se truncó en medio de una string, cerramos la comilla.
+  if (inString) {
+    // Si termina con backslash dentro de string, lo quitamos para no dejar escape colgante.
+    if (s.endsWith("\\")) s = s.slice(0, -1);
+    s += '"';
+  }
+
+  // Si se truncó justo tras ':' o ',' o un inicio de array/objeto, lo recortamos.
+  s = trimDanglingOutsideStrings(s);
+
   if (!stack.length) return s;
   return s + stack.reverse().join("");
+}
+
+function trimDanglingOutsideStrings(input: string): string {
+  let s = String(input || "");
+  let inString = false;
+  let escape = false;
+  // recorremos hasta el final para saber si terminamos dentro de string (ya se trata antes)
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i]!;
+    if (inString) {
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (ch === "\\") {
+        escape = true;
+        continue;
+      }
+      if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+  }
+  if (inString) return s;
+
+  // recorta tokens colgantes al final
+  for (let i = 0; i < 6; i++) {
+    const t = s.trimEnd();
+    const last = t[t.length - 1] || "";
+    if (!last) return t;
+    if (last === ":" || last === "," ) {
+      s = t.slice(0, -1);
+      continue;
+    }
+    return t;
+  }
+  return s.trimEnd();
+}
+
+function truncateToSafeBoundary(input: string): string {
+  const s = String(input || "");
+  // Busca desde el final un punto “seguro” fuera de strings: '}', ']', '"' (fin de string), número/letra (true/false/null) seguido de espacios/EOF, o coma.
+  let inString = false;
+  let escape = false;
+  for (let i = s.length - 1; i >= 0; i--) {
+    const ch = s[i]!;
+    if (inString) {
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (ch === "\\") {
+        escape = true;
+        continue;
+      }
+      if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') {
+      // fin de string
+      return s.slice(0, i + 1);
+    }
+    if (ch === "}" || ch === "]") return s.slice(0, i + 1);
+    if (ch === ",") return s.slice(0, i); // cortar antes de coma final parcial
+  }
+  return s;
 }
 
 let _jsonrepair: ((input: string) => string) | null = null;

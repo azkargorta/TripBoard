@@ -27,13 +27,14 @@ export async function POST(req: Request) {
 
     const prompt =
       `Devuelve SOLO JSON válido.\n` +
-      `Quiero una lista de lugares típicos para visitar en: ${destination}.\n` +
+      `Quiero una lista de destinos típicos (CIUDADES / REGIONES / EXCURSIONES) para un viaje por: ${destination}.\n` +
       `Formato exacto:\n` +
       `{"suggestions":[string,string,...]}\n` +
       `Reglas:\n` +
-      `- ${Math.max(12, Math.round(limit * 0.75))} a ${limit} sugerencias\n` +
-      `- mezcla: imprescindibles, barrios, miradores, mercados, museos, gastronomía\n` +
-      `- usa nombres concretos (no genérico "Centro histórico")\n` +
+      `- ${Math.max(16, Math.round(limit * 0.75))} a ${limit} sugerencias\n` +
+      `- NO quiero puntos exactos tipo "Casa Rosada" o "Obelisco". Quiero macro-destinos (ej. "Cataratas del Iguazú", "Salta y Jujuy", "Mendoza", "Bariloche").\n` +
+      `- mezcla: norte/sur/costa/interior si aplica\n` +
+      `- nombres en español, concisos\n` +
       `- no incluyas explicaciones, SOLO JSON.\n`;
 
     const { text, usage } = await askTripAIWithUsage(prompt, "planning", {

@@ -356,8 +356,8 @@ export default function TripAutoCreationWizard() {
         ) : null}
 
         {step === 2 ? (
-          <div className="grid gap-4 lg:grid-cols-3">
-            <div className="grid gap-4 md:grid-cols-2 lg:col-span-2">
+          <div className="grid gap-4">
+            <div className="grid gap-4 md:grid-cols-2">
               <div>
               <label className="mb-1 block text-sm font-extrabold text-slate-900">Tipo de viaje</label>
               <select
@@ -438,28 +438,7 @@ export default function TripAutoCreationWizard() {
               <div className="mt-1 text-xs font-semibold text-slate-500">Puedes elegir varios. Se usará para priorizar actividades y tono del plan.</div>
             </div>
 
-            <div className="md:col-span-2">
-              <label className="mb-1 block text-sm font-extrabold text-slate-900">Comentarios (chat)</label>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Ej. Me encanta el vino; evitar madrugar; quiero 1 día de relax en spa; me gustaría ver fútbol..."
-                rows={4}
-                className="w-full resize-y rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
-              />
-            </div>
-
-            <div className="mt-2 flex gap-2 md:col-span-2">
-              <button type="button" onClick={() => setStep(1)} className="btn-secondary">
-                Atrás
-              </button>
-              <button type="button" disabled={!canStep2 || loading} onClick={previewPlan} className="btn-primary disabled:opacity-50">
-                Calcular plan
-              </button>
-            </div>
-            </div>
-
-            <aside className="rounded-2xl border border-slate-200 bg-white p-4 lg:sticky lg:top-24 lg:h-fit">
+            <div className="md:col-span-2 rounded-2xl border border-slate-200 bg-white p-4">
               <div className="flex items-center justify-between gap-2">
                 <div className="text-sm font-extrabold text-slate-900">Visitas propuestas</div>
                 <button
@@ -472,7 +451,7 @@ export default function TripAutoCreationWizard() {
                 </button>
               </div>
               <div className="mt-1 text-xs font-semibold text-slate-600">
-                Sugerencias típicas del destino para añadir como imprescindibles.
+                Sugerencias típicas (ciudades/regiones) para añadir como imprescindibles.
               </div>
 
               {suggestionsError ? (
@@ -481,7 +460,7 @@ export default function TripAutoCreationWizard() {
                 </div>
               ) : null}
 
-              <div className="mt-3 max-h-[320px] overflow-auto pr-1">
+              <div className="mt-3 max-h-[260px] overflow-auto pr-1">
                 <div className="flex flex-wrap gap-2">
                   {(suggestionsLoading ? [] : suggestions).map((s) => (
                     <button
@@ -518,7 +497,28 @@ export default function TripAutoCreationWizard() {
                   </div>
                 </div>
               ) : null}
-            </aside>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="mb-1 block text-sm font-extrabold text-slate-900">Comentarios (chat)</label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Ej. Me encanta el vino; evitar madrugar; quiero 1 día de relax en spa; me gustaría ver fútbol..."
+                rows={4}
+                className="w-full resize-y rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
+              />
+            </div>
+
+            <div className="mt-2 flex gap-2 md:col-span-2">
+              <button type="button" onClick={() => setStep(1)} className="btn-secondary">
+                Atrás
+              </button>
+              <button type="button" disabled={!canStep2 || loading} onClick={previewPlan} className="btn-primary disabled:opacity-50">
+                Calcular plan
+              </button>
+            </div>
+            </div>
           </div>
         ) : null}
 
