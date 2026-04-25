@@ -1322,8 +1322,22 @@ export default function TripCreationWizard({ isPremium }: Props) {
           config: normalizeTripAutoConfig(autoConfig),
         }),
       });
-      const data = (await res.json().catch(() => null)) as any;
-      if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "No se pudo previsualizar los planes.");
+      const rawText = await res.text().catch(() => "");
+      const data = ((): any => {
+        try {
+          return rawText ? JSON.parse(rawText) : null;
+        } catch {
+          return null;
+        }
+      })();
+      if (!res.ok) {
+        const serverMsg = typeof data?.error === "string" ? data.error : "";
+        const msg =
+          serverMsg ||
+          (rawText && rawText.length < 600 ? rawText : "") ||
+          `No se pudo previsualizar los planes (HTTP ${res.status}).`;
+        throw new Error(msg);
+      }
       if (data?.status === "needs_clarification") {
         const payload = data as ApiNeedsClarification;
         setDraftIntent(payload.draftIntent || null);
@@ -2552,13 +2566,33 @@ export default function TripCreationWizard({ isPremium }: Props) {
                 </p>
                 <div className="mt-4 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950">
                   <span className="font-extrabold">Resumen:</span>{" "}
-                  {`Voy a crear un viaje de ${
-                    typeof draftIntent?.durationDays === "number" && draftIntent.durationDays ? `${draftIntent.durationDays} días` : "varios días"
-                  } a ${destinationLabel || "tu destino"}, ${
-                    (draftIntent?.travelersType || "").toString() ? `tipo ${draftIntent!.travelersType}` : "con un estilo a tu medida"
-                  }, `}
-                  {`presupuesto ${(draftIntent?.budgetLevel || "medium").toString()}, `}
-                  {`centrado en ${intentInterests.length ? intentInterests.slice(0, 3).join(", ").toLowerCase() : "un mix de actividades"}.`}
+                  {(() => {
+                    const dur =
+                      typeof draftIntent?.durationDays === "number" && draftIntent.durationDays
+                        ? `${draftIntent.durationDays} días`
+                        : "varios días";
+                    const travelers = (() => {
+                      const t = String(draftIntent?.travelersType || "").trim();
+                      if (t === "couple") return "en pareja";
+                      if (t === "friends") return "con amigos";
+                      if (t === "family") return "en familia";
+                      if (t === "solo") return "en solitario";
+                      return "con un estilo a tu medida";
+                    })();
+                    const budget = (() => {
+                      const b = String(draftIntent?.budgetLevel || "medium").trim();
+                      if (b === "low") return "bajo";
+                      if (b === "high") return "alto";
+                      return "medio";
+                    })();
+                    const focus = intentInterests.length
+                      ? intentInterests
+                          .slice(0, 3)
+                          .map((x) => x.toLowerCase())
+                          .join(", ")
+                      : "un mix de actividades";
+                    return `Voy a crear un viaje de ${dur} a ${destinationLabel || "tu destino"}, ${travelers}, presupuesto ${budget}, centrado en ${focus}.`;
+                  })()}
                 </div>
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
