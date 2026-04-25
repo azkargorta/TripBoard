@@ -12,6 +12,9 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => null);
     const destination = typeof body?.destination === "string" ? body.destination.trim() : "";
     if (!destination) return NextResponse.json({ error: "Falta destination." }, { status: 400 });
+    const limitRaw = body?.limit;
+    const limit =
+      typeof limitRaw === "number" && Number.isFinite(limitRaw) ? Math.max(12, Math.min(60, Math.round(limitRaw))) : 42;
 
     const provider = "gemini";
     const monthKey = monthKeyUtc();
@@ -28,15 +31,19 @@ export async function POST(req: Request) {
       `Formato exacto:\n` +
       `{"suggestions":[string,string,...]}\n` +
       `Reglas:\n` +
-      `- 12 a 18 sugerencias\n` +
+      `- ${Math.max(12, Math.round(limit * 0.75))} a ${limit} sugerencias\n` +
       `- mezcla: imprescindibles, barrios, miradores, mercados, museos, gastronomía\n` +
       `- usa nombres concretos (no genérico "Centro histórico")\n` +
       `- no incluyas explicaciones, SOLO JSON.\n`;
 
-    const { text, usage } = await askTripAIWithUsage(prompt, "planning", { provider, responseMimeType: "application/json", maxOutputTokens: 1024 });
+    const { text, usage } = await askTripAIWithUsage(prompt, "planning", {
+      provider,
+      responseMimeType: "application/json",
+      maxOutputTokens: 1536,
+    });
     const parsed = extractJsonObject(text) as any;
     const list = Array.isArray(parsed?.suggestions) ? parsed.suggestions : [];
-    const suggestions = list.map((x: any) => String(x || "").trim()).filter(Boolean).slice(0, 24);
+    const suggestions = list.map((x: any) => String(x || "").trim()).filter(Boolean).slice(0, limit);
 
     if (shouldTrack) {
       await trackAiUsage({ supabase, userId, monthKey, provider, usage });

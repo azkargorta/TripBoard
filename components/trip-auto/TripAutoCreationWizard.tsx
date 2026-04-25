@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/toast";
 import type { TripCreationIntent, ExecutableItineraryPayload } from "@/lib/trip-ai/tripCreationTypes";
@@ -10,9 +10,33 @@ import { buildTravelCurrencySelectOptions } from "@/lib/travel-currencies";
 
 type Pace = "relajado" | "equilibrado" | "intenso";
 type TravelTheme = "aventura" | "relax" | "gastronómico" | "cultural" | "naturaleza" | "fiesta" | "shopping" | "romántico";
+const THEME_OPTIONS: Array<{ id: TravelTheme; label: string }> = [
+  { id: "aventura", label: "Aventura" },
+  { id: "relax", label: "Relax" },
+  { id: "gastronómico", label: "Gastronómico" },
+  { id: "cultural", label: "Cultural" },
+  { id: "naturaleza", label: "Naturaleza" },
+  { id: "fiesta", label: "Fiesta" },
+  { id: "shopping", label: "Shopping" },
+  { id: "romántico", label: "Romántico" },
+];
 
 function isoOk(s: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(s);
+}
+
+async function readJsonResponse<T = any>(res: Response): Promise<{ data: T | null; raw: string }> {
+  const raw = await res.text().catch(() => "");
+  const trimmed = raw.trim();
+  if (!trimmed) return { data: null, raw };
+  try {
+    return { data: JSON.parse(trimmed) as T, raw };
+  } catch {
+    if (trimmed.startsWith("<!DOCTYPE") || trimmed.startsWith("<html") || trimmed.includes("<body")) {
+      throw new Error("La respuesta del servidor no es JSON (posible sesión caducada o error HTML).");
+    }
+    throw new Error(`La respuesta del servidor no es JSON. Inicio: "${trimmed.replace(/\s+/g, " ").slice(0, 140)}"`);
+  }
 }
 
 function defaultTripName(destinations: string[], startDate: string, endDate: string) {
@@ -41,7 +65,7 @@ export default function TripAutoCreationWizard() {
   const [travelersCount, setTravelersCount] = useState<number | "">(2);
   const [pace, setPace] = useState<Pace>("equilibrado");
   const [budgetLevel, setBudgetLevel] = useState<NonNullable<TripCreationIntent["budgetLevel"]>>("medium");
-  const [theme, setTheme] = useState<TravelTheme>("cultural");
+  const [themes, setThemes] = useState<TravelTheme[]>(["cultural"]);
   const [notes, setNotes] = useState("");
 
   // Visitas propuestas (chips)
@@ -91,12 +115,12 @@ export default function TripAutoCreationWizard() {
       // traducimos el ritmo/tema/notas a constraints para que el modelo lo use como pista
       constraints: [
         `Ritmo: ${pace}`,
-        `Tema: ${theme}`,
+        themes.length ? `Temas: ${themes.join(", ")}` : "",
         notes.trim() ? `Notas del usuario: ${notes.trim()}` : "",
       ].filter(Boolean),
       suggestedTripName: tripName.trim() || null,
     };
-  }, [budgetLevel, routeCities, endDate, forceOrder, pace, startDate, travelersCount, travelersType, tripName, theme, notes, mustSee]);
+  }, [budgetLevel, routeCities, endDate, forceOrder, pace, startDate, travelersCount, travelersType, tripName, themes, notes, mustSee]);
 
   function addMustSee(label: string) {
     const t = String(label || "").trim();
@@ -122,13 +146,12 @@ export default function TripAutoCreationWizard() {
       const res = await fetch("/api/trips/auto-plan/suggest-visits", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ destination: main }),
+        body: JSON.stringify({ destination: main, limit: 42 }),
       });
-      const raw = await res.text().catch(() => "");
-      const data = raw ? JSON.parse(raw) : null;
+      const { data } = await readJsonResponse<any>(res);
       if (!res.ok) throw new Error(data?.error || "No se pudieron cargar sugerencias.");
       const list = Array.isArray(data?.suggestions) ? data.suggestions.map((x: any) => String(x || "").trim()).filter(Boolean) : [];
-      setSuggestions(list.slice(0, 24));
+      setSuggestions(list.slice(0, 42));
     } catch (e) {
       const msg = e instanceof Error ? e.message : "No se pudieron cargar sugerencias.";
       setSuggestionsError(msg);
@@ -136,6 +159,27 @@ export default function TripAutoCreationWizard() {
     } finally {
       setSuggestionsLoading(false);
     }
+  }
+
+  // Autocarga de sugerencias en el paso 2 cuando hay destino.
+  useEffect(() => {
+    if (step !== 2) return;
+    if (suggestionsLoading) return;
+    const main = routeCities.map((x) => x.trim()).filter(Boolean)[0] || "";
+    if (!main) return;
+    if (suggestions.length) return;
+    void loadSuggestions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, destinationLabel]);
+
+  function toggleTheme(t: TravelTheme) {
+    setThemes((prev) => {
+      const list = Array.isArray(prev) ? prev : [];
+      const has = list.includes(t);
+      const next = has ? list.filter((x) => x !== t) : [...list, t];
+      // Evitamos quedarse con 0 para no perder señal; si el usuario quita todo, volvemos a cultural.
+      return next.length ? next : ["cultural"];
+    });
   }
 
   async function previewPlan() {
@@ -149,8 +193,7 @@ export default function TripAutoCreationWizard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ intent, pace, forceOrder }),
       });
-      const raw = await res.text().catch(() => "");
-      const data = raw ? JSON.parse(raw) : null;
+      const { data } = await readJsonResponse<any>(res);
       if (!res.ok) throw new Error(data?.error || "No se pudo generar la previsualización.");
       setItinerary(data?.itinerary || null);
       setStep(3);
@@ -186,8 +229,7 @@ export default function TripAutoCreationWizard() {
           intent,
         }),
       });
-      const raw = await res.text().catch(() => "");
-      const data = raw ? JSON.parse(raw) : null;
+      const { data } = await readJsonResponse<any>(res);
       if (!res.ok) throw new Error(data?.error || "No se pudo crear el viaje automáticamente.");
       const tripId = String(data?.tripId || "");
       toast.success("Viaje creado", "He creado el viaje y sus planes automáticamente.");
@@ -372,21 +414,28 @@ export default function TripAutoCreationWizard() {
 
             <div className="md:col-span-2">
               <label className="mb-1 block text-sm font-extrabold text-slate-900">Estilo del viaje</label>
-              <select
-                value={theme}
-                onChange={(e) => setTheme(e.target.value as TravelTheme)}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
-              >
-                <option value="aventura">Aventura</option>
-                <option value="relax">Relax</option>
-                <option value="gastronómico">Gastronómico</option>
-                <option value="cultural">Cultural</option>
-                <option value="naturaleza">Naturaleza</option>
-                <option value="fiesta">Fiesta</option>
-                <option value="shopping">Shopping</option>
-                <option value="romántico">Romántico</option>
-              </select>
-              <div className="mt-1 text-xs font-semibold text-slate-500">Se usará para priorizar actividades y tono del plan.</div>
+              <div className="flex flex-wrap gap-2 rounded-xl border border-slate-300 bg-white px-3 py-3">
+                {THEME_OPTIONS.map((opt) => {
+                  const active = themes.includes(opt.id);
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => toggleTheme(opt.id)}
+                      className={`rounded-full border px-3 py-1 text-xs font-extrabold transition ${
+                        active
+                          ? "border-slate-900 bg-slate-900 text-white"
+                          : "border-slate-200 bg-slate-50 text-slate-800 hover:bg-slate-100"
+                      }`}
+                      aria-pressed={active}
+                      title={active ? "Quitar" : "Añadir"}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="mt-1 text-xs font-semibold text-slate-500">Puedes elegir varios. Se usará para priorizar actividades y tono del plan.</div>
             </div>
 
             <div className="md:col-span-2">
@@ -432,21 +481,23 @@ export default function TripAutoCreationWizard() {
                 </div>
               ) : null}
 
-              <div className="mt-3 flex flex-wrap gap-2">
-                {(suggestionsLoading ? [] : suggestions).map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => addMustSee(s)}
-                    className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold text-slate-800 hover:bg-slate-50"
-                    title="Añadir como imprescindible"
-                  >
-                    {s}
-                  </button>
-                ))}
-                {!suggestionsLoading && !suggestions.length ? (
-                  <div className="text-xs font-semibold text-slate-500">Pulsa “Actualizar” para ver sugerencias.</div>
-                ) : null}
+              <div className="mt-3 max-h-[320px] overflow-auto pr-1">
+                <div className="flex flex-wrap gap-2">
+                  {(suggestionsLoading ? [] : suggestions).map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => addMustSee(s)}
+                      className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold text-slate-800 hover:bg-slate-50"
+                      title="Añadir como imprescindible"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                  {!suggestionsLoading && !suggestions.length ? (
+                    <div className="text-xs font-semibold text-slate-500">Cargando sugerencias…</div>
+                  ) : null}
+                </div>
               </div>
 
               {mustSee.length ? (
