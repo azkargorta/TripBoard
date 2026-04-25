@@ -5,9 +5,22 @@ export function extractJsonObject(text: string): unknown {
   // 1) Intento rápido: recorte entre primera "{" y última "}" (caso típico).
   const start = t.indexOf("{");
   const end = t.lastIndexOf("}");
-  if (start < 0 || end <= start) {
+  if (start < 0) {
     throw new Error("La respuesta no contiene JSON válido.");
   }
+
+  // Caso frecuente: el modelo empieza un JSON pero se trunca y no llega a cerrar "}".
+  // En ese caso intentamos repararlo/autocerrarlo.
+  if (end <= start) {
+    const tail = t.slice(start);
+    const repairedTruncated = repairModelJson(appendMissingClosers(tail));
+    try {
+      return JSON.parse(repairedTruncated);
+    } catch {
+      throw new Error("La respuesta no contiene JSON válido.");
+    }
+  }
+
   const raw = t.slice(start, end + 1);
   try {
     return JSON.parse(raw);
@@ -23,7 +36,7 @@ export function extractJsonObject(text: string): unknown {
         try {
           return JSON.parse(balanced);
         } catch {
-          const repaired2 = repairModelJson(balanced);
+          const repaired2 = repairModelJson(appendMissingClosers(balanced));
           return JSON.parse(repaired2);
         }
       }
@@ -31,6 +44,41 @@ export function extractJsonObject(text: string): unknown {
       throw e1 instanceof Error ? e1 : new Error("No se pudo parsear el JSON devuelto por la IA.");
     }
   }
+}
+
+function appendMissingClosers(input: string): string {
+  const s = String(input || "");
+  let inString = false;
+  let escape = false;
+  const stack: Array<"}" | "]"> = [];
+
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i]!;
+    if (inString) {
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (ch === "\\") {
+        escape = true;
+        continue;
+      }
+      if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+    if (ch === "{") stack.push("}");
+    else if (ch === "[") stack.push("]");
+    else if (ch === "}" || ch === "]") {
+      if (stack.length && stack[stack.length - 1] === ch) stack.pop();
+    }
+  }
+
+  if (!stack.length) return s;
+  return s + stack.reverse().join("");
 }
 
 let _jsonrepair: ((input: string) => string) | null = null;
