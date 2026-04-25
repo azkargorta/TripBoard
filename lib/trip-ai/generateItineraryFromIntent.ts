@@ -130,9 +130,15 @@ function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: num
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
-async function optimizeMustSeeOrder(resolved: ResolvedTripCreation, tokens: string[]): Promise<string[]> {
+async function optimizeMustSeeOrder(
+  resolved: ResolvedTripCreation,
+  tokens: string[],
+  opts?: { skipHeavyGeo?: boolean }
+): Promise<string[]> {
   if (!resolved.intent.wantsRouteOptimization) return tokens;
   if (tokens.length < 3) return tokens;
+  // En previsualización serverless priorizamos latencia: el orden “perfecto” no compensa timeouts.
+  if (opts?.skipHeavyGeo) return tokens;
 
   const regionHints = regionHintsFromDestination(resolved.destination);
   const anchor = await geocodeTripAnchor(resolved.destination);
@@ -236,8 +242,10 @@ async function assignMustSeeToTransitions(params: {
   resolved: ResolvedTripCreation;
   baseCityByDay: string[];
   mustSeeTokens: string[];
+  skipHeavyGeo?: boolean;
 }): Promise<Map<number, string[]>> {
   const out = new Map<number, string[]>();
+  if (params.skipHeavyGeo) return out;
   if (!params.mustSeeTokens.length) return out;
   if (params.baseCityByDay.length < 2) return out;
 
@@ -319,6 +327,7 @@ async function assignMustSeeToTransitions(params: {
 async function estimateTransfersByDay(params: {
   resolved: ResolvedTripCreation;
   baseCityByDay: string[];
+  skipHeavyGeo?: boolean;
 }): Promise<
   Map<
     number,
@@ -331,6 +340,7 @@ async function estimateTransfersByDay(params: {
   >
 > {
   const out = new Map<number, { from: string; to: string; distanceKm: number; durationMin: number }>();
+  if (params.skipHeavyGeo) return out;
   if (params.baseCityByDay.length < 2) return out;
 
   const clean = (s: string) => String(s || "").trim();
@@ -432,7 +442,7 @@ function enforceMustSee(itinerary: ExecutableItineraryPayload, resolved: Resolve
 
 export async function generateExecutableItineraryFromIntent(
   resolved: ResolvedTripCreation,
-  options?: { provider?: string | null; config?: TripAutoConfig | null }
+  options?: { provider?: string | null; config?: TripAutoConfig | null; latencyMode?: "default" | "preview" }
 ): Promise<{ itinerary: ExecutableItineraryPayload; usage: TripAiUsage }> {
   const cfg = options?.config || DEFAULT_TRIP_AUTO_CONFIG;
   const generateDays = Math.max(1, resolved.durationDays);
@@ -451,6 +461,7 @@ export async function generateExecutableItineraryFromIntent(
     provider: options?.provider ?? null,
     config: cfg,
     structure: { version: 1, baseCityByDay: baseCitySchedule, segments: [] },
+    latencyMode: options?.latencyMode ?? "default",
   });
 }
 
@@ -460,10 +471,27 @@ export async function generateExecutableItineraryFromIntent(
  */
 export async function generateExecutableItineraryFromStructure(
   resolved: ResolvedTripCreation,
-  options: { provider?: string | null; config?: TripAutoConfig | null; structure: RouteStructure }
+  options: {
+    provider?: string | null;
+    config?: TripAutoConfig | null;
+    structure: RouteStructure;
+    latencyMode?: "default" | "preview";
+  }
 ): Promise<{ itinerary: ExecutableItineraryPayload; usage: TripAiUsage }> {
-  const cfg = options?.config || DEFAULT_TRIP_AUTO_CONFIG;
+  const baseCfg = options?.config || DEFAULT_TRIP_AUTO_CONFIG;
   const provider = options?.provider ?? null;
+  const latencyMode = options.latencyMode ?? "default";
+  const isPreviewLatency = latencyMode === "preview";
+  const skipHeavyGeo = isPreviewLatency;
+  const cfg: TripAutoConfig = isPreviewLatency
+    ? {
+        ...baseCfg,
+        pace: {
+          itemsPerDayMin: Math.max(1, Math.min(baseCfg.pace.itemsPerDayMin, 2)),
+          itemsPerDayMax: Math.max(2, Math.min(baseCfg.pace.itemsPerDayMax, 3)),
+        },
+      }
+    : baseCfg;
   const generateDays = Math.max(1, resolved.durationDays);
   const baseCitySchedule = Array.isArray(options.structure?.baseCityByDay)
     ? options.structure.baseCityByDay.slice(0, generateDays)
@@ -475,7 +503,7 @@ export async function generateExecutableItineraryFromStructure(
     cfg.geo.strictness === "auto" ? (cfg.lodging.baseCityMode === "single" || distinctCities <= 1 ? "strict" : "balanced") : cfg.geo.strictness;
 
   const mustSeeRaw = normalizeMustSeeTokens(resolved.intent.mustSee || []);
-  const mustSeeOptimized = await optimizeMustSeeOrder(resolved, mustSeeRaw);
+  const mustSeeOptimized = await optimizeMustSeeOrder(resolved, mustSeeRaw, { skipHeavyGeo });
 
   // Importante: mantenemos el intent original intacto salvo el orden de mustSee cuando el usuario lo pide.
   const resolvedForPrompt: ResolvedTripCreation = resolved.intent.wantsRouteOptimization
@@ -487,9 +515,14 @@ export async function generateExecutableItineraryFromStructure(
     resolved: resolvedForPrompt,
     baseCityByDay: baseCitySchedule,
     mustSeeTokens: mustSeeOptimized,
+    skipHeavyGeo,
   });
 
-  const transferByDay = await estimateTransfersByDay({ resolved: resolvedForPrompt, baseCityByDay: baseCitySchedule });
+  const transferByDay = await estimateTransfersByDay({
+    resolved: resolvedForPrompt,
+    baseCityByDay: baseCitySchedule,
+    skipHeavyGeo,
+  });
 
   const dayLines: string[] = [];
   for (let i = 0; i < generateDays; i++) {
@@ -521,8 +554,10 @@ export async function generateExecutableItineraryFromStructure(
       : "",
   };
 
+  const planningMaxOutputTokens = isPreviewLatency ? 4608 : undefined;
+
   const runOnce = async (p: string) => {
-    const { text, usage } = await askTripAIWithUsage(p, "planning", { provider });
+    const { text, usage } = await askTripAIWithUsage(p, "planning", { provider, maxOutputTokens: planningMaxOutputTokens });
     try {
       const parsed = validateItinerary(extractJsonObject(text));
       return { itinerary: parsed, usage };
@@ -532,7 +567,10 @@ export async function generateExecutableItineraryFromStructure(
         `${p}\n\n` +
         `IMPORTANTE: Debes responder con un ÚNICO objeto JSON válido. ` +
         `La respuesta debe empezar con "{" y terminar con "}". No incluyas texto adicional.`;
-      const second = await askTripAIWithUsage(retryPrompt, "planning", { provider });
+      const second = await askTripAIWithUsage(retryPrompt, "planning", {
+        provider,
+        maxOutputTokens: planningMaxOutputTokens,
+      });
       const parsed2 = validateItinerary(extractJsonObject(second.text));
       return {
         itinerary: parsed2,
@@ -549,7 +587,8 @@ export async function generateExecutableItineraryFromStructure(
   // Estrategia de rendimiento:
   // - Para viajes “normales” (<= 26 días) intentamos 1 sola llamada (más rápido, similar a Gemini en chat).
   // - Si falla (JSON inválido/truncado) o el viaje es muy largo, caemos al modo chunked.
-  const SINGLE_CALL_DAYS_LIMIT = 26;
+  // En preview (Vercel) evitamos la “mega llamada” de 20+ días: suele disparar timeouts aunque maxDuration sea alto.
+  const SINGLE_CALL_DAYS_LIMIT = isPreviewLatency ? 7 : 26;
   const usageAgg: TripAiUsage = { provider: "gemini", model: null, inputTokens: 0, outputTokens: 0 };
 
   const singlePrompt = () => `${ITIN_PROMPT}
@@ -675,7 +714,7 @@ ${baseContext.optimizeHint}
   const singleOk = await trySingle();
   if (!singleOk) {
     // Generación por bloques: evita truncado de salida y mejora coherencia.
-    const chunks = buildDayChunks(baseCitySchedule, { maxDaysPerChunk: 5 });
+    const chunks = buildDayChunks(baseCitySchedule, { maxDaysPerChunk: isPreviewLatency ? 7 : 5 });
     const CONCURRENCY = 3;
     dayMap = new Map<number, ExecutableItineraryPayload["days"][number]>();
     for (let i = 0; i < chunks.length; i += CONCURRENCY) {

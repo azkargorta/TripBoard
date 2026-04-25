@@ -133,7 +133,13 @@ export async function POST(req: Request) {
 
     if (!wantFast) {
       try {
-        const llm = await generateExecutableItineraryFromStructure(resolved, { provider, config, structure });
+        const llm = await generateExecutableItineraryFromStructure(resolved, {
+          provider,
+          config,
+          structure,
+          // Vercel suele cortar por ~60s aunque maxDuration sea mayor: optimizamos latencia aquí.
+          latencyMode: "preview",
+        });
         rawItinerary = llm.itinerary;
         usage = llm.usage;
       } catch (e) {
