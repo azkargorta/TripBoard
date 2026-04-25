@@ -40,8 +40,8 @@ export async function POST(req: Request) {
     const end_date = typeof trip?.end_date === "string" ? trip.end_date : null;
     const base_currency = typeof trip?.base_currency === "string" ? trip.base_currency.trim().toUpperCase() : "EUR";
     if (!name) return NextResponse.json({ error: "El nombre del viaje es obligatorio." }, { status: 400 });
-    if (start_date && end_date && start_date >= end_date) {
-      return NextResponse.json({ error: "La fecha de fin debe ser posterior a la fecha de inicio." }, { status: 400 });
+    if (start_date && end_date && start_date > end_date) {
+      return NextResponse.json({ error: "La fecha de fin no puede ser anterior a la fecha de inicio." }, { status: 400 });
     }
 
     const created = await createTripWithOwner(supabase, user, {

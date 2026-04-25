@@ -33,8 +33,8 @@ export async function POST(req: Request) {
 
     const resolved = resolveTripCreationDates(intent);
     if ("error" in resolved) return NextResponse.json({ error: resolved.error }, { status: 400 });
-    if (resolved.endDate <= resolved.startDate) {
-      return NextResponse.json({ error: "La fecha de fin debe ser posterior a la fecha de inicio." }, { status: 400 });
+    if (resolved.endDate < resolved.startDate) {
+      return NextResponse.json({ error: "La fecha de fin no puede ser anterior a la fecha de inicio." }, { status: 400 });
     }
 
     const config = normalizeTripAutoConfig(body?.config);

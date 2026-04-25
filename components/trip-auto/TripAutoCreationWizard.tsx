@@ -9,6 +9,7 @@ import TripPlacesFields from "@/components/dashboard/TripPlacesFields";
 import { buildTravelCurrencySelectOptions } from "@/lib/travel-currencies";
 
 type Pace = "relajado" | "equilibrado" | "intenso";
+type TravelTheme = "aventura" | "relax" | "gastronómico" | "cultural" | "naturaleza" | "fiesta" | "shopping" | "romántico";
 
 function isoOk(s: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(s);
@@ -28,7 +29,7 @@ export default function TripAutoCreationWizard() {
   const [error, setError] = useState<string | null>(null);
 
   // Básicos
-  const [destinations, setDestinations] = useState<string[]>([""]);
+  const [routeCities, setRouteCities] = useState<string[]>([""]);
   const [forceOrder, setForceOrder] = useState(false);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -40,19 +41,27 @@ export default function TripAutoCreationWizard() {
   const [travelersCount, setTravelersCount] = useState<number | "">(2);
   const [pace, setPace] = useState<Pace>("equilibrado");
   const [budgetLevel, setBudgetLevel] = useState<NonNullable<TripCreationIntent["budgetLevel"]>>("medium");
+  const [theme, setTheme] = useState<TravelTheme>("cultural");
+  const [notes, setNotes] = useState("");
+
+  // Visitas propuestas (chips)
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
+  const [mustSee, setMustSee] = useState<string[]>([]);
 
   // Preview
   const [itinerary, setItinerary] = useState<ExecutableItineraryPayload | null>(null);
 
-  const destinationLabel = useMemo(() => joinTripPlaces(destinations), [destinations]);
+  const destinationLabel = useMemo(() => joinTripPlaces(routeCities), [routeCities]);
   const currencyOptions = useMemo(() => buildTravelCurrencySelectOptions(destinationLabel), [destinationLabel]);
 
   const canStep1 = useMemo(() => {
     if (!isoOk(startDate) || !isoOk(endDate)) return false;
-    if (endDate <= startDate) return false;
-    const list = destinations.map((x) => x.trim()).filter(Boolean);
+    if (endDate < startDate) return false; // se permite 1 día
+    const list = routeCities.map((x) => x.trim()).filter(Boolean);
     return list.length >= 1;
-  }, [destinations, startDate, endDate]);
+  }, [routeCities, startDate, endDate]);
 
   const canStep2 = useMemo(() => {
     if (!canStep1) return false;
@@ -62,23 +71,72 @@ export default function TripAutoCreationWizard() {
   }, [canStep1, travelersCount, travelersType]);
 
   const intent = useMemo((): TripCreationIntent => {
-    const list = destinations.map((x) => x.trim()).filter(Boolean);
-    const main = list[0] || null;
-    const extra = list.slice(1);
+    const cities = routeCities.map((x) => x.trim()).filter(Boolean);
+    const main = cities[0] || null;
+    const middleCities = cities.length >= 3 ? cities.slice(1, -1) : cities.length === 2 ? [] : [];
+    const startCity = cities.length >= 2 ? cities[0]! : null;
+    const endCity = cities.length >= 2 ? cities[cities.length - 1]! : null;
+    const mustSeeMerged = [...middleCities, ...mustSee.map((x) => x.trim()).filter(Boolean)];
     return {
-      destination: main,
+      destination: joinTripPlaces(cities) || main,
       startDate: isoOk(startDate) ? startDate : null,
       endDate: isoOk(endDate) ? endDate : null,
+      startLocation: startCity,
+      endLocation: endCity,
       travelersType,
       travelersCount: typeof travelersCount === "number" ? travelersCount : null,
       budgetLevel,
       wantsRouteOptimization: !forceOrder,
-      mustSee: extra.length ? extra : [],
-      // traducimos el ritmo a constraints para que el modelo lo use como pista
-      constraints: [`Ritmo: ${pace}`],
+      mustSee: mustSeeMerged.length ? mustSeeMerged.slice(0, 18) : [],
+      // traducimos el ritmo/tema/notas a constraints para que el modelo lo use como pista
+      constraints: [
+        `Ritmo: ${pace}`,
+        `Tema: ${theme}`,
+        notes.trim() ? `Notas del usuario: ${notes.trim()}` : "",
+      ].filter(Boolean),
       suggestedTripName: tripName.trim() || null,
     };
-  }, [budgetLevel, destinations, endDate, forceOrder, pace, startDate, travelersCount, travelersType, tripName]);
+  }, [budgetLevel, routeCities, endDate, forceOrder, pace, startDate, travelersCount, travelersType, tripName, theme, notes, mustSee]);
+
+  function addMustSee(label: string) {
+    const t = String(label || "").trim();
+    if (!t) return;
+    setMustSee((prev) => {
+      const list = prev.map((x) => x.trim()).filter(Boolean);
+      if (list.some((x) => x.toLowerCase() === t.toLowerCase())) return list;
+      return [...list, t].slice(0, 24);
+    });
+  }
+
+  function removeMustSee(label: string) {
+    const t = String(label || "").trim().toLowerCase();
+    setMustSee((prev) => prev.filter((x) => x.trim().toLowerCase() !== t));
+  }
+
+  async function loadSuggestions() {
+    const main = routeCities.map((x) => x.trim()).filter(Boolean)[0] || "";
+    if (!main) return;
+    setSuggestionsLoading(true);
+    setSuggestionsError(null);
+    try {
+      const res = await fetch("/api/trips/auto-plan/suggest-visits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ destination: main }),
+      });
+      const raw = await res.text().catch(() => "");
+      const data = raw ? JSON.parse(raw) : null;
+      if (!res.ok) throw new Error(data?.error || "No se pudieron cargar sugerencias.");
+      const list = Array.isArray(data?.suggestions) ? data.suggestions.map((x: any) => String(x || "").trim()).filter(Boolean) : [];
+      setSuggestions(list.slice(0, 24));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "No se pudieron cargar sugerencias.";
+      setSuggestionsError(msg);
+      setSuggestions([]);
+    } finally {
+      setSuggestionsLoading(false);
+    }
+  }
 
   async function previewPlan() {
     if (loading) return;
@@ -111,7 +169,7 @@ export default function TripAutoCreationWizard() {
     setLoading(true);
     setError(null);
     try {
-      const list = destinations.map((x) => x.trim()).filter(Boolean);
+      const list = routeCities.map((x) => x.trim()).filter(Boolean);
       const name = (tripName.trim() || (isoOk(startDate) && isoOk(endDate) ? defaultTripName(list, startDate, endDate) : "")).trim();
       const res = await fetch("/api/trips/auto-plan/create", {
         method: "POST",
@@ -175,7 +233,7 @@ export default function TripAutoCreationWizard() {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="md:col-span-2">
                 <label className="mb-1 block text-sm font-extrabold text-slate-900">Destinos (en orden)</label>
-                <TripPlacesFields places={destinations} onChange={setDestinations} />
+                <TripPlacesFields places={routeCities} onChange={setRouteCities} />
                 <div className="mt-2 flex items-start gap-2">
                   <input
                     id="forceOrder"
@@ -198,7 +256,7 @@ export default function TripAutoCreationWizard() {
                   onChange={(e) => {
                     const v = e.target.value;
                     setStartDate(v);
-                    if (isoOk(v) && (!endDate || endDate <= v)) setEndDate(v);
+                    if (isoOk(v) && (!endDate || endDate < v)) setEndDate(v);
                   }}
                   className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
                 />
@@ -212,7 +270,7 @@ export default function TripAutoCreationWizard() {
                   min={startDate || undefined}
                   className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
                 />
-                <div className="mt-1 text-xs font-semibold text-slate-500">Debe ser posterior a la fecha de inicio.</div>
+                <div className="mt-1 text-xs font-semibold text-slate-500">Puede ser el mismo día (viaje de 1 día) o posterior.</div>
               </div>
             </div>
 
@@ -222,7 +280,7 @@ export default function TripAutoCreationWizard() {
                 <input
                   value={tripName}
                   onChange={(e) => setTripName(e.target.value)}
-                  placeholder={isoOk(startDate) && isoOk(endDate) ? defaultTripName(destinations, startDate, endDate) : "Ej. Argentina 2026"}
+                  placeholder={isoOk(startDate) && isoOk(endDate) ? defaultTripName(routeCities, startDate, endDate) : "Ej. Argentina 2026"}
                   className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
                 />
               </div>
@@ -256,8 +314,9 @@ export default function TripAutoCreationWizard() {
         ) : null}
 
         {step === 2 ? (
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
+          <div className="grid gap-4 lg:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2 lg:col-span-2">
+              <div>
               <label className="mb-1 block text-sm font-extrabold text-slate-900">Tipo de viaje</label>
               <select
                 value={travelersType}
@@ -311,6 +370,36 @@ export default function TripAutoCreationWizard() {
               </select>
             </div>
 
+            <div className="md:col-span-2">
+              <label className="mb-1 block text-sm font-extrabold text-slate-900">Estilo del viaje</label>
+              <select
+                value={theme}
+                onChange={(e) => setTheme(e.target.value as TravelTheme)}
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
+              >
+                <option value="aventura">Aventura</option>
+                <option value="relax">Relax</option>
+                <option value="gastronómico">Gastronómico</option>
+                <option value="cultural">Cultural</option>
+                <option value="naturaleza">Naturaleza</option>
+                <option value="fiesta">Fiesta</option>
+                <option value="shopping">Shopping</option>
+                <option value="romántico">Romántico</option>
+              </select>
+              <div className="mt-1 text-xs font-semibold text-slate-500">Se usará para priorizar actividades y tono del plan.</div>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="mb-1 block text-sm font-extrabold text-slate-900">Comentarios (chat)</label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Ej. Me encanta el vino; evitar madrugar; quiero 1 día de relax en spa; me gustaría ver fútbol..."
+                rows={4}
+                className="w-full resize-y rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
+              />
+            </div>
+
             <div className="mt-2 flex gap-2 md:col-span-2">
               <button type="button" onClick={() => setStep(1)} className="btn-secondary">
                 Atrás
@@ -319,6 +408,66 @@ export default function TripAutoCreationWizard() {
                 Calcular plan
               </button>
             </div>
+            </div>
+
+            <aside className="rounded-2xl border border-slate-200 bg-white p-4 lg:sticky lg:top-24 lg:h-fit">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-sm font-extrabold text-slate-900">Visitas propuestas</div>
+                <button
+                  type="button"
+                  onClick={loadSuggestions}
+                  disabled={suggestionsLoading || loading || !routeCities.map((x) => x.trim()).filter(Boolean)[0]}
+                  className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-extrabold text-slate-800 hover:bg-slate-100 disabled:opacity-60"
+                >
+                  {suggestionsLoading ? "Cargando..." : "Actualizar"}
+                </button>
+              </div>
+              <div className="mt-1 text-xs font-semibold text-slate-600">
+                Sugerencias típicas del destino para añadir como imprescindibles.
+              </div>
+
+              {suggestionsError ? (
+                <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-800">
+                  {suggestionsError}
+                </div>
+              ) : null}
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                {(suggestionsLoading ? [] : suggestions).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => addMustSee(s)}
+                    className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold text-slate-800 hover:bg-slate-50"
+                    title="Añadir como imprescindible"
+                  >
+                    {s}
+                  </button>
+                ))}
+                {!suggestionsLoading && !suggestions.length ? (
+                  <div className="text-xs font-semibold text-slate-500">Pulsa “Actualizar” para ver sugerencias.</div>
+                ) : null}
+              </div>
+
+              {mustSee.length ? (
+                <div className="mt-4">
+                  <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Imprescindibles</div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {mustSee.map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => removeMustSee(m)}
+                        className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-extrabold text-slate-800 hover:bg-slate-100"
+                        title="Quitar"
+                      >
+                        {m} ×
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </aside>
           </div>
         ) : null}
 
