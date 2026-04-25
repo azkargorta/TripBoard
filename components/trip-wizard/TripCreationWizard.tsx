@@ -113,6 +113,17 @@ const INTEREST_TAGS = [
 
 const STYLE_TAGS = ["Tranquilo", "Equilibrado", "Intenso", "Road trip", "Ciudad + pueblos", "Relax", "Aventura"] as const;
 
+const SCHEDULE_TAGS = ["Madrugador", "Normal", "Tarde"] as const;
+const MEALS_TAGS = ["Comidas baratas", "Comida local", "Comidas especiales", "Sin planificar comidas"] as const;
+const RESTRICTION_TAGS = [
+  "Niños",
+  "Movilidad reducida",
+  "Mascotas",
+  "Alergias",
+  "Evitar coche",
+  "Evitar caminar mucho",
+] as const;
+
 function normalizeDestination(raw: string) {
   return String(raw || "")
     .trim()
@@ -794,6 +805,22 @@ export default function TripCreationWizard({ isPremium }: Props) {
       const list = Array.isArray(cur) ? cur.map((x) => String(x || "").trim()).filter(Boolean) : [];
       const next = list.includes(t) ? list.filter((x) => x !== t) : [...list, t];
       return { ...(prev || {}), [field]: next.slice(0, 20) } as any;
+    });
+  }
+
+  const intentConstraints = useMemo(
+    () => normalizePlaces((draftIntent?.constraints || []) as any),
+    [draftIntent?.constraints]
+  );
+
+  function toggleConstraintTag(tag: string) {
+    const t = String(tag || "").trim();
+    if (!t) return;
+    setDraftIntent((prev) => {
+      const cur = (prev?.constraints as any) as string[] | undefined;
+      const list = Array.isArray(cur) ? cur.map((x) => String(x || "").trim()).filter(Boolean) : [];
+      const next = list.includes(t) ? list.filter((x) => x !== t) : [...list, t];
+      return { ...(prev || {}), constraints: next.slice(0, 30) } as any;
     });
   }
 
@@ -1858,7 +1885,7 @@ export default function TripCreationWizard({ isPremium }: Props) {
               </label>
 
               <label className="space-y-1">
-                <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Ciudad de salida</span>
+                <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Lugar de inicio</span>
                 <input
                   value={String(draftIntent?.startLocation || "")}
                   onChange={(e) => setDraftIntent((prev) => ({ ...(prev || {}), startLocation: e.target.value || null }))}
@@ -1866,19 +1893,19 @@ export default function TripCreationWizard({ isPremium }: Props) {
                     setDraftIntent((prev) => ({ ...(prev || {}), startLocation: e.target.value.trim() || null }))
                   }
                   disabled={loading}
-                  placeholder="Ej. Madrid"
+                  placeholder="Ej. Madrid (aeropuerto) / Recoleta / Hotel X"
                   className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
                 />
               </label>
 
               <label className="space-y-1">
-                <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Ciudad de vuelta</span>
+                <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Lugar final</span>
                 <input
                   value={String(draftIntent?.endLocation || "")}
                   onChange={(e) => setDraftIntent((prev) => ({ ...(prev || {}), endLocation: e.target.value || null }))}
                   onBlur={(e) => setDraftIntent((prev) => ({ ...(prev || {}), endLocation: e.target.value.trim() || null }))}
                   disabled={loading}
-                  placeholder="Ej. Buenos Aires"
+                  placeholder="Ej. Buenos Aires (EZE) / Centro / Hotel Y"
                   className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:bg-slate-50"
                 />
               </label>
@@ -2070,6 +2097,92 @@ export default function TripCreationWizard({ isPremium }: Props) {
                           type="button"
                           disabled={loading}
                           onClick={() => toggleIntentTag("travelStyle", tag)}
+                          className={`rounded-full border px-3 py-2 text-xs font-extrabold transition disabled:opacity-60 ${
+                            active
+                              ? "border-violet-300 bg-violet-50 text-violet-950"
+                              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                          }`}
+                          aria-pressed={active}
+                        >
+                          {tag}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Horarios</div>
+                  <p className="mt-1 text-sm text-slate-600">¿A qué hora te gusta empezar el día?</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {SCHEDULE_TAGS.map((tag) => {
+                      const active = intentConstraints.includes(tag);
+                      return (
+                        <button
+                          key={tag}
+                          type="button"
+                          disabled={loading}
+                          onClick={() => {
+                            // seleccion única: quita otras opciones de horarios
+                            setDraftIntent((prev) => {
+                              const cur = Array.isArray(prev?.constraints) ? prev!.constraints!.map((x) => String(x || "").trim()).filter(Boolean) : [];
+                              const cleaned = cur.filter((x) => !SCHEDULE_TAGS.includes(x as any));
+                              const next = cleaned.includes(tag) ? cleaned : [...cleaned, tag];
+                              return { ...(prev || {}), constraints: next };
+                            });
+                          }}
+                          className={`rounded-full border px-3 py-2 text-xs font-extrabold transition disabled:opacity-60 ${
+                            active
+                              ? "border-violet-300 bg-violet-50 text-violet-950"
+                              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                          }`}
+                          aria-pressed={active}
+                        >
+                          {tag}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Comidas</div>
+                  <p className="mt-1 text-sm text-slate-600">Guía a la IA sobre cómo planificar la comida.</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {MEALS_TAGS.map((tag) => {
+                      const active = intentConstraints.includes(tag);
+                      return (
+                        <button
+                          key={tag}
+                          type="button"
+                          disabled={loading}
+                          onClick={() => toggleConstraintTag(tag)}
+                          className={`rounded-full border px-3 py-2 text-xs font-extrabold transition disabled:opacity-60 ${
+                            active
+                              ? "border-violet-300 bg-violet-50 text-violet-950"
+                              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                          }`}
+                          aria-pressed={active}
+                        >
+                          {tag}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Restricciones</div>
+                  <p className="mt-1 text-sm text-slate-600">Opcional: limita actividades o transportes.</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {RESTRICTION_TAGS.map((tag) => {
+                      const active = intentConstraints.includes(tag);
+                      return (
+                        <button
+                          key={tag}
+                          type="button"
+                          disabled={loading}
+                          onClick={() => toggleConstraintTag(tag)}
                           className={`rounded-full border px-3 py-2 text-xs font-extrabold transition disabled:opacity-60 ${
                             active
                               ? "border-violet-300 bg-violet-50 text-violet-950"
@@ -2437,10 +2550,20 @@ export default function TripCreationWizard({ isPremium }: Props) {
                 <p className="mt-1 text-sm text-slate-600">
                   Ajusta lo imprescindible y previsualiza. Luego crea el viaje y podrás editarlo todo.
                 </p>
+                <div className="mt-4 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950">
+                  <span className="font-extrabold">Resumen:</span>{" "}
+                  {`Voy a crear un viaje de ${
+                    typeof draftIntent?.durationDays === "number" && draftIntent.durationDays ? `${draftIntent.durationDays} días` : "varios días"
+                  } a ${destinationLabel || "tu destino"}, ${
+                    (draftIntent?.travelersType || "").toString() ? `tipo ${draftIntent!.travelersType}` : "con un estilo a tu medida"
+                  }, `}
+                  {`presupuesto ${(draftIntent?.budgetLevel || "medium").toString()}, `}
+                  {`centrado en ${intentInterests.length ? intentInterests.slice(0, 3).join(", ").toLowerCase() : "un mix de actividades"}.`}
+                </div>
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <label className="space-y-1">
-                    <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Origen</span>
+                    <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Lugar de inicio</span>
                     <input
                       value={(draftIntent?.startLocation || "") ?? ""}
                       onChange={(e) => setDraftIntent((prev) => ({ ...(prev || {}), startLocation: e.target.value || null }))}
@@ -3119,11 +3242,11 @@ export default function TripCreationWizard({ isPremium }: Props) {
                     </span>
                   </div>
                   <div className="flex items-start justify-between gap-3">
-                    <span className="text-slate-500">Origen</span>
+                    <span className="text-slate-500">Lugar de inicio</span>
                     <span className="text-right font-semibold text-slate-900">{(draftIntent?.startLocation || "").trim() || "—"}</span>
                   </div>
                   <div className="flex items-start justify-between gap-3">
-                    <span className="text-slate-500">Fin</span>
+                    <span className="text-slate-500">Lugar final</span>
                     <span className="text-right font-semibold text-slate-900">{(draftIntent?.endLocation || "").trim() || "—"}</span>
                   </div>
                   <div className="flex items-start justify-between gap-3">

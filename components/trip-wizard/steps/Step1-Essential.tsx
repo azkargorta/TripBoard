@@ -2,7 +2,14 @@
 
 import { useState } from "react";
 import { WizardFormData } from "../TripWizardNew";
-import { calculateDurationDays } from "@/lib/format-trip-date-range";
+
+function calculateDurationDays(startIso: string, endIso: string) {
+  const start = new Date(`${startIso}T12:00:00`);
+  const end = new Date(`${endIso}T12:00:00`);
+  const diffMs = end.getTime() - start.getTime();
+  if (Number.isNaN(diffMs) || diffMs <= 0) return 0;
+  return Math.round(diffMs / (1000 * 60 * 60 * 24)) + 1;
+}
 
 export default function Step1Essential({
   data,
