@@ -555,9 +555,14 @@ export async function generateExecutableItineraryFromStructure(
   };
 
   const planningMaxOutputTokens = isPreviewLatency ? 4608 : undefined;
+  const planningResponseMimeType = isPreviewLatency ? "application/json" : undefined;
 
   const runOnce = async (p: string) => {
-    const { text, usage } = await askTripAIWithUsage(p, "planning", { provider, maxOutputTokens: planningMaxOutputTokens });
+    const { text, usage } = await askTripAIWithUsage(p, "planning", {
+      provider,
+      maxOutputTokens: planningMaxOutputTokens,
+      responseMimeType: planningResponseMimeType,
+    });
     try {
       const parsed = validateItinerary(extractJsonObject(text));
       return { itinerary: parsed, usage };
@@ -570,17 +575,27 @@ export async function generateExecutableItineraryFromStructure(
       const second = await askTripAIWithUsage(retryPrompt, "planning", {
         provider,
         maxOutputTokens: planningMaxOutputTokens,
+        responseMimeType: planningResponseMimeType,
       });
-      const parsed2 = validateItinerary(extractJsonObject(second.text));
-      return {
-        itinerary: parsed2,
-        usage: {
-          provider: usage.provider,
-          model: second.usage.model ?? usage.model,
-          inputTokens: (usage.inputTokens || 0) + (second.usage.inputTokens || 0),
-          outputTokens: (usage.outputTokens || 0) + (second.usage.outputTokens || 0),
-        },
-      };
+      try {
+        const parsed2 = validateItinerary(extractJsonObject(second.text));
+        return {
+          itinerary: parsed2,
+          usage: {
+            provider: usage.provider,
+            model: second.usage.model ?? usage.model,
+            inputTokens: (usage.inputTokens || 0) + (second.usage.inputTokens || 0),
+            outputTokens: (usage.outputTokens || 0) + (second.usage.outputTokens || 0),
+          },
+        };
+      } catch (e2) {
+        const head = String(second.text || "")
+          .trim()
+          .replace(/\s+/g, " ")
+          .slice(0, 220);
+        const msg = e2 instanceof Error ? e2.message : "no se pudo parsear el JSON";
+        throw new Error(`La IA devolvió una respuesta sin JSON parseable (${msg}). Inicio: "${head}"`);
+      }
     }
   };
 

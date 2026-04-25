@@ -78,7 +78,11 @@ function formatGeminiUserError(raw: string): string {
   return raw;
 }
 
-export async function askGemini(prompt: string, mode: TripAiMode, opts?: { maxOutputTokens?: number }) {
+export async function askGemini(
+  prompt: string,
+  mode: TripAiMode,
+  opts?: { maxOutputTokens?: number; responseMimeType?: string }
+) {
   const apiKey = process.env.GEMINI_API_KEY || "";
   if (!apiKey) {
     throw new Error("Falta GEMINI_API_KEY en el servidor.");
@@ -99,7 +103,9 @@ export async function askGemini(prompt: string, mode: TripAiMode, opts?: { maxOu
     model: modelName,
     generationConfig: {
       temperature,
-      ...(mode === "planning" ? { maxOutputTokens: planningMax } : {}),
+      ...(mode === "planning"
+        ? { maxOutputTokens: planningMax, ...(opts?.responseMimeType ? { responseMimeType: opts.responseMimeType } : {}) }
+        : {}),
     },
   });
 
@@ -121,7 +127,7 @@ export async function askGemini(prompt: string, mode: TripAiMode, opts?: { maxOu
 export async function askGeminiWithUsage(
   prompt: string,
   mode: TripAiMode,
-  opts?: { maxOutputTokens?: number }
+  opts?: { maxOutputTokens?: number; responseMimeType?: string }
 ): Promise<{ text: string; usage: TripAiUsage }> {
   const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash";
   try {
@@ -142,7 +148,9 @@ export async function askGeminiWithUsage(
       model: modelName,
       generationConfig: {
         temperature,
-        ...(mode === "planning" ? { maxOutputTokens: planningMax } : {}),
+        ...(mode === "planning"
+          ? { maxOutputTokens: planningMax, ...(opts?.responseMimeType ? { responseMimeType: opts.responseMimeType } : {}) }
+          : {}),
       },
     });
 
@@ -195,12 +203,15 @@ function isServerlessProduction() {
 export async function askTripAI(
   prompt: string,
   mode: TripAiMode,
-  options?: { provider?: string | null; maxOutputTokens?: number }
+  options?: { provider?: string | null; maxOutputTokens?: number; responseMimeType?: string }
 ) {
   const provider = resolveProvider(options?.provider ?? null);
   if (provider === "gemini") {
     try {
-      return await askGemini(prompt, mode, { maxOutputTokens: options?.maxOutputTokens });
+      return await askGemini(prompt, mode, {
+        maxOutputTokens: options?.maxOutputTokens,
+        responseMimeType: options?.responseMimeType,
+      });
     } catch (e) {
       const detail = e instanceof Error ? e.message : "error desconocido";
       throw new Error(detail.startsWith("Cuota de Gemini") ? detail : `Gemini no disponible: ${detail}`);
@@ -212,11 +223,14 @@ export async function askTripAI(
 export async function askTripAIWithUsage(
   prompt: string,
   mode: TripAiMode,
-  options?: { provider?: string | null; maxOutputTokens?: number }
+  options?: { provider?: string | null; maxOutputTokens?: number; responseMimeType?: string }
 ): Promise<{ text: string; usage: TripAiUsage }> {
   const provider = resolveProvider(options?.provider ?? null);
   if (provider === "gemini") {
-    const res = await askGeminiWithUsage(prompt, mode, { maxOutputTokens: options?.maxOutputTokens });
+    const res = await askGeminiWithUsage(prompt, mode, {
+      maxOutputTokens: options?.maxOutputTokens,
+      responseMimeType: options?.responseMimeType,
+    });
     return res;
   }
   const text = await askOllama(prompt, mode);
