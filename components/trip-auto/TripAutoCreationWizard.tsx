@@ -591,6 +591,9 @@ export default function TripAutoCreationWizard() {
                 <div className="text-xs font-semibold text-slate-600">
                   {destinationLabel ? destinationLabel : "—"} · {startDate} → {endDate}
                 </div>
+                <div className="mt-1 text-xs font-semibold text-slate-500">
+                  Esta primera vista es rápida. Usa <span className="font-extrabold">Mejorar con IA</span> para generar el plan detallado completo sin timeouts.
+                </div>
                 {aiProgress ? (
                   <div className="mt-1 text-xs font-semibold text-slate-600">
                     Generando con IA: {aiProgress.done}/{aiProgress.total} días…

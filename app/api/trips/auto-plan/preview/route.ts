@@ -4,7 +4,6 @@ import { monthKeyUtc } from "@/lib/ai-usage";
 import type { TripCreationIntent } from "@/lib/trip-ai/tripCreationTypes";
 import { getTripCreationFollowUp, resolveTripCreationDates } from "@/lib/trip-ai/tripCreationResolve";
 import { normalizeTripAutoConfig } from "@/lib/trip-ai/tripAutoConfig";
-import { generateExecutableItineraryFromStructure } from "@/lib/trip-ai/generateItineraryFromIntent";
 import { generateExecutableItineraryFastFromIntent } from "@/lib/trip-ai/generateItineraryFromIntent";
 
 export const runtime = "nodejs";
@@ -106,37 +105,9 @@ export async function POST(req: Request) {
     // Construimos una estructura determinista solo con la lista del usuario para que el endpoint siempre responda.
     const structure = buildStructureFromUserPlaces({ intent: resolved.intent, durationDays: resolved.durationDays });
 
-    // En despliegues serverless, viajes largos suelen disparar timeout.
-    // Estrategia: preview parcial con IA (primeros días) + esqueleto rápido para el resto.
-    const PREVIEW_AI_DAYS = 6;
-    let llm = await (async () => {
-      if (resolved.durationDays <= PREVIEW_AI_DAYS) {
-        return await generateExecutableItineraryFromStructure(resolved, { provider, config, structure, latencyMode: "preview" });
-      }
-      const partialResolved: typeof resolved = { ...resolved, durationDays: PREVIEW_AI_DAYS, endDate: resolved.endDate };
-      try {
-        return await generateExecutableItineraryFromStructure(partialResolved as any, {
-          provider,
-          config,
-          structure: { ...structure, baseCityByDay: structure.baseCityByDay.slice(0, PREVIEW_AI_DAYS) },
-          latencyMode: "preview",
-        });
-      } catch {
-        // Si IA falla, al menos devolvemos rápido para no bloquear UX.
-        return await generateExecutableItineraryFastFromIntent(partialResolved as any, {
-          config,
-          structure: { ...structure, baseCityByDay: structure.baseCityByDay.slice(0, PREVIEW_AI_DAYS) },
-        });
-      }
-    })();
-
-    // Completa con plan rápido si el viaje es más largo que el preview IA.
-    if (resolved.durationDays > PREVIEW_AI_DAYS) {
-      const fastAll = await generateExecutableItineraryFastFromIntent(resolved, { config, structure });
-      const head = llm.itinerary.days.slice(0, PREVIEW_AI_DAYS);
-      const tail = fastAll.itinerary.days.slice(PREVIEW_AI_DAYS);
-      llm = { ...llm, itinerary: { ...fastAll.itinerary, title: llm.itinerary.title || fastAll.itinerary.title, days: [...head, ...tail] } };
-    }
+    // Preview 100% rápido y determinista: sin IA, sin geocoding, sin riesgo de timeout.
+    // La mejora con IA se hace luego en chunks pequeños desde el cliente.
+    const llm = await generateExecutableItineraryFastFromIntent(resolved, { config, structure });
 
     if (shouldTrack) {
       await trackAiUsage({ supabase, userId, monthKey, provider, usage: llm.usage });
@@ -155,8 +126,8 @@ export async function POST(req: Request) {
       repairedCount: 0,
       structure,
       config,
-      partial: resolved.durationDays > PREVIEW_AI_DAYS,
-      partialAiDays: resolved.durationDays > PREVIEW_AI_DAYS ? PREVIEW_AI_DAYS : null,
+      partial: true,
+      partialAiDays: 0,
     });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "No se pudo previsualizar el plan." }, { status: 500 });
