@@ -30,19 +30,46 @@ function splitPlaceList(raw: string): string[] {
   return out.slice(0, 10);
 }
 
-function distributeDays(totalDays: number, cityCount: number): number[] {
-  const n = Math.max(1, Math.round(totalDays));
-  const c = Math.max(1, Math.round(cityCount));
-  if (c === 1) return [n];
-  const base = new Array<number>(c).fill(1);
-  let remaining = n - c;
-  let idx = 0;
-  while (remaining > 0) {
-    base[idx % c] = (base[idx % c] || 0) + 1;
-    remaining -= 1;
-    idx += 1;
+function placeWeight(labelRaw: string): number {
+  const label = clean(labelRaw).toLowerCase();
+  if (!label) return 1;
+  if (/\b(patagonia|ruta 40|salta y jujuy|quebrada|bariloche|7 lagos|mendoza|ushuaia|calafate|chalt[eé]n|iguaz[uú]|pen[ií]nsula vald[eé]s)\b/.test(label)) {
+    return 2.6;
   }
-  return base;
+  if (/\b(buenos aires|madrid|barcelona|roma|tokio|kioto)\b/.test(label)) {
+    return 2.1;
+  }
+  if (/\b(c[oó]rdoba|rosario|sevilla|granada|valencia|bilbao|osaka)\b/.test(label)) {
+    return 1.5;
+  }
+  return 1;
+}
+
+function distributeDaysByWeight(totalDays: number, cities: string[]): number[] {
+  const n = Math.max(1, Math.round(totalDays));
+  const c = Math.max(1, cities.length);
+  if (c === 1) return [n];
+  const weights = cities.map((city) => placeWeight(city));
+  const totalWeight = weights.reduce((a, b) => a + b, 0) || c;
+  const days = new Array<number>(c).fill(1);
+  let assigned = c;
+
+  const scored = weights.map((w, i) => ({ i, extra: (w / totalWeight) * Math.max(0, n - c) }));
+  for (const item of scored) {
+    const add = Math.floor(item.extra);
+    days[item.i] += add;
+    assigned += add;
+  }
+  let remaining = n - assigned;
+  const order = [...scored].sort((a, b) => b.extra - a.extra);
+  let ptr = 0;
+  while (remaining > 0) {
+    const idx = order[ptr % order.length]!.i;
+    days[idx] += 1;
+    remaining -= 1;
+    ptr += 1;
+  }
+  return days;
 }
 
 function buildStructureFromUserPlaces(params: { intent: TripCreationIntent; durationDays: number }) {
@@ -63,7 +90,7 @@ function buildStructureFromUserPlaces(params: { intent: TripCreationIntent; dura
   if (end) push(end);
   if (!cities.length) push(destRaw || "Destino");
 
-  const daysByCity = distributeDays(params.durationDays, cities.length);
+  const daysByCity = distributeDaysByWeight(params.durationDays, cities);
   const baseCityByDay: string[] = [];
   for (let i = 0; i < cities.length; i++) {
     for (let k = 0; k < (daysByCity[i] || 1); k++) baseCityByDay.push(cities[i]!);
@@ -72,6 +99,21 @@ function buildStructureFromUserPlaces(params: { intent: TripCreationIntent; dura
   while (normalized.length < params.durationDays) normalized.push(normalized[normalized.length - 1] || cities[cities.length - 1] || "Destino");
 
   return { version: 1 as const, baseCityByDay: normalized, segments: [] as any[] };
+}
+
+function filterMustSeeAgainstRoute(params: { mustSee: string[]; baseCityByDay: string[] }) {
+  const cities = Array.from(new Set(params.baseCityByDay.map((x) => clean(x).toLowerCase()).filter(Boolean)));
+  const keep: string[] = [];
+  for (const raw of params.mustSee || []) {
+    const t = clean(raw);
+    if (!t) continue;
+    const lc = t.toLowerCase();
+    // Si el token es (o contiene) una de las ciudades base, NO lo forzamos como actividad.
+    const isCityLike = cities.some((c) => c === lc || c.includes(lc) || lc.includes(c));
+    if (isCityLike) continue;
+    keep.push(t);
+  }
+  return keep.slice(0, 18);
 }
 
 export async function POST(req: Request) {
@@ -103,10 +145,17 @@ export async function POST(req: Request) {
     const fullStructure = buildStructureFromUserPlaces({ intent: resolved.intent, durationDays: totalDays });
     const sliceStructure = { ...fullStructure, baseCityByDay: fullStructure.baseCityByDay.slice(dayOffset, dayOffset + count) };
 
+    // Clave: evitamos que ciudades/regiones del recorrido se inyecten como "Visita: X" en un día cualquiera.
+    const cleanedIntent: TripCreationIntent = {
+      ...resolved.intent,
+      mustSee: filterMustSeeAgainstRoute({ mustSee: resolved.intent.mustSee || [], baseCityByDay: fullStructure.baseCityByDay }),
+    };
+
     // Creamos un resolved “slice” para que el generador produzca solo esos días.
     const sliceStart = addDaysIso(resolved.startDate, dayOffset);
     const sliceResolved: any = {
       ...resolved,
+      intent: cleanedIntent,
       startDate: sliceStart,
       durationDays: count,
     };

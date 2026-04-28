@@ -7,6 +7,7 @@ import type { TripCreationIntent, ExecutableItineraryPayload } from "@/lib/trip-
 import { joinTripPlaces } from "@/lib/trip-places";
 import TripPlacesFields from "@/components/dashboard/TripPlacesFields";
 import { buildTravelCurrencySelectOptions } from "@/lib/travel-currencies";
+import TripBoardLogo from "@/components/brand/TripBoardLogo";
 
 type Pace = "relajado" | "equilibrado" | "intenso";
 type TravelTheme = "aventura" | "relax" | "gastronómico" | "cultural" | "naturaleza" | "fiesta" | "shopping" | "romántico";
@@ -99,12 +100,14 @@ export default function TripAutoCreationWizard() {
   const intent = useMemo((): TripCreationIntent => {
     const cities = routeCities.map((x) => x.trim()).filter(Boolean);
     const main = cities[0] || null;
-    const middleCities = cities.length >= 3 ? cities.slice(1, -1) : cities.length === 2 ? [] : [];
     const startCity = cities.length >= 2 ? cities[0]! : null;
     const endCity = cities.length >= 2 ? cities[cities.length - 1]! : null;
-    const mustSeeMerged = [...middleCities, ...mustSee.map((x) => x.trim()).filter(Boolean)];
+    const mustSeeClean = mustSee.map((x) => x.trim()).filter(Boolean);
+    // Importante: si el usuario añade “visitas propuestas” (ciudades/regiones), queremos que afecten al recorrido.
+    // Por eso las incluimos también en `destination` (estructura baseCity), y dejamos `mustSee` para POIs concretos.
+    const destinationStops = [...cities, ...mustSeeClean];
     return {
-      destination: joinTripPlaces(cities) || main,
+      destination: joinTripPlaces(destinationStops) || joinTripPlaces(cities) || main,
       startDate: isoOk(startDate) ? startDate : null,
       endDate: isoOk(endDate) ? endDate : null,
       startLocation: startCity,
@@ -113,7 +116,7 @@ export default function TripAutoCreationWizard() {
       travelersCount: typeof travelersCount === "number" ? travelersCount : null,
       budgetLevel,
       wantsRouteOptimization: !forceOrder,
-      mustSee: mustSeeMerged.length ? mustSeeMerged.slice(0, 18) : [],
+      mustSee: mustSeeClean.length ? mustSeeClean.slice(0, 18) : [],
       // traducimos el ritmo/tema/notas a constraints para que el modelo lo use como pista
       constraints: [
         `Ritmo: ${pace}`,
@@ -307,6 +310,40 @@ export default function TripAutoCreationWizard() {
 
   return (
     <div className="mx-auto w-full max-w-5xl">
+      {aiGenerating ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-md rounded-3xl border border-white/10 bg-slate-950/90 p-8 text-white shadow-2xl">
+            <div className="flex justify-center">
+              <TripBoardLogo variant="light" size="md" withWordmark />
+            </div>
+            <div className="mt-6 flex items-center justify-center gap-2">
+              <span className="h-3 w-3 animate-bounce rounded-full bg-cyan-300 [animation-delay:-0.2s]" />
+              <span className="h-3 w-3 animate-bounce rounded-full bg-violet-300 [animation-delay:-0.1s]" />
+              <span className="h-3 w-3 animate-bounce rounded-full bg-emerald-300" />
+            </div>
+            <div className="mt-5 text-center text-lg font-extrabold tracking-tight">Generando tu viaje</div>
+            <div className="mt-2 text-center text-sm font-semibold text-slate-300">
+              {aiProgress
+                ? aiProgress.done < aiProgress.total
+                  ? `Generando día ${Math.min(aiProgress.done + 1, aiProgress.total)}/${aiProgress.total}`
+                  : `Generando día ${aiProgress.total}/${aiProgress.total}`
+                : "Preparando itinerario…"}
+            </div>
+            <div className="mt-5 h-2 overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-violet-400 to-emerald-400 transition-all duration-500"
+                style={{
+                  width: aiProgress?.total ? `${Math.max(6, Math.round((aiProgress.done / aiProgress.total) * 100))}%` : "12%",
+                }}
+              />
+            </div>
+            <div className="mt-4 text-center text-xs font-semibold text-slate-400">
+              Kaviro está generando un plan coherente día a día y ajustando ciudades, traslados y tiempos.
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="mb-6">
         <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Crear viaje automático</h1>
         <p className="mt-2 text-slate-600">Dime fechas, destinos y estilo. Genero un plan detallado por día y lo guardo como planes del viaje.</p>
