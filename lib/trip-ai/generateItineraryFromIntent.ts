@@ -43,7 +43,7 @@ Esquema exacto (puedes incluir campos extra, pero estos deben existir):
 }
 
 Reglas:
-- Cada día: entre 3 y 5 items (salvo días de traslado largo: 2–4), start_time en orden creciente.
+- Número de items por día: respeta el rango de "Ritmo: entre X y Y items por día" indicado más abajo (y en días de traslado largo, reduce actividades). start_time en orden creciente.
 - Para cada item, rellena "duration_min" de forma realista (aprox). Si no estás seguro, usa null.
 - Si das "end_time", debe ser coherente con start_time + duration_min; si dudas, usa null.
 - "visit_type": usa categorías humanas (ej. "gastronomía", "naturaleza", "museo", "ruta panorámica", "barrio", "mercado", "mirador", "cultura").
@@ -693,7 +693,7 @@ ${baseContext.optimizeHint}
   const strictHint =
     `\n\nIMPORTANTE: Corrige estos problemas:\n` +
     `- NO mezcles ciudades en el mismo día.\n` +
-    `- Si un día es Zagreb, NO incluyas Split/Hvar/Dubrovnik.\n` +
+    `- Si un día es de una ciudad concreta, NO incluyas actividades de otra ciudad distante.\n` +
     `- start_time estrictamente creciente.\n` +
     `- NO uses placeholders tipo \"Explorar ...\".\n` +
     `Devuelve SOLO JSON válido.\n`;
