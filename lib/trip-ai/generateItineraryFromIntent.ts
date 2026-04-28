@@ -834,6 +834,13 @@ export async function generateExecutableItineraryFastFromIntent(
       ? options.structure
       : await deriveRouteStructure({ resolved, config: cfg });
   const baseCitySchedule = structure.baseCityByDay.slice(0, generateDays);
+  const mustSeePool = normalizeMustSeeTokens(resolved.intent.mustSee || []);
+  const styleHints = [
+    ...((resolved.intent.travelStyle || []).map((x) => String(x || "").trim()).filter(Boolean)),
+    ...((resolved.intent.constraints || [])
+      .map((x) => String(x || "").trim())
+      .filter((x) => /\btema:|\btemas:|aventur|relax|gastron|cultural|naturaleza|fiesta|shopping|rom[aá]ntic/iu.test(x))),
+  ];
 
   const daysOut: ExecutableItineraryPayload["days"] = [];
   for (let i = 0; i < generateDays; i++) {
@@ -843,6 +850,10 @@ export async function generateExecutableItineraryFastFromIntent(
     const baseItems = fallbackDayItems({
       destination: resolved.destination,
       baseCity,
+      dayIndex: i,
+      totalDays: generateDays,
+      mustSeePool,
+      styleHints,
       minItems: cfg.pace.itemsPerDayMin,
       maxItems: cfg.pace.itemsPerDayMax,
     });
@@ -882,40 +893,136 @@ export async function generateExecutableItineraryFastFromIntent(
   };
 }
 
-function fallbackDayItems(params: { destination: string; baseCity: string; minItems?: number; maxItems?: number }) {
+function fallbackDayItems(params: {
+  destination: string;
+  baseCity: string;
+  dayIndex?: number;
+  totalDays?: number;
+  mustSeePool?: string[];
+  styleHints?: string[];
+  minItems?: number;
+  maxItems?: number;
+}) {
   const city = params.baseCity || params.destination;
   const country = params.destination;
-  const base = [
+  const dayIndex = typeof params.dayIndex === "number" ? params.dayIndex : 0;
+  const styleText = (params.styleHints || []).join(" · ").toLowerCase();
+  const mustSeePool = (params.mustSeePool || []).map((x) => String(x || "").trim()).filter(Boolean);
+  const cityLc = city.toLowerCase();
+
+  const cityMatches = mustSeePool.filter((token) => {
+    const t = token.toLowerCase();
+    if (!t) return false;
+    if (t === cityLc) return false;
+    return t.includes(cityLc) || cityLc.includes(t) || t.split(/\s+/)[0] === cityLc.split(/\s+/)[0];
+  });
+  const genericMatches = mustSeePool.filter((token) => {
+    const t = token.toLowerCase();
+    if (!t) return false;
+    if (cityMatches.includes(token)) return false;
+    return !mustSeePool.some((x) => x.toLowerCase() === cityLc) && token.length >= 4;
+  });
+  const featured = cityMatches[0] || genericMatches[dayIndex % Math.max(1, genericMatches.length)] || null;
+
+  const isAdventure = /aventur|naturaleza|trek|sender|monta[ñn]/.test(styleText);
+  const isRelax = /relax|spa|tranquil|slow/.test(styleText);
+  const isGastro = /gastron|vino|bodega|food|comida/.test(styleText);
+  const isCultural = /cultural|museo|historia|arte/.test(styleText);
+  const isNight = /fiesta|noche|bar|copas/.test(styleText);
+  const isShopping = /shopping|compras|mercad/.test(styleText);
+  const isRomantic = /rom[aá]ntic/.test(styleText);
+
+  const morningVariants = [
     {
-      title: `Paseo por el centro de ${city}`,
+      title: featured ? `Visita principal: ${featured}` : `Paseo por el centro histórico de ${city}`,
+      activity_kind: isCultural ? "museum" : "visit",
+      place_name: featured || city,
+      address: `${featured || city}, ${country}`,
+      start_time: "09:30",
+      notes: featured ? "Imprescindible priorizado en el borrador inicial." : "Bloque principal de la mañana.",
+    },
+    {
+      title: isAdventure ? `Ruta escénica / miradores en ${city}` : `Barrio emblemático y paseo urbano en ${city}`,
       activity_kind: "visit",
       place_name: city,
       address: `${city}, ${country}`,
       start_time: "10:00",
-      notes: "Día de respaldo (generación automática). Ajusta actividades y horarios a tu gusto.",
-    },
-    {
-      title: `Mercado local y almuerzo en ${city}`,
-      activity_kind: "food",
-      place_name: `Mercado de ${city}`,
-      address: `${city}, ${country}`,
-      start_time: "13:00",
       notes: null,
     },
     {
-      title: `Barrio emblemático / mirador de ${city}`,
-      activity_kind: "visit",
+      title: isRelax ? `Mañana tranquila en cafés y plazas de ${city}` : `Mercado y calles con ambiente local en ${city}`,
+      activity_kind: isGastro ? "food" : "visit",
       place_name: city,
       address: `${city}, ${country}`,
-      start_time: "16:30",
+      start_time: "10:30",
       notes: null,
     },
+  ];
+
+  const middayVariants = [
     {
-      title: `Cena tradicional en ${city}`,
+      title: isGastro ? `Almuerzo gastronómico típico en ${city}` : `Almuerzo local en ${city}`,
       activity_kind: "food",
       place_name: `Restaurante típico (${city})`,
       address: `${city}, ${country}`,
+      start_time: "13:00",
+      notes: isGastro ? "Prioridad a cocina regional." : null,
+    },
+    {
+      title: isCultural ? `Museo / centro cultural destacado en ${city}` : `Visita panorámica por ${city}`,
+      activity_kind: isCultural ? "museum" : "visit",
+      place_name: city,
+      address: `${city}, ${country}`,
+      start_time: "14:30",
+      notes: null,
+    },
+    {
+      title: isAdventure ? `Excursión corta de naturaleza desde ${city}` : `Tiempo libre para explorar ${city}`,
+      activity_kind: "activity",
+      place_name: city,
+      address: `${city}, ${country}`,
+      start_time: "15:00",
+      notes: null,
+    },
+  ];
+
+  const eveningVariants = [
+    {
+      title: isRomantic ? `Atardecer romántico y cena en ${city}` : `Atardecer en mirador / paseo final por ${city}`,
+      activity_kind: "visit",
+      place_name: city,
+      address: `${city}, ${country}`,
+      start_time: "18:30",
+      notes: null,
+    },
+    {
+      title: isNight ? `Noche de bares / ambiente en ${city}` : `Cena tradicional en ${city}`,
+      activity_kind: isNight ? "nightlife" : "food",
+      place_name: city,
+      address: `${city}, ${country}`,
       start_time: "20:30",
+      notes: null,
+    },
+    {
+      title: isShopping ? `Compras y paseo nocturno en ${city}` : `Paseo nocturno por zona animada de ${city}`,
+      activity_kind: isShopping ? "shopping" : "visit",
+      place_name: city,
+      address: `${city}, ${country}`,
+      start_time: "21:00",
+      notes: null,
+    },
+  ];
+
+  const base = [
+    morningVariants[dayIndex % morningVariants.length]!,
+    middayVariants[(dayIndex + 1) % middayVariants.length]!,
+    eveningVariants[(dayIndex + 2) % eveningVariants.length]!,
+    {
+      title: isRelax ? `Tiempo tranquilo / descanso en ${city}` : `Rincón local para seguir descubriendo ${city}`,
+      activity_kind: isRelax ? "visit" : "activity",
+      place_name: city,
+      address: `${city}, ${country}`,
+      start_time: "17:00",
       notes: null,
     },
   ];
@@ -924,8 +1031,8 @@ function fallbackDayItems(params: { destination: string; baseCity: string; minIt
   const sliced = base.slice(0, Math.min(base.length, max));
   while (sliced.length < min) {
     sliced.push({
-      title: `Explorar barrio local en ${city}`,
-      activity_kind: "visit",
+      title: `Explorar una zona distinta de ${city}`,
+      activity_kind: isShopping ? "shopping" : "visit",
       place_name: city,
       address: `${city}, ${country}`,
       start_time: sliced.length === 4 ? "21:00" : "18:00",
