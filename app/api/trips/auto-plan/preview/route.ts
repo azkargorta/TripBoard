@@ -29,9 +29,75 @@ function splitPlaceList(raw: string): string[] {
   return out.slice(0, 10);
 }
 
-function placeWeight(labelRaw: string): number {
+type PaceHint = "relajado" | "equilibrado" | "intenso";
+
+function looksLikeCountryToken(token: string) {
+  const t = clean(token).toLowerCase();
+  if (!t) return false;
+  // Lista mínima para evitar que el país se trate como “ciudad base”
+  if (
+    [
+      "argentina",
+      "españa",
+      "espana",
+      "spain",
+      "italia",
+      "italy",
+      "francia",
+      "france",
+      "portugal",
+      "japón",
+      "japon",
+      "japan",
+      "croacia",
+      "croatia",
+      "méxico",
+      "mexico",
+      "chile",
+      "perú",
+      "peru",
+      "colombia",
+      "uruguay",
+      "estados unidos",
+      "usa",
+      "united states",
+    ].includes(t)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function parseHintText(intent: TripCreationIntent): { pace: PaceHint; themes: Set<string> } {
+  const constraints = Array.isArray(intent.constraints) ? intent.constraints.map((x) => String(x || "").trim()) : [];
+  const joined = constraints.join(" · ").toLowerCase();
+  const pace: PaceHint = joined.includes("ritmo: relajado")
+    ? "relajado"
+    : joined.includes("ritmo: intenso")
+      ? "intenso"
+      : "equilibrado";
+
+  const themesPart = (() => {
+    const hit = constraints.find((c) => c.toLowerCase().startsWith("temas:"));
+    if (!hit) return "";
+    return hit.split(":").slice(1).join(":").trim().toLowerCase();
+  })();
+  const themes = themesPart
+    ? themesPart
+        .split(/[,·|/]+/g)
+        .map((x) => x.trim())
+        .filter(Boolean)
+    : [];
+
+  return { pace, themes: new Set(themes) };
+}
+
+function placeWeight(labelRaw: string, ctx: { pace: "relajado" | "equilibrado" | "intenso"; themes: Set<string> }): number {
   const label = clean(labelRaw).toLowerCase();
   if (!label) return 1;
+  let w = 1;
+
+  // Macro-destinos que suelen requerir 2+ noches
   if (/\b(patagonia|ruta 40|salta y jujuy|quebrada|bariloche|7 lagos|mendoza|ushuaia|calafate|chalt[eé]n|iguaz[uú]|pen[ií]nsula vald[eé]s)\b/.test(label)) {
     return 2.6;
   }
@@ -41,14 +107,34 @@ function placeWeight(labelRaw: string): number {
   if (/\b(c[oó]rdoba|rosario|sevilla|granada|valencia|bilbao|osaka)\b/.test(label)) {
     return 1.5;
   }
-  return 1;
+  w = 1;
+
+  // Ajustes por temas
+  const has = (t: string) => ctx.themes.has(t);
+  if (has("aventura") || has("naturaleza")) {
+    if (/\b(chalt[eé]n|calafate|patagonia|bariloche|7 lagos|ushuaia|ruta 40)\b/.test(label)) w *= 1.25;
+  }
+  if (has("gastronómico") || has("gastronomico")) {
+    if (/\b(mendoza)\b/.test(label)) w *= 1.35;
+    if (/\b(buenos aires)\b/.test(label)) w *= 1.1;
+  }
+  if (has("relax") || has("romántico") || has("romantico")) {
+    if (/\b(ushuaia|bariloche|mendoza|calafate)\b/.test(label)) w *= 1.15;
+  }
+  if (has("cultural") || has("fiesta") || has("shopping")) {
+    if (/\b(buenos aires)\b/.test(label)) w *= 1.2;
+  }
+
+  // Ajuste por ritmo: en relajado concentramos más noches en destinos “pesados”
+  const alpha = ctx.pace === "relajado" ? 1.25 : ctx.pace === "intenso" ? 0.95 : 1.1;
+  return Math.max(1, w) ** alpha;
 }
 
-function distributeDaysByWeight(totalDays: number, cities: string[]): number[] {
+function distributeDaysByWeight(totalDays: number, cities: string[], ctx: { pace: "relajado" | "equilibrado" | "intenso"; themes: Set<string> }): number[] {
   const n = Math.max(1, Math.round(totalDays));
   const c = Math.max(1, cities.length);
   if (c === 1) return [n];
-  const weights = cities.map((city) => placeWeight(city));
+  const weights = cities.map((city) => placeWeight(city, ctx));
   const totalWeight = weights.reduce((a, b) => a + b, 0) || c;
   const days = new Array<number>(c).fill(1);
   let assigned = c;
@@ -73,7 +159,9 @@ function distributeDaysByWeight(totalDays: number, cities: string[]): number[] {
 
 function buildStructureFromUserPlaces(params: { intent: TripCreationIntent; durationDays: number }) {
   const destRaw = clean(params.intent.destination);
-  const list = destRaw ? splitPlaceList(destRaw) : [];
+  const listRaw = destRaw ? splitPlaceList(destRaw) : [];
+  const countryCandidate = clean(destRaw.split(/[|·]/g)[0] || "");
+  const list = listRaw.filter((x) => clean(x).toLowerCase() !== countryCandidate.toLowerCase() && !looksLikeCountryToken(x));
   const start = clean(params.intent.startLocation);
   const end = clean(params.intent.endLocation);
 
@@ -90,7 +178,8 @@ function buildStructureFromUserPlaces(params: { intent: TripCreationIntent; dura
   if (end) push(end);
   if (!cities.length) push(destRaw || "Destino");
 
-  const daysByCity = distributeDaysByWeight(params.durationDays, cities);
+  const ctx = parseHintText(params.intent);
+  const daysByCity = distributeDaysByWeight(params.durationDays, cities, ctx);
   const baseCityByDay: string[] = [];
   for (let i = 0; i < cities.length; i++) {
     for (let k = 0; k < (daysByCity[i] || 1); k++) baseCityByDay.push(cities[i]!);

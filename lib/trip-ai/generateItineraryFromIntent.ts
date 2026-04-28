@@ -542,6 +542,30 @@ export async function generateExecutableItineraryFromStructure(
     dayLines.push(`Día ${dayNum}: ${date} — Ciudad base: ${base}${extra}`);
   }
 
+  const routeStops = (() => {
+    const out: string[] = [];
+    let prev = "";
+    let segStart = 1;
+    for (let i = 0; i < generateDays; i++) {
+      const base = String(baseCitySchedule[i] || resolved.destination).trim();
+      const dayNum = i + 1;
+      if (i === 0) {
+        prev = base;
+        segStart = dayNum;
+        continue;
+      }
+      if (base.toLowerCase() !== prev.toLowerCase()) {
+        out.push(segStart === dayNum - 1 ? `Día ${segStart}: ${prev}` : `Días ${segStart}-${dayNum - 1}: ${prev}`);
+        prev = base;
+        segStart = dayNum;
+      }
+    }
+    if (prev) {
+      out.push(segStart === generateDays ? `Día ${segStart}: ${prev}` : `Días ${segStart}-${generateDays}: ${prev}`);
+    }
+    return out;
+  })();
+
   const baseContext = {
     destination: resolvedForPrompt.destination,
     start: resolvedForPrompt.intent.startLocation || "—",
@@ -551,6 +575,7 @@ export async function generateExecutableItineraryFromStructure(
     interests: (resolvedForPrompt.intent.interests || []).join(", ") || "mixto",
     styles: (resolvedForPrompt.intent.travelStyle || []).join(", ") || "equilibrado",
     mustSee: mustSeeOptimized.join(" | ") || "—",
+    routeStops: routeStops.join(" · ") || "—",
     optimizeHint: resolvedForPrompt.intent.wantsRouteOptimization
       ? "Si hay múltiples ciudades/regiones, organiza los días para minimizar idas y vueltas (progresión norte→sur, oeste→este, etc. si aplica) respetando origen y destino."
       : "",
@@ -633,6 +658,7 @@ Tipo viajeros: ${baseContext.travelersType}
 Presupuesto: ${baseContext.budget}
 Intereses: ${baseContext.interests}
 Estilos: ${baseContext.styles}
+Ruta (ciudades base por tramo): ${baseContext.routeStops}
 Paradas obligatorias (mustSee, en este orden): ${baseContext.mustSee}
 ${baseContext.optimizeHint}
 `;
@@ -659,6 +685,7 @@ Tipo viajeros: ${baseContext.travelersType}
 Presupuesto: ${baseContext.budget}
 Intereses: ${baseContext.interests}
 Estilos: ${baseContext.styles}
+Ruta (ciudades base por tramo): ${baseContext.routeStops}
 Paradas obligatorias (mustSee, en este orden): ${baseContext.mustSee}
 ${baseContext.optimizeHint}
 `;
