@@ -189,27 +189,11 @@ export default function TripAutoCreationWizard() {
   }
 
   async function previewPlan() {
-    if (loading) return;
-    setLoading(true);
+    if (aiGenerating || loading) return;
     setError(null);
     setItinerary(null);
-    try {
-      const res = await fetch("/api/trips/auto-plan/preview", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ intent, pace, forceOrder }),
-      });
-      const { data } = await readJsonResponse<any>(res);
-      if (!res.ok) throw new Error(data?.error || "No se pudo generar la previsualización.");
-      setItinerary(data?.itinerary || null);
-      setStep(3);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "No se pudo generar la previsualización.";
-      setError(msg);
-      toast.error("No se pudo generar el plan", msg);
-    } finally {
-      setLoading(false);
-    }
+    setStep(3);
+    await generateAllDaysWithAi();
   }
 
   function tripTotalDays() {
@@ -224,7 +208,7 @@ export default function TripAutoCreationWizard() {
   }
 
   async function generateAllDaysWithAi() {
-    if (aiGenerating || loading) return;
+    if (aiGenerating) return;
     setAiGenerating(true);
     setError(null);
     try {
@@ -653,7 +637,7 @@ export default function TripAutoCreationWizard() {
                 Atrás
               </button>
               <button type="button" disabled={!canStep2 || loading} onClick={previewPlan} className="btn-primary disabled:opacity-50">
-                Calcular plan
+                Generar plan con IA
               </button>
             </div>
             </div>
@@ -667,9 +651,6 @@ export default function TripAutoCreationWizard() {
                 <div className="text-sm font-extrabold text-slate-900">Previsualización</div>
                 <div className="text-xs font-semibold text-slate-600">
                   {destinationLabel ? destinationLabel : "—"} · {startDate} → {endDate}
-                </div>
-                <div className="mt-1 text-xs font-semibold text-slate-500">
-                  Esta primera vista es rápida. Usa <span className="font-extrabold">Mejorar con IA</span> para generar el plan detallado completo sin timeouts.
                 </div>
                 {aiProgress ? (
                   <div className="mt-1 text-xs font-semibold text-slate-600">
@@ -686,9 +667,9 @@ export default function TripAutoCreationWizard() {
                   disabled={loading || aiGenerating}
                   onClick={generateAllDaysWithAi}
                   className="btn-secondary disabled:opacity-50"
-                  title="Genera el itinerario completo con IA en trozos pequeños (sin timeouts)"
+                  title="Vuelve a generar el itinerario completo con IA en trozos pequeños"
                 >
-                  {aiGenerating ? "Generando IA..." : "Mejorar con IA"}
+                  {aiGenerating ? "Generando IA..." : "Regenerar con IA"}
                 </button>
                 <button
                   type="button"
