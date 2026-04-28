@@ -1,11 +1,69 @@
 import { NextResponse } from "next/server";
-import { enforceAiMonthlyBudgetOrThrow, trackAiUsage } from "@/lib/ai-budget";
-import { monthKeyUtc } from "@/lib/ai-usage";
-import { askTripAIWithUsage } from "@/lib/trip-ai/providers";
-import { extractJsonObject } from "@/lib/trip-ai/tripCreationJson";
+import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+
+function staticSuggestions(destinationRaw: string): string[] {
+  const d = String(destinationRaw || "").trim().toLowerCase();
+  const has = (s: string) => d.includes(s.toLowerCase());
+
+  if (has("argentina")) {
+    return [
+      "Buenos Aires",
+      "Cataratas del Iguazú",
+      "Salta y Jujuy (Quebrada de Humahuaca)",
+      "Mendoza (Aconcagua y bodegas)",
+      "Bariloche y Ruta de los 7 Lagos",
+      "El Calafate (Glaciar Perito Moreno)",
+      "El Chaltén (senderismo Fitz Roy)",
+      "Ushuaia (Tierra del Fuego)",
+      "Puerto Madryn y Península Valdés",
+      "Córdoba (Sierras)",
+      "Mar del Plata (costa atlántica)",
+      "Rosario",
+      "Patagonia (Ruta 40)",
+      "Carretera Austral (lado Chile, si encaja)",
+    ];
+  }
+
+  if (has("españa") || has("espana") || has("spain")) {
+    return [
+      "Madrid",
+      "Barcelona",
+      "Sevilla",
+      "Granada",
+      "Valencia",
+      "San Sebastián",
+      "Bilbao",
+      "Córdoba",
+      "Málaga y Costa del Sol",
+      "Mallorca",
+      "Tenerife",
+      "Santiago de Compostela",
+    ];
+  }
+
+  if (has("italia") || has("italy")) {
+    return ["Roma", "Florencia", "Venecia", "Milán", "Nápoles y Costa Amalfitana", "Cinque Terre", "Toscana", "Sicilia", "Lago di Como"];
+  }
+
+  if (has("japón") || has("japon") || has("japan")) {
+    return ["Tokio", "Kioto", "Osaka", "Nara", "Hakone (Monte Fuji)", "Hiroshima y Miyajima", "Kanazawa", "Takayama", "Sapporo (Hokkaido)"];
+  }
+
+  // Fallback genérico (macro-destinos, sin POIs)
+  return [
+    "Capital / centro",
+    "Ciudad histórica principal",
+    "Región de naturaleza (parque nacional)",
+    "Región de montaña / miradores",
+    "Zona costera / playas (si aplica)",
+    "Región de vino / gastronomía",
+    "Ciudad secundaria con ambiente local",
+    "Excursión de día (imperdible)",
+  ];
+}
 
 export async function POST(req: Request) {
   try {
@@ -16,41 +74,19 @@ export async function POST(req: Request) {
     const limit =
       typeof limitRaw === "number" && Number.isFinite(limitRaw) ? Math.max(12, Math.min(60, Math.round(limitRaw))) : 42;
 
-    const provider = "gemini";
-    const monthKey = monthKeyUtc();
-    const { supabase, userId, shouldTrack } = await enforceAiMonthlyBudgetOrThrow({ providerId: provider });
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "No hay sesión activa." }, { status: 401 });
 
-    const { data: profileRow } = await supabase.from("profiles").select("is_premium").eq("id", userId).maybeSingle();
+    const { data: profileRow } = await supabase.from("profiles").select("is_premium").eq("id", user.id).maybeSingle();
     if (!Boolean((profileRow as any)?.is_premium)) {
       return NextResponse.json({ error: "Necesitas cuenta Premium para usar sugerencias.", code: "PREMIUM_REQUIRED" }, { status: 402 });
     }
 
-    const prompt =
-      `Devuelve SOLO JSON válido.\n` +
-      `Quiero una lista de destinos típicos (CIUDADES / REGIONES / EXCURSIONES) para un viaje por: ${destination}.\n` +
-      `Formato exacto:\n` +
-      `{"suggestions":[string,string,...]}\n` +
-      `Reglas:\n` +
-      `- ${Math.max(16, Math.round(limit * 0.75))} a ${limit} sugerencias\n` +
-      `- NO quiero puntos exactos tipo "Casa Rosada" o "Obelisco". Quiero macro-destinos (ej. "Cataratas del Iguazú", "Salta y Jujuy", "Mendoza", "Bariloche").\n` +
-      `- mezcla: norte/sur/costa/interior si aplica\n` +
-      `- nombres en español, concisos\n` +
-      `- no incluyas explicaciones, SOLO JSON.\n`;
-
-    const { text, usage } = await askTripAIWithUsage(prompt, "planning", {
-      provider,
-      responseMimeType: "application/json",
-      maxOutputTokens: 1536,
-    });
-    const parsed = extractJsonObject(text) as any;
-    const list = Array.isArray(parsed?.suggestions) ? parsed.suggestions : [];
-    const suggestions = list.map((x: any) => String(x || "").trim()).filter(Boolean).slice(0, limit);
-
-    if (shouldTrack) {
-      await trackAiUsage({ supabase, userId, monthKey, provider, usage });
-    }
-
-    return NextResponse.json({ suggestions });
+    // SIN IA: evita timeouts y siempre devuelve rápido.
+    return NextResponse.json({ suggestions: staticSuggestions(destination).slice(0, limit) });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "No se pudieron cargar sugerencias." }, { status: 500 });
   }

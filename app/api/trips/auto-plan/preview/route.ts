@@ -4,13 +4,76 @@ import { monthKeyUtc } from "@/lib/ai-usage";
 import type { TripCreationIntent } from "@/lib/trip-ai/tripCreationTypes";
 import { getTripCreationFollowUp, resolveTripCreationDates } from "@/lib/trip-ai/tripCreationResolve";
 import { normalizeTripAutoConfig } from "@/lib/trip-ai/tripAutoConfig";
-import { deriveRouteStructure } from "@/lib/trip-ai/routeStructure";
 import { generateExecutableItineraryFromStructure } from "@/lib/trip-ai/generateItineraryFromIntent";
-import { validateAndRepairItinerary } from "@/lib/trip-ai/itineraryValidator";
 import { generateExecutableItineraryFastFromIntent } from "@/lib/trip-ai/generateItineraryFromIntent";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
+
+function clean(s: unknown) {
+  return String(s || "").trim();
+}
+
+function splitPlaceList(raw: string): string[] {
+  const parts = raw
+    .split(/[|·,;/\n\r]+/g)
+    .map((x) => x.trim())
+    .filter(Boolean);
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const p of parts) {
+    const k = p.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(p);
+  }
+  return out.slice(0, 10);
+}
+
+function distributeDays(totalDays: number, cityCount: number): number[] {
+  const n = Math.max(1, Math.round(totalDays));
+  const c = Math.max(1, Math.round(cityCount));
+  if (c === 1) return [n];
+  const base = new Array<number>(c).fill(1);
+  let remaining = n - c;
+  let idx = 0;
+  while (remaining > 0) {
+    base[idx % c] = (base[idx % c] || 0) + 1;
+    remaining -= 1;
+    idx += 1;
+  }
+  return base;
+}
+
+function buildStructureFromUserPlaces(params: { intent: TripCreationIntent; durationDays: number }) {
+  const destRaw = clean(params.intent.destination);
+  const list = destRaw ? splitPlaceList(destRaw) : [];
+  const start = clean(params.intent.startLocation);
+  const end = clean(params.intent.endLocation);
+
+  const cities: string[] = [];
+  const push = (s: string) => {
+    const t = clean(s);
+    if (!t) return;
+    if (cities.some((x) => x.toLowerCase() === t.toLowerCase())) return;
+    cities.push(t);
+  };
+  // Si el usuario mete start/end, los priorizamos.
+  if (start) push(start);
+  for (const p of list) push(p);
+  if (end) push(end);
+  if (!cities.length) push(destRaw || "Destino");
+
+  const daysByCity = distributeDays(params.durationDays, cities.length);
+  const baseCityByDay: string[] = [];
+  for (let i = 0; i < cities.length; i++) {
+    for (let k = 0; k < (daysByCity[i] || 1); k++) baseCityByDay.push(cities[i]!);
+  }
+  const normalized = baseCityByDay.slice(0, params.durationDays);
+  while (normalized.length < params.durationDays) normalized.push(normalized[normalized.length - 1] || cities[cities.length - 1] || "Destino");
+
+  return { version: 1 as const, baseCityByDay: normalized, segments: [] as any[] };
+}
 
 export async function POST(req: Request) {
   try {
@@ -39,7 +102,9 @@ export async function POST(req: Request) {
     }
 
     const config = normalizeTripAutoConfig(body?.config);
-    const structure = await deriveRouteStructure({ resolved, config });
+    // MUY IMPORTANTE (Vercel): evitamos geocoding en preview (deriveRouteStructure + validateAndRepairItinerary).
+    // Construimos una estructura determinista solo con la lista del usuario para que el endpoint siempre responda.
+    const structure = buildStructureFromUserPlaces({ intent: resolved.intent, durationDays: resolved.durationDays });
 
     // En despliegues serverless, viajes largos suelen disparar timeout.
     // Estrategia: preview parcial con IA (primeros días) + esqueleto rápido para el resto.
@@ -73,13 +138,6 @@ export async function POST(req: Request) {
       llm = { ...llm, itinerary: { ...fastAll.itinerary, title: llm.itinerary.title || fastAll.itinerary.title, days: [...head, ...tail] } };
     }
 
-    const repaired = await validateAndRepairItinerary({
-      itinerary: llm.itinerary,
-      destination: resolved.destination,
-      baseCityByDay: structure.baseCityByDay,
-      strictness: config.geo.strictness === "auto" ? "balanced" : config.geo.strictness,
-    });
-
     if (shouldTrack) {
       await trackAiUsage({ supabase, userId, monthKey, provider, usage: llm.usage });
     }
@@ -93,8 +151,8 @@ export async function POST(req: Request) {
         durationDays: resolved.durationDays,
         durationWarning: resolved.durationWarning ?? null,
       },
-      itinerary: repaired.itinerary,
-      repairedCount: repaired.repairedCount,
+      itinerary: llm.itinerary,
+      repairedCount: 0,
       structure,
       config,
       partial: resolved.durationDays > PREVIEW_AI_DAYS,

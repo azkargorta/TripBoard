@@ -76,6 +76,8 @@ export default function TripAutoCreationWizard() {
 
   // Preview
   const [itinerary, setItinerary] = useState<ExecutableItineraryPayload | null>(null);
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiProgress, setAiProgress] = useState<{ done: number; total: number } | null>(null);
 
   const destinationLabel = useMemo(() => joinTripPlaces(routeCities), [routeCities]);
   const currencyOptions = useMemo(() => buildTravelCurrencySelectOptions(destinationLabel), [destinationLabel]);
@@ -203,6 +205,65 @@ export default function TripAutoCreationWizard() {
       toast.error("No se pudo generar el plan", msg);
     } finally {
       setLoading(false);
+    }
+  }
+
+  function tripTotalDays() {
+    if (itinerary?.days?.length) return itinerary.days.length;
+    if (isoOk(startDate) && isoOk(endDate)) {
+      const a = new Date(`${startDate}T12:00:00Z`).getTime();
+      const b = new Date(`${endDate}T12:00:00Z`).getTime();
+      const diff = Math.round((b - a) / (86400 * 1000)) + 1;
+      return Math.max(1, diff);
+    }
+    return 1;
+  }
+
+  async function generateAllDaysWithAi() {
+    if (aiGenerating || loading) return;
+    setAiGenerating(true);
+    setError(null);
+    try {
+      const total = tripTotalDays();
+      setAiProgress({ done: 0, total });
+
+      // Partimos de lo que haya (fast/preview parcial) y vamos reemplazando días por IA en chunks de 2.
+      const base: ExecutableItineraryPayload =
+        itinerary?.version === 1 && Array.isArray(itinerary.days) ? itinerary : { version: 1, title: "Itinerario", travelMode: "driving", days: [] };
+      const dayMap = new Map<number, any>();
+      for (const d of base.days || []) if (typeof d?.day === "number") dayMap.set(d.day, d);
+
+      for (let offset = 0; offset < total; offset += 2) {
+        const res = await fetch("/api/trips/auto-plan/generate-chunk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ intent, dayOffset: offset, dayCount: 2 }),
+        });
+        const { data } = await readJsonResponse<any>(res);
+        if (!res.ok) throw new Error(data?.error || "No se pudo generar el itinerario con IA.");
+        const days = Array.isArray(data?.days) ? data.days : [];
+        for (const d of days) {
+          if (typeof d?.day === "number") dayMap.set(d.day, d);
+        }
+        const done = Math.min(total, offset + 2);
+        setAiProgress({ done, total });
+
+        // actualizamos UI incrementalmente
+        const mergedDays = Array.from({ length: total }, (_, i) => dayMap.get(i + 1)).filter(Boolean);
+        setItinerary((prev) => ({
+          version: 1,
+          title: prev?.title || base.title,
+          travelMode: prev?.travelMode || base.travelMode,
+          days: mergedDays,
+        }));
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "No se pudo generar el itinerario con IA.";
+      setError(msg);
+      toast.error("No se pudo generar con IA", msg);
+    } finally {
+      setAiGenerating(false);
+      setAiProgress(null);
     }
   }
 
@@ -530,10 +591,24 @@ export default function TripAutoCreationWizard() {
                 <div className="text-xs font-semibold text-slate-600">
                   {destinationLabel ? destinationLabel : "—"} · {startDate} → {endDate}
                 </div>
+                {aiProgress ? (
+                  <div className="mt-1 text-xs font-semibold text-slate-600">
+                    Generando con IA: {aiProgress.done}/{aiProgress.total} días…
+                  </div>
+                ) : null}
               </div>
               <div className="flex gap-2">
                 <button type="button" onClick={() => setStep(2)} className="btn-secondary">
                   Ajustar
+                </button>
+                <button
+                  type="button"
+                  disabled={loading || aiGenerating}
+                  onClick={generateAllDaysWithAi}
+                  className="btn-secondary disabled:opacity-50"
+                  title="Genera el itinerario completo con IA en trozos pequeños (sin timeouts)"
+                >
+                  {aiGenerating ? "Generando IA..." : "Mejorar con IA"}
                 </button>
                 <button type="button" disabled={loading || !itinerary} onClick={createTripWithPlan} className="btn-primary disabled:opacity-50">
                   Crear viaje
