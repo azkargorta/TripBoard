@@ -79,6 +79,7 @@ export default function TripAutoCreationWizard() {
   const [itinerary, setItinerary] = useState<ExecutableItineraryPayload | null>(null);
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiProgress, setAiProgress] = useState<{ done: number; total: number } | null>(null);
+  const [aiPromptLog, setAiPromptLog] = useState<Array<{ dayOffset: number; dayCount: number; prompts: string[] }>>([]);
 
   const destinationLabel = useMemo(() => joinTripPlaces(routeCities), [routeCities]);
   const currencyOptions = useMemo(() => buildTravelCurrencySelectOptions(destinationLabel), [destinationLabel]);
@@ -229,6 +230,7 @@ export default function TripAutoCreationWizard() {
     try {
       const total = tripTotalDays();
       setAiProgress({ done: 0, total });
+      setAiPromptLog([]);
 
       // Partimos de lo que haya (fast/preview parcial) y vamos reemplazando días por IA en chunks de 2.
       const base: ExecutableItineraryPayload =
@@ -245,6 +247,10 @@ export default function TripAutoCreationWizard() {
         const { data } = await readJsonResponse<any>(res);
         if (!res.ok) throw new Error(data?.error || "No se pudo generar el itinerario con IA.");
         const days = Array.isArray(data?.days) ? data.days : [];
+        const prompts = Array.isArray(data?.prompts) ? data.prompts.map((x: any) => String(x || "")).filter(Boolean) : [];
+        if (prompts.length) {
+          setAiPromptLog((prev) => [...prev, { dayOffset: offset, dayCount: 2, prompts }]);
+        }
         for (const d of days) {
           if (typeof d?.day === "number") dayMap.set(d.day, d);
         }
@@ -268,6 +274,40 @@ export default function TripAutoCreationWizard() {
       setAiGenerating(false);
       setAiProgress(null);
     }
+  }
+
+  function downloadText(filename: string, content: string, mime = "text/plain;charset=utf-8") {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function downloadPrompt() {
+    if (!aiPromptLog.length) return;
+    const payload = {
+      generatedAt: new Date().toISOString(),
+      destination: destinationLabel,
+      startDate,
+      endDate,
+      intent,
+      chunks: aiPromptLog,
+    };
+    downloadText(`kaviro-prompts-${startDate || "start"}-${endDate || "end"}.json`, JSON.stringify(payload, null, 2), "application/json;charset=utf-8");
+  }
+
+  function downloadPlan() {
+    if (!itinerary) return;
+    downloadText(
+      `kaviro-plan-${startDate || "start"}-${endDate || "end"}.json`,
+      JSON.stringify(itinerary, null, 2),
+      "application/json;charset=utf-8"
+    );
   }
 
   async function createTripWithPlan() {
@@ -649,6 +689,24 @@ export default function TripAutoCreationWizard() {
                   title="Genera el itinerario completo con IA en trozos pequeños (sin timeouts)"
                 >
                   {aiGenerating ? "Generando IA..." : "Mejorar con IA"}
+                </button>
+                <button
+                  type="button"
+                  disabled={!aiPromptLog.length}
+                  onClick={downloadPrompt}
+                  className="btn-secondary disabled:opacity-50"
+                  title="Descarga los prompts reales enviados a la IA (por chunks)"
+                >
+                  Descargar prompt
+                </button>
+                <button
+                  type="button"
+                  disabled={!itinerary}
+                  onClick={downloadPlan}
+                  className="btn-secondary disabled:opacity-50"
+                  title="Descarga el plan completo en JSON"
+                >
+                  Descargar plan
                 </button>
                 <button type="button" disabled={loading || !itinerary} onClick={createTripWithPlan} className="btn-primary disabled:opacity-50">
                   Crear viaje

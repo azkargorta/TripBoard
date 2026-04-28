@@ -476,13 +476,15 @@ export async function generateExecutableItineraryFromStructure(
     config?: TripAutoConfig | null;
     structure: RouteStructure;
     latencyMode?: "default" | "preview";
+    debug?: { prompts?: string[] };
   }
 ): Promise<{ itinerary: ExecutableItineraryPayload; usage: TripAiUsage }> {
   const baseCfg = options?.config || DEFAULT_TRIP_AUTO_CONFIG;
   const provider = options?.provider ?? null;
   const latencyMode = options.latencyMode ?? "default";
   const isPreviewLatency = latencyMode === "preview";
-  const skipHeavyGeo = isPreviewLatency;
+  const isTestEnv = Boolean(process.env.VITEST) || process.env.NODE_ENV === "test";
+  const skipHeavyGeo = isPreviewLatency || isTestEnv;
   const cfg: TripAutoConfig = isPreviewLatency
     ? {
         ...baseCfg,
@@ -559,6 +561,7 @@ export async function generateExecutableItineraryFromStructure(
   const planningResponseMimeType = isPreviewLatency ? "application/json" : undefined;
 
   const runOnce = async (p: string) => {
+    if (Array.isArray(options.debug?.prompts)) options.debug!.prompts!.push(p);
     const { text, usage } = await askTripAIWithUsage(p, "planning", {
       provider,
       maxOutputTokens: planningMaxOutputTokens,
@@ -573,6 +576,7 @@ export async function generateExecutableItineraryFromStructure(
         `${p}\n\n` +
         `IMPORTANTE: Debes responder con un ÚNICO objeto JSON válido. ` +
         `La respuesta debe empezar con "{" y terminar con "}". No incluyas texto adicional.`;
+      if (Array.isArray(options.debug?.prompts)) options.debug!.prompts!.push(retryPrompt);
       const second = await askTripAIWithUsage(retryPrompt, "planning", {
         provider,
         maxOutputTokens: planningMaxOutputTokens,

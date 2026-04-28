@@ -160,11 +160,13 @@ export async function POST(req: Request) {
       durationDays: count,
     };
 
+    const prompts: string[] = [];
     const out = await generateExecutableItineraryFromStructure(sliceResolved, {
       provider,
       config,
       structure: sliceStructure as any,
       latencyMode: "preview",
+      debug: { prompts },
     });
 
     const days = (out.itinerary.days || []).map((d) => ({
@@ -177,7 +179,7 @@ export async function POST(req: Request) {
       await trackAiUsage({ supabase, userId, monthKey, provider, usage: out.usage });
     }
 
-    return NextResponse.json({ status: "ok", dayOffset, dayCount: count, days });
+    return NextResponse.json({ status: "ok", dayOffset, dayCount: count, days, prompts });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "No se pudo generar el chunk." }, { status: 500 });
   }
