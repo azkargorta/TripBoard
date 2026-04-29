@@ -1068,8 +1068,8 @@ function fallbackDayItems(params: {
       notes: null,
     },
     {
-      title: isRelax ? `Mañana tranquila en cafés y plazas de ${city}` : `Mercado y calles con ambiente local en ${city}`,
-      activity_kind: isGastro ? "food" : "visit",
+      title: isRelax ? `Mañana tranquila en plazas y rincones con encanto de ${city}` : `Mercado y calles con ambiente local en ${city}`,
+      activity_kind: "visit",
       place_name: city,
       address: `${city}, ${country}`,
       start_time: "10:30",
@@ -1079,12 +1079,12 @@ function fallbackDayItems(params: {
 
   const middayVariants = [
     {
-      title: isGastro ? `Almuerzo gastronómico típico en ${city}` : `Almuerzo local en ${city}`,
-      activity_kind: "food",
-      place_name: `Restaurante típico (${city})`,
+      title: isGastro ? `Experiencia gastronómica local en ${city}` : `Visita de mediodía en ${city}`,
+      activity_kind: "visit",
+      place_name: isGastro ? `Mercado / bodega / zona gastronómica (${city})` : city,
       address: `${city}, ${country}`,
       start_time: "13:00",
-      notes: isGastro ? "Prioridad a cocina regional." : null,
+      notes: isGastro ? "Prioridad a mercado gastronómico, bodega, cata o visita culinaria; no una comida genérica." : null,
     },
     {
       title: isCultural ? `Museo / centro cultural destacado en ${city}` : `Visita panorámica por ${city}`,
@@ -1096,7 +1096,7 @@ function fallbackDayItems(params: {
     },
     {
       title: isAdventure ? `Excursión corta de naturaleza desde ${city}` : `Tiempo libre para explorar ${city}`,
-      activity_kind: "activity",
+      activity_kind: "visit",
       place_name: city,
       address: `${city}, ${country}`,
       start_time: "15:00",
@@ -1106,7 +1106,7 @@ function fallbackDayItems(params: {
 
   const eveningVariants = [
     {
-      title: isRomantic ? `Atardecer romántico y cena en ${city}` : `Atardecer en mirador / paseo final por ${city}`,
+      title: isRomantic ? `Atardecer romántico en ${city}` : `Atardecer en mirador / paseo final por ${city}`,
       activity_kind: "visit",
       place_name: city,
       address: `${city}, ${country}`,
@@ -1114,12 +1114,12 @@ function fallbackDayItems(params: {
       notes: null,
     },
     {
-      title: isNight ? `Noche de bares / ambiente en ${city}` : `Cena tradicional en ${city}`,
-      activity_kind: isNight ? "nightlife" : "food",
-      place_name: city,
+      title: isNight ? `Noche de ambiente y copas en ${city}` : isGastro ? `Experiencia gastronómica nocturna en ${city}` : `Paseo nocturno por zona animada de ${city}`,
+      activity_kind: isNight ? "nightlife" : "visit",
+      place_name: isGastro ? `Mercado / bodega / zona gastronómica (${city})` : city,
       address: `${city}, ${country}`,
       start_time: "20:30",
-      notes: null,
+      notes: isGastro && !isNight ? "Solo como visita gastronómica programada; evita comidas/cenas genéricas." : null,
     },
     {
       title: isShopping ? `Compras y paseo nocturno en ${city}` : `Paseo nocturno por zona animada de ${city}`,
