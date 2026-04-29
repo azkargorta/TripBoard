@@ -360,6 +360,9 @@ export default function TripAutoCreationWizard() {
   function addMustSee(label: string) {
     const t = String(label || "").trim();
     if (!t) return;
+    const lc = t.toLowerCase();
+    // Evita que frases del chat tipo “Acepto vuelos internos” acaben como destinos
+    if (/(acepto|minimizar|evitar|no madrugar|madrugar|vuelos?|presupuesto|ritmo|temas:|notas)/i.test(lc)) return;
     setMustSee((prev) => {
       const list = prev.map((x) => x.trim()).filter(Boolean);
       if (list.some((x) => x.toLowerCase() === t.toLowerCase())) return list;

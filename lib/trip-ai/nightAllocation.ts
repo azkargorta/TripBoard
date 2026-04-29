@@ -56,6 +56,19 @@ function looksLikeCountryToken(token: string) {
   ].includes(t);
 }
 
+function looksLikeNonPlaceToken(token: string) {
+  const t = normalize(token);
+  if (!t) return true;
+  // Evita que frases del chat/constraints acaben como “ciudades”
+  if (
+    /\b(acepto|minimizar|evitar|no madrugar|madrugar|prefiero|quiero|recomiend|presupuesto|ritmo|temas|notas del usuario)\b/.test(t)
+  )
+    return true;
+  if (/\b(vuelo|vuelos|flight|avion|avion|avión|conducir|coche|auto|carretera|bus|tren|ferry)\b/.test(t)) return true;
+  if (/\b(ia|itinerario|plan|planes)\b/.test(t)) return true;
+  return false;
+}
+
 function parseHintText(intent: TripCreationIntent): { pace: PaceHint; themes: Set<string>; notes: string } {
   const constraints = Array.isArray(intent.constraints) ? intent.constraints.map((x) => String(x || "").trim()) : [];
   const joined = constraints.join(" · ").toLowerCase();
@@ -89,10 +102,17 @@ function placeWeight(labelRaw: string, ctx: { pace: PaceHint; themes: Set<string
   if (!label) return 1;
   let w = 1;
 
-  if (/\b(patagonia|ruta 40|salta y jujuy|quebrada|bariloche|7 lagos|mendoza|ushuaia|calafate|chalten|iguazu|peninsula valdes)\b/.test(label)) {
-    w = 2.6;
-  } else if (/\b(buenos aires|madrid|barcelona|roma|tokio|kioto)\b/.test(label)) {
-    w = 2.1;
+  // Pesos “por necesidad” (no reparto equitativo). Iguazú suele requerir 2 noches y 1 día completo.
+  if (/\b(buenos aires|madrid|barcelona|roma|tokio|kioto)\b/.test(label)) {
+    w = 2.35;
+  } else if (/\b(salta y jujuy|salta|jujuy|quebrada|humahuaca|purmamarca|tilcara)\b/.test(label)) {
+    w = 2.75;
+  } else if (/\b(mendoza|valle de uco|lujan de cuyo|maipu)\b/.test(label)) {
+    w = 2.35;
+  } else if (/\b(calafate|chalten|el chalten|glaciar|patagonia|ruta 40|bariloche|7 lagos|ushuaia)\b/.test(label)) {
+    w = 2.55;
+  } else if (/\b(iguazu|iguazu|iguazú|cataratas)\b/.test(label)) {
+    w = 1.85;
   } else if (/\b(cordoba|rosario|sevilla|granada|valencia|bilbao|osaka)\b/.test(label)) {
     w = 1.5;
   }
@@ -290,7 +310,9 @@ export function buildRouteStructureFromIntent(params: { intent: TripCreationInte
   const destRaw = clean(params.intent.destination);
   const listRaw = destRaw ? splitPlaceList(destRaw) : [];
   const countryCandidate = clean(destRaw.split(/[|·]/g)[0] || "");
-  const list = listRaw.filter((x) => normalize(x) !== normalize(countryCandidate) && !looksLikeCountryToken(x));
+  const list = listRaw.filter(
+    (x) => normalize(x) !== normalize(countryCandidate) && !looksLikeCountryToken(x) && !looksLikeNonPlaceToken(x)
+  );
   const start = clean(params.intent.startLocation);
   const end = clean(params.intent.endLocation);
 
@@ -298,6 +320,7 @@ export function buildRouteStructureFromIntent(params: { intent: TripCreationInte
   const push = (s: string) => {
     const t = clean(s);
     if (!t) return;
+    if (looksLikeNonPlaceToken(t)) return;
     if (cities.some((x) => normalize(x) === normalize(t))) return;
     cities.push(t);
   };
