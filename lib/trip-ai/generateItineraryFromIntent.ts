@@ -44,6 +44,7 @@ Esquema exacto (puedes incluir campos extra, pero estos deben existir):
 
 Reglas:
 - Número de items por día: respeta el rango de "Ritmo: entre X y Y items por día" indicado más abajo (y en días de traslado largo, reduce actividades). start_time en orden creciente.
+- start_time es OBLIGATORIO y debe ser "HH:MM" (no puede ser vacío).
 - Para cada item, rellena "duration_min" de forma realista (aprox). Si no estás seguro, usa null.
 - Si das "end_time", debe ser coherente con start_time + duration_min; si dudas, usa null.
 - "visit_type": usa categorías humanas (ej. "gastronomía", "naturaleza", "museo", "ruta panorámica", "barrio", "mercado", "mirador", "cultura").
@@ -55,6 +56,7 @@ Reglas:
 - Coherencia geográfica (CRÍTICO): en un mismo día, todos los items deben estar en la MISMA ciudad/área (o a <~30 km). No “teletransportes” entre ciudades lejanas o islas.
 - Si cambias de ciudad/región, hazlo como máximo 1 vez por día e incluye un item con activity_kind="transport" (tren/coche/ferry) con origen→destino y una address acorde.
 - **address (MUY IMPORTANTE):** en cada item debe figurar la **ciudad y el país del viaje** del "Destino principal" (ej. comercio en Venecia → "…, Venecia, Italia"). No uses solo nombres de calle o de establecimiento que puedan existir en otro país (ej. evita "Calle Venecia" sin ciudad/país si el viaje es Italia).
+- **address (FORMATO ESTRICTO):** debe ser UNA sola localización (o "Origen → Destino, País" si es transporte). NO incluyas listas ni separadores tipo "·" o "|".
 - **País (CRÍTICO):** todos los items deben estar dentro del país del viaje. Si el destino es Croacia, el país en address debe ser "Croacia/Croatia" (nunca Argentina u otro país). Si dudas, usa la ciudad base del día + el país del destino.
 - **place_name:** el nombre visible del sitio en la zona del destino (no inventes sucursales en países distintos al del viaje).
 - **latitude/longitude (opcional):** si conoces coordenadas reales del lugar, inclúyelas. Si no estás seguro, pon null. No inventes.
@@ -67,6 +69,9 @@ Reglas:
 - Evita repetir la MISMA atracción principal (ej. Recoleta, Plaza de Mayo, Jardín Japonés) en días distintos salvo que el usuario lo pida explícitamente.
 - En días SIN traslado largo, no cierres el día antes de las 18:00; incluye bloque de tarde/noche real.
 - Si el recorrido incluye Iguazú: reserva mínimo 1 día completo en Parque Nacional Iguazú (lado argentino) y mínimo 1 noche en Puerto Iguazú.
+- NO generes items genéricos/abstractos. PROHIBIDO como title/place_name: "paseo por el centro", "visita panorámica", "zona animada", "ambiente local", "tiempo libre para explorar", "barrio emblemático" sin decir un lugar concreto. Cada item debe ser un POI real, barrio concreto o experiencia programada.
+- Evita "mirador" genérico: si usas un mirador, debe ser un mirador específico con nombre propio.
+- Evita comidas genéricas ("almuerzo", "cena") salvo que sea una experiencia gastronómica concreta (mercado, bodega/cata, tour gastronómico).
 `;
 
 function destinationCountryHint(destination: string): string {
@@ -176,6 +181,35 @@ function poiHintsBlock(params: { destination: string; cities: string[] }) {
   return rows.length
     ? `POIs sugeridos por ciudad (elige lugares concretos de aquí si aplica; NO inventes comidas genéricas):\n${rows.join("\n")}\n`
     : "";
+}
+
+function cleanAddressOneLocation(addrRaw: unknown) {
+  const a = String(addrRaw || "").trim();
+  if (!a) return "";
+  const cut = a.split(" · ")[0] || a.split("·")[0] || a.split("|")[0] || a;
+  return String(cut).trim();
+}
+
+function looksGenericTitle(t: string) {
+  const s = String(t || "").toLowerCase();
+  if (!s) return true;
+  return /\b(paseo|visita panoramica|visita panorámica|zona animada|ambiente local|tiempo libre|explorar el centro|recorrido por el centro|barrio emblematico|barrio emblemático)\b/i.test(
+    s
+  );
+}
+
+function extractNestedItems(obj: any): any[] {
+  const out: any[] = [];
+  if (!obj || typeof obj !== "object") return out;
+  for (const k of Object.keys(obj)) {
+    const v = (obj as any)[k];
+    if (!v || typeof v !== "object") continue;
+    if (typeof v.title === "string" && typeof v.place_name === "string" && typeof v.activity_kind === "string") {
+      out.push(v);
+      delete (obj as any)[k];
+    }
+  }
+  return out;
 }
 
 function validateItinerary(x: unknown): ExecutableItineraryPayload {
@@ -1050,8 +1084,98 @@ ${baseContext.optimizeHint}
     return { ...day, items };
   });
 
+  // Post-proceso final (anti-genéricos, anti-duplicados, limpieza de address y extracción de items anidados)
+  const tripUsed = new Set<string>();
+  const styleHintsAll = [
+    ...((resolvedForPrompt.intent.travelStyle || []).map((x) => String(x || "").trim()).filter(Boolean)),
+    ...((resolvedForPrompt.intent.constraints || [])
+      .map((x) => String(x || "").trim())
+      .filter((x) => /\btema:|\btemas:|aventur|relax|gastron|cultural|naturaleza|fiesta|shopping|rom[aá]ntic/iu.test(x))),
+  ];
+  const mustSeePoolAll = normalizeMustSeeTokens(resolvedForPrompt.intent.mustSee || []);
+  const sanitizedDays = densifiedDays.map((day, i) => {
+    const baseCity = String(baseCitySchedule[i] || resolvedForPrompt.destination).trim() || resolvedForPrompt.destination;
+    const items0 = Array.isArray(day.items) ? [...(day.items as any[])] : [];
+    const itemsFlat: any[] = [];
+    for (const it of items0) {
+      if (!it || typeof it !== "object") continue;
+      itemsFlat.push(it);
+      for (const nested of extractNestedItems(it)) itemsFlat.push(nested);
+    }
+
+    // Limpieza + normalización básica
+    const cleaned: any[] = [];
+    for (let idx = 0; idx < itemsFlat.length; idx++) {
+      const it = { ...(itemsFlat[idx] || {}) };
+      const kind = String(it.activity_kind || "").toLowerCase();
+      it.address = cleanAddressOneLocation(it.address) || it.address;
+      if (it.address && (String(it.address).includes(" · ") || String(it.address).includes("·") || String(it.address).includes("|"))) {
+        it.address = cleanAddressOneLocation(it.address);
+      }
+      if (!it.start_time || !String(it.start_time).trim()) {
+        const h = Math.min(21, 10 + idx * 3);
+        it.start_time = `${String(h).padStart(2, "0")}:00`;
+      }
+      if (!it.address || !String(it.address).trim() || String(it.address).trim() === baseCity) {
+        it.address = `${baseCity}, ${destinationCountryHint(resolvedForPrompt.destination)}`;
+      }
+
+      const title = String(it.title || "").trim();
+      const place = String(it.place_name || "").trim();
+      const identity = itemIdentity(it);
+      const isTransport = kind === "transport";
+      const isHardGeneric = looksGenericTitle(title) || (!isTransport && (place.toLowerCase() === baseCity.toLowerCase() || place.length < 4));
+      const already = identity ? tripUsed.has(identity) : false;
+      if (!isTransport && (isHardGeneric || already)) continue;
+      if (identity) tripUsed.add(identity);
+      cleaned.push(it);
+    }
+
+    // Relleno si quedó demasiado vacío tras limpieza
+    const transfer = transferByDay.get(i + 1);
+    const hasLongTransfer = Boolean(transfer && transfer.durationMin >= 180);
+    const hasTransport = cleaned.some((it) => String(it.activity_kind || "").toLowerCase() === "transport");
+    const isTransferDay = hasLongTransfer || hasTransport;
+    const minItemsTarget = isTransferDay ? Math.max(2, cfg.pace.itemsPerDayMin - 1) : Math.max(3, cfg.pace.itemsPerDayMin);
+
+    const usedLocal = new Set(cleaned.map((it) => itemIdentity(it)));
+    while (cleaned.length < minItemsTarget) {
+      const candidates = fallbackDayItems({
+        destination: destinationCountryHint(resolvedForPrompt.destination),
+        baseCity,
+        dayIndex: i + cleaned.length,
+        totalDays: generateDays,
+        mustSeePool: mustSeePoolAll,
+        styleHints: styleHintsAll,
+        minItems: Math.max(3, cfg.pace.itemsPerDayMin),
+        maxItems: Math.max(4, cfg.pace.itemsPerDayMax + 1),
+      });
+      const picked = candidates.find((c: any) => {
+        const id = itemIdentity(c);
+        const title = String(c?.title || "");
+        const kind = String(c?.activity_kind || "").toLowerCase();
+        if (kind === "food" && /\b(almuerzo|cena)\b/i.test(title) && !/\b(mercado|bodega|cata|tour)\b/i.test(title)) return false;
+        if (looksGenericTitle(title)) return false;
+        return !usedLocal.has(id) && !tripUsed.has(id);
+      });
+      if (!picked) break;
+      const extra = { ...picked };
+      extra.address = cleanAddressOneLocation(extra.address) || `${baseCity}, ${destinationCountryHint(resolvedForPrompt.destination)}`;
+      if (!extra.start_time) {
+        const h = Math.min(21, 10 + cleaned.length * 3);
+        extra.start_time = `${String(h).padStart(2, "0")}:00`;
+      }
+      const id = itemIdentity(extra);
+      usedLocal.add(id);
+      tripUsed.add(id);
+      cleaned.push(extra);
+    }
+
+    return { ...day, items: cleaned };
+  });
+
   // Validación final: si aún quedan demasiados placeholders, dejamos el itinerario pero reforzado en densidad.
-  return { itinerary: { ...finalItinerary, days: densifiedDays }, usage: usageAgg };
+  return { itinerary: { ...finalItinerary, days: sanitizedDays }, usage: usageAgg };
 }
 
 /**
