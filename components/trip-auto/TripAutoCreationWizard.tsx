@@ -49,7 +49,7 @@ export default function TripAutoCreationWizard() {
   const router = useRouter();
   const toast = useToast();
 
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -82,6 +82,11 @@ export default function TripAutoCreationWizard() {
   const [aiPromptLog, setAiPromptLog] = useState<Array<{ dayOffset: number; dayCount: number; prompts: string[] }>>([]);
   const [createStage, setCreateStage] = useState(0);
 
+  // Confirmación (reparto de noches)
+  const [allocationLoading, setAllocationLoading] = useState(false);
+  const [allocationError, setAllocationError] = useState<string | null>(null);
+  const [cityStays, setCityStays] = useState<Array<{ city: string; days: number }>>([]);
+
   const destinationLabel = useMemo(() => joinTripPlaces(routeCities), [routeCities]);
   const currencyOptions = useMemo(() => buildTravelCurrencySelectOptions(destinationLabel), [destinationLabel]);
 
@@ -99,6 +104,13 @@ export default function TripAutoCreationWizard() {
     return true;
   }, [canStep1, travelersCount, travelersType]);
 
+  const canConfirm = useMemo(() => {
+    if (!canStep2) return false;
+    if (!cityStays.length) return false;
+    const sum = cityStays.reduce((a, b) => a + (Number(b.days) || 0), 0);
+    return sum >= 1;
+  }, [canStep2, cityStays]);
+
   const intent = useMemo((): TripCreationIntent => {
     const cities = routeCities.map((x) => x.trim()).filter(Boolean);
     const main = cities[0] || null;
@@ -108,6 +120,7 @@ export default function TripAutoCreationWizard() {
     // Importante: si el usuario añade “visitas propuestas” (ciudades/regiones), queremos que afecten al recorrido.
     // Por eso las incluimos también en `destination` (estructura baseCity), y dejamos `mustSee` para POIs concretos.
     const destinationStops = [...cities, ...mustSeeClean];
+    const manualNoches = cityStays.length ? `Noches: ${cityStays.map((s) => `${s.city}=${s.days}`).join("; ")}` : "";
     return {
       destination: joinTripPlaces(destinationStops) || joinTripPlaces(cities) || main,
       startDate: isoOk(startDate) ? startDate : null,
@@ -123,11 +136,38 @@ export default function TripAutoCreationWizard() {
       constraints: [
         `Ritmo: ${pace}`,
         themes.length ? `Temas: ${themes.join(", ")}` : "",
+        manualNoches,
         notes.trim() ? `Notas del usuario: ${notes.trim()}` : "",
       ].filter(Boolean),
       suggestedTripName: tripName.trim() || null,
     };
-  }, [budgetLevel, routeCities, endDate, forceOrder, pace, startDate, travelersCount, travelersType, tripName, themes, notes, mustSee]);
+  }, [budgetLevel, routeCities, endDate, forceOrder, pace, startDate, travelersCount, travelersType, tripName, themes, notes, mustSee, cityStays]);
+
+  async function computeAllocation() {
+    if (allocationLoading) return;
+    setAllocationLoading(true);
+    setAllocationError(null);
+    try {
+      const res = await fetch("/api/trips/auto-plan/allocate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ intent }),
+      });
+      const { data } = await readJsonResponse<any>(res);
+      if (!res.ok) throw new Error(data?.error || "No se pudo calcular el reparto de noches.");
+      const stays = Array.isArray(data?.structure?.cityStays) ? data.structure.cityStays : [];
+      const parsed = stays
+        .map((s: any) => ({ city: String(s?.city || "").trim(), days: Number(s?.days) || 1 }))
+        .filter((s: any) => s.city);
+      setCityStays(parsed);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "No se pudo calcular el reparto de noches.";
+      setAllocationError(msg);
+      setCityStays([]);
+    } finally {
+      setAllocationLoading(false);
+    }
+  }
 
   function addMustSee(label: string) {
     const t = String(label || "").trim();
@@ -193,7 +233,7 @@ export default function TripAutoCreationWizard() {
     if (aiGenerating || loading) return;
     setError(null);
     setItinerary(null);
-    setStep(3);
+    setStep(4);
     await generateAllDaysWithAi();
   }
 
@@ -478,10 +518,13 @@ export default function TripAutoCreationWizard() {
             1 · Básicos
           </span>
           <span className={`rounded-full px-3 py-1 text-xs font-extrabold ${step === 2 ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700"}`}>
-            2 · Estilo
+            2 · Chat
           </span>
           <span className={`rounded-full px-3 py-1 text-xs font-extrabold ${step === 3 ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700"}`}>
-            3 · Plan
+            3 · Confirmación
+          </span>
+          <span className={`rounded-full px-3 py-1 text-xs font-extrabold ${step === 4 ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700"}`}>
+            4 · Plan
           </span>
         </div>
 
@@ -572,6 +615,32 @@ export default function TripAutoCreationWizard() {
 
         {step === 2 ? (
           <div className="grid gap-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="text-sm font-extrabold text-slate-900">Chat guiado</div>
+              <div className="mt-1 text-xs font-semibold text-slate-600">
+                Escribe en lenguaje natural. Ej: “últimos 2 días en Buenos Aires”, “minimizar vuelos”, “no madrugar”, “evitar museos”.
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {[
+                  "Quiero que mínimo los dos días antes de finalizar el viaje esté en Buenos Aires",
+                  "Evitar madrugar (empezar 10:00+)",
+                  "Acepto vuelos internos",
+                  "Minimizar vuelos",
+                  "Evitar museos",
+                  "Priorizar naturaleza y trekking",
+                ].map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setNotes((prev) => (prev ? `${prev}\n${t}` : t))}
+                    className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-extrabold text-slate-800 hover:bg-slate-100"
+                  >
+                    + {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="grid gap-4 md:grid-cols-2">
               <div>
               <label className="mb-1 block text-sm font-extrabold text-slate-900">Tipo de viaje</label>
@@ -729,8 +798,16 @@ export default function TripAutoCreationWizard() {
               <button type="button" onClick={() => setStep(1)} className="btn-secondary">
                 Atrás
               </button>
-              <button type="button" disabled={!canStep2 || loading} onClick={previewPlan} className="btn-primary disabled:opacity-50">
-                Generar plan con IA
+              <button
+                type="button"
+                disabled={!canStep2 || loading}
+                onClick={async () => {
+                  setStep(3);
+                  await computeAllocation();
+                }}
+                className="btn-primary disabled:opacity-50"
+              >
+                Generar propuesta de ruta
               </button>
             </div>
             </div>
@@ -738,6 +815,57 @@ export default function TripAutoCreationWizard() {
         ) : null}
 
         {step === 3 ? (
+          <div className="grid gap-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="text-sm font-extrabold text-slate-900">Confirmación de ruta y noches</div>
+              <div className="mt-1 text-xs font-semibold text-slate-600">
+                Ajusta noches por destino antes de generar el plan. Esto mejora traslados y evita días “sin sentido”.
+              </div>
+
+              {allocationError ? (
+                <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-800">
+                  {allocationError}
+                </div>
+              ) : null}
+
+              {allocationLoading ? (
+                <div className="mt-3 text-xs font-semibold text-slate-600">Calculando reparto…</div>
+              ) : (
+                <div className="mt-4 grid gap-2">
+                  {cityStays.map((s, idx) => (
+                    <div key={`${s.city}-${idx}`} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                      <div className="text-sm font-extrabold text-slate-900">{s.city}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-slate-600">Noches</span>
+                        <input
+                          inputMode="numeric"
+                          value={String(s.days)}
+                          onChange={(e) => {
+                            const n = Math.max(1, Math.min(30, Math.round(Number(e.target.value || "1"))));
+                            setCityStays((prev) => prev.map((x, i) => (i === idx ? { ...x, days: n } : x)));
+                          }}
+                          className="w-20 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm font-extrabold text-slate-900"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  {!cityStays.length ? <div className="text-xs font-semibold text-slate-600">No hay destinos suficientes.</div> : null}
+                </div>
+              )}
+
+              <div className="mt-4 flex gap-2">
+                <button type="button" disabled={loading || allocationLoading} onClick={() => setStep(2)} className="btn-secondary disabled:opacity-50">
+                  Volver al chat
+                </button>
+                <button type="button" disabled={loading || allocationLoading || !canConfirm} onClick={previewPlan} className="btn-primary disabled:opacity-50">
+                  Generar itinerario con IA
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {step === 4 ? (
           <div className="grid gap-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
@@ -752,8 +880,8 @@ export default function TripAutoCreationWizard() {
                 ) : null}
               </div>
               <div className="flex gap-2">
-                <button type="button" onClick={() => setStep(2)} className="btn-secondary">
-                  Ajustar
+                <button type="button" onClick={() => setStep(3)} className="btn-secondary">
+                  Ajustar noches
                 </button>
                 <button
                   type="button"
@@ -790,7 +918,7 @@ export default function TripAutoCreationWizard() {
 
             {!itinerary ? (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-                {loading ? "Generando..." : "Pulsa “Calcular plan” para ver el itinerario."}
+                {loading ? "Generando..." : "Pulsa “Generar itinerario con IA” para ver el itinerario."}
               </div>
             ) : (
               <div className="rounded-2xl border border-slate-200 bg-white">
@@ -814,9 +942,7 @@ export default function TripAutoCreationWizard() {
                                   {(it.address || "").trim() ? ` · ${it.address}` : ""}
                                 </div>
                               </div>
-                              <div className="shrink-0 text-xs font-extrabold text-slate-700">
-                                {it.start_time ? it.start_time : "—"}
-                              </div>
+                              <div className="shrink-0 text-xs font-extrabold text-slate-700">{it.start_time ? it.start_time : "—"}</div>
                             </div>
                           ))}
                         </div>

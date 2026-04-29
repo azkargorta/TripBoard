@@ -175,6 +175,23 @@ function parseUserNightOverrides(notesRaw: string, cities: string[]) {
   const out = new Map<number, number>();
   if (!notes) return out;
 
+  // Formato explícito soportado: "Noches: Buenos Aires=4; Iguazú=2; Mendoza=3"
+  const explicitLine = notes.match(/\bnoches\s*:\s*([^\n]+)/);
+  if (explicitLine?.[1]) {
+    const parts = explicitLine[1]
+      .split(/[;|·]+/g)
+      .map((x) => x.trim())
+      .filter(Boolean);
+    for (const part of parts) {
+      const m = part.match(/(.+?)\s*=\s*(\d{1,2})/);
+      if (!m) continue;
+      const label = normalize(m[1]);
+      const n = Math.max(1, Math.min(30, Number(m[2])));
+      const idx = cities.findIndex((c) => normalize(c) === label || cityAliases(c).includes(label));
+      if (idx >= 0) out.set(idx, n);
+    }
+  }
+
   for (let i = 0; i < cities.length; i++) {
     const aliases = cityAliases(cities[i] || "");
     let nights: number | null = null;

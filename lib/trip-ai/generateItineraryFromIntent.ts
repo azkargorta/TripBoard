@@ -74,6 +74,110 @@ function destinationCountryHint(destination: string): string {
   return raw.split(/[|·]/g)[0]?.trim() || raw || "Destino";
 }
 
+function destinationCountryName(destination: string): string {
+  const d = String(destination || "").toLowerCase();
+  if (d.includes("argentina")) return "Argentina";
+  if (d.includes("españa") || d.includes("spain")) return "España";
+  if (d.includes("italia") || d.includes("italy")) return "Italia";
+  if (d.includes("japón") || d.includes("japan")) return "Japón";
+  return "—";
+}
+
+function normalizeCityKey(s: string) {
+  return String(s || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function poiHintsForCity(baseCityRaw: string, destination: string): string[] {
+  const country = destinationCountryName(destination);
+  const city = normalizeCityKey(baseCityRaw);
+  if (!city) return [];
+
+  // POIs concretos (evitar comidas genéricas, "paseo nocturno", "mirador" sin sitio).
+  if (country === "Argentina") {
+    if (city.includes("buenos aires")) {
+      return [
+        "Plaza de Mayo + Casa Rosada (exterior) + Catedral Metropolitana",
+        "Teatro Colón (visita guiada)",
+        "Cementerio de la Recoleta + Centro Cultural Recoleta",
+        "Museo Nacional de Bellas Artes",
+        "MALBA (Museo de Arte Latinoamericano)",
+        "Barrio de San Telmo + Mercado de San Telmo",
+        "Puerto Madero + Puente de la Mujer",
+        "Caminito (La Boca) + Estadio La Bombonera (museo, si interesa)",
+        "Jardín Japonés + Parque Tres de Febrero (Rosedal)",
+        "Palermo Soho/Hollywood (zona concreta)",
+      ];
+    }
+    if (city.includes("iguazu") || city.includes("puerto iguazu")) {
+      return [
+        "Parque Nacional Iguazú (lado argentino) — Garganta del Diablo + Circuito Superior + Circuito Inferior (día completo)",
+        "Hito Tres Fronteras",
+        "La Aripuca",
+        "Biocentro Iguazú",
+        "Parque de las Aves (lado brasileño, opcional)",
+      ];
+    }
+    if (city.includes("salta")) {
+      return [
+        "MAAM (Museo de Arqueología de Alta Montaña)",
+        "Catedral Basílica de Salta + Plaza 9 de Julio",
+        "Teleférico San Bernardo + mirador (sitio concreto)",
+        "San Lorenzo (quebrada/paseo natural)",
+        "Cafayate (bodegas) o Quebrada de las Conchas (excursión)",
+      ];
+    }
+    if (city.includes("jujuy") || city.includes("purmamarca") || city.includes("humahuaca") || city.includes("tilcara")) {
+      return [
+        "Purmamarca — Cerro de los Siete Colores + Paseo de los Colorados",
+        "Tilcara — Pucará de Tilcara",
+        "Humahuaca — Monumento a los Héroes de la Independencia",
+        "Salinas Grandes",
+      ];
+    }
+    if (city.includes("mendoza")) {
+      return [
+        "Bodegas en Luján de Cuyo o Maipú (visita guiada + cata programada)",
+        "Valle de Uco (bodegas)",
+        "Alta Montaña — Puente del Inca + Aconcagua (miradores en ruta)",
+        "Parque General San Martín + Cerro de la Gloria",
+      ];
+    }
+    if (city.includes("calafate")) {
+      return [
+        "Glaciar Perito Moreno (pasarelas + opcional navegación)",
+        "Excursión 'Todo Glaciares' (Upsala/Spegazzini) o navegación programada",
+        "Laguna Nimez (reserva natural)",
+      ];
+    }
+    if (city.includes("ushuaia")) {
+      return [
+        "Parque Nacional Tierra del Fuego",
+        "Navegación Canal Beagle + Faro Les Éclaireurs",
+        "Tren del Fin del Mundo (si encaja)",
+        "Museo Marítimo y del Presidio (si el usuario no lo evita)",
+      ];
+    }
+  }
+
+  return [];
+}
+
+function poiHintsBlock(params: { destination: string; cities: string[] }) {
+  const rows: string[] = [];
+  for (const c of params.cities) {
+    const list = poiHintsForCity(c, params.destination);
+    if (!list.length) continue;
+    rows.push(`- ${c}: ${list.slice(0, 10).join(" · ")}`);
+  }
+  return rows.length
+    ? `POIs sugeridos por ciudad (elige lugares concretos de aquí si aplica; NO inventes comidas genéricas):\n${rows.join("\n")}\n`
+    : "";
+}
+
 function validateItinerary(x: unknown): ExecutableItineraryPayload {
   const o = x as ExecutableItineraryPayload;
   if (!o || o.version !== 1 || !Array.isArray(o.days) || !o.days.length) {
@@ -589,6 +693,11 @@ export async function generateExecutableItineraryFromStructure(
       : "",
   };
 
+  const poiAllCities = poiHintsBlock({
+    destination: baseContext.destination,
+    cities: Array.from(new Set(baseCitySchedule.map((x) => String(x || "").trim()).filter(Boolean))),
+  });
+
   // En preview mantenemos output moderado para evitar timeouts.
   // (Vercel puede cortar la invocación si el modelo tarda demasiado).
   const planningMaxOutputTokens = isPreviewLatency ? 4096 : undefined;
@@ -664,6 +773,7 @@ Instrucciones:
 - Cada día debe tener entre ${cfg.pace.itemsPerDayMin} y ${cfg.pace.itemsPerDayMax} items (salvo días con traslado largo).
 - Direcciones: siempre \"..., Ciudad, País\" (no uses solo el país).
 
+${poiAllCities}
 Tipo viajeros: ${baseContext.travelersType}
 Presupuesto: ${baseContext.budget}
 Intereses: ${baseContext.interests}
@@ -673,7 +783,7 @@ Paradas obligatorias (mustSee, en este orden): ${baseContext.mustSee}
 ${baseContext.optimizeHint}
 `;
 
-  const chunkPrompt = (chunkLines: string, requiredCount: number) => `${ITIN_PROMPT}
+  const chunkPrompt = (chunkLines: string, requiredCount: number, chunkCities: string[]) => `${ITIN_PROMPT}
 
 Destino principal: ${baseContext.destination}
 Ciudad/punto inicio (si existe): ${baseContext.start}
@@ -692,6 +802,7 @@ Instrucciones:
 - Cada día debe tener entre ${cfg.pace.itemsPerDayMin} y ${cfg.pace.itemsPerDayMax} items.
 - Direcciones: siempre \"..., Ciudad, País\" (no uses solo el país).
 
+${poiHintsBlock({ destination: baseContext.destination, cities: chunkCities })}
 Tipo viajeros: ${baseContext.travelersType}
 Presupuesto: ${baseContext.budget}
 Intereses: ${baseContext.interests}
@@ -712,7 +823,14 @@ ${baseContext.optimizeHint}
   const processChunk = async (ch: { dayIdxs: number[]; baseCity: string }) => {
     const chunkLines = ch.dayIdxs.map((idx) => dayLines[idx]!).join("\n");
     const requiredDayNums = ch.dayIdxs.map((i) => i + 1);
-    const prompt = chunkPrompt(chunkLines, requiredDayNums.length);
+    const chunkCities = Array.from(
+      new Set(
+        ch.dayIdxs
+          .map((i) => String(baseCitySchedule[i] || resolved.destination).trim())
+          .filter(Boolean)
+      )
+    );
+    const prompt = chunkPrompt(chunkLines, requiredDayNums.length, chunkCities);
 
     const first = await runOnce(prompt);
     let normalized = normalizeChunkDays(first.itinerary, resolvedForPrompt, requiredDayNums);
