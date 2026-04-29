@@ -864,19 +864,50 @@ ${baseContext.optimizeHint}
     const minItemsTarget = isTransferDay ? Math.max(2, cfg.pace.itemsPerDayMin - 1) : Math.max(3, cfg.pace.itemsPerDayMin);
     const maxItemsTarget = Math.max(minItemsTarget, cfg.pace.itemsPerDayMax);
     const baseCity = String(baseCitySchedule[i] || resolvedForPrompt.destination).trim() || resolvedForPrompt.destination;
+    const styleHints = [
+      ...((resolvedForPrompt.intent.travelStyle || []).map((x) => String(x || "").trim()).filter(Boolean)),
+      ...((resolvedForPrompt.intent.constraints || [])
+        .map((x) => String(x || "").trim())
+        .filter((x) => /\btema:|\btemas:|aventur|relax|gastron|cultural|naturaleza|fiesta|shopping|rom[aá]ntic/iu.test(x))),
+    ];
+    const mustSeePool = normalizeMustSeeTokens(resolvedForPrompt.intent.mustSee || []);
+    const used = new Set(items.map((it) => itemIdentity(it)));
+    const nextSpecificFallback = (preferredAfterMin?: number) => {
+      const candidates = fallbackDayItems({
+        destination: destinationCountryHint(resolvedForPrompt.destination),
+        baseCity,
+        dayIndex: i + items.length,
+        totalDays: generateDays,
+        mustSeePool,
+        styleHints,
+        minItems: Math.max(3, cfg.pace.itemsPerDayMin),
+        maxItems: Math.max(4, cfg.pace.itemsPerDayMax + 1),
+      });
+      const minStart = typeof preferredAfterMin === "number" ? preferredAfterMin : 0;
+      const picked =
+        candidates.find((cand: any) => {
+          const key = itemIdentity(cand);
+          const when = parseHHMM(cand?.start_time) ?? 0;
+          return !used.has(key) && when >= minStart;
+        }) ||
+        candidates.find((cand: any) => !used.has(itemIdentity(cand))) ||
+        null;
+      if (!picked) return null;
+      used.add(itemIdentity(picked));
+      return { ...picked };
+    };
 
     while (items.length < minItemsTarget) {
       const lastTime = parseHHMM((items[items.length - 1] as any)?.start_time) ?? (isTransferDay ? 16 * 60 : 17 * 60);
       const nextTime = toHHMM(Math.min(lastTime + 120, 21 * 60));
-      const late = parseHHMM(nextTime) ?? 0;
-      items.push({
-        title: late >= 19 * 60 ? `Cena recomendada en ${baseCity}` : `Paseo de tarde por ${baseCity}`,
-        activity_kind: late >= 19 * 60 ? "food" : "visit",
-        place_name: baseCity,
-        address: `${baseCity}, ${destinationCountryHint(resolvedForPrompt.destination)}`,
-        start_time: nextTime,
-        notes: "Ajuste automático para mantener un ritmo de día completo.",
-      } as any);
+      const extra = nextSpecificFallback(parseHHMM(nextTime) ?? undefined);
+      if (!extra) break;
+      extra.start_time = nextTime;
+      if (!extra.address || String(extra.address).trim() === baseCity) {
+        extra.address = `${baseCity}, ${destinationCountryHint(resolvedForPrompt.destination)}`;
+      }
+      extra.notes = extra.notes || "Ajuste automático para mantener un ritmo de día completo.";
+      items.push(extra as any);
     }
     if (items.length > maxItemsTarget) items.splice(maxItemsTarget);
 
@@ -885,14 +916,15 @@ ${baseContext.optimizeHint}
       const last = times.length ? Math.max(...times) : null;
       if (last !== null && last < 17 * 60 + 30) {
         const t = toHHMM(Math.min(last + 180, 20 * 60));
-        items.push({
-          title: `Paseo al atardecer y cierre del día en ${baseCity}`,
-          activity_kind: "visit",
-          place_name: baseCity,
-          address: `${baseCity}, ${destinationCountryHint(resolvedForPrompt.destination)}`,
-          start_time: t,
-          notes: "Ajuste automático para evitar días que terminan demasiado pronto.",
-        } as any);
+        const closePlan = nextSpecificFallback(parseHHMM(t) ?? 18 * 60);
+        if (closePlan) {
+          closePlan.start_time = t;
+          if (!closePlan.address || String(closePlan.address).trim() === baseCity) {
+            closePlan.address = `${baseCity}, ${destinationCountryHint(resolvedForPrompt.destination)}`;
+          }
+          closePlan.notes = closePlan.notes || "Ajuste automático para evitar días que terminan demasiado pronto.";
+          items.push(closePlan as any);
+        }
       }
     }
 
@@ -1170,6 +1202,10 @@ function toHHMM(mins: number): string {
   const h = Math.floor(m / 60);
   const mm = m % 60;
   return `${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+}
+
+function itemIdentity(it: any): string {
+  return `${String(it?.title || "").trim().toLowerCase()}|${String(it?.place_name || "").trim().toLowerCase()}`;
 }
 
 function buildDayChunks(baseCityByDay: string[], opts: { maxDaysPerChunk: number }) {

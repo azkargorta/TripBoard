@@ -80,6 +80,7 @@ export default function TripAutoCreationWizard() {
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiProgress, setAiProgress] = useState<{ done: number; total: number } | null>(null);
   const [aiPromptLog, setAiPromptLog] = useState<Array<{ dayOffset: number; dayCount: number; prompts: string[] }>>([]);
+  const [createStage, setCreateStage] = useState(0);
 
   const destinationLabel = useMemo(() => joinTripPlaces(routeCities), [routeCities]);
   const currencyOptions = useMemo(() => buildTravelCurrencySelectOptions(destinationLabel), [destinationLabel]);
@@ -302,10 +303,13 @@ export default function TripAutoCreationWizard() {
     if (loading) return;
     if (!itinerary) return;
     setLoading(true);
+    setCreateStage(0);
     setError(null);
     try {
+      setCreateStage(1);
       const list = routeCities.map((x) => x.trim()).filter(Boolean);
       const name = (tripName.trim() || (isoOk(startDate) && isoOk(endDate) ? defaultTripName(list, startDate, endDate) : "")).trim();
+      setCreateStage(2);
       const res = await fetch("/api/trips/auto-plan/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -321,9 +325,11 @@ export default function TripAutoCreationWizard() {
           intent,
         }),
       });
+      setCreateStage(3);
       const { data } = await readJsonResponse<any>(res);
       if (!res.ok) throw new Error(data?.error || "No se pudo crear el viaje automáticamente.");
       const tripId = String(data?.tripId || "");
+      setCreateStage(4);
       toast.success("Viaje creado", "He creado el viaje y sus planes automáticamente.");
       router.push(`/trip/${encodeURIComponent(tripId)}/plan`);
       router.refresh();
@@ -333,6 +339,7 @@ export default function TripAutoCreationWizard() {
       toast.error("No se pudo crear el viaje", msg);
     } finally {
       setLoading(false);
+      setCreateStage(0);
     }
   }
 
@@ -367,6 +374,42 @@ export default function TripAutoCreationWizard() {
             </div>
             <div className="mt-4 text-center text-xs font-semibold text-slate-400">
               Kaviro está generando un plan coherente día a día y ajustando ciudades, traslados y tiempos.
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {loading ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-md rounded-3xl border border-white/10 bg-slate-950/90 p-8 text-white shadow-2xl">
+            <div className="flex justify-center">
+              <TripBoardLogo variant="light" size="md" withWordmark />
+            </div>
+            <div className="mt-6 flex items-center justify-center gap-2">
+              <span className="h-3 w-3 animate-bounce rounded-full bg-cyan-300 [animation-delay:-0.2s]" />
+              <span className="h-3 w-3 animate-bounce rounded-full bg-violet-300 [animation-delay:-0.1s]" />
+              <span className="h-3 w-3 animate-bounce rounded-full bg-emerald-300" />
+            </div>
+            <div className="mt-5 text-center text-lg font-extrabold tracking-tight">Creando tu viaje</div>
+            <div className="mt-2 text-center text-sm font-semibold text-slate-300">
+              {createStage <= 1
+                ? "Preparando viaje y validando datos…"
+                : createStage === 2
+                  ? "Guardando viaje y creando planes…"
+                  : createStage === 3
+                    ? "Finalizando estructura del viaje…"
+                    : "Abriendo tu viaje…"}
+            </div>
+            <div className="mt-5 h-2 overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-violet-400 to-emerald-400 transition-all duration-500"
+                style={{
+                  width: `${Math.max(12, Math.min(100, createStage === 0 ? 12 : createStage * 24))}%`,
+                }}
+              />
+            </div>
+            <div className="mt-4 text-center text-xs font-semibold text-slate-400">
+              Kaviro está creando el viaje y guardando automáticamente todos los planes del itinerario.
             </div>
           </div>
         </div>
