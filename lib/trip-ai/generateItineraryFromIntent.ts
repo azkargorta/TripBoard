@@ -590,7 +590,8 @@ export async function generateExecutableItineraryFromStructure(
   };
 
   // En preview mantenemos output moderado para evitar timeouts.
-  const planningMaxOutputTokens = isPreviewLatency ? 5632 : undefined;
+  // (Vercel puede cortar la invocación si el modelo tarda demasiado).
+  const planningMaxOutputTokens = isPreviewLatency ? 4096 : undefined;
   const planningResponseMimeType = isPreviewLatency ? "application/json" : undefined;
 
   const runOnce = async (p: string) => {

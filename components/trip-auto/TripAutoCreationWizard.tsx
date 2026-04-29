@@ -224,35 +224,81 @@ export default function TripAutoCreationWizard() {
       const dayMap = new Map<number, any>();
       for (const d of base.days || []) if (typeof d?.day === "number") dayMap.set(d.day, d);
 
+      const placeholderDay = (dayNum: number) => {
+        const date = isoOk(startDate) ? new Date(`${startDate}T12:00:00Z`) : null;
+        const d = date ? new Date(date.getTime() + (dayNum - 1) * 86400 * 1000) : null;
+        const iso =
+          d && Number.isFinite(d.getTime())
+            ? `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`
+            : null;
+        return {
+          day: dayNum,
+          date: iso,
+          items: [
+            {
+              title: "Día pendiente de generar con IA",
+              activity_kind: "visit",
+              place_name: destinationLabel || "Destino",
+              address: destinationLabel || "Destino",
+              start_time: "10:00",
+              notes: "Este día falló por timeout. Pulsa 'Regenerar con IA' para reintentarlo.",
+            },
+          ],
+        };
+      };
+
       for (let offset = 0; offset < total; ) {
-        const res = await fetch("/api/trips/auto-plan/generate-chunk", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ intent, dayOffset: offset, dayCount: 4 }),
-        });
-        const { data } = await readJsonResponse<any>(res);
-        if (!res.ok) throw new Error(data?.error || "No se pudo generar el itinerario con IA.");
-        const days = Array.isArray(data?.days) ? data.days : [];
-        const generatedCount =
-          typeof data?.dayCount === "number" && Number.isFinite(data.dayCount) ? Math.max(1, Math.round(data.dayCount)) : Math.max(1, days.length);
-        const prompts = Array.isArray(data?.prompts) ? data.prompts.map((x: any) => String(x || "")).filter(Boolean) : [];
-        if (prompts.length) {
-          setAiPromptLog((prev) => [...prev, { dayOffset: offset, dayCount: generatedCount, prompts }]);
+        let ok = false;
+        let generatedCount = 0;
+        let lastErr: string | null = null;
+
+        for (const requestedCount of [2, 1]) {
+          try {
+            const res = await fetch("/api/trips/auto-plan/generate-chunk", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ intent, dayOffset: offset, dayCount: requestedCount }),
+            });
+            const { data } = await readJsonResponse<any>(res);
+            if (!res.ok) throw new Error(data?.error || "No se pudo generar el itinerario con IA.");
+            const days = Array.isArray(data?.days) ? data.days : [];
+            generatedCount =
+              typeof data?.dayCount === "number" && Number.isFinite(data.dayCount)
+                ? Math.max(1, Math.round(data.dayCount))
+                : Math.max(1, days.length || requestedCount);
+
+            const prompts = Array.isArray(data?.prompts) ? data.prompts.map((x: any) => String(x || "")).filter(Boolean) : [];
+            if (prompts.length) {
+              setAiPromptLog((prev) => [...prev, { dayOffset: offset, dayCount: generatedCount, prompts }]);
+            }
+            for (const d of days) {
+              if (typeof d?.day === "number") dayMap.set(d.day, d);
+            }
+            ok = true;
+            break;
+          } catch (e) {
+            lastErr = e instanceof Error ? e.message : "Timeout / error desconocido";
+          }
         }
-        for (const d of days) {
-          if (typeof d?.day === "number") dayMap.set(d.day, d);
+
+        if (!ok) {
+          // No bloqueamos todo el viaje: dejamos placeholder y seguimos.
+          dayMap.set(offset + 1, placeholderDay(offset + 1));
+          generatedCount = 1;
+          toast.error("Un día no se pudo generar", lastErr || "Timeout. Se ha dejado un placeholder para reintentar.");
         }
+
         const done = Math.min(total, offset + generatedCount);
         setAiProgress({ done, total });
 
-        // actualizamos UI incrementalmente
-        const mergedDays = Array.from({ length: total }, (_, i) => dayMap.get(i + 1)).filter(Boolean);
+        const mergedDays = Array.from({ length: total }, (_, i) => dayMap.get(i + 1) || placeholderDay(i + 1));
         setItinerary((prev) => ({
           version: 1,
           title: prev?.title || base.title,
           travelMode: prev?.travelMode || base.travelMode,
           days: mergedDays,
         }));
+
         offset += generatedCount;
       }
     } catch (e) {
