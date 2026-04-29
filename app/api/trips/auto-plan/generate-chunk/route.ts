@@ -30,6 +30,12 @@ function filterMustSeeAgainstRoute(params: { mustSee: string[]; baseCityByDay: s
   return keep.slice(0, 18);
 }
 
+function guessIntercityTransportMode(from: string, to: string) {
+  const pair = `${clean(from).toLowerCase()} ${clean(to).toLowerCase()}`;
+  if (/\b(salta|jujuy|quebrada)\b/.test(pair)) return "driving";
+  return "flight";
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => null);
@@ -95,6 +101,30 @@ export async function POST(req: Request) {
       day: typeof d.day === "number" ? d.day + dayOffset : d.day,
       date: typeof d.date === "string" && d.date ? d.date : addDaysIso(resolved.startDate, (typeof d.day === "number" ? d.day - 1 : 0) + dayOffset),
     }));
+
+    if (dayOffset > 0 && days.length) {
+      const prevBase = String(fullStructure.baseCityByDay[dayOffset - 1] || "").trim();
+      const curBase = String(fullStructure.baseCityByDay[dayOffset] || "").trim();
+      if (prevBase && curBase && prevBase.toLowerCase() !== curBase.toLowerCase()) {
+        const first = days[0] as any;
+        const items = Array.isArray(first?.items) ? [...first.items] : [];
+        const hasTransport = items.some((it: any) => String(it?.activity_kind || "").toLowerCase() === "transport");
+        if (!hasTransport) {
+          items.unshift({
+            title: `Traslado de ${prevBase} a ${curBase}`,
+            activity_kind: "transport",
+            place_name: `${prevBase} → ${curBase}`,
+            address: `${prevBase} → ${curBase}, ${clean(resolved.destination)}`,
+            start_time: "08:30",
+            duration_min: guessIntercityTransportMode(prevBase, curBase) === "flight" ? 240 : 180,
+            transport_mode: guessIntercityTransportMode(prevBase, curBase),
+            notes: "Bloque reservado para el desplazamiento principal entre destinos. Reduce el resto de actividades de este día.",
+          });
+          if (items.length > 3) items.splice(3);
+          days[0] = { ...first, items };
+        }
+      }
+    }
 
     if (shouldTrack) {
       await trackAiUsage({ supabase, userId, monthKey, provider, usage: out.usage });

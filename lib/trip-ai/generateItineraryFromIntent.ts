@@ -69,6 +69,11 @@ Reglas:
 - Si el recorrido incluye Iguazú: reserva mínimo 1 día completo en Parque Nacional Iguazú (lado argentino) y mínimo 1 noche en Puerto Iguazú.
 `;
 
+function destinationCountryHint(destination: string): string {
+  const raw = String(destination || "").trim();
+  return raw.split(/[|·]/g)[0]?.trim() || raw || "Destino";
+}
+
 function validateItinerary(x: unknown): ExecutableItineraryPayload {
   const o = x as ExecutableItineraryPayload;
   if (!o || o.version !== 1 || !Array.isArray(o.days) || !o.days.length) {
@@ -391,7 +396,7 @@ function enforceMustSee(itinerary: ExecutableItineraryPayload, resolved: Resolve
   const mustSee = normalizeMustSeeTokens(resolved.intent.mustSee || []);
   if (!mustSee.length) return itinerary;
 
-  const countryHint = (resolved.destination || "").toLowerCase().includes("polonia") ? "Polonia" : resolved.destination;
+  const countryHint = destinationCountryHint(resolved.destination || "");
 
   const days = (itinerary.days || []).map((d) => ({ ...d, items: [...(d.items || [])] }));
   const missing: string[] = [];
@@ -829,7 +834,7 @@ ${baseContext.optimizeHint}
       title,
       activity_kind: "transport",
       place_name: `${prevBase} → ${curBase}`,
-      address: `${prevBase} → ${curBase}, ${resolvedForPrompt.destination}`,
+      address: `${prevBase} → ${curBase}, ${destinationCountryHint(resolvedForPrompt.destination)}`,
       start_time: "08:30",
       notes: "Tiempo aproximado para ajustar el día. Puedes cambiar medio/hora según tu plan real.",
     });
@@ -865,10 +870,10 @@ ${baseContext.optimizeHint}
       const nextTime = toHHMM(Math.min(lastTime + 120, 21 * 60));
       const late = parseHHMM(nextTime) ?? 0;
       items.push({
-        title: late >= 19 * 60 ? `Cena y paseo nocturno en ${baseCity}` : `Actividad complementaria en ${baseCity}`,
+        title: late >= 19 * 60 ? `Cena recomendada en ${baseCity}` : `Paseo de tarde por ${baseCity}`,
         activity_kind: late >= 19 * 60 ? "food" : "visit",
         place_name: baseCity,
-        address: `${baseCity}, ${resolvedForPrompt.destination}`,
+        address: `${baseCity}, ${destinationCountryHint(resolvedForPrompt.destination)}`,
         start_time: nextTime,
         notes: "Ajuste automático para mantener un ritmo de día completo.",
       } as any);
@@ -881,10 +886,10 @@ ${baseContext.optimizeHint}
       if (last !== null && last < 17 * 60 + 30) {
         const t = toHHMM(Math.min(last + 180, 20 * 60));
         items.push({
-          title: `Plan de tarde/noche en ${baseCity}`,
+          title: `Paseo al atardecer y cierre del día en ${baseCity}`,
           activity_kind: "visit",
           place_name: baseCity,
-          address: `${baseCity}, ${resolvedForPrompt.destination}`,
+          address: `${baseCity}, ${destinationCountryHint(resolvedForPrompt.destination)}`,
           start_time: t,
           notes: "Ajuste automático para evitar días que terminan demasiado pronto.",
         } as any);

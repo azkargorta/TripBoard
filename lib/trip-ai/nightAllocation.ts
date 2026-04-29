@@ -198,6 +198,30 @@ function parseUserNightOverrides(notesRaw: string, cities: string[]) {
   return out;
 }
 
+function parseEndAnchors(notesRaw: string, cities: string[]) {
+  const notes = normalize(notesRaw);
+  if (!notes) return null as null | { city: string; days: number };
+
+  for (const city of cities) {
+    const aliases = cityAliases(city);
+    for (const alias of aliases) {
+      const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const patterns = [
+        new RegExp(`(?:ultimos|ultimos dias|ultimos dos dias|ultimos 2 dias|dos dias antes de finalizar|2 dias antes de finalizar|antes de finalizar el viaje)[^\\n]{0,40}${escaped}`),
+        new RegExp(`${escaped}[^\\n]{0,40}(?:al final del viaje|antes de finalizar|para terminar)`),
+      ];
+      for (const p of patterns) {
+        if (p.test(notes)) {
+          const explicit = notes.match(/(\d{1,2})\s*(?:dias|días|noches)/);
+          const days = explicit?.[1] ? Math.max(1, Math.min(10, Number(explicit[1]))) : /dos dias|dos días/.test(notes) ? 2 : 2;
+          return { city, days };
+        }
+      }
+    }
+  }
+  return null;
+}
+
 function applyCityMinimumsAndOverrides(days: number[], cities: string[], totalDays: number, notes: string) {
   const out = [...days];
   const n = Math.max(1, Math.round(totalDays));
@@ -275,6 +299,14 @@ export function buildRouteStructureFromIntent(params: { intent: TripCreationInte
   }
   const normalizedDays = baseCityByDay.slice(0, params.durationDays);
   while (normalizedDays.length < params.durationDays) normalizedDays.push(normalizedDays[normalizedDays.length - 1] || cities[cities.length - 1] || "Destino");
+
+  const endAnchor = parseEndAnchors(ctx.notes, cities);
+  if (endAnchor) {
+    const lockDays = Math.min(params.durationDays, Math.max(1, endAnchor.days));
+    for (let i = 0; i < lockDays; i++) {
+      normalizedDays[normalizedDays.length - 1 - i] = endAnchor.city;
+    }
+  }
 
   return {
     version: 1 as const,
