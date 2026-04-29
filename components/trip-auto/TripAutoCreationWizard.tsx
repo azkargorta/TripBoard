@@ -69,6 +69,28 @@ export default function TripAutoCreationWizard() {
   const [themes, setThemes] = useState<TravelTheme[]>(["cultural"]);
   const [notes, setNotes] = useState("");
 
+  // Chat guiado (flujo de preguntas)
+  type ChatRole = "assistant" | "user";
+  type ChatStage =
+    | "intro"
+    | "travelersType"
+    | "travelersCount"
+    | "pace"
+    | "budget"
+    | "themes"
+    | "constraints"
+    | "mustSee"
+    | "done";
+  type ChatMessage = {
+    id: string;
+    role: ChatRole;
+    text: string;
+    quickReplies?: string[];
+  };
+  const [chatStage, setChatStage] = useState<ChatStage>("intro");
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+
   // Visitas propuestas (chips)
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
@@ -89,6 +111,172 @@ export default function TripAutoCreationWizard() {
 
   const destinationLabel = useMemo(() => joinTripPlaces(routeCities), [routeCities]);
   const currencyOptions = useMemo(() => buildTravelCurrencySelectOptions(destinationLabel), [destinationLabel]);
+
+  function pushChatMessage(m: Omit<ChatMessage, "id">) {
+    const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    setChatMessages((prev) => [...prev, { ...m, id }]);
+  }
+
+  function nextStageFromState(): ChatStage {
+    if (!travelersType) return "travelersType";
+    if (!travelersCount || (typeof travelersCount === "number" && travelersCount < 1)) return "travelersCount";
+    if (!pace) return "pace";
+    if (!budgetLevel) return "budget";
+    if (!themes.length) return "themes";
+    return "constraints";
+  }
+
+  function askForStage(stage: ChatStage) {
+    if (stage === "travelersType") {
+      pushChatMessage({
+        role: "assistant",
+        text: "¿Con quién viajas?",
+        quickReplies: ["En pareja", "Con amigos", "Con familia", "Solo"],
+      });
+      return;
+    }
+    if (stage === "travelersCount") {
+      pushChatMessage({ role: "assistant", text: "¿Cuántas personas sois? (número)" });
+      return;
+    }
+    if (stage === "pace") {
+      pushChatMessage({
+        role: "assistant",
+        text: "¿Qué ritmo quieres?",
+        quickReplies: ["Relajado", "Equilibrado", "Intenso"],
+      });
+      return;
+    }
+    if (stage === "budget") {
+      pushChatMessage({
+        role: "assistant",
+        text: "¿Qué presupuesto prefieres?",
+        quickReplies: ["Bajo", "Medio", "Alto"],
+      });
+      return;
+    }
+    if (stage === "themes") {
+      pushChatMessage({
+        role: "assistant",
+        text: "¿Qué estilo(s) quieres? Puedes elegir varios (separados por comas).",
+        quickReplies: THEME_OPTIONS.map((t) => t.label),
+      });
+      return;
+    }
+    if (stage === "constraints") {
+      pushChatMessage({
+        role: "assistant",
+        text:
+          "Cuéntame tus preferencias/restricciones en una frase. Ejemplos: “no madrugar”, “últimos 2 días en Buenos Aires”, “minimizar vuelos”, “evitar museos”, “quiero bodegas”.",
+        quickReplies: ["No madrugar", "Últimos 2 días en Buenos Aires", "Minimizar vuelos", "Acepto vuelos internos", "Evitar museos"],
+      });
+      return;
+    }
+    if (stage === "mustSee") {
+      pushChatMessage({
+        role: "assistant",
+        text:
+          "Ahora añade imprescindibles (ciudades/regiones) desde “Visitas propuestas” o escríbelos aquí. Cuando termines, responde “listo”.",
+      });
+      return;
+    }
+    if (stage === "done") {
+      pushChatMessage({
+        role: "assistant",
+        text: "Perfecto. Ya tengo lo necesario. Pulsa “Generar propuesta de ruta” para ver y ajustar las noches por destino.",
+      });
+    }
+  }
+
+  function parseAndApplyChatAnswer(stage: ChatStage, raw: string) {
+    const t = String(raw || "").trim();
+    if (!t) return;
+
+    if (stage === "travelersType") {
+      const lc = t.toLowerCase();
+      if (lc.includes("pareja")) setTravelersType("couple");
+      else if (lc.includes("amig")) setTravelersType("friends");
+      else if (lc.includes("famil")) setTravelersType("family");
+      else if (lc.includes("solo")) setTravelersType("solo");
+      return;
+    }
+    if (stage === "travelersCount") {
+      const n = Number(String(t).replace(/[^\d]/g, ""));
+      if (Number.isFinite(n) && n >= 1) setTravelersCount(Math.max(1, Math.min(50, Math.round(n))));
+      return;
+    }
+    if (stage === "pace") {
+      const lc = t.toLowerCase();
+      if (lc.includes("relaj")) setPace("relajado");
+      else if (lc.includes("equil") || lc.includes("moder")) setPace("equilibrado");
+      else if (lc.includes("inten")) setPace("intenso");
+      return;
+    }
+    if (stage === "budget") {
+      const lc = t.toLowerCase();
+      if (lc.includes("baj")) setBudgetLevel("low");
+      else if (lc.includes("alt")) setBudgetLevel("high");
+      else setBudgetLevel("medium");
+      return;
+    }
+    if (stage === "themes") {
+      const parts = t
+        .split(/[,;|·]+/g)
+        .map((x) => x.trim().toLowerCase())
+        .filter(Boolean);
+      const picked: TravelTheme[] = [];
+      for (const p of parts) {
+        const opt = THEME_OPTIONS.find((o) => o.label.toLowerCase() === p || o.id === (p as any));
+        if (opt) picked.push(opt.id);
+      }
+      if (picked.length) setThemes(Array.from(new Set(picked)));
+      return;
+    }
+    if (stage === "constraints") {
+      setNotes((prev) => (prev ? `${prev}\n${t}` : t));
+      return;
+    }
+    if (stage === "mustSee") {
+      const lc = t.toLowerCase();
+      if (lc === "listo" || lc === "ok" || lc === "vale") return;
+      const parts = t
+        .split(/[,;|·]+/g)
+        .map((x) => x.trim())
+        .filter(Boolean);
+      for (const p of parts) addMustSee(p);
+    }
+  }
+
+  function sendChat(textRaw: string) {
+    const text = String(textRaw || "").trim();
+    if (!text) return;
+    pushChatMessage({ role: "user", text });
+    parseAndApplyChatAnswer(chatStage, text);
+
+    // Avance de etapa
+    if (chatStage === "mustSee") {
+      const lc = text.toLowerCase();
+      if (lc === "listo" || lc === "ok" || lc === "vale") {
+        setChatStage("done");
+        askForStage("done");
+      }
+      return;
+    }
+
+    const st = nextStageFromState();
+    if (st !== chatStage) {
+      setChatStage(st);
+      askForStage(st);
+      return;
+    }
+
+    // Si ya estamos en constraints y el usuario respondió, saltamos a mustSee.
+    if (chatStage === "constraints") {
+      setChatStage("mustSee");
+      askForStage("mustSee");
+      return;
+    }
+  }
 
   const canStep1 = useMemo(() => {
     if (!isoOk(startDate) || !isoOk(endDate)) return false;
@@ -218,6 +406,40 @@ export default function TripAutoCreationWizard() {
     void loadSuggestions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, destinationLabel]);
+
+  // Inicializa el chat al entrar al paso 2 y guía el flujo.
+  useEffect(() => {
+    if (step !== 2) return;
+    if (!chatMessages.length) {
+      pushChatMessage({
+        role: "assistant",
+        text: "Vamos a configurar tu viaje. Te haré unas preguntas rápidas.",
+      });
+      const st = nextStageFromState();
+      setChatStage(st);
+      askForStage(st);
+      return;
+    }
+    // Si el usuario ya contestó algo, seguimos a la siguiente pregunta si aplica.
+    const st = nextStageFromState();
+    if (chatStage !== "mustSee" && chatStage !== "done" && st !== chatStage) {
+      setChatStage(st);
+      askForStage(st);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
+  useEffect(() => {
+    if (step !== 2) return;
+    if (chatStage === "constraints") {
+      // después de restricciones, pasamos a mustSee automáticamente
+      if (notes.trim().length) {
+        setChatStage("mustSee");
+        askForStage("mustSee");
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notes, step]);
 
   function toggleTheme(t: TravelTheme) {
     setThemes((prev) => {
@@ -615,114 +837,76 @@ export default function TripAutoCreationWizard() {
 
         {step === 2 ? (
           <div className="grid gap-4">
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="text-sm font-extrabold text-slate-900">Chat guiado</div>
-              <div className="mt-1 text-xs font-semibold text-slate-600">
-                Escribe en lenguaje natural. Ej: “últimos 2 días en Buenos Aires”, “minimizar vuelos”, “no madrugar”, “evitar museos”.
+            <div className="rounded-2xl border border-slate-200 bg-white">
+              <div className="border-b border-slate-100 px-4 py-3">
+                <div className="text-sm font-extrabold text-slate-900">Chat</div>
+                <div className="mt-0.5 text-xs font-semibold text-slate-600">
+                  Responde y el asistente irá rellenando tu viaje. Puedes usar los botones de respuesta rápida.
+                </div>
               </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {[
-                  "Quiero que mínimo los dos días antes de finalizar el viaje esté en Buenos Aires",
-                  "Evitar madrugar (empezar 10:00+)",
-                  "Acepto vuelos internos",
-                  "Minimizar vuelos",
-                  "Evitar museos",
-                  "Priorizar naturaleza y trekking",
-                ].map((t) => (
+
+              <div className="max-h-[420px] overflow-auto px-4 py-4">
+                <div className="space-y-3">
+                  {chatMessages.map((m) => (
+                    <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                      <div
+                        className={`max-w-[85%] rounded-2xl px-4 py-2 text-sm ${
+                          m.role === "user" ? "bg-slate-900 text-white" : "bg-slate-50 text-slate-900"
+                        }`}
+                      >
+                        <div className="whitespace-pre-wrap">{m.text}</div>
+                        {m.role === "assistant" && m.quickReplies?.length ? (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {m.quickReplies.slice(0, 10).map((qr) => (
+                              <button
+                                key={qr}
+                                type="button"
+                                onClick={() => sendChat(qr)}
+                                className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold text-slate-800 hover:bg-slate-50"
+                              >
+                                {qr}
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="border-t border-slate-100 px-4 py-3">
+                <div className="flex gap-2">
+                  <input
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        const v = chatInput;
+                        setChatInput("");
+                        sendChat(v);
+                      }
+                    }}
+                    placeholder="Escribe tu respuesta…"
+                    className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-500"
+                  />
                   <button
-                    key={t}
                     type="button"
-                    onClick={() => setNotes((prev) => (prev ? `${prev}\n${t}` : t))}
-                    className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-extrabold text-slate-800 hover:bg-slate-100"
+                    onClick={() => {
+                      const v = chatInput;
+                      setChatInput("");
+                      sendChat(v);
+                    }}
+                    className="btn-secondary"
                   >
-                    + {t}
+                    Enviar
                   </button>
-                ))}
+                </div>
               </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-              <label className="mb-1 block text-sm font-extrabold text-slate-900">Tipo de viaje</label>
-              <select
-                value={travelersType}
-                onChange={(e) => setTravelersType(e.target.value as any)}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
-              >
-                <option value="couple">En pareja</option>
-                <option value="friends">Con amigos</option>
-                <option value="family">Con familia</option>
-                <option value="solo">Solo</option>
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-extrabold text-slate-900">Nº viajeros</label>
-              <input
-                inputMode="numeric"
-                value={travelersCount === "" ? "" : String(travelersCount)}
-                onChange={(e) => {
-                  const n = Number(e.target.value);
-                  if (!e.target.value) return setTravelersCount("");
-                  setTravelersCount(Number.isFinite(n) ? Math.max(1, Math.min(50, Math.round(n))) : "");
-                }}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-sm font-extrabold text-slate-900">Ritmo</label>
-              <select
-                value={pace}
-                onChange={(e) => setPace(e.target.value as Pace)}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
-              >
-                <option value="relajado">Relajado</option>
-                <option value="equilibrado">Equilibrado</option>
-                <option value="intenso">Intenso</option>
-              </select>
-              <div className="mt-1 text-xs font-semibold text-slate-500">La IA ajustará cantidad y duración de actividades por día.</div>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-sm font-extrabold text-slate-900">Presupuesto</label>
-              <select
-                value={budgetLevel}
-                onChange={(e) => setBudgetLevel(e.target.value as any)}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
-              >
-                <option value="low">Bajo</option>
-                <option value="medium">Medio</option>
-                <option value="high">Alto</option>
-              </select>
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="mb-1 block text-sm font-extrabold text-slate-900">Estilo del viaje</label>
-              <div className="flex flex-wrap gap-2 rounded-xl border border-slate-300 bg-white px-3 py-3">
-                {THEME_OPTIONS.map((opt) => {
-                  const active = themes.includes(opt.id);
-                  return (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => toggleTheme(opt.id)}
-                      className={`rounded-full border px-3 py-1 text-xs font-extrabold transition ${
-                        active
-                          ? "border-slate-900 bg-slate-900 text-white"
-                          : "border-slate-200 bg-slate-50 text-slate-800 hover:bg-slate-100"
-                      }`}
-                      aria-pressed={active}
-                      title={active ? "Quitar" : "Añadir"}
-                    >
-                      {opt.label}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="mt-1 text-xs font-semibold text-slate-500">Puedes elegir varios. Se usará para priorizar actividades y tono del plan.</div>
-            </div>
-
-            <div className="md:col-span-2 rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <div className="flex items-center justify-between gap-2">
                 <div className="text-sm font-extrabold text-slate-900">Visitas propuestas</div>
                 <button
@@ -735,7 +919,7 @@ export default function TripAutoCreationWizard() {
                 </button>
               </div>
               <div className="mt-1 text-xs font-semibold text-slate-600">
-                Sugerencias típicas (ciudades/regiones) para añadir como imprescindibles.
+                Añade ciudades/regiones como imprescindibles (puedes hacerlo también desde el chat).
               </div>
 
               {suggestionsError ? (
@@ -744,7 +928,7 @@ export default function TripAutoCreationWizard() {
                 </div>
               ) : null}
 
-              <div className="mt-3 max-h-[260px] overflow-auto pr-1">
+              <div className="mt-3 max-h-[220px] overflow-auto pr-1">
                 <div className="flex flex-wrap gap-2">
                   {(suggestionsLoading ? [] : suggestions).map((s) => (
                     <button
@@ -783,18 +967,7 @@ export default function TripAutoCreationWizard() {
               ) : null}
             </div>
 
-            <div className="md:col-span-2">
-              <label className="mb-1 block text-sm font-extrabold text-slate-900">Comentarios (chat)</label>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Ej. Me encanta el vino; evitar madrugar; quiero 1 día de relax en spa; me gustaría ver fútbol..."
-                rows={4}
-                className="w-full resize-y rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
-              />
-            </div>
-
-            <div className="mt-2 flex gap-2 md:col-span-2">
+            <div className="mt-2 flex gap-2">
               <button type="button" onClick={() => setStep(1)} className="btn-secondary">
                 Atrás
               </button>
@@ -809,7 +982,6 @@ export default function TripAutoCreationWizard() {
               >
                 Generar propuesta de ruta
               </button>
-            </div>
             </div>
           </div>
         ) : null}
