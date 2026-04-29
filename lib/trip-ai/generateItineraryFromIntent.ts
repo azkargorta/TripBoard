@@ -64,6 +64,9 @@ Reglas:
 - Si un día incluye "Cambio: A → B" y/o "Parada en ruta", usa ese día para el traslado (item "transport") y coloca la parada intermedia EN ESE DÍA (no como ida/vuelta desde A) manteniendo la "Ciudad base" del día.
 - Si un día incluye "Traslado aprox: Xh Ym", incluye un item "transport" con ese tiempo aproximado y reduce actividades ese día (no lo llenes como un día normal).
 - NO añadas ciudades “grandes típicas” (p. ej. capital) si no encajan con las paradas obligatorias, salvo que sea un traslado explícito entre dos paradas obligatorias.
+- Evita repetir la MISMA atracción principal (ej. Recoleta, Plaza de Mayo, Jardín Japonés) en días distintos salvo que el usuario lo pida explícitamente.
+- En días SIN traslado largo, no cierres el día antes de las 18:00; incluye bloque de tarde/noche real.
+- Si el recorrido incluye Iguazú: reserva mínimo 1 día completo en Parque Nacional Iguazú (lado argentino) y mínimo 1 noche en Puerto Iguazú.
 `;
 
 function validateItinerary(x: unknown): ExecutableItineraryPayload {
@@ -651,6 +654,7 @@ Instrucciones:
 - Devuelve EXACTAMENTE ${generateDays} objetos en "days" correspondientes a esas fechas.
 - Los campos "day" deben coincidir con el número de Día mostrado arriba (no renumeres).
 - Para cada día, respeta la "Ciudad base" indicada.
+- La distribución de estancias por destino ya está decidida; NO cambies noches ni muevas actividades a otra ciudad base.
 - Cada día debe tener entre ${cfg.pace.itemsPerDayMin} y ${cfg.pace.itemsPerDayMax} items (salvo días con traslado largo).
 - Direcciones: siempre \"..., Ciudad, País\" (no uses solo el país).
 
@@ -678,6 +682,7 @@ Instrucciones:
 - Devuelve EXACTAMENTE ${requiredCount} objetos en "days" correspondientes a esas fechas.
 - Los campos "day" deben coincidir con el número de Día mostrado arriba (no renumeres).
 - Para cada día, respeta la "Ciudad base" indicada.
+- La distribución de estancias por destino ya está decidida; NO cambies noches ni muevas actividades a otra ciudad base.
 - Cada día debe tener entre ${cfg.pace.itemsPerDayMin} y ${cfg.pace.itemsPerDayMax} items.
 - Direcciones: siempre \"..., Ciudad, País\" (no uses solo el país).
 
@@ -844,8 +849,53 @@ ${baseContext.optimizeHint}
     resolvedForPrompt
   );
 
-  // Validación final: si aún quedan demasiados placeholders, dejamos el itinerario pero forzaremos al usuario a regenerar días concretos.
-  return { itinerary: finalItinerary, usage: usageAgg };
+  const densifiedDays = (finalItinerary.days || []).map((day, i) => {
+    const dayNum = i + 1;
+    const items = Array.isArray(day.items) ? [...day.items] : [];
+    const transfer = transferByDay.get(dayNum);
+    const hasLongTransfer = Boolean(transfer && transfer.durationMin >= 180);
+    const hasTransport = items.some((it) => String((it as any)?.activity_kind || "").toLowerCase() === "transport");
+    const isTransferDay = hasLongTransfer || hasTransport;
+    const minItemsTarget = isTransferDay ? Math.max(2, cfg.pace.itemsPerDayMin - 1) : Math.max(3, cfg.pace.itemsPerDayMin);
+    const maxItemsTarget = Math.max(minItemsTarget, cfg.pace.itemsPerDayMax);
+    const baseCity = String(baseCitySchedule[i] || resolvedForPrompt.destination).trim() || resolvedForPrompt.destination;
+
+    while (items.length < minItemsTarget) {
+      const lastTime = parseHHMM((items[items.length - 1] as any)?.start_time) ?? (isTransferDay ? 16 * 60 : 17 * 60);
+      const nextTime = toHHMM(Math.min(lastTime + 120, 21 * 60));
+      const late = parseHHMM(nextTime) ?? 0;
+      items.push({
+        title: late >= 19 * 60 ? `Cena y paseo nocturno en ${baseCity}` : `Actividad complementaria en ${baseCity}`,
+        activity_kind: late >= 19 * 60 ? "food" : "visit",
+        place_name: baseCity,
+        address: `${baseCity}, ${resolvedForPrompt.destination}`,
+        start_time: nextTime,
+        notes: "Ajuste automático para mantener un ritmo de día completo.",
+      } as any);
+    }
+    if (items.length > maxItemsTarget) items.splice(maxItemsTarget);
+
+    if (!isTransferDay) {
+      const times = items.map((it) => parseHHMM((it as any)?.start_time)).filter((x): x is number => typeof x === "number");
+      const last = times.length ? Math.max(...times) : null;
+      if (last !== null && last < 17 * 60 + 30) {
+        const t = toHHMM(Math.min(last + 180, 20 * 60));
+        items.push({
+          title: `Plan de tarde/noche en ${baseCity}`,
+          activity_kind: "visit",
+          place_name: baseCity,
+          address: `${baseCity}, ${resolvedForPrompt.destination}`,
+          start_time: t,
+          notes: "Ajuste automático para evitar días que terminan demasiado pronto.",
+        } as any);
+      }
+    }
+
+    return { ...day, items };
+  });
+
+  // Validación final: si aún quedan demasiados placeholders, dejamos el itinerario pero reforzado en densidad.
+  return { itinerary: { ...finalItinerary, days: densifiedDays }, usage: usageAgg };
 }
 
 /**
@@ -1098,6 +1148,23 @@ function normalizeChunkDays(
     travelMode: itinerary.travelMode,
     days: outDays,
   };
+}
+
+function parseHHMM(value: unknown): number | null {
+  const s = String(value || "").trim();
+  const m = /^(\d{2}):(\d{2})$/.exec(s);
+  if (!m) return null;
+  const h = Number(m[1]);
+  const mm = Number(m[2]);
+  if (h < 0 || h > 23 || mm < 0 || mm > 59) return null;
+  return h * 60 + mm;
+}
+
+function toHHMM(mins: number): string {
+  const m = Math.max(0, Math.min(23 * 60 + 59, Math.round(mins)));
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  return `${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 }
 
 function buildDayChunks(baseCityByDay: string[], opts: { maxDaysPerChunk: number }) {

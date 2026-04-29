@@ -216,29 +216,32 @@ export default function TripAutoCreationWizard() {
       setAiProgress({ done: 0, total });
       setAiPromptLog([]);
 
-      // Partimos de lo que haya (fast/preview parcial) y vamos reemplazando días por IA en chunks de 2.
+      // Generamos por tramos de estancia (hasta 4 días) para que la IA planifique una ciudad
+      // completa de una vez y no repita actividades entre chunks.
       const base: ExecutableItineraryPayload =
         itinerary?.version === 1 && Array.isArray(itinerary.days) ? itinerary : { version: 1, title: "Itinerario", travelMode: "driving", days: [] };
       const dayMap = new Map<number, any>();
       for (const d of base.days || []) if (typeof d?.day === "number") dayMap.set(d.day, d);
 
-      for (let offset = 0; offset < total; offset += 2) {
+      for (let offset = 0; offset < total; ) {
         const res = await fetch("/api/trips/auto-plan/generate-chunk", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ intent, dayOffset: offset, dayCount: 2 }),
+          body: JSON.stringify({ intent, dayOffset: offset, dayCount: 4 }),
         });
         const { data } = await readJsonResponse<any>(res);
         if (!res.ok) throw new Error(data?.error || "No se pudo generar el itinerario con IA.");
         const days = Array.isArray(data?.days) ? data.days : [];
+        const generatedCount =
+          typeof data?.dayCount === "number" && Number.isFinite(data.dayCount) ? Math.max(1, Math.round(data.dayCount)) : Math.max(1, days.length);
         const prompts = Array.isArray(data?.prompts) ? data.prompts.map((x: any) => String(x || "")).filter(Boolean) : [];
         if (prompts.length) {
-          setAiPromptLog((prev) => [...prev, { dayOffset: offset, dayCount: 2, prompts }]);
+          setAiPromptLog((prev) => [...prev, { dayOffset: offset, dayCount: generatedCount, prompts }]);
         }
         for (const d of days) {
           if (typeof d?.day === "number") dayMap.set(d.day, d);
         }
-        const done = Math.min(total, offset + 2);
+        const done = Math.min(total, offset + generatedCount);
         setAiProgress({ done, total });
 
         // actualizamos UI incrementalmente
@@ -249,6 +252,7 @@ export default function TripAutoCreationWizard() {
           travelMode: prev?.travelMode || base.travelMode,
           days: mergedDays,
         }));
+        offset += generatedCount;
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "No se pudo generar el itinerario con IA.";
