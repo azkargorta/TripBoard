@@ -94,15 +94,50 @@ function inferBadDay(day: any, ctx: { minItems: number; requireEvening: boolean 
   return false;
 }
 
-async function fetchPois(params: { center: LatLng; category: Category; radiusMeters: number; limit: number }): Promise<Poi[]> {
-  const resp = await fetch("https://overpass-api.de/api/interpreter", {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded;charset=UTF-8" },
-    body: `data=${encodeURIComponent(buildOverpassQuery(params))}`,
-    cache: "no-store",
-  });
-  const payload: any = await resp.json().catch(() => null);
-  if (!resp.ok) return [];
+async function fetchPois(params: { center: LatLng; category: Category; radiusMeters: number; limit: number }): Promise<Poi[] | null> {
+  const endpoints = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass.openstreetmap.ru/api/interpreter",
+  ];
+
+  const query = buildOverpassQuery(params);
+  const body = `data=${encodeURIComponent(query)}`;
+
+  const tryFetch = async (url: string, timeoutMs: number) => {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded;charset=UTF-8" },
+        body,
+        cache: "no-store",
+        signal: ctrl.signal,
+      });
+      const payload: any = await resp.json().catch(() => null);
+      return { ok: resp.ok, status: resp.status, payload };
+    } catch {
+      return { ok: false, status: 0, payload: null };
+    } finally {
+      clearTimeout(t);
+    }
+  };
+
+  let lastStatus = 0;
+  let payload: any = null;
+  let hadInfraFailure = false;
+  for (const url of endpoints) {
+    const r1 = await tryFetch(url, 28_000);
+    lastStatus = r1.status;
+    payload = r1.payload;
+    if (r1.ok && payload) break;
+    // Si es 429/504/5xx, probamos siguiente endpoint; si es 400, no tiene sentido reintentar
+    if (r1.status === 0 || r1.status === 429 || r1.status >= 500) hadInfraFailure = true;
+    if (r1.status === 400) break;
+  }
+  if (!payload) return hadInfraFailure ? null : [];
+
   const elements = Array.isArray(payload?.elements) ? payload.elements : [];
   const rows: Poi[] = [];
   for (const el of elements) {
@@ -303,19 +338,42 @@ export async function POST(req: Request) {
       let center: LatLng = stop.center;
 
       // First pass small radius to estimate
-      let rough = await fetchPois({ center, category: "culture", radiusMeters: 3500, limit: 40 });
+      const roughRes = await fetchPois({ center, category: "culture", radiusMeters: 3500, limit: 40 });
+      if (roughRes === null) {
+        return NextResponse.json(
+          { error: "OSM/Overpass está saturado o no responde ahora mismo. Reintenta en unos segundos." },
+          { status: 503 }
+        );
+      }
+      let rough = roughRes;
 
       // Si es un país (o centro rural) suele dar 0/1. Recentramos a "capital".
       if (rough.length <= 1) {
         const cap = await geocodePhotonPreferred(`${stop.label} capital`, { anchor, regionHints, maxDistanceKm: 50000 });
         if (cap) {
           center = { lat: cap.lat, lng: cap.lng };
-          rough = await fetchPois({ center, category: "culture", radiusMeters: 3500, limit: 40 });
+          const rough2 = await fetchPois({ center, category: "culture", radiusMeters: 3500, limit: 40 });
+          if (rough2 === null) {
+            return NextResponse.json(
+              { error: "OSM/Overpass está saturado o no responde ahora mismo. Reintenta en unos segundos." },
+              { status: 503 }
+            );
+          }
+          rough = rough2;
         }
       }
 
       const radius = proposeRadiusMeters(rough.length);
-      for (const cat of ALL_CATEGORIES) pools[cat] = await fetchPois({ center, category: cat, radiusMeters: radius, limit: 50 });
+      for (const cat of ALL_CATEGORIES) {
+        const r = await fetchPois({ center, category: cat, radiusMeters: radius, limit: 50 });
+        if (r === null) {
+          return NextResponse.json(
+            { error: "OSM/Overpass está saturado o no responde ahora mismo. Reintenta en unos segundos." },
+            { status: 503 }
+          );
+        }
+        pools[cat] = r;
+      }
 
       // Evita borradores vacíos: si no hay POIs suficientes, damos un error accionable.
       if (sumPools(pools) < 4) {

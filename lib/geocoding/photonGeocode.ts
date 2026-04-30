@@ -107,6 +107,53 @@ async function photonFetch(q: string, opts: { limit: number; bias?: { lat: numbe
   return Array.isArray(payload?.features) ? payload.features : [];
 }
 
+function featurePlaceName(feature: any): string {
+  const p = feature?.properties && typeof feature.properties === "object" ? feature.properties : {};
+  const name = typeof p.name === "string" ? p.name.trim() : "";
+  const state = typeof p.state === "string" ? p.state.trim() : "";
+  const country = typeof p.country === "string" ? p.country.trim() : "";
+  const parts = [name, state, country].filter(Boolean);
+  return parts.join(", ");
+}
+
+function featureIsPlaceLike(feature: any): boolean {
+  const p = feature?.properties && typeof feature.properties === "object" ? feature.properties : {};
+  const type = typeof p.type === "string" ? p.type.toLowerCase() : "";
+  const osmValue = typeof p.osm_value === "string" ? p.osm_value.toLowerCase() : "";
+  const isCity = type.includes("city") || osmValue === "city" || osmValue === "town";
+  const isState = osmValue === "state" || osmValue === "region" || osmValue === "province";
+  const isCounty = osmValue === "county";
+  return isCity || isState || isCounty;
+}
+
+export async function suggestPlacesForCountry(
+  countryQuery: string,
+  opts: { limit?: number; offset?: number } = {}
+): Promise<Array<{ name: string; lat: number; lng: number }>> {
+  const q = typeof countryQuery === "string" ? countryQuery.trim() : "";
+  if (!q) return [];
+  const hints = regionHintsFromDestination(q);
+  const limit = Math.max(6, Math.min(40, Number(opts.limit) || 18));
+  const offset = Math.max(0, Math.min(200, Number(opts.offset) || 0));
+
+  // Photon no soporta offset nativo, así que pedimos más y recortamos.
+  const features = await photonFetch(`${q}`, { limit: Math.min(60, limit + offset + 10), bias: null });
+  const out: Array<{ name: string; lat: number; lng: number }> = [];
+  const seen = new Set<string>();
+  for (const f of features) {
+    if (hints.length && !countryMatches(hints, f)) continue;
+    if (!featureIsPlaceLike(f)) continue;
+    const pt = featurePoint(f);
+    if (!pt) continue;
+    const name = featurePlaceName(f);
+    const key = name.toLowerCase();
+    if (!name || seen.has(key)) continue;
+    seen.add(key);
+    out.push({ name, lat: pt.lat, lng: pt.lng });
+  }
+  return out.slice(offset, offset + limit);
+}
+
 /** Sinónimos comunes ES ↔ inglés en etiquetas OSM/Photon */
 const COUNTRY_ALIASES: Record<string, string[]> = {
   polonia: ["poland", "polska", "polonia"],

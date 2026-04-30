@@ -173,6 +173,10 @@ export default function TripAiPlannerWizard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [placeSuggestions, setPlaceSuggestions] = useState<Array<{ name: string; lat: number; lng: number }>>([]);
+  const [placeSuggestionsOffset, setPlaceSuggestionsOffset] = useState(0);
+  const [placeSuggestionsLoading, setPlaceSuggestionsLoading] = useState(false);
+
   const [draft, setDraft] = useState<ApiDraft | null>(null);
   const [stays, setStays] = useState<StayRow[]>([]);
   const [selectedPoisByStop, setSelectedPoisByStop] = useState<Record<string, Poi[]>>({});
@@ -188,10 +192,22 @@ export default function TripAiPlannerWizard() {
   const [pickedDay, setPickedDay] = useState<number>(1);
   const [pickedFrom, setPickedFrom] = useState<number>(1);
   const [pickedTo, setPickedTo] = useState<number>(2);
+  const [showMorePois, setShowMorePois] = useState<Record<string, boolean>>({});
 
   const totalDays = useMemo(() => totalDaysBetween(startDate, endDate), [startDate, endDate]);
   const destinationLabel = useMemo(() => joinTripPlaces(places.map((x) => x.trim()).filter(Boolean)), [places]);
   const inferredCurrency = useMemo(() => inferCurrencyFromDestinations(places.map((x) => x.trim()).filter(Boolean)), [places]);
+
+  const countryLikeQuery = useMemo(() => {
+    const list = places.map((x) => x.trim()).filter(Boolean);
+    if (list.length !== 1) return null;
+    const q = list[0]!;
+    // Heurística: si es una sola palabra/término sin coma y sin números, suele ser país
+    if (q.length < 3) return null;
+    if (/[0-9]/.test(q)) return null;
+    if (/[,\-–—/·]/.test(q)) return null;
+    return q;
+  }, [places]);
 
   useEffect(() => {
     if (!isoOk(startDate)) return;
@@ -202,6 +218,31 @@ export default function TripAiPlannerWizard() {
     if (baseCurrencyTouched) return;
     setBaseCurrency(inferredCurrency);
   }, [inferredCurrency, baseCurrencyTouched]);
+
+  useEffect(() => {
+    // Si parece país, precargamos sugerencias de lugares
+    if (!countryLikeQuery) {
+      setPlaceSuggestions([]);
+      setPlaceSuggestionsOffset(0);
+      return;
+    }
+    void (async () => {
+      setPlaceSuggestionsLoading(true);
+      try {
+        const res = await fetch("/api/geocode/suggest-places", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: countryLikeQuery, limit: 18, offset: 0 }),
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) return;
+        setPlaceSuggestions(Array.isArray(data?.places) ? data.places : []);
+        setPlaceSuggestionsOffset(18);
+      } finally {
+        setPlaceSuggestionsLoading(false);
+      }
+    })();
+  }, [countryLikeQuery]);
 
   useEffect(() => {
     try {
@@ -520,6 +561,61 @@ export default function TripAiPlannerWizard() {
             <div className="md:col-span-2">
               <TripPlacesFields places={places} onChange={setPlaces} />
             </div>
+            {countryLikeQuery ? (
+              <div className="md:col-span-2">
+                <div className="mt-1 text-xs font-semibold text-slate-600">
+                  Sugerencias de lugares en <span className="font-extrabold">{countryLikeQuery}</span> (selecciona para añadirlos como destinos).
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {(placeSuggestions || []).slice(0, 18).map((p) => (
+                    <button
+                      key={p.name}
+                      type="button"
+                      className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                      disabled={placeSuggestionsLoading}
+                      onClick={() => {
+                        setPlaces((prev) => {
+                          const next = prev.map((x) => x);
+                          // Si solo había el país, lo reemplazamos por el primer lugar sugerido y añadimos el país como contexto en el nombre
+                          if (next.length === 1 && String(next[0] || "").trim().toLowerCase() === countryLikeQuery.toLowerCase()) {
+                            return [p.name];
+                          }
+                          return [...next, p.name];
+                        });
+                      }}
+                      title={`${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}`}
+                    >
+                      {p.name}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    className="rounded-full border border-violet-300 bg-violet-50 px-3 py-1 text-xs font-extrabold text-violet-900 hover:bg-violet-100 disabled:opacity-60"
+                    disabled={placeSuggestionsLoading || !countryLikeQuery}
+                    onClick={async () => {
+                      if (!countryLikeQuery) return;
+                      setPlaceSuggestionsLoading(true);
+                      try {
+                        const res = await fetch("/api/geocode/suggest-places", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ query: countryLikeQuery, limit: 18, offset: placeSuggestionsOffset }),
+                        });
+                        const data = await res.json().catch(() => null);
+                        if (!res.ok) return;
+                        const more = Array.isArray(data?.places) ? data.places : [];
+                        setPlaceSuggestions((prev) => [...prev, ...more]);
+                        setPlaceSuggestionsOffset((x) => x + 18);
+                      } finally {
+                        setPlaceSuggestionsLoading(false);
+                      }
+                    }}
+                  >
+                    + Añadir más lugares
+                  </button>
+                </div>
+              </div>
+            ) : null}
             <div>
               <label className="mb-1 block text-sm font-extrabold text-slate-900">Fecha inicio</label>
               <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500" />
@@ -637,13 +733,23 @@ export default function TripAiPlannerWizard() {
             <div className="space-y-3">
               {Object.entries(draft.suggestions || {}).map(([stop, groups]) => (
                 <div key={stop} className="rounded-xl border border-slate-200 bg-white p-4">
-                  <div className="text-sm font-extrabold text-slate-900">{stop}</div>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-sm font-extrabold text-slate-900">{stop}</div>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => setShowMorePois((prev) => ({ ...prev, [stop]: !prev[stop] }))}
+                      title="Mostrar más lugares sugeridos"
+                    >
+                      {showMorePois[stop] ? "Mostrar menos" : "Añadir más lugares"}
+                    </button>
+                  </div>
                   <div className="mt-2 space-y-2">
                     {groups.map((g) => (
                       <div key={`${stop}-${g.category}`}>
                         <div className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">{g.category}</div>
                         <div className="mt-1 flex flex-wrap gap-2">
-                          {g.pois.slice(0, 12).map((p) => {
+                          {g.pois.slice(0, showMorePois[stop] ? 36 : 12).map((p) => {
                             const picked = (selectedPoisByStop[stop] || []).some((x) => x.name.toLowerCase() === p.name.toLowerCase());
                             return (
                               <button
