@@ -36,6 +36,69 @@ type Props = {
 
 function getActivityMeta(kind?: string | null) {
   switch (kind) {
+    case "culture":
+      return {
+        icon: "🏛️",
+        label: "Cultura",
+        badge: "bg-amber-100 text-amber-700",
+        card: "border-amber-200/60 bg-gradient-to-br from-amber-50 to-white",
+      };
+    case "nature":
+      return {
+        icon: "🌿",
+        label: "Naturaleza",
+        badge: "bg-emerald-100 text-emerald-800",
+        card: "border-emerald-200/60 bg-gradient-to-br from-emerald-50 to-white",
+      };
+    case "viewpoint":
+      return {
+        icon: "🌄",
+        label: "Mirador",
+        badge: "bg-sky-100 text-sky-800",
+        card: "border-sky-200/60 bg-gradient-to-br from-sky-50 to-white",
+      };
+    case "neighborhood":
+      return {
+        icon: "🧭",
+        label: "Barrio",
+        badge: "bg-slate-100 text-slate-700",
+        card: "border-slate-200 bg-white",
+      };
+    case "market":
+      return {
+        icon: "🧺",
+        label: "Mercado",
+        badge: "bg-orange-100 text-orange-800",
+        card: "border-orange-200/60 bg-gradient-to-br from-orange-50 to-white",
+      };
+    case "excursion":
+      return {
+        icon: "🚌",
+        label: "Excursión",
+        badge: "bg-blue-100 text-blue-800",
+        card: "border-blue-200/60 bg-gradient-to-br from-blue-50 to-white",
+      };
+    case "gastro_experience":
+      return {
+        icon: "🍷",
+        label: "Gastronomía (experiencia)",
+        badge: "bg-fuchsia-100 text-fuchsia-800",
+        card: "border-fuchsia-200/60 bg-gradient-to-br from-fuchsia-50 to-white",
+      };
+    case "shopping":
+      return {
+        icon: "🛍️",
+        label: "Compras",
+        badge: "bg-violet-100 text-violet-800",
+        card: "border-violet-200/60 bg-gradient-to-br from-violet-50 to-white",
+      };
+    case "night":
+      return {
+        icon: "🌙",
+        label: "Noche",
+        badge: "bg-slate-200 text-slate-800",
+        card: "border-slate-300/60 bg-gradient-to-br from-slate-50 to-white",
+      };
     case "museum":
       return {
         icon: "🏛️",

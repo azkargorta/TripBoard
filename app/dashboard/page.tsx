@@ -157,6 +157,16 @@ export default async function DashboardPage() {
                 Tras crear el viaje, el asistente te guía con propuestas. También puedes abrirlo en cualquier viaje desde
                 la pestaña del mismo nombre.
               </p>
+              <div className="mt-4 flex justify-center">
+                <Link
+                  href="/trips/new/planner"
+                  className="inline-flex min-h-[40px] w-full items-center justify-center gap-2 rounded-xl border-2 border-violet-300 bg-violet-50/80 px-3 py-2 text-center text-xs font-semibold text-violet-950 shadow-sm transition hover:bg-violet-50 disabled:opacity-60 sm:w-auto sm:min-w-[320px] sm:text-sm"
+                  title="Genera un borrador con lugares reales y coordenadas"
+                >
+                  <Sparkles className="h-4 w-4 text-violet-700" aria-hidden />
+                  Planificador IA (borrador)
+                </Link>
+              </div>
               <DashboardAiShortcuts trips={trips} isPremium />
             </>
           ) : (

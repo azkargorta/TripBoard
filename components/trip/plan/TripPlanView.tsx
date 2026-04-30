@@ -146,6 +146,15 @@ function kindMeta(kindRaw: unknown, custom?: Map<string, { label: string; emoji?
       color: fromCustom.color || "#64748b",
     };
   }
+  if (kind === "culture") return { key: "culture", label: "Cultura", glyph: "🏛️", color: "#f59e0b" };
+  if (kind === "nature") return { key: "nature", label: "Naturaleza", glyph: "🌿", color: "#10b981" };
+  if (kind === "viewpoint") return { key: "viewpoint", label: "Mirador", glyph: "🌄", color: "#0ea5e9" };
+  if (kind === "neighborhood") return { key: "neighborhood", label: "Barrio", glyph: "🧭", color: "#64748b" };
+  if (kind === "market") return { key: "market", label: "Mercado", glyph: "🧺", color: "#f97316" };
+  if (kind === "excursion") return { key: "excursion", label: "Excursión", glyph: "🚌", color: "#2563eb" };
+  if (kind === "gastro_experience") return { key: "gastro_experience", label: "Gastronomía", glyph: "🍷", color: "#db2777" };
+  if (kind === "shopping") return { key: "shopping", label: "Compras", glyph: "🛍️", color: "#a855f7" };
+  if (kind === "night") return { key: "night", label: "Noche", glyph: "🌙", color: "#334155" };
   if (kind === "museum") return { key: "museum", label: "Museo", glyph: "M", color: "#f59e0b" };
   if (kind === "restaurant") return { key: "restaurant", label: "Comida", glyph: "🍴", color: "#f97316" };
   if (kind === "transport") return { key: "transport", label: "Transporte", glyph: "✈", color: "#0ea5e9" };
