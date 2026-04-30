@@ -167,7 +167,7 @@ export default function TripAutoCreationWizard() {
       pushChatMessage({
         role: "assistant",
         text:
-          "¿Qué tipo de viaje quieres? Elige 1 o varios (pulsa opciones) y cuando termines escribe "listo".",
+          '¿Qué tipo de viaje quieres? Elige 1 o varios (pulsa opciones) y cuando termines escribe "listo".',
         quickReplies: ["Relax", "Aventura", "Gastronómico", "Museos", "Excursiones", "Naturaleza"],
       });
       return;
@@ -194,7 +194,7 @@ export default function TripAutoCreationWizard() {
       pushChatMessage({
         role: "assistant",
         text:
-          "Cuéntame tus preferencias/restricciones en una frase. Ejemplos: "no madrugar", "últimos 2 días en Buenos Aires", "minimizar vuelos", "evitar museos", "quiero bodegas".",
+          'Cuéntame tus preferencias/restricciones en una frase. Ejemplos: "no madrugar", "últimos 2 días en Buenos Aires", "minimizar vuelos", "evitar museos", "quiero bodegas".',
         quickReplies: ["No madrugar", "Últimos 2 días en Buenos Aires", "Minimizar vuelos", "Acepto vuelos internos", "Evitar museos"],
       });
       return;
@@ -203,14 +203,14 @@ export default function TripAutoCreationWizard() {
       pushChatMessage({
         role: "assistant",
         text:
-          "Ahora añade imprescindibles (ciudades/regiones) desde "Visitas propuestas" o escríbelos aquí. Cuando termines, responde "listo".",
+          'Ahora añade imprescindibles (ciudades/regiones) desde "Visitas propuestas" o escríbelos aquí. Cuando termines, responde "listo".',
       });
       return;
     }
     if (stage === "done") {
       pushChatMessage({
         role: "assistant",
-        text: "Perfecto. Ya tengo lo necesario. Pulsa "Generar propuesta de ruta" para ver y ajustar las noches por destino.",
+        text: 'Perfecto. Ya tengo lo necesario. Pulsa "Generar propuesta de ruta" para ver y ajustar las noches por destino.',
       });
     }
   }
@@ -1362,7 +1362,7 @@ export default function TripAutoCreationWizard() {
 
             {!itinerary ? (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-                {loading ? "Generando..." : "Pulsa "Generar itinerario con IA" para ver el itinerario."}
+                {loading ? "Generando..." : 'Pulsa "Generar itinerario con IA" para ver el itinerario.'}
               </div>
             ) : (
               <div className="rounded-2xl border border-slate-200 bg-white">

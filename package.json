@@ -21,7 +21,7 @@
     "canvas": "^3.2.2",
     "jsonrepair": "^3.14.0",
     "leaflet": "^1.9.4",
-    "lucide-react": "^1.7.0",
+    "lucide-react": "^1.14.0",
     "next": "14.2.33",
     "pdf-parse": "^2.4.5",
     "pdf2pic": "^3.2.0",
