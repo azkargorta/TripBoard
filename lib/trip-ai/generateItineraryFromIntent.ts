@@ -1191,67 +1191,165 @@ export async function generateExecutableItineraryFastFromIntent(
   const generateDays = Math.max(1, resolved.durationDays);
 
   const structure =
-    options?.structure?.version === 1 && Array.isArray(options.structure.baseCityByDay) && options.structure.baseCityByDay.length
+    options?.structure?.version === 1 &&
+    Array.isArray(options.structure.baseCityByDay) &&
+    options.structure.baseCityByDay.length
       ? options.structure
       : await deriveRouteStructure({ resolved, config: cfg });
+
   const baseCitySchedule = structure.baseCityByDay.slice(0, generateDays);
+  while (baseCitySchedule.length < generateDays) baseCitySchedule.push(resolved.destination);
+
   const mustSeePool = normalizeMustSeeTokens(resolved.intent.mustSee || []);
-  const styleHints = [
-    ...((resolved.intent.travelStyle || []).map((x) => String(x || "").trim()).filter(Boolean)),
-    ...((resolved.intent.constraints || [])
-      .map((x) => String(x || "").trim())
-      .filter((x) => /\btema:|\btemas:|aventur|relax|gastron|cultural|naturaleza|fiesta|shopping|rom[aá]ntic/iu.test(x))),
-  ];
 
-  const daysOut: ExecutableItineraryPayload["days"] = [];
-  for (let i = 0; i < generateDays; i++) {
-    const baseCity = String(baseCitySchedule[i] || resolved.destination).trim() || resolved.destination;
-    const prevBase = i >= 1 ? String(baseCitySchedule[i - 1] || "").trim() : "";
-    const isChange = i >= 1 && prevBase && prevBase.toLowerCase() !== baseCity.toLowerCase();
-    const baseItems = fallbackDayItems({
-      destination: resolved.destination,
-      baseCity,
-      dayIndex: i,
-      totalDays: generateDays,
-      mustSeePool,
-      styleHints,
-      minItems: cfg.pace.itemsPerDayMin,
-      maxItems: cfg.pace.itemsPerDayMax,
-    });
-    const items = isChange
-      ? [
-          {
-            title: `Traslado ${prevBase} → ${baseCity}`,
-            activity_kind: "transport",
-            place_name: `${prevBase} → ${baseCity}`,
-            address: `${prevBase} → ${baseCity}, ${resolved.destination}`,
-            start_time: "08:30",
-            notes: (cfg.transport.notes || "").trim() ? `Preferencias: ${cfg.transport.notes.trim()}` : null,
-          },
-          ...baseItems.slice(0, Math.max(1, cfg.pace.itemsPerDayMax - 1)),
-        ]
-      : baseItems;
-    daysOut.push({
-      day: i + 1,
-      date: addDaysIso(resolved.startDate, i),
-      items,
-    });
-  }
-
-  const itinerary = enforceMustSee(
-    validateItinerary({
-      version: 1,
-      title: `${resolved.destination} (${generateDays} días)`,
-      travelMode: "driving",
-      days: daysOut,
-    }),
-    resolved
+  const distinctCities = Array.from(
+    new Set(baseCitySchedule.map((c) => String(c || "").trim()).filter(Boolean))
   );
 
-  return {
-    itinerary,
-    usage: { provider: "gemini", model: null, inputTokens: 0, outputTokens: 0 },
-  };
+  const constraints = (resolved.intent.constraints || []).join(" · ");
+  const budget = resolved.intent.budgetLevel || "medium";
+  const budgetHint =
+    budget === "low"
+      ? "presupuesto bajo (hostels, transporte público, mercados locales, restaurantes baratos)"
+      : budget === "high"
+      ? "presupuesto alto (hoteles 4-5 estrellas, restaurantes recomendados, experiencias premium, taxis)"
+      : "presupuesto medio (hoteles 3 estrellas, restaurantes locales, transporte mixto)";
+
+  const dayLines: string[] = [];
+  for (let i = 0; i < generateDays; i++) {
+    const base = baseCitySchedule[i] || resolved.destination;
+    const prev = i >= 1 ? String(baseCitySchedule[i - 1] || "").trim() : "";
+    const isChange = i >= 1 && prev && prev.toLowerCase() !== String(base).toLowerCase();
+    dayLines.push(
+      `Día ${i + 1}: ${addDaysIso(resolved.startDate, i)} — Ciudad base: ${base}${
+        isChange ? ` (traslado desde ${prev})` : ""
+      }`
+    );
+  }
+
+  const previewPrompt = `Genera un itinerario de viaje COMPACTO (borrador inicial) en JSON. Devuelve SOLO JSON válido sin markdown.
+
+Destino: ${resolved.destination}
+Fechas: ${resolved.startDate} → ${resolved.endDate} (${generateDays} días)
+Viajeros: ${resolved.intent.travelersType || "general"}, ${resolved.intent.travelersCount || "?"} personas
+Presupuesto: ${budgetHint}
+Estilo/restricciones: ${constraints || "sin restricciones especiales"}
+Imprescindibles: ${mustSeePool.join(", ") || "—"}
+Ciudades del recorrido: ${distinctCities.join(" → ")}
+
+Días a generar:
+${dayLines.join("\n")}
+
+Esquema JSON obligatorio:
+{
+  "version": 1,
+  "title": "string breve",
+  "travelMode": "walking"|"driving"|"cycling",
+  "days": [
+    {
+      "day": number,
+      "date": "YYYY-MM-DD",
+      "items": [
+        {
+          "title": "string",
+          "activity_kind": "visit"|"food"|"museum"|"transport"|"nightlife"|"shopping"|"lodging",
+          "place_name": "nombre REAL y CONCRETO del lugar",
+          "address": "string con ciudad y país",
+          "start_time": "HH:MM",
+          "duration_min": number|null,
+          "notes": string|null
+        }
+      ]
+    }
+  ]
+}
+
+Reglas CRÍTICAS:
+- Entre ${cfg.pace.itemsPerDayMin} y ${cfg.pace.itemsPerDayMax} items por día. En días de traslado, máximo 2-3 items.
+- start_time OBLIGATORIO en orden creciente dentro de cada día.
+- place_name: nombre REAL y CONCRETO (prohibido "centro histórico", "zona local", "barrio animado" sin nombre propio).
+- address: incluye siempre ciudad y país del destino.
+- Coherencia geográfica: todos los items de un día en la misma ciudad/área (< 30 km).
+- En días con traslado, incluye un item "transport" con el trayecto y reduce el resto de actividades.
+- Si hay imprescindibles, inclúyelos repartidos por los días disponibles.
+- NO repitas la misma atracción en varios días.
+- Devuelve TODOS los ${generateDays} días sin omitir ninguno.`;
+
+  let finalItinerary: ExecutableItineraryPayload;
+  let usage: TripAiUsage = { provider: "gemini", model: null, inputTokens: 0, outputTokens: 0 };
+
+  try {
+    const result = await askTripAIWithUsage(previewPrompt, "planning", {
+      provider: null,
+      maxOutputTokens: Math.min(4096, generateDays * 600 + 512),
+      responseMimeType: "application/json",
+    });
+    usage = result.usage;
+
+    const parsed = validateItinerary(extractJsonObject(result.text));
+    const aligned = alignItineraryDates(parsed, resolved);
+    finalItinerary = enforceMustSee(aligned, resolved);
+  } catch (aiError) {
+    console.warn("[generateFast] AI failed, using structural fallback:", aiError);
+
+    const styleHints = [
+      ...((resolved.intent.travelStyle || []).map((x) => String(x || "").trim()).filter(Boolean)),
+      ...((resolved.intent.constraints || [])
+        .map((x) => String(x || "").trim())
+        .filter((x) =>
+          /\btema:|\btemas:|aventur|relax|gastron|cultural|naturaleza|fiesta|shopping|rom[aá]ntic/iu.test(x)
+        )),
+    ];
+
+    const daysOut: ExecutableItineraryPayload["days"] = [];
+    for (let i = 0; i < generateDays; i++) {
+      const baseCity =
+        String(baseCitySchedule[i] || resolved.destination).trim() || resolved.destination;
+      const prevBase = i >= 1 ? String(baseCitySchedule[i - 1] || "").trim() : "";
+      const isChange =
+        i >= 1 && prevBase && prevBase.toLowerCase() !== baseCity.toLowerCase();
+      const baseItems = fallbackDayItems({
+        destination: resolved.destination,
+        baseCity,
+        dayIndex: i,
+        totalDays: generateDays,
+        mustSeePool,
+        styleHints,
+        minItems: cfg.pace.itemsPerDayMin,
+        maxItems: cfg.pace.itemsPerDayMax,
+      });
+      const items = isChange
+        ? [
+            {
+              title: `Traslado ${prevBase} → ${baseCity}`,
+              activity_kind: "transport" as const,
+              place_name: `${prevBase} → ${baseCity}`,
+              address: `${prevBase} → ${baseCity}, ${resolved.destination}`,
+              start_time: "08:30",
+              notes: "Día de traslado — la IA completará los detalles en la siguiente fase.",
+            },
+            ...baseItems.slice(0, Math.max(1, cfg.pace.itemsPerDayMax - 1)),
+          ]
+        : baseItems;
+      daysOut.push({
+        day: i + 1,
+        date: addDaysIso(resolved.startDate, i),
+        items,
+      });
+    }
+
+    finalItinerary = enforceMustSee(
+      validateItinerary({
+        version: 1,
+        title: `${resolved.destination} (${generateDays} días)`,
+        travelMode: "driving",
+        days: daysOut,
+      }),
+      resolved
+    );
+  }
+
+  return { itinerary: finalItinerary, usage };
 }
 
 function fallbackDayItems(params: {
