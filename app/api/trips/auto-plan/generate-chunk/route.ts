@@ -107,6 +107,14 @@ export async function POST(req: Request) {
     const totalDays = Math.max(1, resolved.durationDays);
     if (dayOffset >= totalDays) return NextResponse.json({ error: "dayOffset fuera de rango." }, { status: 400 });
     const config = normalizeTripAutoConfig(body?.config);
+    // Temporal: verificar que el pace llega desde el cliente (y no cae en defaults)
+    console.log("[auto-plan][generate-chunk] config.pace", {
+      raw: body?.config?.pace,
+      normalized: config?.pace,
+      dayOffset,
+      preferredCount,
+      totalDays,
+    });
     // Probe to identify unknown cities, then fetch AI weights (typically served from cache
     // populated by the allocate call that precedes chunk generation in normal wizard flow).
     const probeStructure = buildRouteStructureFromIntent({ intent: resolved.intent, durationDays: totalDays });

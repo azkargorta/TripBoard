@@ -43,6 +43,9 @@ Esquema exacto (puedes incluir campos extra, pero estos deben existir):
 }
 
 Reglas:
+- **Distribución horaria (CRÍTICO):** en días SIN traslado largo, el día debe cubrir mañana + tarde + tarde/noche. Debe existir al menos 1 item que empiece a las 19:00–21:30 (cena/actividad nocturna) o como mínimo un bloque claro de tarde-noche. Está PROHIBIDO terminar el día antes de las 18:00.
+- **Cenas y noche (CRÍTICO):** en días sin traslado largo incluye una CENA o experiencia de noche (activity_kind="food" o "nightlife") con start_time entre 19:30 y 21:30. Si el usuario evita vida nocturna, aun así incluye una cena o paseo nocturno CONCRETO (no genérico).
+- **Excursiones de día (CRÍTICO):** si sales y regresas al MISMO alojamiento (misma ciudad base), NO lo modeles como dos items separados de "transport". Modela la excursión como UN item "visit" con el nombre de la excursión, y en "notes" indica que incluye traslado ida/vuelta. Usa activity_kind="transport" SOLO para traslados entre ciudades donde se cambia de alojamiento.
 - Número de items por día: respeta el rango de "Ritmo: entre X y Y items por día" indicado más abajo (y en días de traslado largo, reduce actividades). start_time en orden creciente.
 - start_time es OBLIGATORIO y debe ser "HH:MM" (no puede ser vacío).
 - Para cada item, rellena "duration_min" de forma realista (aprox). Si no estás seguro, usa null.
@@ -631,15 +634,7 @@ export async function generateExecutableItineraryFromStructure(
   const isPreviewLatency = latencyMode === "preview";
   const isTestEnv = Boolean(process.env.VITEST) || process.env.NODE_ENV === "test";
   const skipHeavyGeo = isPreviewLatency || isTestEnv;
-  const cfg: TripAutoConfig = isPreviewLatency
-    ? {
-        ...baseCfg,
-        pace: {
-          itemsPerDayMin: Math.max(1, Math.min(baseCfg.pace.itemsPerDayMin, 2)),
-          itemsPerDayMax: Math.max(2, Math.min(baseCfg.pace.itemsPerDayMax, 3)),
-        },
-      }
-    : baseCfg;
+  const cfg: TripAutoConfig = baseCfg;
   const generateDays = Math.max(1, resolved.durationDays);
   const baseCitySchedule = Array.isArray(options.structure?.baseCityByDay)
     ? options.structure.baseCityByDay.slice(0, generateDays)
@@ -1004,10 +999,10 @@ ${baseContext.optimizeHint}
     daysOut[i] = { ...day, items };
   }
 
-  const finalItinerary = enforceMustSee(
-    validateItinerary({ version: 1, title: `${resolvedForPrompt.destination} (${generateDays} días)`, travelMode: "driving", days: daysOut }),
-    resolvedForPrompt
+  const preMustSee = removeGenericFallbackItems(
+    validateItinerary({ version: 1, title: `${resolvedForPrompt.destination} (${generateDays} días)`, travelMode: "driving", days: daysOut })
   );
+  const finalItinerary = enforceMustSee(preMustSee, resolvedForPrompt);
 
   const densifiedDays = (finalItinerary.days || []).map((day, i) => {
     const dayNum = i + 1;
@@ -1355,7 +1350,7 @@ Reglas CRÍTICAS:
     );
   }
 
-  return { itinerary: finalItinerary, usage };
+  return { itinerary: removeGenericFallbackItems(finalItinerary), usage };
 }
 
 function fallbackDayItems(params: {
@@ -1553,6 +1548,27 @@ function toHHMM(mins: number): string {
 
 function itemIdentity(it: any): string {
   return `${String(it?.title || "").trim().toLowerCase()}|${String(it?.place_name || "").trim().toLowerCase()}`;
+}
+
+function removeGenericFallbackItems(itinerary: ExecutableItineraryPayload): ExecutableItineraryPayload {
+  const genericPhrases = [
+    "rincón local",
+    "visita de mediodía",
+    "explorar una zona distinta",
+    "tiempo tranquilo",
+    "museo / centro cultural destacado",
+    "día pendiente",
+  ];
+  return {
+    ...itinerary,
+    days: (itinerary.days || []).map((day) => ({
+      ...day,
+      items: (day.items || []).filter((item: any) => {
+        const t = String(item?.title || "").toLowerCase();
+        return !genericPhrases.some((p) => t.includes(p));
+      }),
+    })),
+  };
 }
 
 function buildDayChunks(baseCityByDay: string[], opts: { maxDaysPerChunk: number }) {

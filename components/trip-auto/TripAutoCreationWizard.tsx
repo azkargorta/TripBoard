@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -167,7 +167,7 @@ export default function TripAutoCreationWizard() {
       pushChatMessage({
         role: "assistant",
         text:
-          "¿Qué tipo de viaje quieres? Elige 1 o varios (pulsa opciones) y cuando termines escribe “listo”.",
+          "¿Qué tipo de viaje quieres? Elige 1 o varios (pulsa opciones) y cuando termines escribe "listo".",
         quickReplies: ["Relax", "Aventura", "Gastronómico", "Museos", "Excursiones", "Naturaleza"],
       });
       return;
@@ -176,8 +176,8 @@ export default function TripAutoCreationWizard() {
       pushChatMessage({
         role: "assistant",
         text:
-          "¿Qué quieres evitar en el plan? Puedes elegir varias (pulsa opciones) o escribirlo. Cuando termines, escribe “listo”.",
-        quickReplies: ["Comidas genéricas", "Vida nocturna", "Museos", "Compras", "Madrugar", "Traslados largos"],
+          "¿Qué quieres evitar en el plan? Puedes elegir varias opciones o escribirlo. Si no quieres evitar nada, pulsa 'Siguiente'.",
+        quickReplies: ["Comidas genéricas", "Vida nocturna", "Museos", "Compras", "Madrugar", "Traslados largos", "Siguiente →"],
       });
       return;
     }
@@ -194,7 +194,7 @@ export default function TripAutoCreationWizard() {
       pushChatMessage({
         role: "assistant",
         text:
-          "Cuéntame tus preferencias/restricciones en una frase. Ejemplos: “no madrugar”, “últimos 2 días en Buenos Aires”, “minimizar vuelos”, “evitar museos”, “quiero bodegas”.",
+          "Cuéntame tus preferencias/restricciones en una frase. Ejemplos: "no madrugar", "últimos 2 días en Buenos Aires", "minimizar vuelos", "evitar museos", "quiero bodegas".",
         quickReplies: ["No madrugar", "Últimos 2 días en Buenos Aires", "Minimizar vuelos", "Acepto vuelos internos", "Evitar museos"],
       });
       return;
@@ -203,14 +203,14 @@ export default function TripAutoCreationWizard() {
       pushChatMessage({
         role: "assistant",
         text:
-          "Ahora añade imprescindibles (ciudades/regiones) desde “Visitas propuestas” o escríbelos aquí. Cuando termines, responde “listo”.",
+          "Ahora añade imprescindibles (ciudades/regiones) desde "Visitas propuestas" o escríbelos aquí. Cuando termines, responde "listo".",
       });
       return;
     }
     if (stage === "done") {
       pushChatMessage({
         role: "assistant",
-        text: "Perfecto. Ya tengo lo necesario. Pulsa “Generar propuesta de ruta” para ver y ajustar las noches por destino.",
+        text: "Perfecto. Ya tengo lo necesario. Pulsa "Generar propuesta de ruta" para ver y ajustar las noches por destino.",
       });
     }
   }
@@ -282,8 +282,8 @@ export default function TripAutoCreationWizard() {
     }
     if (stage === "avoid") {
       const lc = t.toLowerCase();
-      if (lc === "listo" || lc === "ok" || lc === "vale") return;
-      // acumulamos en un texto libre (evitar X, Y...) para pasar a constraints
+      const AVOID_SKIP = ["listo", "ok", "vale", "siguiente", "ninguno", "nada", "no quiero", "sin restricciones"];
+      if (AVOID_SKIP.some((w) => lc === w || lc.startsWith(w))) return;
       setAvoidRaw((prev) => {
         if (!prev.trim()) return t;
         if (prev.toLowerCase().includes(lc)) return prev;
@@ -386,7 +386,7 @@ export default function TripAutoCreationWizard() {
 
     if (chatStage === "themes") {
       const lc = text.toLowerCase();
-      // En esta etapa el usuario puede ir “toggling” estilos; solo avanzamos cuando diga “listo”.
+      // En esta etapa el usuario puede ir "toggling" estilos; solo avanzamos cuando diga "listo".
       if (lc === "listo" || lc === "ok" || lc === "vale") {
         const st = nextStageFromState();
         setChatStage(st);
@@ -397,20 +397,24 @@ export default function TripAutoCreationWizard() {
 
     if (chatStage === "avoid") {
       const lc = text.toLowerCase();
-      if (lc === "listo" || lc === "ok" || lc === "vale") {
-        const st = nextStageFromState();
-        setChatStage(st);
-        askForStage(st);
+      const ADVANCE = ["listo", "ok", "vale", "siguiente", "ninguno", "nada", "no quiero", "sin restricciones"];
+      if (ADVANCE.some((w) => lc === w || lc.startsWith(w))) {
+        // Bypass nextStageFromState() — avoidRaw is optional so we go directly to maxItems
+        setChatStage("maxItems");
+        askForStage("maxItems");
       }
       return;
     }
 
     if (chatStage === "maxItems") {
-      // tras recibir número, avanzamos automáticamente
-      const st = nextStageFromState();
-      if (st !== chatStage) {
-        setChatStage(st);
-        askForStage(st);
+      // Advance as soon as we get a number or a skip word (state update is async, can't rely on nextStageFromState)
+      const n = Number(String(text).replace(/[^\d]/g, ""));
+      const hasNumber = Number.isFinite(n) && n >= 1;
+      const SKIP = ["listo", "ok", "vale", "siguiente", "ninguno", "nada", "sin límite"];
+      const isSkip = SKIP.some((w) => text.toLowerCase().includes(w));
+      if (hasNumber || isSkip) {
+        setChatStage("constraints");
+        askForStage("constraints");
       }
       return;
     }
@@ -467,7 +471,7 @@ export default function TripAutoCreationWizard() {
     const startCity = cities.length >= 2 ? cities[0]! : null;
     const endCity = cities.length >= 2 ? cities[cities.length - 1]! : null;
     const mustSeeClean = mustSee.map((x) => x.trim()).filter(Boolean);
-    // Importante: si el usuario añade “visitas propuestas” (ciudades/regiones), queremos que afecten al recorrido.
+    // Importante: si el usuario añade "visitas propuestas" (ciudades/regiones), queremos que afecten al recorrido.
     // Por eso las incluimos también en `destination` (estructura baseCity), y dejamos `mustSee` para POIs concretos.
     const destinationStops = [...cities, ...mustSeeClean];
     const manualNoches = cityStays.length ? `Noches: ${cityStays.map((s) => `${s.city}=${s.days}`).join("; ")}` : "";
@@ -528,7 +532,7 @@ export default function TripAutoCreationWizard() {
     const t = String(label || "").trim();
     if (!t) return;
     const lc = t.toLowerCase();
-    // Evita que frases del chat tipo “Acepto vuelos internos” acaben como destinos
+    // Evita que frases del chat tipo "Acepto vuelos internos" acaben como destinos
     if (/(acepto|minimizar|evitar|no madrugar|madrugar|vuelos?|presupuesto|ritmo|temas:|notas)/i.test(lc)) return;
     setMustSee((prev) => {
       const list = prev.map((x) => x.trim()).filter(Boolean);
@@ -732,60 +736,88 @@ export default function TripAutoCreationWizard() {
       // Mutable counter updated as chunks resolve (single-threaded: no interleaving at non-await points)
       let completedDays = 0;
 
-      await Promise.allSettled(
-        chunks.map(async ({ offset, count }) => {
-          let ok = false;
-          let lastErr: string | null = null;
+      const fetchWithTimeout = async (url: string, init: RequestInit, timeoutMs: number) => {
+        const controller = new AbortController();
+        const id = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+          return await fetch(url, { ...init, signal: controller.signal });
+        } finally {
+          clearTimeout(id);
+        }
+      };
 
-          for (const requestedCount of [count, 1]) {
-            try {
-              const res = await fetch("/api/trips/auto-plan/generate-chunk", {
+      const CHUNK_TIMEOUT_MS = 90_000;
+      const CONCURRENCY = 3;
+
+      const runChunk = async ({ offset, count }: { offset: number; count: number }) => {
+        let ok = false;
+        let lastErr: string | null = null;
+
+        const retryCounts = Array.from(new Set([count, Math.min(2, count), 1])).filter((x) => x >= 1);
+        for (const requestedCount of retryCounts) {
+          try {
+            const res = await fetchWithTimeout(
+              "/api/trips/auto-plan/generate-chunk",
+              {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ intent, config, dayOffset: offset, dayCount: requestedCount }),
-              });
-              const { data } = await readJsonResponse<any>(res);
-              if (!res.ok) throw new Error(data?.error || "No se pudo generar el itinerario con IA.");
+              },
+              CHUNK_TIMEOUT_MS
+            );
+            const { data } = await readJsonResponse<any>(res);
+            if (!res.ok) throw new Error(data?.error || "No se pudo generar el itinerario con IA.");
 
-              const days = Array.isArray(data?.days) ? data.days : [];
-              const generatedCount =
-                typeof data?.dayCount === "number" && Number.isFinite(data.dayCount)
-                  ? Math.max(1, Math.round(data.dayCount))
-                  : Math.max(1, days.length || requestedCount);
+            const days = Array.isArray(data?.days) ? data.days : [];
+            const generatedCount =
+              typeof data?.dayCount === "number" && Number.isFinite(data.dayCount)
+                ? Math.max(1, Math.round(data.dayCount))
+                : Math.max(1, days.length || requestedCount);
 
-              const prompts = Array.isArray(data?.prompts) ? data.prompts.map((x: any) => String(x || "")).filter(Boolean) : [];
-              if (prompts.length) {
-                setAiPromptLog((prev) => [...prev, { dayOffset: offset, dayCount: generatedCount, prompts }]);
-              }
-
-              for (const d of days) {
-                if (typeof d?.day === "number") dayMap.set(d.day, d);
-              }
-
-              completedDays = Math.min(total, completedDays + generatedCount);
-              setAiProgress({ done: completedDays, total });
-              setItinerary((prev) => ({
-                version: 1,
-                title: prev?.title || base.title,
-                travelMode: prev?.travelMode || base.travelMode,
-                days: snapshot(),
-              }));
-
-              ok = true;
-              break;
-            } catch (e) {
-              lastErr = e instanceof Error ? e.message : "Timeout / error desconocido";
+            const prompts = Array.isArray(data?.prompts) ? data.prompts.map((x: any) => String(x || "")).filter(Boolean) : [];
+            if (prompts.length) {
+              setAiPromptLog((prev) => [...prev, { dayOffset: offset, dayCount: generatedCount, prompts }]);
             }
-          }
 
-          if (!ok) {
-            dayMap.set(offset + 1, placeholderDay(offset + 1));
-            completedDays = Math.min(total, completedDays + 1);
+            for (const d of days) {
+              if (typeof d?.day === "number") dayMap.set(d.day, d);
+            }
+
+            completedDays = Math.min(total, completedDays + generatedCount);
             setAiProgress({ done: completedDays, total });
-            toast.error("Un día no se pudo generar", lastErr || "Timeout. Se ha dejado un placeholder para reintentar.");
+            setItinerary((prev) => ({
+              version: 1,
+              title: prev?.title || base.title,
+              travelMode: prev?.travelMode || base.travelMode,
+              days: snapshot(),
+            }));
+
+            ok = true;
+            break;
+          } catch (e) {
+            lastErr = e instanceof Error ? e.message : "Timeout / error desconocido";
           }
-        })
-      );
+        }
+
+        if (!ok) {
+          dayMap.set(offset + 1, placeholderDay(offset + 1));
+          completedDays = Math.min(total, completedDays + 1);
+          setAiProgress({ done: completedDays, total });
+          toast.error("Un día no se pudo generar", lastErr || "Timeout. Se ha dejado un placeholder para reintentar.");
+        }
+      };
+
+      for (let i = 0; i < chunks.length; i += CONCURRENCY) {
+        const batch = chunks.slice(i, i + CONCURRENCY);
+        await Promise.allSettled(batch.map((ch) => runChunk(ch)));
+      }
+
+      // Garantía: ningún día puede quedar sin items
+      for (let i = 1; i <= total; i++) {
+        if (!dayMap.has(i) || !dayMap.get(i)?.items?.length) {
+          dayMap.set(i, placeholderDay(i));
+        }
+      }
 
       // Final merge after all chunks settle
       setItinerary((prev) => ({
@@ -1231,7 +1263,7 @@ export default function TripAutoCreationWizard() {
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <div className="text-sm font-extrabold text-slate-900">Confirmación de ruta y noches</div>
               <div className="mt-1 text-xs font-semibold text-slate-600">
-                Ajusta noches por destino antes de generar el plan. Esto mejora traslados y evita días “sin sentido”.
+                Ajusta noches por destino antes de generar el plan. Esto mejora traslados y evita días "sin sentido".
               </div>
 
               {allocationError ? (
@@ -1330,7 +1362,7 @@ export default function TripAutoCreationWizard() {
 
             {!itinerary ? (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-                {loading ? "Generando..." : "Pulsa “Generar itinerario con IA” para ver el itinerario."}
+                {loading ? "Generando..." : "Pulsa "Generar itinerario con IA" para ver el itinerario."}
               </div>
             ) : (
               <div className="rounded-2xl border border-slate-200 bg-white">
