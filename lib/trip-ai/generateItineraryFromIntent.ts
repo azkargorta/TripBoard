@@ -193,7 +193,7 @@ function cleanAddressOneLocation(addrRaw: unknown) {
 function looksGenericTitle(t: string) {
   const s = String(t || "").toLowerCase();
   if (!s) return true;
-  return /\b(paseo|visita panoramica|visita panorámica|zona animada|ambiente local|tiempo libre|explorar el centro|recorrido por el centro|barrio emblematico|barrio emblemático)\b/i.test(
+  return /\b(paseo|visita panoramica|visita panorámica|zona animada|ambiente local|tiempo libre|explorar el centro|recorrido por el centro|barrio emblematico|barrio emblemático|mañana tranquila|manana tranquila|visita de mediod[ií]a|atardecer en mirador|tarde libre|noche libre|descanso en el hotel|ma[ñn]ana de relax|noche en el hotel)\b/i.test(
     s
   );
 }
@@ -804,7 +804,8 @@ Instrucciones:
 - Los campos "day" deben coincidir con el número de Día mostrado arriba (no renumeres).
 - Para cada día, respeta la "Ciudad base" indicada.
 - La distribución de estancias por destino ya está decidida; NO cambies noches ni muevas actividades a otra ciudad base.
-- Cada día debe tener entre ${cfg.pace.itemsPerDayMin} y ${cfg.pace.itemsPerDayMax} items (salvo días con traslado largo).
+- **OBLIGATORIO**: cada día DEBE tener entre ${cfg.pace.itemsPerDayMin} y ${cfg.pace.itemsPerDayMax} items (salvo días con traslado largo, máximo 3). Un día con menos items es un error.
+- **Distribución horaria**: los items deben repartirse por mañana (09:00-13:00), tarde (13:00-18:00) y tarde/noche (18:00-22:00). No acumules todos los items antes de las 14:00.
 - Direcciones: siempre \"..., Ciudad, País\" (no uses solo el país).
 
 ${poiAllCities}
@@ -833,7 +834,8 @@ Instrucciones:
 - Los campos "day" deben coincidir con el número de Día mostrado arriba (no renumeres).
 - Para cada día, respeta la "Ciudad base" indicada.
 - La distribución de estancias por destino ya está decidida; NO cambies noches ni muevas actividades a otra ciudad base.
-- Cada día debe tener entre ${cfg.pace.itemsPerDayMin} y ${cfg.pace.itemsPerDayMax} items.
+- **OBLIGATORIO**: cada día DEBE tener entre ${cfg.pace.itemsPerDayMin} y ${cfg.pace.itemsPerDayMax} items. Un día con menos items es un error.
+- **Distribución horaria**: los items deben repartirse por mañana (09:00-13:00), tarde (13:00-18:00) y tarde/noche (18:00-22:00). No acumules todos los items antes de las 14:00.
 - Direcciones: siempre \"..., Ciudad, País\" (no uses solo el país).
 
 ${poiHintsBlock({ destination: baseContext.destination, cities: chunkCities })}
@@ -1050,17 +1052,20 @@ ${baseContext.optimizeHint}
       return { ...picked };
     };
 
-    while (items.length < minItemsTarget) {
-      const lastTime = parseHHMM((items[items.length - 1] as any)?.start_time) ?? (isTransferDay ? 16 * 60 : 17 * 60);
-      const nextTime = toHHMM(Math.min(lastTime + 120, 21 * 60));
-      const extra = nextSpecificFallback(parseHHMM(nextTime) ?? undefined);
-      if (!extra) break;
-      extra.start_time = nextTime;
-      if (!extra.address || String(extra.address).trim() === baseCity) {
-        extra.address = `${baseCity}, ${destinationCountryHint(resolvedForPrompt.destination)}`;
+    const realItemCount = items.filter((it) => String((it as any)?.activity_kind || "").toLowerCase() !== "transport").length;
+    if (realItemCount < 2) {
+      while (items.length < minItemsTarget) {
+        const lastTime = parseHHMM((items[items.length - 1] as any)?.start_time) ?? (isTransferDay ? 16 * 60 : 17 * 60);
+        const nextTime = toHHMM(Math.min(lastTime + 120, 21 * 60));
+        const extra = nextSpecificFallback(parseHHMM(nextTime) ?? undefined);
+        if (!extra) break;
+        extra.start_time = nextTime;
+        if (!extra.address || String(extra.address).trim() === baseCity) {
+          extra.address = `${baseCity}, ${destinationCountryHint(resolvedForPrompt.destination)}`;
+        }
+        extra.notes = extra.notes || "Ajuste automático para mantener un ritmo de día completo.";
+        items.push(extra as any);
       }
-      extra.notes = extra.notes || "Ajuste automático para mantener un ritmo de día completo.";
-      items.push(extra as any);
     }
     if (items.length > maxItemsTarget) items.splice(maxItemsTarget);
 
@@ -1139,7 +1144,8 @@ ${baseContext.optimizeHint}
     const minItemsTarget = isTransferDay ? Math.max(2, cfg.pace.itemsPerDayMin - 1) : Math.max(3, cfg.pace.itemsPerDayMin);
 
     const usedLocal = new Set(cleaned.map((it) => itemIdentity(it)));
-    while (cleaned.length < minItemsTarget) {
+    const realCleanedCount = cleaned.filter((it) => String(it?.activity_kind || "").toLowerCase() !== "transport").length;
+    if (realCleanedCount < 2) while (cleaned.length < minItemsTarget) {
       const candidates = fallbackDayItems({
         destination: destinationCountryHint(resolvedForPrompt.destination),
         baseCity,

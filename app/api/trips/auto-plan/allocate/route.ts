@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { enforceAiMonthlyBudgetOrThrow } from "@/lib/ai-budget";
 import type { TripCreationIntent } from "@/lib/trip-ai/tripCreationTypes";
 import { getTripCreationFollowUp, resolveTripCreationDates } from "@/lib/trip-ai/tripCreationResolve";
-import { buildRouteStructureFromIntent } from "@/lib/trip-ai/nightAllocation";
+import { buildRouteStructureFromIntent, hasHardcodedWeight } from "@/lib/trip-ai/nightAllocation";
+import { fetchAiCityWeights } from "@/lib/trip-ai/aiCityWeights";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -28,7 +29,17 @@ export async function POST(req: Request) {
     const resolved = resolveTripCreationDates(intent);
     if ("error" in resolved) return NextResponse.json({ error: resolved.error }, { status: 400 });
 
-    const structure = buildRouteStructureFromIntent({ intent: resolved.intent, durationDays: resolved.durationDays });
+    // Probe pass: get the city list so we can identify unknown destinations.
+    const probeStructure = buildRouteStructureFromIntent({ intent: resolved.intent, durationDays: resolved.durationDays });
+    const unknownCities = probeStructure.cityStays.filter(({ city }) => !hasHardcodedWeight(city)).map(({ city }) => city);
+
+    // Fetch AI-recommended day counts for cities not covered by the hardcoded weight table.
+    const weightOverrides = await fetchAiCityWeights(unknownCities, resolved.durationDays);
+
+    // Final pass with AI overrides applied (no-op if overrides map is empty).
+    const structure = weightOverrides.size > 0
+      ? buildRouteStructureFromIntent({ intent: resolved.intent, durationDays: resolved.durationDays }, weightOverrides)
+      : probeStructure;
 
     return NextResponse.json({
       status: "ok",

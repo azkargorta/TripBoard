@@ -6,7 +6,8 @@ import { resolveTripCreationDates } from "@/lib/trip-ai/tripCreationResolve";
 import { normalizeTripAutoConfig } from "@/lib/trip-ai/tripAutoConfig";
 import { generateExecutableItineraryFromStructure } from "@/lib/trip-ai/generateItineraryFromIntent";
 import { addDaysIso } from "@/lib/trip-ai/tripCreationDates";
-import { buildRouteStructureFromIntent } from "@/lib/trip-ai/nightAllocation";
+import { buildRouteStructureFromIntent, hasHardcodedWeight } from "@/lib/trip-ai/nightAllocation";
+import { fetchAiCityWeights } from "@/lib/trip-ai/aiCityWeights";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -36,6 +37,52 @@ function guessIntercityTransportMode(from: string, to: string) {
   return "flight";
 }
 
+// Extracts only the first segment (country/region name) from a compound destination string.
+// e.g. "Argentina · Buenos Aires · Iguazú · Mendoza" → "Argentina"
+function cleanCountryFromDestination(destination: string): string {
+  return String(destination || "").split(/[|·]/)[0]?.trim() || String(destination || "").trim();
+}
+
+function parseTimeMin(hhmm: unknown): number {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm ?? "").trim());
+  return m ? Number(m[1]) * 60 + Number(m[2]) : NaN;
+}
+
+function toTimeStr(mins: number): string {
+  const m = Math.max(0, Math.min(23 * 60 + 59, Math.round(mins)));
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+}
+
+/**
+ * Shifts non-transport items whose start_time falls before
+ * (transferStart + transferDurationMin + 60 min buffer) so they don't
+ * overlap with a long intercity transfer.
+ */
+function adjustItemsAfterTransfer(items: any[], transferDurationMin: number): any[] {
+  const TRANSFER_START = 8 * 60 + 30; // 08:30
+  const BUFFER_MIN = 60; // 1 h buffer for check-in / lunch after arrival
+  const firstFree = TRANSFER_START + transferDurationMin + BUFFER_MIN;
+
+  let cursor = firstFree;
+  return items.map((item: any) => {
+    const kind = String(item?.activity_kind || "").toLowerCase();
+    if (kind === "transport") return item; // keep transport as-is
+
+    const origStart = parseTimeMin(item?.start_time);
+    if (!isNaN(origStart) && origStart >= cursor) {
+      // Already after the free window — just advance cursor
+      const duration = typeof item?.duration_min === "number" ? item.duration_min : 90;
+      cursor = Math.max(cursor, origStart + duration + 20);
+      return item;
+    }
+    // Need to push this item forward
+    const newStart = toTimeStr(cursor);
+    const duration = typeof item?.duration_min === "number" ? item.duration_min : 90;
+    cursor = cursor + duration + 20;
+    return { ...item, start_time: newStart };
+  });
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => null);
@@ -60,7 +107,14 @@ export async function POST(req: Request) {
     const totalDays = Math.max(1, resolved.durationDays);
     if (dayOffset >= totalDays) return NextResponse.json({ error: "dayOffset fuera de rango." }, { status: 400 });
     const config = normalizeTripAutoConfig(body?.config);
-    const fullStructure = buildRouteStructureFromIntent({ intent: resolved.intent, durationDays: totalDays });
+    // Probe to identify unknown cities, then fetch AI weights (typically served from cache
+    // populated by the allocate call that precedes chunk generation in normal wizard flow).
+    const probeStructure = buildRouteStructureFromIntent({ intent: resolved.intent, durationDays: totalDays });
+    const unknownCities = probeStructure.cityStays.filter(({ city }) => !hasHardcodedWeight(city)).map(({ city }) => city);
+    const weightOverrides = await fetchAiCityWeights(unknownCities, totalDays);
+    const fullStructure = weightOverrides.size > 0
+      ? buildRouteStructureFromIntent({ intent: resolved.intent, durationDays: totalDays }, weightOverrides)
+      : probeStructure;
     const baseAtOffset = String(fullStructure.baseCityByDay[dayOffset] || "").trim().toLowerCase();
     let contiguous = 0;
     for (let i = dayOffset; i < totalDays; i++) {
@@ -110,18 +164,21 @@ export async function POST(req: Request) {
         const items = Array.isArray(first?.items) ? [...first.items] : [];
         const hasTransport = items.some((it: any) => String(it?.activity_kind || "").toLowerCase() === "transport");
         if (!hasTransport) {
+          const transportMode = guessIntercityTransportMode(prevBase, curBase);
+          const transferDuration = transportMode === "flight" ? 240 : 180;
           items.unshift({
             title: `Traslado de ${prevBase} a ${curBase}`,
             activity_kind: "transport",
             place_name: `${prevBase} → ${curBase}`,
-            address: `${prevBase} → ${curBase}, ${clean(resolved.destination)}`,
+            address: `${prevBase} → ${curBase}, ${cleanCountryFromDestination(resolved.destination)}`,
             start_time: "08:30",
-            duration_min: guessIntercityTransportMode(prevBase, curBase) === "flight" ? 240 : 180,
-            transport_mode: guessIntercityTransportMode(prevBase, curBase),
+            duration_min: transferDuration,
+            transport_mode: transportMode,
             notes: "Bloque reservado para el desplazamiento principal entre destinos. Reduce el resto de actividades de este día.",
           });
-          if (items.length > 3) items.splice(3);
-          days[0] = { ...first, items };
+          const adjusted = adjustItemsAfterTransfer(items, transferDuration);
+          if (adjusted.length > 3) adjusted.splice(3);
+          days[0] = { ...first, items: adjusted };
         }
       }
     }

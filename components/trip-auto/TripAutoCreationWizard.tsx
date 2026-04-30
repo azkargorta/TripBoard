@@ -677,6 +677,12 @@ export default function TripAutoCreationWizard() {
         };
       };
 
+      const PACE_CONFIG = {
+        relajado: { min: 3, max: 4 },
+        equilibrado: { min: 4, max: 5 },
+        intenso: { min: 5, max: 6 },
+      } as const;
+      const paceRange = PACE_CONFIG[pace as keyof typeof PACE_CONFIG] ?? PACE_CONFIG.equilibrado;
       const config =
         typeof maxItemsPerDay === "number" && Number.isFinite(maxItemsPerDay)
           ? {
@@ -685,7 +691,12 @@ export default function TripAutoCreationWizard() {
                 itemsPerDayMax: Math.max(1, Math.min(12, Math.round(maxItemsPerDay))),
               },
             }
-          : undefined;
+          : {
+              pace: {
+                itemsPerDayMin: paceRange.min,
+                itemsPerDayMax: paceRange.max,
+              },
+            };
 
       // Build chunks aligned to cityStays boundaries (max 4 days each).
       // cityStays comes from the same buildRouteStructureFromIntent the server uses,

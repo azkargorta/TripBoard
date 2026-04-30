@@ -136,11 +136,21 @@ function placeWeight(labelRaw: string, ctx: { pace: PaceHint; themes: Set<string
   return Math.max(1, w) ** alpha;
 }
 
-function distributeDaysByWeight(totalDays: number, cities: string[], ctx: { pace: PaceHint; themes: Set<string> }): number[] {
+/** Returns true when the city has a hardcoded weight (i.e., is a known destination with non-trivial placeWeight). */
+export function hasHardcodedWeight(labelRaw: string): boolean {
+  return placeWeight(labelRaw, { pace: "equilibrado", themes: new Set() }) > 1;
+}
+
+function distributeDaysByWeight(
+  totalDays: number,
+  cities: string[],
+  ctx: { pace: PaceHint; themes: Set<string> },
+  precomputedWeights?: number[]
+): number[] {
   const n = Math.max(1, Math.round(totalDays));
   const c = Math.max(1, cities.length);
   if (c === 1) return [n];
-  const weights = cities.map((city) => placeWeight(city, ctx));
+  const weights = precomputedWeights ?? cities.map((city) => placeWeight(city, ctx));
   const totalWeight = weights.reduce((a, b) => a + b, 0) || c;
   const days = new Array<number>(c).fill(1);
   let assigned = c;
@@ -306,7 +316,15 @@ function applyCityMinimumsAndOverrides(days: number[], cities: string[], totalDa
   return out;
 }
 
-export function buildRouteStructureFromIntent(params: { intent: TripCreationIntent; durationDays: number }) {
+/**
+ * Builds the route structure for the trip. Accepts optional `weightOverrides` (keys are
+ * normalize(city), values are AI-recommended day counts used as weights) so that routes
+ * can inject Gemini-derived weights for destinations not covered by the hardcoded table.
+ */
+export function buildRouteStructureFromIntent(
+  params: { intent: TripCreationIntent; durationDays: number },
+  weightOverrides?: Map<string, number>
+) {
   const destRaw = clean(params.intent.destination);
   const listRaw = destRaw ? splitPlaceList(destRaw) : [];
   const countryCandidate = clean(destRaw.split(/[|·]/g)[0] || "");
@@ -330,7 +348,17 @@ export function buildRouteStructureFromIntent(params: { intent: TripCreationInte
   if (!cities.length) push(destRaw || "Destino");
 
   const ctx = parseHintText(params.intent);
-  const weighted = distributeDaysByWeight(params.durationDays, cities, ctx);
+
+  // If AI-provided weights exist for cities not in the hardcoded table, use them.
+  let precomputedWeights: number[] | undefined;
+  if (weightOverrides?.size) {
+    precomputedWeights = cities.map((city) => {
+      const nKey = normalize(city);
+      return weightOverrides.get(nKey) ?? placeWeight(city, ctx);
+    });
+  }
+
+  const weighted = distributeDaysByWeight(params.durationDays, cities, ctx, precomputedWeights);
   const stays = applyCityMinimumsAndOverrides(weighted, cities, params.durationDays, ctx.notes);
 
   const baseCityByDay: string[] = [];
