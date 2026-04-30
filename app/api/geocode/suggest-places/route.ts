@@ -55,6 +55,76 @@ async function fetchOverpassJson(query: string, timeoutMs: number): Promise<any 
   return null;
 }
 
+async function photonCountryOsmRelationId(countryName: string): Promise<number | null> {
+  const q = String(countryName || "").trim();
+  if (!q) return null;
+  const url = new URL("https://photon.komoot.io/api/");
+  url.searchParams.set("q", q);
+  url.searchParams.set("limit", "8");
+  const resp = await fetch(url.toString(), { method: "GET", cache: "no-store" });
+  const payload: any = await resp.json().catch(() => null);
+  if (!resp.ok) return null;
+  const feats = Array.isArray(payload?.features) ? payload.features : [];
+  for (const f of feats) {
+    const p = f?.properties && typeof f.properties === "object" ? f.properties : {};
+    const type = String(p?.type || "").toLowerCase();
+    const osmValue = String(p?.osm_value || "").toLowerCase();
+    const osmType = String(p?.osm_type || "").toLowerCase();
+    const osmId = Number(p?.osm_id);
+    const name = String(p?.name || "").trim().toLowerCase();
+    if (!Number.isFinite(osmId)) continue;
+    if (osmType !== "r") continue; // relation
+    if (type === "country" || osmValue === "country") {
+      if (!name || !q.toLowerCase().includes(name) && !name.includes(q.toLowerCase())) {
+        // Aun así, si es el primer country, nos vale
+      }
+      return osmId;
+    }
+  }
+  return null;
+}
+
+async function suggestPlacesOverpassByAreaId(areaId: number, limit: number, offset: number): Promise<PlaceRow[] | null> {
+  const outLimit = Math.max(600, (limit + offset) * 40);
+  const q = `
+[out:json][timeout:60];
+(
+  node(area:${areaId})["place"="city"];
+  way(area:${areaId})["place"="city"];
+  relation(area:${areaId})["place"="city"];
+  node(area:${areaId})["place"="town"];
+  way(area:${areaId})["place"="town"];
+  relation(area:${areaId})["place"="town"];
+);
+out center tags ${outLimit};
+`.trim();
+
+  const payload = await fetchOverpassJson(q, 28_000);
+  if (!payload) return null;
+  const elements = Array.isArray(payload?.elements) ? payload.elements : [];
+  const rows: PlaceRow[] = [];
+  for (const el of elements) {
+    const tags = el?.tags && typeof el.tags === "object" ? el.tags : {};
+    const name = typeof tags?.name === "string" ? String(tags.name).trim() : "";
+    const lat =
+      typeof el?.lat === "number"
+        ? el.lat
+        : typeof el?.center?.lat === "number"
+          ? el.center.lat
+          : null;
+    const lng =
+      typeof el?.lon === "number"
+        ? el.lon
+        : typeof el?.center?.lon === "number"
+          ? el.center.lon
+          : null;
+    if (!name || lat == null || lng == null) continue;
+    rows.push({ name, lat, lng });
+  }
+  const deduped = dedupeByName(rows);
+  return deduped.slice(offset, offset + limit);
+}
+
 async function suggestPlacesOverpass(countryName: string, limit: number, offset: number): Promise<PlaceRow[] | null> {
   const outLimit = Math.max(400, (limit + offset) * 30);
   const q = `
@@ -112,7 +182,17 @@ export async function POST(req: Request) {
     if (!query) return NextResponse.json({ error: "Falta query." }, { status: 400 });
 
     // Preferimos Overpass para "país" porque Photon devuelve el país, no sus ciudades.
-    const overpassPlaces = await suggestPlacesOverpass(query, limit, offset);
+    // 1) Intento por area[name=...] (rápido pero frágil)
+    let overpassPlaces = await suggestPlacesOverpass(query, limit, offset);
+    // 2) Si viene pobre, calculamos areaId exacto del país (relation) y repetimos
+    if (!overpassPlaces || overpassPlaces.length < Math.min(6, limit)) {
+      const relId = await photonCountryOsmRelationId(query);
+      if (relId) {
+        const areaId = 3600000000 + relId; // Overpass area id for relation
+        const byId = await suggestPlacesOverpassByAreaId(areaId, limit, offset);
+        if (byId && byId.length) overpassPlaces = byId;
+      }
+    }
     const places =
       overpassPlaces && overpassPlaces.length
         ? overpassPlaces

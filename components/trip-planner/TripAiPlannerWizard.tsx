@@ -538,7 +538,10 @@ export default function TripAiPlannerWizard() {
                 className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
               />
             </div>
-            <div>
+            <div className="md:col-span-2">
+              <TripPlacesFields places={places} onChange={setPlaces} />
+            </div>
+            <div className="md:col-span-2">
               <label className="mb-1 block text-sm font-extrabold text-slate-900">Moneda</label>
               <select
                 value={baseCurrency}
@@ -557,9 +560,6 @@ export default function TripAiPlannerWizard() {
               <div className="mt-1 text-xs font-semibold text-slate-500">
                 Sugerida por destino: {inferredCurrency} {baseCurrencyTouched ? "(manual)" : "(auto)"}
               </div>
-            </div>
-            <div className="md:col-span-2">
-              <TripPlacesFields places={places} onChange={setPlaces} />
             </div>
             {countryLikeQuery ? (
               <div className="md:col-span-2">
