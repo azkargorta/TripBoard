@@ -84,12 +84,12 @@ async function suggestPlacesOverpassByAreaId(areaId: number, limit: number, offs
   const q = `
 [out:json][timeout:60];
 (
-  node(area:${areaId})["place"="city"];
-  way(area:${areaId})["place"="city"];
-  relation(area:${areaId})["place"="city"];
-  node(area:${areaId})["place"="town"];
-  way(area:${areaId})["place"="town"];
-  relation(area:${areaId})["place"="town"];
+  node["place"="city"](area:${areaId});
+  way["place"="city"](area:${areaId});
+  relation["place"="city"](area:${areaId});
+  node["place"="town"](area:${areaId});
+  way["place"="town"](area:${areaId});
+  relation["place"="town"](area:${areaId});
 );
 out center tags ${outLimit};
 `.trim();
