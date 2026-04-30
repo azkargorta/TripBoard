@@ -56,13 +56,19 @@ async function fetchOverpassJson(query: string, timeoutMs: number): Promise<any 
 }
 
 async function suggestPlacesOverpass(countryName: string, limit: number, offset: number): Promise<PlaceRow[] | null> {
+  const outLimit = Math.max(400, (limit + offset) * 30);
   const q = `
-[out:json][timeout:25];
+[out:json][timeout:60];
 area["name"="${countryName}"]["boundary"="administrative"]["admin_level"="2"]->.a;
 (
-  node["place"~"^(city|town)$"](area.a);
+  node["place"="city"](area.a);
+  way["place"="city"](area.a);
+  relation["place"="city"](area.a);
+  node["place"="town"](area.a);
+  way["place"="town"](area.a);
+  relation["place"="town"](area.a);
 );
-out body ${Math.max(60, (limit + offset) * 3)};
+out center tags ${outLimit};
 `.trim();
 
   const payload = await fetchOverpassJson(q, 28_000);
@@ -72,8 +78,18 @@ out body ${Math.max(60, (limit + offset) * 3)};
   for (const el of elements) {
     const tags = el?.tags && typeof el.tags === "object" ? el.tags : {};
     const name = typeof tags?.name === "string" ? String(tags.name).trim() : "";
-    const lat = typeof el?.lat === "number" ? el.lat : null;
-    const lng = typeof el?.lon === "number" ? el.lon : null;
+    const lat =
+      typeof el?.lat === "number"
+        ? el.lat
+        : typeof el?.center?.lat === "number"
+          ? el.center.lat
+          : null;
+    const lng =
+      typeof el?.lon === "number"
+        ? el.lon
+        : typeof el?.center?.lon === "number"
+          ? el.center.lon
+          : null;
     if (!name || lat == null || lng == null) continue;
     rows.push({ name, lat, lng });
   }
