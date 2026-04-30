@@ -78,6 +78,8 @@ export default function TripAutoCreationWizard() {
     | "pace"
     | "budget"
     | "themes"
+    | "avoid"
+    | "maxItems"
     | "constraints"
     | "mustSee"
     | "done";
@@ -90,6 +92,9 @@ export default function TripAutoCreationWizard() {
   const [chatStage, setChatStage] = useState<ChatStage>("intro");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
+
+  const [avoidRaw, setAvoidRaw] = useState("");
+  const [maxItemsPerDay, setMaxItemsPerDay] = useState<number | null>(null);
 
   // Visitas propuestas (chips)
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -123,6 +128,8 @@ export default function TripAutoCreationWizard() {
     if (!pace) return "pace";
     if (!budgetLevel) return "budget";
     if (!themes.length) return "themes";
+    if (!avoidRaw.trim()) return "avoid";
+    if (!maxItemsPerDay) return "maxItems";
     return "constraints";
   }
 
@@ -158,8 +165,27 @@ export default function TripAutoCreationWizard() {
     if (stage === "themes") {
       pushChatMessage({
         role: "assistant",
-        text: "¿Qué estilo(s) quieres? Puedes elegir varios (separados por comas).",
-        quickReplies: THEME_OPTIONS.map((t) => t.label),
+        text:
+          "¿Qué tipo de viaje quieres? Elige 1 o varios (pulsa opciones) y cuando termines escribe “listo”.",
+        quickReplies: ["Relax", "Aventura", "Gastronómico", "Museos", "Excursiones", "Naturaleza"],
+      });
+      return;
+    }
+    if (stage === "avoid") {
+      pushChatMessage({
+        role: "assistant",
+        text:
+          "¿Qué quieres evitar en el plan? Puedes elegir varias (pulsa opciones) o escribirlo. Cuando termines, escribe “listo”.",
+        quickReplies: ["Comidas genéricas", "Vida nocturna", "Museos", "Compras", "Madrugar", "Traslados largos"],
+      });
+      return;
+    }
+    if (stage === "maxItems") {
+      pushChatMessage({
+        role: "assistant",
+        text:
+          "¿Cuántas actividades MÁXIMO por día quieres? (número). Ejemplo: 4 (si hay traslados largos, pondré menos).",
+        quickReplies: ["3", "4", "5", "6"],
       });
       return;
     }
@@ -220,6 +246,27 @@ export default function TripAutoCreationWizard() {
       return;
     }
     if (stage === "themes") {
+      const lc = t.toLowerCase();
+      if (lc === "listo" || lc === "ok" || lc === "vale") return;
+
+      // Respuestas rápidas (toggle)
+      const mapQuick = (x: string): TravelTheme | null => {
+        const k = x.toLowerCase();
+        if (k.includes("relax")) return "relax";
+        if (k.includes("aventura")) return "aventura";
+        if (k.includes("gastron")) return "gastronómico";
+        if (k.includes("museo")) return "cultural";
+        if (k.includes("excurs")) return "aventura";
+        if (k.includes("naturaleza")) return "naturaleza";
+        return null;
+      };
+      const one = mapQuick(t);
+      if (one) {
+        toggleTheme(one);
+        return;
+      }
+
+      // Fallback: parse por comas
       const parts = t
         .split(/[,;|·]+/g)
         .map((x) => x.trim().toLowerCase())
@@ -230,6 +277,22 @@ export default function TripAutoCreationWizard() {
         if (opt) picked.push(opt.id);
       }
       if (picked.length) setThemes(Array.from(new Set(picked)));
+      return;
+    }
+    if (stage === "avoid") {
+      const lc = t.toLowerCase();
+      if (lc === "listo" || lc === "ok" || lc === "vale") return;
+      // acumulamos en un texto libre (evitar X, Y...) para pasar a constraints
+      setAvoidRaw((prev) => {
+        if (!prev.trim()) return t;
+        if (prev.toLowerCase().includes(lc)) return prev;
+        return `${prev}\n${t}`;
+      });
+      return;
+    }
+    if (stage === "maxItems") {
+      const n = Number(String(t).replace(/[^\d]/g, ""));
+      if (Number.isFinite(n) && n >= 1) setMaxItemsPerDay(Math.max(1, Math.min(12, Math.round(n))));
       return;
     }
     if (stage === "constraints") {
@@ -252,6 +315,37 @@ export default function TripAutoCreationWizard() {
     if (!text) return;
     pushChatMessage({ role: "user", text });
     parseAndApplyChatAnswer(chatStage, text);
+
+    if (chatStage === "themes") {
+      const lc = text.toLowerCase();
+      // En esta etapa el usuario puede ir “toggling” estilos; solo avanzamos cuando diga “listo”.
+      if (lc === "listo" || lc === "ok" || lc === "vale") {
+        const st = nextStageFromState();
+        setChatStage(st);
+        askForStage(st);
+      }
+      return;
+    }
+
+    if (chatStage === "avoid") {
+      const lc = text.toLowerCase();
+      if (lc === "listo" || lc === "ok" || lc === "vale") {
+        const st = nextStageFromState();
+        setChatStage(st);
+        askForStage(st);
+      }
+      return;
+    }
+
+    if (chatStage === "maxItems") {
+      // tras recibir número, avanzamos automáticamente
+      const st = nextStageFromState();
+      if (st !== chatStage) {
+        setChatStage(st);
+        askForStage(st);
+      }
+      return;
+    }
 
     // Avance de etapa
     if (chatStage === "mustSee") {
@@ -309,6 +403,8 @@ export default function TripAutoCreationWizard() {
     // Por eso las incluimos también en `destination` (estructura baseCity), y dejamos `mustSee` para POIs concretos.
     const destinationStops = [...cities, ...mustSeeClean];
     const manualNoches = cityStays.length ? `Noches: ${cityStays.map((s) => `${s.city}=${s.days}`).join("; ")}` : "";
+    const avoidLine = avoidRaw.trim() ? `Evitar: ${avoidRaw.trim().replace(/\n+/g, ", ")}` : "";
+    const maxLine = maxItemsPerDay ? `Máximo actividades/día: ${maxItemsPerDay}` : "";
     return {
       destination: joinTripPlaces(destinationStops) || joinTripPlaces(cities) || main,
       startDate: isoOk(startDate) ? startDate : null,
@@ -318,18 +414,21 @@ export default function TripAutoCreationWizard() {
       travelersType,
       travelersCount: typeof travelersCount === "number" ? travelersCount : null,
       budgetLevel,
+      travelStyle: themes.length ? themes : [],
       wantsRouteOptimization: !forceOrder,
       mustSee: mustSeeClean.length ? mustSeeClean.slice(0, 18) : [],
       // traducimos el ritmo/tema/notas a constraints para que el modelo lo use como pista
       constraints: [
         `Ritmo: ${pace}`,
         themes.length ? `Temas: ${themes.join(", ")}` : "",
+        avoidLine,
+        maxLine,
         manualNoches,
         notes.trim() ? `Notas del usuario: ${notes.trim()}` : "",
       ].filter(Boolean),
       suggestedTripName: tripName.trim() || null,
     };
-  }, [budgetLevel, routeCities, endDate, forceOrder, pace, startDate, travelersCount, travelersType, tripName, themes, notes, mustSee, cityStays]);
+  }, [budgetLevel, routeCities, endDate, forceOrder, pace, startDate, travelersCount, travelersType, tripName, themes, notes, mustSee, cityStays, avoidRaw, maxItemsPerDay]);
 
   async function computeAllocation() {
     if (allocationLoading) return;
@@ -519,10 +618,19 @@ export default function TripAutoCreationWizard() {
 
         for (const requestedCount of [2, 1]) {
           try {
+            const config =
+              typeof maxItemsPerDay === "number" && Number.isFinite(maxItemsPerDay)
+                ? {
+                    pace: {
+                      itemsPerDayMin: Math.max(1, Math.min(12, Math.round(Math.max(1, maxItemsPerDay - 2)))),
+                      itemsPerDayMax: Math.max(1, Math.min(12, Math.round(maxItemsPerDay))),
+                    },
+                  }
+                : undefined;
             const res = await fetch("/api/trips/auto-plan/generate-chunk", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ intent, dayOffset: offset, dayCount: requestedCount }),
+              body: JSON.stringify({ intent, config, dayOffset: offset, dayCount: requestedCount }),
             });
             const { data } = await readJsonResponse<any>(res);
             if (!res.ok) throw new Error(data?.error || "No se pudo generar el itinerario con IA.");
