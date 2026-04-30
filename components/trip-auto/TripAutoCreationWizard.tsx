@@ -95,6 +95,7 @@ export default function TripAutoCreationWizard() {
 
   const [avoidRaw, setAvoidRaw] = useState("");
   const [maxItemsPerDay, setMaxItemsPerDay] = useState<number | null>(null);
+  const [aiParsing, setAiParsing] = useState(false);
 
   // Visitas propuestas (chips)
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -310,11 +311,78 @@ export default function TripAutoCreationWizard() {
     }
   }
 
-  function sendChat(textRaw: string) {
+  function applyParsedFields(fields: any) {
+    if (!fields || typeof fields !== "object" || Array.isArray(fields)) return;
+    const VALID_TYPES = ["solo", "couple", "friends", "family"];
+    const VALID_BUDGETS = ["low", "medium", "high"];
+    const VALID_PACES = ["relajado", "equilibrado", "intenso"];
+    const VALID_THEMES: TravelTheme[] = ["aventura", "relax", "gastronómico", "cultural", "naturaleza", "fiesta", "shopping", "romántico"];
+
+    if (VALID_TYPES.includes(fields.travelersType)) setTravelersType(fields.travelersType);
+    if (typeof fields.travelersCount === "number" && Number.isFinite(fields.travelersCount) && fields.travelersCount >= 1) {
+      setTravelersCount(Math.max(1, Math.min(50, Math.round(fields.travelersCount))));
+    }
+    if (VALID_BUDGETS.includes(fields.budgetLevel)) setBudgetLevel(fields.budgetLevel);
+    if (VALID_PACES.includes(fields.pace)) setPace(fields.pace as Pace);
+    if (Array.isArray(fields.travelStyle) && fields.travelStyle.length) {
+      const extracted = (fields.travelStyle as string[]).filter((t) => VALID_THEMES.includes(t as TravelTheme)) as TravelTheme[];
+      if (extracted.length) setThemes((prev) => Array.from(new Set([...prev, ...extracted])));
+    }
+    if (Array.isArray(fields.avoidKeywords)) {
+      for (const kw of fields.avoidKeywords) {
+        const t = String(kw || "").trim();
+        if (!t) continue;
+        setAvoidRaw((prev) => {
+          if (!prev.trim()) return t;
+          if (prev.toLowerCase().includes(t.toLowerCase())) return prev;
+          return `${prev}\n${t}`;
+        });
+      }
+    }
+    if (typeof fields.maxItemsPerDay === "number" && Number.isFinite(fields.maxItemsPerDay)) {
+      setMaxItemsPerDay(Math.max(1, Math.min(12, Math.round(fields.maxItemsPerDay))));
+    }
+    if (typeof fields.notes === "string" && fields.notes.trim()) {
+      const t = fields.notes.trim();
+      setNotes((prev) => (prev ? `${prev}\n${t}` : t));
+    }
+    if (Array.isArray(fields.mustSee)) {
+      for (const item of fields.mustSee) {
+        const t = String(item || "").trim();
+        if (t) addMustSee(t);
+      }
+    }
+  }
+
+  async function parseWithAi(text: string) {
+    setAiParsing(true);
+    try {
+      const res = await fetch("/api/trips/auto-plan/parse-intent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      const { data } = await readJsonResponse<any>(res);
+      if (res.ok && data?.fields) applyParsedFields(data.fields);
+    } catch {
+      // Silent: keyword parser already handled the stage
+    } finally {
+      setAiParsing(false);
+    }
+  }
+
+  function sendChat(textRaw: string, opts?: { skipAiParse?: boolean }) {
     const text = String(textRaw || "").trim();
     if (!text) return;
     pushChatMessage({ role: "user", text });
     parseAndApplyChatAnswer(chatStage, text);
+
+    // For free-text (non-quick-reply) messages, call Gemini to extract structured fields.
+    // Quick replies (skipAiParse=true) are already handled precisely by the keyword parser.
+    const DONE_WORDS = ["listo", "ok", "vale"];
+    if (!opts?.skipAiParse && text.length >= 5 && !DONE_WORDS.includes(text.toLowerCase())) {
+      void parseWithAi(text);
+    }
 
     if (chatStage === "themes") {
       const lc = text.toLowerCase();
@@ -1015,7 +1083,7 @@ export default function TripAutoCreationWizard() {
                               <button
                                 key={qr}
                                 type="button"
-                                onClick={() => sendChat(qr)}
+                                onClick={() => sendChat(qr, { skipAiParse: true })}
                                 className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold text-slate-800 hover:bg-slate-50"
                               >
                                 {qr}
@@ -1029,6 +1097,13 @@ export default function TripAutoCreationWizard() {
                 </div>
               </div>
 
+              {aiParsing ? (
+                <div className="flex justify-start px-4 pb-1 pt-0">
+                  <div className="rounded-2xl bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-400">
+                    Analizando tu mensaje…
+                  </div>
+                </div>
+              ) : null}
               <div className="border-t border-slate-100 px-4 py-3">
                 <div className="flex gap-2">
                   <input
