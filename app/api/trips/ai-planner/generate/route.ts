@@ -187,9 +187,16 @@ out center tags ${Math.max(50, params.limit * 6)};
 
 function proposeRadiusMeters(poiCountEstimate: number): number {
   // Adaptativo: si hay pocos POIs cerca, ampliamos.
+  if (poiCountEstimate <= 2) return 22000;
   if (poiCountEstimate >= 40) return 7000;
   if (poiCountEstimate >= 18) return 12000;
   return 18000;
+}
+
+function sumPools(pools: Record<Category, Poi[]>): number {
+  let n = 0;
+  for (const k of ALL_CATEGORIES) n += Array.isArray(pools[k]) ? pools[k]!.length : 0;
+  return n;
 }
 
 function proposeMinItems(dayType: "big_city" | "small_city" | "nature"): number {
@@ -293,11 +300,33 @@ export async function POST(req: Request) {
     const poisByStop: Record<string, Record<Category, Poi[]>> = {};
     for (const stop of stops) {
       const pools: Record<Category, Poi[]> = {} as any;
+      let center: LatLng = stop.center;
+
       // First pass small radius to estimate
-      const rough = await fetchPois({ center: stop.center, category: "culture", radiusMeters: 3500, limit: 40 });
+      let rough = await fetchPois({ center, category: "culture", radiusMeters: 3500, limit: 40 });
+
+      // Si es un país (o centro rural) suele dar 0/1. Recentramos a "capital".
+      if (rough.length <= 1) {
+        const cap = await geocodePhotonPreferred(`${stop.label} capital`, { anchor, regionHints, maxDistanceKm: 50000 });
+        if (cap) {
+          center = { lat: cap.lat, lng: cap.lng };
+          rough = await fetchPois({ center, category: "culture", radiusMeters: 3500, limit: 40 });
+        }
+      }
+
       const radius = proposeRadiusMeters(rough.length);
-      for (const cat of ALL_CATEGORIES) {
-        pools[cat] = await fetchPois({ center: stop.center, category: cat, radiusMeters: radius, limit: 50 });
+      for (const cat of ALL_CATEGORIES) pools[cat] = await fetchPois({ center, category: cat, radiusMeters: radius, limit: 50 });
+
+      // Evita borradores vacíos: si no hay POIs suficientes, damos un error accionable.
+      if (sumPools(pools) < 4) {
+        return NextResponse.json(
+          {
+            error:
+              `No he encontrado suficientes lugares concretos cerca de “${stop.label}”. ` +
+              `Parece un destino demasiado amplio. Prueba a poner una ciudad o región (ej. “Buenos Aires”, “Mendoza”, “Bariloche”).`,
+          },
+          { status: 400 }
+        );
       }
       poisByStop[stop.label] = pools;
     }

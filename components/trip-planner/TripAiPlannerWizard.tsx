@@ -52,6 +52,8 @@ type ApiDraft = {
 
 type ChatScope = { kind: "all" } | { kind: "day"; day: number } | { kind: "range"; from: number; to: number };
 
+type CurrencyCode = "EUR" | "USD" | "GBP" | "ARS" | "MXN" | "CLP" | "BRL" | "JPY" | "CAD" | "AUD" | "CHF";
+
 function isoOk(s: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(s);
 }
@@ -110,6 +112,36 @@ function scopeToTargetDays(scope: ChatScope, maxDay: number): number[] | null {
   return out;
 }
 
+const CURRENCY_OPTIONS: Array<{ code: CurrencyCode; label: string }> = [
+  { code: "EUR", label: "EUR (€)" },
+  { code: "USD", label: "USD ($)" },
+  { code: "GBP", label: "GBP (£)" },
+  { code: "ARS", label: "ARS ($AR)" },
+  { code: "MXN", label: "MXN ($)" },
+  { code: "CLP", label: "CLP ($)" },
+  { code: "BRL", label: "BRL (R$)" },
+  { code: "JPY", label: "JPY (¥)" },
+  { code: "CAD", label: "CAD ($)" },
+  { code: "AUD", label: "AUD ($)" },
+  { code: "CHF", label: "CHF" },
+];
+
+function inferCurrencyFromDestinations(destinations: string[]): CurrencyCode {
+  const blob = destinations.join(" · ").toLowerCase();
+  // Argentina / ciudades comunes
+  if (/\b(argentina|buenos aires|mendoza|bariloche|salta|ushuaia|iguaz[uú])\b/i.test(blob)) return "ARS";
+  if (/\b(chile|santiago|valpara[ií]so|atacama|puerto varas)\b/i.test(blob)) return "CLP";
+  if (/\b(m[eé]xico|mexico|cdmx|ciudad de m[eé]xico|canc[uú]n|oaxaca|yucat[aá]n)\b/i.test(blob)) return "MXN";
+  if (/\b(brasil|brazil|rio de janeiro|s[aã]o paulo|salvador)\b/i.test(blob)) return "BRL";
+  if (/\b(eeuu|eua|usa|united states|new york|miami|los angeles|san francisco)\b/i.test(blob)) return "USD";
+  if (/\b(reino unido|uk|united kingdom|londres|london|edinburgh)\b/i.test(blob)) return "GBP";
+  if (/\b(jap[oó]n|japan|tokyo|kyoto|osaka)\b/i.test(blob)) return "JPY";
+  if (/\b(canad[aá]|canada|toronto|vancouver|montreal)\b/i.test(blob)) return "CAD";
+  if (/\b(australia|sydney|melbourne)\b/i.test(blob)) return "AUD";
+  if (/\b(suiza|switzerland|z[uú]rich|geneva|ginebra)\b/i.test(blob)) return "CHF";
+  return "EUR";
+}
+
 const CATEGORY_KINDS: Array<{
   key: Exclude<Category, "transport">;
   label: string;
@@ -136,6 +168,8 @@ export default function TripAiPlannerWizard() {
   const [places, setPlaces] = useState<string[]>([""]);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [baseCurrency, setBaseCurrency] = useState<CurrencyCode>("EUR");
+  const [baseCurrencyTouched, setBaseCurrencyTouched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -157,11 +191,17 @@ export default function TripAiPlannerWizard() {
 
   const totalDays = useMemo(() => totalDaysBetween(startDate, endDate), [startDate, endDate]);
   const destinationLabel = useMemo(() => joinTripPlaces(places.map((x) => x.trim()).filter(Boolean)), [places]);
+  const inferredCurrency = useMemo(() => inferCurrencyFromDestinations(places.map((x) => x.trim()).filter(Boolean)), [places]);
 
   useEffect(() => {
     if (!isoOk(startDate)) return;
     if (!endDate || endDate < startDate) setEndDate(startDate);
   }, [startDate]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (baseCurrencyTouched) return;
+    setBaseCurrency(inferredCurrency);
+  }, [inferredCurrency, baseCurrencyTouched]);
 
   useEffect(() => {
     try {
@@ -260,7 +300,7 @@ export default function TripAiPlannerWizard() {
           destination: destinationLabel,
           start_date: startDate,
           end_date: endDate,
-          base_currency: "EUR",
+          base_currency: baseCurrency,
         }),
       });
       const createPayload = await createRes.json().catch(() => null);
@@ -368,7 +408,7 @@ export default function TripAiPlannerWizard() {
       const payload = {
         version: 1,
         savedAt: new Date().toISOString(),
-        inputs: { tripName, places, startDate, endDate },
+        inputs: { tripName, places, startDate, endDate, baseCurrency },
         stays,
         selectedPoisByStop,
         draft,
@@ -393,6 +433,10 @@ export default function TripAiPlannerWizard() {
       setPlaces(Array.isArray(inputs.places) ? inputs.places : [""]);
       setStartDate(String(inputs.startDate || ""));
       setEndDate(String(inputs.endDate || ""));
+      if (inputs.baseCurrency) {
+        setBaseCurrency(String(inputs.baseCurrency) as CurrencyCode);
+        setBaseCurrencyTouched(true);
+      }
       setStays(Array.isArray(payload?.stays) ? payload.stays : []);
       setSelectedPoisByStop(payload?.selectedPoisByStop && typeof payload.selectedPoisByStop === "object" ? payload.selectedPoisByStop : {});
       setDraft(payload?.draft || null);
@@ -452,6 +496,26 @@ export default function TripAiPlannerWizard() {
                 placeholder={destinationLabel && isoOk(startDate) && isoOk(endDate) ? `${destinationLabel} (${startDate} → ${endDate})` : "Ej. Argentina 2026"}
                 className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
               />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-extrabold text-slate-900">Moneda</label>
+              <select
+                value={baseCurrency}
+                onChange={(e) => {
+                  setBaseCurrency(e.target.value as CurrencyCode);
+                  setBaseCurrencyTouched(true);
+                }}
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-slate-500"
+              >
+                {CURRENCY_OPTIONS.map((o) => (
+                  <option key={o.code} value={o.code}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              <div className="mt-1 text-xs font-semibold text-slate-500">
+                Sugerida por destino: {inferredCurrency} {baseCurrencyTouched ? "(manual)" : "(auto)"}
+              </div>
             </div>
             <div className="md:col-span-2">
               <TripPlacesFields places={places} onChange={setPlaces} />
