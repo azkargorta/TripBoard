@@ -201,6 +201,25 @@ function looksGenericTitle(t: string) {
   );
 }
 
+function isGenericFoodItem(it: any): boolean {
+  const kind = String(it?.activity_kind || "").toLowerCase();
+  if (kind !== "food") return false;
+  const title = String(it?.title || "").trim().toLowerCase();
+  const place = String(it?.place_name || "").trim().toLowerCase();
+  const addr = String(it?.address || "").trim().toLowerCase();
+
+  // “Almuerzo/Cena en X” con restaurante genérico (sin nombre real) suele ser relleno vacío.
+  const isMeal = /\b(almuerzo|cena)\b/i.test(title);
+  if (!isMeal) return false;
+
+  const genericPlace =
+    !place ||
+    /\b(restaurante|restaurant|cercano|cerca|zona|centro|hist[oó]ric|barrio)\b/i.test(place) ||
+    place.length < 6;
+  const genericAddr = !addr || /\b(microcentro|centro|barrio)\b/i.test(addr);
+  return genericPlace && genericAddr;
+}
+
 function extractNestedItems(obj: any): any[] {
   const out: any[] = [];
   if (!obj || typeof obj !== "object") return out;
@@ -1126,6 +1145,7 @@ ${baseContext.optimizeHint}
       const isTransport = kind === "transport";
       const isHardGeneric = looksGenericTitle(title) || (!isTransport && (place.toLowerCase() === baseCity.toLowerCase() || place.length < 4));
       const already = identity ? tripUsed.has(identity) : false;
+      if (isGenericFoodItem(it)) continue;
       if (!isTransport && (isHardGeneric || already)) continue;
       if (identity) tripUsed.add(identity);
       cleaned.push(it);

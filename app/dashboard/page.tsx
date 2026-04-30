@@ -7,7 +7,6 @@ import OnboardingNudge from "@/components/dashboard/OnboardingNudge";
 import DashboardAiShortcuts from "@/components/dashboard/DashboardAiShortcuts";
 import DashboardTripSection from "@/components/dashboard/DashboardTripSection";
 import DashboardCreateFlowStepper from "@/components/dashboard/DashboardCreateFlowStepper";
-import DashboardVirtualAssistantCreateTrip from "@/components/dashboard/DashboardVirtualAssistantCreateTrip";
 import { isPlatformAdmin } from "@/lib/platform-admin";
 import { surfaceAccentCyan } from "@/components/ui/brandStyles";
 import { Sparkles } from "lucide-react";
@@ -158,9 +157,6 @@ export default async function DashboardPage() {
                 Tras crear el viaje, el asistente te guía con propuestas. También puedes abrirlo en cualquier viaje desde
                 la pestaña del mismo nombre.
               </p>
-              <div className="mt-4 flex justify-center">
-                <DashboardVirtualAssistantCreateTrip isPremium disabled={freeTripLimitReached} />
-              </div>
               <DashboardAiShortcuts trips={trips} isPremium />
             </>
           ) : (
