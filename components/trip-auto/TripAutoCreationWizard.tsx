@@ -581,8 +581,6 @@ export default function TripAutoCreationWizard() {
       setAiProgress({ done: 0, total });
       setAiPromptLog([]);
 
-      // Generamos por tramos de estancia (hasta 4 días) para que la IA planifique una ciudad
-      // completa de una vez y no repita actividades entre chunks.
       const base: ExecutableItineraryPayload =
         itinerary?.version === 1 && Array.isArray(itinerary.days) ? itinerary : { version: 1, title: "Itinerario", travelMode: "driving", days: [] };
       const dayMap = new Map<number, any>();
@@ -611,69 +609,112 @@ export default function TripAutoCreationWizard() {
         };
       };
 
-      for (let offset = 0; offset < total; ) {
-        let ok = false;
-        let generatedCount = 0;
-        let lastErr: string | null = null;
-
-        for (const requestedCount of [2, 1]) {
-          try {
-            const config =
-              typeof maxItemsPerDay === "number" && Number.isFinite(maxItemsPerDay)
-                ? {
-                    pace: {
-                      itemsPerDayMin: Math.max(1, Math.min(12, Math.round(Math.max(1, maxItemsPerDay - 2)))),
-                      itemsPerDayMax: Math.max(1, Math.min(12, Math.round(maxItemsPerDay))),
-                    },
-                  }
-                : undefined;
-            const res = await fetch("/api/trips/auto-plan/generate-chunk", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ intent, config, dayOffset: offset, dayCount: requestedCount }),
-            });
-            const { data } = await readJsonResponse<any>(res);
-            if (!res.ok) throw new Error(data?.error || "No se pudo generar el itinerario con IA.");
-            const days = Array.isArray(data?.days) ? data.days : [];
-            generatedCount =
-              typeof data?.dayCount === "number" && Number.isFinite(data.dayCount)
-                ? Math.max(1, Math.round(data.dayCount))
-                : Math.max(1, days.length || requestedCount);
-
-            const prompts = Array.isArray(data?.prompts) ? data.prompts.map((x: any) => String(x || "")).filter(Boolean) : [];
-            if (prompts.length) {
-              setAiPromptLog((prev) => [...prev, { dayOffset: offset, dayCount: generatedCount, prompts }]);
+      const config =
+        typeof maxItemsPerDay === "number" && Number.isFinite(maxItemsPerDay)
+          ? {
+              pace: {
+                itemsPerDayMin: Math.max(1, Math.min(12, Math.round(Math.max(1, maxItemsPerDay - 2)))),
+                itemsPerDayMax: Math.max(1, Math.min(12, Math.round(maxItemsPerDay))),
+              },
             }
-            for (const d of days) {
-              if (typeof d?.day === "number") dayMap.set(d.day, d);
-            }
-            ok = true;
-            break;
-          } catch (e) {
-            lastErr = e instanceof Error ? e.message : "Timeout / error desconocido";
+          : undefined;
+
+      // Build chunks aligned to cityStays boundaries (max 4 days each).
+      // cityStays comes from the same buildRouteStructureFromIntent the server uses,
+      // so boundaries match server-side baseCityByDay — one AI call per city segment.
+      const chunks: Array<{ offset: number; count: number }> = [];
+      if (cityStays.length) {
+        let offset = 0;
+        for (const stay of cityStays) {
+          let remaining = Math.max(1, stay.days);
+          while (remaining > 0 && offset < total) {
+            const chunkSize = Math.min(4, remaining, total - offset);
+            if (chunkSize <= 0) break;
+            chunks.push({ offset, count: chunkSize });
+            offset += chunkSize;
+            remaining -= chunkSize;
           }
         }
-
-        if (!ok) {
-          // No bloqueamos todo el viaje: dejamos placeholder y seguimos.
-          dayMap.set(offset + 1, placeholderDay(offset + 1));
-          generatedCount = 1;
-          toast.error("Un día no se pudo generar", lastErr || "Timeout. Se ha dejado un placeholder para reintentar.");
+        // Fill any tail days not covered by cityStays (safety net)
+        while (offset < total) {
+          chunks.push({ offset, count: Math.min(4, total - offset) });
+          offset += 4;
         }
-
-        const done = Math.min(total, offset + generatedCount);
-        setAiProgress({ done, total });
-
-        const mergedDays = Array.from({ length: total }, (_, i) => dayMap.get(i + 1) || placeholderDay(i + 1));
-        setItinerary((prev) => ({
-          version: 1,
-          title: prev?.title || base.title,
-          travelMode: prev?.travelMode || base.travelMode,
-          days: mergedDays,
-        }));
-
-        offset += generatedCount;
+      } else {
+        // Fallback when no cityStays: fixed 4-day chunks
+        for (let offset = 0; offset < total; offset += 4) {
+          chunks.push({ offset, count: Math.min(4, total - offset) });
+        }
       }
+
+      // Snapshot helper — reads dayMap at call time (safe: JS single-threaded between awaits)
+      const snapshot = () => Array.from({ length: total }, (_, i) => dayMap.get(i + 1) || placeholderDay(i + 1));
+
+      // Mutable counter updated as chunks resolve (single-threaded: no interleaving at non-await points)
+      let completedDays = 0;
+
+      await Promise.allSettled(
+        chunks.map(async ({ offset, count }) => {
+          let ok = false;
+          let lastErr: string | null = null;
+
+          for (const requestedCount of [count, 1]) {
+            try {
+              const res = await fetch("/api/trips/auto-plan/generate-chunk", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ intent, config, dayOffset: offset, dayCount: requestedCount }),
+              });
+              const { data } = await readJsonResponse<any>(res);
+              if (!res.ok) throw new Error(data?.error || "No se pudo generar el itinerario con IA.");
+
+              const days = Array.isArray(data?.days) ? data.days : [];
+              const generatedCount =
+                typeof data?.dayCount === "number" && Number.isFinite(data.dayCount)
+                  ? Math.max(1, Math.round(data.dayCount))
+                  : Math.max(1, days.length || requestedCount);
+
+              const prompts = Array.isArray(data?.prompts) ? data.prompts.map((x: any) => String(x || "")).filter(Boolean) : [];
+              if (prompts.length) {
+                setAiPromptLog((prev) => [...prev, { dayOffset: offset, dayCount: generatedCount, prompts }]);
+              }
+
+              for (const d of days) {
+                if (typeof d?.day === "number") dayMap.set(d.day, d);
+              }
+
+              completedDays = Math.min(total, completedDays + generatedCount);
+              setAiProgress({ done: completedDays, total });
+              setItinerary((prev) => ({
+                version: 1,
+                title: prev?.title || base.title,
+                travelMode: prev?.travelMode || base.travelMode,
+                days: snapshot(),
+              }));
+
+              ok = true;
+              break;
+            } catch (e) {
+              lastErr = e instanceof Error ? e.message : "Timeout / error desconocido";
+            }
+          }
+
+          if (!ok) {
+            dayMap.set(offset + 1, placeholderDay(offset + 1));
+            completedDays = Math.min(total, completedDays + 1);
+            setAiProgress({ done: completedDays, total });
+            toast.error("Un día no se pudo generar", lastErr || "Timeout. Se ha dejado un placeholder para reintentar.");
+          }
+        })
+      );
+
+      // Final merge after all chunks settle
+      setItinerary((prev) => ({
+        version: 1,
+        title: prev?.title || base.title,
+        travelMode: prev?.travelMode || base.travelMode,
+        days: snapshot(),
+      }));
     } catch (e) {
       const msg = e instanceof Error ? e.message : "No se pudo generar el itinerario con IA.";
       setError(msg);
@@ -778,9 +819,11 @@ export default function TripAutoCreationWizard() {
             <div className="mt-5 text-center text-lg font-extrabold tracking-tight">Generando tu viaje</div>
             <div className="mt-2 text-center text-sm font-semibold text-slate-300">
               {aiProgress
-                ? aiProgress.done < aiProgress.total
-                  ? `Generando día ${Math.min(aiProgress.done + 1, aiProgress.total)}/${aiProgress.total}`
-                  : `Generando día ${aiProgress.total}/${aiProgress.total}`
+                ? aiProgress.done === 0
+                  ? `Generando ${aiProgress.total} días en paralelo…`
+                  : aiProgress.done < aiProgress.total
+                    ? `${aiProgress.done}/${aiProgress.total} días completados…`
+                    : `${aiProgress.total}/${aiProgress.total} días completados`
                 : "Preparando itinerario…"}
             </div>
             <div className="mt-5 h-2 overflow-hidden rounded-full bg-white/10">
