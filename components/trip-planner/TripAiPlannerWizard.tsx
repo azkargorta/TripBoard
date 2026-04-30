@@ -176,6 +176,7 @@ export default function TripAiPlannerWizard() {
   const [placeSuggestions, setPlaceSuggestions] = useState<Array<{ name: string; lat: number; lng: number }>>([]);
   const [placeSuggestionsOffset, setPlaceSuggestionsOffset] = useState(0);
   const [placeSuggestionsLoading, setPlaceSuggestionsLoading] = useState(false);
+  const [placeSuggestionsError, setPlaceSuggestionsError] = useState<string | null>(null);
 
   const [draft, setDraft] = useState<ApiDraft | null>(null);
   const [stays, setStays] = useState<StayRow[]>([]);
@@ -224,10 +225,12 @@ export default function TripAiPlannerWizard() {
     if (!countryLikeQuery) {
       setPlaceSuggestions([]);
       setPlaceSuggestionsOffset(0);
+      setPlaceSuggestionsError(null);
       return;
     }
     void (async () => {
       setPlaceSuggestionsLoading(true);
+      setPlaceSuggestionsError(null);
       try {
         const res = await fetch("/api/geocode/suggest-places", {
           method: "POST",
@@ -235,8 +238,14 @@ export default function TripAiPlannerWizard() {
           body: JSON.stringify({ query: countryLikeQuery, limit: 18, offset: 0 }),
         });
         const data = await res.json().catch(() => null);
-        if (!res.ok) return;
-        setPlaceSuggestions(Array.isArray(data?.places) ? data.places : []);
+        if (!res.ok) {
+          setPlaceSuggestions([]);
+          setPlaceSuggestionsOffset(0);
+          setPlaceSuggestionsError(String(data?.error || "No se pudieron cargar sugerencias."));
+          return;
+        }
+        const list = Array.isArray(data?.places) ? data.places : [];
+        setPlaceSuggestions(list);
         setPlaceSuggestionsOffset(18);
       } finally {
         setPlaceSuggestionsLoading(false);
@@ -566,6 +575,19 @@ export default function TripAiPlannerWizard() {
                 <div className="mt-1 text-xs font-semibold text-slate-600">
                   Sugerencias de lugares en <span className="font-extrabold">{countryLikeQuery}</span> (selecciona para añadirlos como destinos).
                 </div>
+                {placeSuggestionsLoading ? (
+                  <div className="mt-2 text-xs font-semibold text-slate-500">Cargando sugerencias…</div>
+                ) : null}
+                {!placeSuggestionsLoading && placeSuggestionsError ? (
+                  <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-900">
+                    {placeSuggestionsError}
+                  </div>
+                ) : null}
+                {!placeSuggestionsLoading && !placeSuggestionsError && !(placeSuggestions || []).length ? (
+                  <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-700">
+                    No he encontrado sugerencias para este país. Prueba a pulsar “Añadir más lugares” o escribe una ciudad/región.
+                  </div>
+                ) : null}
                 <div className="mt-2 flex flex-wrap gap-2">
                   {(placeSuggestions || []).slice(0, 18).map((p) => (
                     <button
@@ -595,6 +617,7 @@ export default function TripAiPlannerWizard() {
                     onClick={async () => {
                       if (!countryLikeQuery) return;
                       setPlaceSuggestionsLoading(true);
+                      setPlaceSuggestionsError(null);
                       try {
                         const res = await fetch("/api/geocode/suggest-places", {
                           method: "POST",
@@ -602,7 +625,10 @@ export default function TripAiPlannerWizard() {
                           body: JSON.stringify({ query: countryLikeQuery, limit: 18, offset: placeSuggestionsOffset }),
                         });
                         const data = await res.json().catch(() => null);
-                        if (!res.ok) return;
+                        if (!res.ok) {
+                          setPlaceSuggestionsError(String(data?.error || "No se pudieron cargar más sugerencias."));
+                          return;
+                        }
                         const more = Array.isArray(data?.places) ? data.places : [];
                         setPlaceSuggestions((prev) => [...prev, ...more]);
                         setPlaceSuggestionsOffset((x) => x + 18);

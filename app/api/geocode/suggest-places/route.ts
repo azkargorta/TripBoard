@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { suggestPlacesForCountry } from "@/lib/geocoding/photonGeocode";
 
 export const runtime = "nodejs";
@@ -38,7 +37,7 @@ async function fetchOverpassJson(query: string, timeoutMs: number): Promise<any 
         cache: "no-store",
         signal: ctrl.signal,
       });
-      const json: any = await resp.json().catch(() => null);
+        const json: any = await resp.json().catch(() => null);
       if (!resp.ok) return null;
       return json;
     } catch {
@@ -71,13 +70,9 @@ async function photonCountryOsmRelationId(countryName: string): Promise<number |
     const osmValue = String(p?.osm_value || "").toLowerCase();
     const osmType = String(p?.osm_type || "").toLowerCase();
     const osmId = Number(p?.osm_id);
-    const name = String(p?.name || "").trim().toLowerCase();
     if (!Number.isFinite(osmId)) continue;
     if (osmType !== "r") continue; // relation
     if (type === "country" || osmValue === "country") {
-      if (!name || !q.toLowerCase().includes(name) && !name.includes(q.toLowerCase())) {
-        // Aun así, si es el primer country, nos vale
-      }
       return osmId;
     }
   }
@@ -99,7 +94,7 @@ async function suggestPlacesOverpassByAreaId(areaId: number, limit: number, offs
 out center tags ${outLimit};
 `.trim();
 
-  const payload = await fetchOverpassJson(q, 28_000);
+  const payload = await fetchOverpassJson(q, 45_000);
   if (!payload) return null;
   const elements = Array.isArray(payload?.elements) ? payload.elements : [];
   const rows: PlaceRow[] = [];
@@ -141,7 +136,7 @@ area["name"="${countryName}"]["boundary"="administrative"]["admin_level"="2"]->.
 out center tags ${outLimit};
 `.trim();
 
-  const payload = await fetchOverpassJson(q, 28_000);
+  const payload = await fetchOverpassJson(q, 45_000);
   if (!payload) return null;
   const elements = Array.isArray(payload?.elements) ? payload.elements : [];
   const rows: PlaceRow[] = [];
@@ -169,12 +164,6 @@ out center tags ${outLimit};
 
 export async function POST(req: Request) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
-
     const body = await req.json().catch(() => null);
     const query = String(body?.query || "").trim();
     const limit = Number(body?.limit) || 18;
