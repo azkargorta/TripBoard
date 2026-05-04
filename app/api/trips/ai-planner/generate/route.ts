@@ -160,51 +160,53 @@ function checkViability(stops: Array<{ label: string; center: LatLng }>, totalDa
 // This produces expert-quality, varied, location-specific plans that improve
 // with every chat message the user sends.
 
+// Max days per Gemini call — keeps JSON output well within the 8192 token limit.
+// Buenos Aires 4 nights was truncating at 4800 tokens. 2 days/call = ~2500 tokens max.
+const MAX_DAYS_PER_CALL = 2;
+
 function buildCityItineraryPrompt(
   city: string,
-  nights: number,
-  startDateIso: string,
+  days: Array<{ dayNum: number; date: string }>,
   notes: string,
   prevCity: string | null
 ): string {
-  // Translate notes into explicit traveller profile
   const profile = notes.trim()
-    ? `El viajero ha indicado lo siguiente sobre sus preferencias y estilo de viaje:\n"${notes}"\nTen en cuenta TODO esto al elegir actividades, horarios y ritmo.`
+    ? `Preferencias del viajero:\n"${notes}"\nTen en cuenta TODO esto al elegir actividades, horarios y ritmo.`
     : "No hay preferencias específicas — crea un plan equilibrado y variado.";
 
-  const transitNote = prevCity
-    ? `NOTA: El viajero llega desde ${prevCity}. El primer día puede incluir una actividad de llegada/orientación más ligera, pero el resto deben ser días completos.`
+  const transitNote = prevCity && days[0]?.dayNum === 1
+    ? `NOTA: El viajero llega desde ${prevCity} este día. Incluye 2-3 actividades (no un día completo).`
     : "";
 
-  // Build explicit date list so Gemini assigns the right dates
-  const dates = Array.from({ length: nights }, (_, i) => addDaysIso(startDateIso, i));
-  const dateList = dates.map((d, i) => `  Día ${i + 1}: ${d}`).join("\n");
+  const dateList = days.map((d) => `  Día ${d.dayNum}: ${d.date}`).join("\n");
+  const firstDate = days[0]?.date ?? "";
+  const n = days.length;
 
-  return `Eres un experto en viajes y guía turístico local de ${city}. Crea un plan detallado de ${nights} día${nights !== 1 ? "s" : ""} en ${city}.
+  return `Eres un experto en viajes y guía turístico local de ${city}. Crea un plan de ${n} día${n !== 1 ? "s" : ""} en ${city}.
 
 ${profile}
 ${transitNote}
 
-Fechas exactas del bloque en ${city}:
+Fechas:
 ${dateList}
 
-Devuelve SOLO JSON válido (sin markdown, sin explicaciones, sin texto extra antes o después). Esquema exacto:
+Devuelve SOLO JSON válido (sin markdown, sin texto extra). Esquema:
 {
   "days": [
     {
       "day": 1,
-      "date": "${dates[0]}",
+      "date": "${firstDate}",
       "base": "${city}",
       "items": [
         {
-          "title": "Nombre REAL y CONCRETO del lugar o experiencia",
-          "description": "Una frase breve con un tip local o dato interesante sobre este lugar",
+          "title": "Nombre REAL del lugar",
+          "description": "Tip útil o dato concreto del lugar",
           "activity_time": "09:30",
           "activity_kind": "culture",
-          "place_name": "Nombre exacto del lugar",
-          "address": "Dirección o zona, ${city}",
-          "latitude": 0.000000,
-          "longitude": 0.000000,
+          "place_name": "Nombre del lugar",
+          "address": "Dirección, ${city}",
+          "latitude": -34.0000,
+          "longitude": -58.0000,
           "activity_type": "visit"
         }
       ]
@@ -212,29 +214,23 @@ Devuelve SOLO JSON válido (sin markdown, sin explicaciones, sin texto extra ant
   ]
 }
 
-REGLAS CRÍTICAS — sígüelas al pie de la letra:
+REGLAS:
 
-1. LUGARES REALES: Todos los títulos deben ser nombres propios verificables en Google Maps. PROHIBIDO: "Paseo por el centro", "Zona histórica", "Tiempo libre", "Explorar el barrio", "Visita panorámica".
+1. TÍTULOS REALES: nombres propios verificables en Google Maps. PROHIBIDO: "Paseo por el centro", "Zona histórica", "Tiempo libre", "Explorar", "Visita panorámica".
 
-2. ⚠️ PROHIBIDO ABSOLUTAMENTE — COMIDAS Y CENAS GENÉRICAS: NUNCA pongas "Almuerzo", "Cena", "Comida", "Desayuno", "Lunch", "Dinner" como actividad, ni solos ni acompañados de descripción ("Almuerzo en el mercado", "Cena típica porteña", "Comida con vista al río" — TODO PROHIBIDO). Comer y cenar NO son planes turísticos. Si quieres incluir gastronomía, úsala como experiencia concreta con nombre propio: "Mercado de San Telmo", "Bodega Catena Zapata", "Cata de vinos en Zuccardi", "Taller de empanadas en [nombre]". Si no tienes una experiencia gastronómica con nombre propio real, no incluyas nada de comida ese día.
+2. SIN COMIDAS GENÉRICAS: NUNCA "Almuerzo", "Cena", "Comida", "Desayuno" como actividad, solos ni combinados ("Almuerzo en el mercado" = PROHIBIDO). Gastronomía solo con nombre propio real y concreto: "Mercado de San Telmo", "Bodega Catena Zapata", "Cata en Zuccardi". Si no hay experiencia gastronómica real, no incluyas comida.
 
-3. VARIEDAD DIARIA: Cada día debe tener entre 3 y 5 actividades distribuidas (mañana, mediodía, tarde, noche). Mezcla categorías: cultura, naturaleza, barrios, mercados, vida nocturna. NO pongas el mismo tipo de actividad dos veces en el mismo día.
+3. CANTIDAD: 3 a 5 actividades por día, repartidas a lo largo del día.
 
-4. VARIEDAD ENTRE DÍAS: El día 2 no puede empezar igual que el día 1. Rota: si el día 1 empiezas con un museo, el día 2 empieza con naturaleza o un barrio. Nunca dos días consecutivos con el mismo primer plan.
+4. COORDENADAS REALES: lat/lng del lugar específico. Nunca 0.0.
 
-5. LOS MÁS ICÓNICOS PRIMERO: Incluye los lugares más famosos y visitados de ${city}. No uses sitios oscuros o poco conocidos salvo que el viajero lo haya pedido explícitamente.
+5. HORARIOS: mañana (09:00-12:30), mediodía (13:00-16:00), tarde (16:30-20:00), noche (20:30+). Al menos 1.5h entre actividades.
 
-6. COORDENADAS REALES: lat/lng deben ser las coordenadas GPS reales y precisas del lugar. Nunca uses 0.0 ni coordenadas inventadas.
+6. PREFERENCIAS: respeta TODO lo que indicó el viajero.
 
-7. HORARIOS REALISTAS: No pongas más de una actividad a la misma hora. Deja al menos 1.5 horas entre actividades. Orden del día: mañana (09:00-13:00), mediodía (13:00-16:00), tarde (16:00-20:00), noche (20:00+).
+7. ICÓNICOS: incluye los lugares más famosos y visitados de ${city}.
 
-8. PREFERENCIAS DEL VIAJERO: Respeta SIEMPRE todo lo que indicó. Si dijo "sin museos" → cero museos. Si dijo "más gastronomía" → al menos una experiencia gastronómica con nombre propio por día. Si dijo "naturaleza" → incluye parques, rutas, miradores. Si dijo "ritmo tranquilo" → máximo 3 actividades por día.
-
-9. GASTRONOMÍA SOLO CON NOMBRE PROPIO: "gastro_experience" únicamente para: bodegas (con nombre), mercados gastronómicos (con nombre), catas (con nombre del lugar), talleres de cocina (con nombre), restaurantes absolutamente icónicos del destino (con nombre). NUNCA "Cena en restaurante local" ni similar.
-
-10. DESCRIPCIÓN ÚTIL: Incluye un tip práctico o dato concreto ("Llega antes de las 10 para evitar colas", "Mejor puesta de sol desde aquí", "Entrada gratuita los domingos").
-
-11. activity_kind debe ser uno de: culture, nature, viewpoint, neighborhood, market, excursion, gastro_experience, shopping, night, transport.
+8. activity_kind: culture, nature, viewpoint, neighborhood, market, excursion, gastro_experience, shopping, night, transport.
 `.trim();
 }
 
@@ -246,88 +242,102 @@ async function generateCityItinerary(
   prevCity: string | null,
   forceRegen = false
 ): Promise<{ days: any[]; prompt: string; rawOutput: string } | null> {
-  // Cache hit — reuse if notes haven't changed and not forced
   if (!forceRegen) {
     const cached = itinCacheGet(city, nights, notes);
     if (cached) return { days: cached, prompt: "(from cache)", rawOutput: "(from cache)" };
   }
 
-  const prompt = buildCityItineraryPrompt(city, nights, startDateIso, notes, prevCity);
-  let raw = "";
-
-  try {
-    // Token budget scales with nights: more days = more content
-    const maxTokens = Math.min(8192, 1200 + nights * 900);
-    raw = await askGemini(prompt, "planning", { maxOutputTokens: maxTokens });
-
-    // Parse and validate
-    const parsed = extractJsonObject(raw) as any;
-    if (!parsed?.days || !Array.isArray(parsed.days)) return { days: [], prompt, rawOutput: raw };
-
-    // Regex that catches all food/meal activity patterns Gemini tends to generate
-    const MEAL_REGEX = /\b(almuerzo|cena|comida|desayuno|lunch|dinner|breakfast|brunch|merienda|aperitivo)\b/i;
-    // Only allowed if it's clearly a gastro experience with a proper noun
-    const GASTRO_WHITELIST = /\b(mercado|bodega|cata|taller|curso|winery|brewery|destiler[ií]a|vinedo|vi[ñn]edo|maridaje|sommelier|degustation|tapeo|pintxos)\b/i;
-
-    function isMealActivity(title: string): boolean {
-      if (!MEAL_REGEX.test(title)) return false;
-      if (GASTRO_WHITELIST.test(title)) return false;
-      return true;
-    }
-
-    const days = parsed.days
-      .map((d: any, idx: number) => {
-        const date = typeof d.date === "string" && isoOk(d.date)
-          ? d.date
-          : addDaysIso(startDateIso, idx);
-
-        const rawItems = Array.isArray(d.items) ? d.items : [];
-        const items = rawItems
-          .map((it: any) => {
-            const title = cleanString(it?.title || "");
-            if (!title) return null;
-            if (/\b(paseo por|zona hist|tiempo libre|explorar el|visita panor)/i.test(title)) return null;
-            if (isMealActivity(title)) return null;
-            const lat = typeof it?.latitude === "number" && Math.abs(it.latitude) <= 90 && it.latitude !== 0 ? it.latitude : null;
-            const lng = typeof it?.longitude === "number" && Math.abs(it.longitude) <= 180 && it.longitude !== 0 ? it.longitude : null;
-            return {
-              title,
-              description: cleanString(it?.description || "") || null,
-              activity_date: date,
-              activity_time: cleanString(it?.activity_time || "") || null,
-              place_name: cleanString(it?.place_name || title),
-              address: cleanString(it?.address || `${title}, ${city}`),
-              latitude: lat,
-              longitude: lng,
-              activity_kind: cleanString(it?.activity_kind || "culture"),
-              activity_type: cleanString(it?.activity_type || "visit") || "visit",
-              source: "ai_planner",
-              // Debug: track how many raw items were filtered
-              _raw_item_count: rawItems.length,
-            };
-          })
-          .filter(Boolean);
-
-        return {
-          day: typeof d.day === "number" ? d.day : idx + 1,
-          date,
-          base: city,
-          items,
-          _raw_item_count: rawItems.length,
-          _filtered_count: rawItems.length - items.length,
-        };
-      });
-
-    if (!days.length) return { days: [], prompt, rawOutput: raw };
-
-    const validDays = days.map((d: any) => ({ ...d }));
-    itinCacheSet(city, nights, notes, validDays);
-    return { days: validDays, prompt, rawOutput: raw };
-  } catch (e) {
-    console.error(`[ai-planner] Gemini itinerary failed for "${city}":`, e);
-    return { days: [], prompt, rawOutput: raw || String(e) };
+  // Split into chunks of MAX_DAYS_PER_CALL to avoid token truncation
+  const chunks: Array<Array<{ dayNum: number; date: string }>> = [];
+  for (let i = 0; i < nights; i += MAX_DAYS_PER_CALL) {
+    chunks.push(
+      Array.from({ length: Math.min(MAX_DAYS_PER_CALL, nights - i) }, (_, j) => ({
+        dayNum: i + j + 1,
+        date: addDaysIso(startDateIso, i + j),
+      }))
+    );
   }
+
+  const MEAL_REGEX = /\b(almuerzo|cena|comida|desayuno|lunch|dinner|breakfast|brunch|merienda|aperitivo)\b/i;
+  const GASTRO_OK = /\b(mercado|bodega|cata|taller|curso|winery|brewery|destiler[ií]a|vi[ñn]edo|maridaje|tapeo|pintxos|parrilla|asado)\b/i;
+  const isMeal = (t: string) => MEAL_REGEX.test(t) && !GASTRO_OK.test(t);
+  const isGeneric = (t: string) => /\b(paseo por|zona hist|tiempo libre|explorar el|visita panor)/i.test(t);
+
+  function parseItems(rawItems: any[], date: string): any[] {
+    return rawItems.map((it: any) => {
+      const title = cleanString(it?.title || "");
+      if (!title || isGeneric(title) || isMeal(title)) return null;
+      const lat = typeof it?.latitude === "number" && Math.abs(it.latitude) <= 90 && it.latitude !== 0 ? it.latitude : null;
+      const lng = typeof it?.longitude === "number" && Math.abs(it.longitude) <= 180 && it.longitude !== 0 ? it.longitude : null;
+      return {
+        title,
+        description: cleanString(it?.description || "") || null,
+        activity_date: date,
+        activity_time: cleanString(it?.activity_time || "") || null,
+        place_name: cleanString(it?.place_name || title),
+        address: cleanString(it?.address || `${title}, ${city}`),
+        latitude: lat, longitude: lng,
+        activity_kind: cleanString(it?.activity_kind || "culture"),
+        activity_type: cleanString(it?.activity_type || "visit") || "visit",
+        source: "ai_planner",
+      };
+    }).filter(Boolean);
+  }
+
+  // Call Gemini for each chunk in parallel
+  const chunkResults = await Promise.all(
+    chunks.map(async (chunk, ci) => {
+      const prompt = buildCityItineraryPrompt(city, chunk, notes, ci === 0 ? prevCity : null);
+      let raw = "";
+      try {
+        raw = await askGemini(prompt, "planning", { maxOutputTokens: 4096 });
+        const parsed = extractJsonObject(raw) as any;
+        if (!parsed?.days || !Array.isArray(parsed.days)) return { days: [], prompt, rawOutput: raw };
+
+        const days = parsed.days.map((d: any, idx: number) => {
+          const date = chunk[idx]?.date ?? chunk[0]!.date;
+          const rawItems: any[] = Array.isArray(d.items) ? d.items : [];
+          const items = parseItems(rawItems, date);
+          return {
+            day: chunk[idx]?.dayNum ?? idx + 1,
+            date, base: city, items,
+            _raw_item_count: rawItems.length,
+            _filtered_count: rawItems.length - items.length,
+          };
+        });
+        return { days, prompt, rawOutput: raw };
+      } catch (e) {
+        console.error(`[ai-planner] chunk ${ci} failed for "${city}":`, e);
+        return { days: [], prompt, rawOutput: raw || String(e) };
+      }
+    })
+  );
+
+  const allDays = chunkResults.flatMap((r) => r?.days ?? []);
+  const allPrompts = chunkResults.map((r, i) => `--- Chunk ${i + 1} ---\n${r?.prompt ?? ""}`).join("\n\n");
+  const allRaw = chunkResults.map((r, i) => `--- Chunk ${i + 1} ---\n${r?.rawOutput ?? ""}`).join("\n\n");
+
+  // Retry individual empty days (single-day call)
+  const finalDays = await Promise.all(
+    allDays.map(async (d: any) => {
+      if ((d.items?.length ?? 0) >= 2) return d;
+      console.warn(`[ai-planner] Retrying empty day ${d.day} in "${city}"...`);
+      const retryPrompt = buildCityItineraryPrompt(city, [{ dayNum: d.day, date: d.date }], notes, null);
+      try {
+        const raw2 = await askGemini(retryPrompt, "planning", { maxOutputTokens: 2048 });
+        const p2 = extractJsonObject(raw2) as any;
+        const retryItems = parseItems(Array.isArray(p2?.days?.[0]?.items) ? p2.days[0].items : [], d.date);
+        if (retryItems.length > 0) return { ...d, items: retryItems };
+      } catch { /* keep */ }
+      return d;
+    })
+  );
+
+  if (!finalDays.length) return { days: [], prompt: allPrompts, rawOutput: allRaw };
+  itinCacheSet(city, nights, notes, finalDays);
+  return { days: finalDays, prompt: allPrompts, rawOutput: allRaw };
 }
+
 
 // ─── Gemini: POI pool (for suggestion chips + smart distribution) ─────────────
 
