@@ -245,32 +245,32 @@ async function generateCityItinerary(
   notes: string,
   prevCity: string | null,
   forceRegen = false
-): Promise<any[] | null> {
+): Promise<{ days: any[]; prompt: string; rawOutput: string } | null> {
   // Cache hit — reuse if notes haven't changed and not forced
   if (!forceRegen) {
     const cached = itinCacheGet(city, nights, notes);
-    if (cached) return cached;
+    if (cached) return { days: cached, prompt: "(from cache)", rawOutput: "(from cache)" };
   }
 
+  const prompt = buildCityItineraryPrompt(city, nights, startDateIso, notes, prevCity);
+  let raw = "";
+
   try {
-    const prompt = buildCityItineraryPrompt(city, nights, startDateIso, notes, prevCity);
     // Token budget scales with nights: more days = more content
     const maxTokens = Math.min(8192, 1200 + nights * 900);
-    const raw = await askGemini(prompt, "planning", { maxOutputTokens: maxTokens });
+    raw = await askGemini(prompt, "planning", { maxOutputTokens: maxTokens });
 
     // Parse and validate
     const parsed = extractJsonObject(raw) as any;
-    if (!parsed?.days || !Array.isArray(parsed.days)) return null;
+    if (!parsed?.days || !Array.isArray(parsed.days)) return { days: [], prompt, rawOutput: raw };
 
     // Regex that catches all food/meal activity patterns Gemini tends to generate
     const MEAL_REGEX = /\b(almuerzo|cena|comida|desayuno|lunch|dinner|breakfast|brunch|merienda|aperitivo)\b/i;
     // Only allowed if it's clearly a gastro experience with a proper noun
-    // e.g. "Mercado de San Telmo" is fine, "Almuerzo en el mercado" is not
     const GASTRO_WHITELIST = /\b(mercado|bodega|cata|taller|curso|winery|brewery|destiler[ií]a|vinedo|vi[ñn]edo|maridaje|sommelier|degustation|tapeo|pintxos)\b/i;
 
-    function isMealActivity(title: string, kind: string): boolean {
+    function isMealActivity(title: string): boolean {
       if (!MEAL_REGEX.test(title)) return false;
-      // Allow it only if it also mentions a specific gastro venue/experience
       if (GASTRO_WHITELIST.test(title)) return false;
       return true;
     }
@@ -281,14 +281,13 @@ async function generateCityItinerary(
           ? d.date
           : addDaysIso(startDateIso, idx);
 
-        const items = (Array.isArray(d.items) ? d.items : [])
+        const rawItems = Array.isArray(d.items) ? d.items : [];
+        const items = rawItems
           .map((it: any) => {
             const title = cleanString(it?.title || "");
             if (!title) return null;
-            // Reject generic non-place titles
             if (/\b(paseo por|zona hist|tiempo libre|explorar el|visita panor)/i.test(title)) return null;
-            // Reject meal activities (almuerzo, cena, comida, etc.) unless it's a real gastro experience
-            if (isMealActivity(title, cleanString(it?.activity_kind || ""))) return null;
+            if (isMealActivity(title)) return null;
             const lat = typeof it?.latitude === "number" && Math.abs(it.latitude) <= 90 && it.latitude !== 0 ? it.latitude : null;
             const lng = typeof it?.longitude === "number" && Math.abs(it.longitude) <= 180 && it.longitude !== 0 ? it.longitude : null;
             return {
@@ -303,6 +302,8 @@ async function generateCityItinerary(
               activity_kind: cleanString(it?.activity_kind || "culture"),
               activity_type: cleanString(it?.activity_type || "visit") || "visit",
               source: "ai_planner",
+              // Debug: track how many raw items were filtered
+              _raw_item_count: rawItems.length,
             };
           })
           .filter(Boolean);
@@ -312,26 +313,19 @@ async function generateCityItinerary(
           date,
           base: city,
           items,
+          _raw_item_count: rawItems.length,
+          _filtered_count: rawItems.length - items.length,
         };
       });
-    // Don't discard days with 0 items — they'll be padded below so the day count stays correct.
-    // A day with 0 valid items means Gemini only produced meals/generics for that day.
-    // We keep the day structure and let the frontend show it as "pending" rather than disappear.
 
-    if (!days.length) return null;
+    if (!days.length) return { days: [], prompt, rawOutput: raw };
 
-    // If any day has fewer than 2 real items, mark it so the frontend knows
-    // (the day still exists, it just won't have much content)
-    const validDays = days.map((d: any) => ({
-      ...d,
-      items: d.items.length > 0 ? d.items : [],
-    }));
-
+    const validDays = days.map((d: any) => ({ ...d }));
     itinCacheSet(city, nights, notes, validDays);
-    return validDays;
+    return { days: validDays, prompt, rawOutput: raw };
   } catch (e) {
     console.error(`[ai-planner] Gemini itinerary failed for "${city}":`, e);
-    return null;
+    return { days: [], prompt, rawOutput: raw || String(e) };
   }
 }
 
@@ -573,17 +567,27 @@ export async function POST(req: Request) {
       })
     );
 
+    // Collect debug info (prompts + raw outputs per city block)
+    const _debugBlocks = blocks.map((block, bi) => ({
+      city: block.city,
+      nights: block.nights,
+      startDate: block.startDateIso,
+      prompt: blockResults[bi]?.prompt ?? null,
+      rawOutput: blockResults[bi]?.rawOutput ?? null,
+      itemsGenerated: (blockResults[bi]?.days ?? []).reduce((n: number, d: any) => n + (d._raw_item_count || d.items?.length || 0), 0),
+      itemsFiltered: (blockResults[bi]?.days ?? []).reduce((n: number, d: any) => n + (d._filtered_count || 0), 0),
+      emptyDays: (blockResults[bi]?.days ?? []).filter((d: any) => !d.items?.length).length,
+    }));
+
     // Retry blocks that came back with empty days (Gemini only produced meals/generics)
-    // We retry once with forceRegen=true to get a fresh response
     const blockResultsFinal = await Promise.all(
       blockResults.map(async (result, bi) => {
-        if (!result) return result;
-        const emptyDays = result.filter((d: any) => !d.items || d.items.length === 0);
-        if (emptyDays.length === 0) return result;
-        // Some days came back empty — retry the whole block once
+        if (!result) return null;
+        const emptyDays = result.days.filter((d: any) => !d.items || d.items.length === 0);
+        if (emptyDays.length === 0) return result.days;
         console.warn(`[ai-planner] Block "${blocks[bi]!.city}" had ${emptyDays.length} empty days, retrying...`);
         const retry = await generateCityItinerary(blocks[bi]!.city, blocks[bi]!.nights, blocks[bi]!.startDateIso, mergedNotes, blocks[bi]!.prevCity, true);
-        return retry ?? result; // If retry also fails, keep original (may have partial content)
+        return retry?.days ?? result.days;
       })
     );
 
@@ -606,16 +610,12 @@ export async function POST(req: Request) {
         const hasContent = gemDay && Array.isArray(gemDay.items) && gemDay.items.length > 0;
 
         if (hasContent) {
-          // Use Gemini-generated day, fix dates and day numbers
           let items: any[] = (gemDay.items || []).map((it: any) => ({ ...it, activity_date: dayDate }));
-
-          // Insert transit activity at start of first day if city changed
           if (di === 0 && block.prevCity) {
             const transitItem = {
               title: `Traslado ${block.prevCity} → ${block.city}`,
               description: "Traslado entre ciudades. Ajusta el medio de transporte según tu viaje.",
-              activity_date: dayDate,
-              activity_time: "08:30",
+              activity_date: dayDate, activity_time: "08:30",
               place_name: `${block.prevCity} → ${block.city}`,
               address: `${block.prevCity} → ${block.city}`,
               latitude: null, longitude: null,
@@ -623,13 +623,10 @@ export async function POST(req: Request) {
             };
             items = [transitItem, ...items.slice(0, 3)];
           }
-
           daysOut.push({ day: globalDayNum, date: dayDate, base: block.city, items });
         } else if (existingDaysMap.has(globalDayNum)) {
-          // Keep existing day (partial regen)
           daysOut.push({ ...existingDaysMap.get(globalDayNum), day: globalDayNum, date: dayDate });
         } else {
-          // Gemini failed or returned empty — build a minimal transit/placeholder day
           const items: any[] = [];
           if (di === 0 && block.prevCity) {
             items.push({ title: `Traslado ${block.prevCity} → ${block.city}`, description: "Traslado entre ciudades.", activity_date: dayDate, activity_time: "08:30", place_name: `${block.prevCity} → ${block.city}`, address: `${block.prevCity} → ${block.city}`, latitude: null, longitude: null, activity_kind: "transport", activity_type: "general", source: "ai_planner" });
@@ -639,7 +636,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // Pad to totalDays if needed
     while (daysOut.length < totalDays) {
       daysOut.push({ day: daysOut.length + 1, date: addDaysIso(startDate, daysOut.length), base: stays[stays.length - 1]?.stop || stops[0]!.label, items: [] });
     }
@@ -662,6 +658,10 @@ export async function POST(req: Request) {
       ok: true, totalDays, startDate, endDate, destinations,
       stops: stops.map((s) => ({ key: s.label, label: s.resolvedLabel, center: s.center })),
       stays, baseCityByDay: baseByDay, suggestions, days: daysOut, viability,
+      _debug: {
+        mergedNotes,
+        blocks: _debugBlocks,
+      },
     });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "No se pudo generar el borrador." }, { status: 500 });
