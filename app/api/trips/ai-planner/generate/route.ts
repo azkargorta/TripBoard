@@ -6,6 +6,8 @@ import { addDaysIso } from "@/lib/trip-ai/tripCreationDates";
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 type LatLng = { lat: number; lng: number };
 type Poi = { name: string; lat: number; lng: number; osm?: { type: string; id: string } };
 
@@ -31,6 +33,40 @@ const ALL_CATEGORIES: Category[] = [
   "shopping",
   "night",
 ];
+
+// ─── In-process cache ─────────────────────────────────────────────────────────
+// Key: "<lat>,<lng>,<radiusMeters>" → alle POIs grouped by category.
+// TTL: 10 minutes. Avoids hammering Overpass on retries or chat refinements.
+
+type CacheEntry = { pools: Record<Category, Poi[]>; expiresAt: number };
+const POI_CACHE = new Map<string, CacheEntry>();
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 min
+
+function cacheKey(center: LatLng, radiusMeters: number) {
+  return `${center.lat.toFixed(4)},${center.lng.toFixed(4)},${radiusMeters}`;
+}
+
+function cacheGet(center: LatLng, radiusMeters: number): Record<Category, Poi[]> | null {
+  const k = cacheKey(center, radiusMeters);
+  const entry = POI_CACHE.get(k);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) { POI_CACHE.delete(k); return null; }
+  return entry.pools;
+}
+
+function cacheSet(center: LatLng, radiusMeters: number, pools: Record<Category, Poi[]>) {
+  const k = cacheKey(center, radiusMeters);
+  POI_CACHE.set(k, { pools, expiresAt: Date.now() + CACHE_TTL_MS });
+  // Evict entries older than TTL to avoid unbounded growth
+  if (POI_CACHE.size > 200) {
+    const now = Date.now();
+    for (const [key, val] of POI_CACHE.entries()) {
+      if (now > val.expiresAt) POI_CACHE.delete(key);
+    }
+  }
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function cleanString(v: unknown) {
   return String(v ?? "").trim();
@@ -75,36 +111,262 @@ function dayCountBetween(start: string, end: string) {
 
 function inferBadDay(day: any, ctx: { minItems: number; requireEvening: boolean }) {
   const items = Array.isArray(day?.items) ? day.items : [];
-  if (items.length < ctx.minItems) return true; // M1
-  if (items.some((it: any) => it?.latitude == null || it?.longitude == null)) return true; // M5
+  if (items.length < ctx.minItems) return true;
+  if (items.some((it: any) => it?.latitude == null || it?.longitude == null)) return true;
   const titles = items.map((it: any) => String(it?.title || "").toLowerCase());
   const hasGeneric = titles.some((t: string) =>
     /\b(paseo por la ciudad|paseo por el centro|zona animada|ambiente local|tiempo libre|explorar el centro|visita panor[aá]mica)\b/i.test(t)
   );
-  if (hasGeneric) return true; // M3
+  if (hasGeneric) return true;
   const hasBadFood = titles.some(
     (t: string) => /\b(almuerzo|cena)\b/i.test(t) && !/\b(bodega|cata|taller|tour|curso|mercado)\b/i.test(t)
   );
-  if (hasBadFood) return true; // M4
+  if (hasBadFood) return true;
   if (ctx.requireEvening) {
     const times = items.map((it: any) => String(it?.activity_time || "")).filter(Boolean);
     const last = times.sort().slice(-1)[0] || "";
-    if (last && last < "18:00") return true; // M2
+    if (last && last < "18:00") return true;
   }
   return false;
 }
 
-async function fetchPois(params: { center: LatLng; category: Category; radiusMeters: number; limit: number }): Promise<Poi[] | null> {
-  const endpoints = [
-    "https://overpass-api.de/api/interpreter",
-    "https://overpass.kumi.systems/api/interpreter",
-    "https://overpass.openstreetmap.ru/api/interpreter",
-  ];
+// ─── Overpass: single multi-category query ────────────────────────────────────
+//
+// KEY CHANGE: instead of 10 sequential requests (one per category), we fire
+// ONE Overpass query with named "sets" for each category, return all elements,
+// and split them client-side by the set they matched.  This reduces N round-trips
+// to Overpass to just 1, making saturation errors ~10× less likely.
 
-  const query = buildOverpassQuery(params);
+function buildMultiCategoryQuery(center: LatLng, radiusMeters: number): string {
+  const r = Math.floor(radiusMeters);
+  const lat = center.lat;
+  const lng = center.lng;
+  const around = `(around:${r},${lat},${lng})`;
+
+  // Each category gets a named output set (.culture, .nature, …)
+  // We union node+way+relation for each tag combination.
+  return `
+[out:json][timeout:45];
+
+// CULTURE
+(
+  node["tourism"="museum"]${around};
+  way["tourism"="museum"]${around};
+  relation["tourism"="museum"]${around};
+  node["tourism"="attraction"]${around};
+  way["tourism"="attraction"]${around};
+  node["amenity"="theatre"]${around};
+  way["amenity"="theatre"]${around};
+  node["amenity"="arts_centre"]${around};
+  way["amenity"="arts_centre"]${around};
+  node["historic"="monument"]${around};
+  way["historic"="monument"]${around};
+  node["historic"="castle"]${around};
+  way["historic"="castle"]${around};
+  node["historic"="archaeological_site"]${around};
+  way["historic"="archaeological_site"]${around};
+)->.culture;
+
+// NATURE
+(
+  node["leisure"="park"]${around};
+  way["leisure"="park"]${around};
+  node["boundary"="national_park"]${around};
+  way["boundary"="national_park"]${around};
+  relation["boundary"="national_park"]${around};
+  node["leisure"="nature_reserve"]${around};
+  way["leisure"="nature_reserve"]${around};
+  node["natural"="peak"]${around};
+  node["natural"="waterfall"]${around};
+  node["natural"="beach"]${around};
+  way["natural"="beach"]${around};
+  node["natural"="bay"]${around};
+)->.nature;
+
+// VIEWPOINT
+(
+  node["tourism"="viewpoint"]${around};
+  way["tourism"="viewpoint"]${around};
+)->.viewpoint;
+
+// NEIGHBORHOOD
+(
+  node["place"="neighbourhood"]${around};
+  way["place"="neighbourhood"]${around};
+  node["place"="suburb"]${around};
+  way["place"="suburb"]${around};
+)->.neighborhood;
+
+// MARKET
+(
+  node["amenity"="marketplace"]${around};
+  way["amenity"="marketplace"]${around};
+  relation["amenity"="marketplace"]${around};
+)->.market;
+
+// EXCURSION (shares some tags with culture/nature but kept separate for slot logic)
+(
+  node["tourism"="attraction"]${around};
+  way["tourism"="attraction"]${around};
+  node["natural"="waterfall"]${around};
+  node["natural"="peak"]${around};
+  node["boundary"="national_park"]${around};
+  way["boundary"="national_park"]${around};
+  relation["boundary"="national_park"]${around};
+)->.excursion;
+
+// GASTRO
+(
+  node["tourism"="wine_cellar"]${around};
+  way["tourism"="wine_cellar"]${around};
+  node["craft"="winery"]${around};
+  way["craft"="winery"]${around};
+  node["craft"="brewery"]${around};
+  way["craft"="brewery"]${around};
+  node["amenity"="cooking_school"]${around};
+  way["amenity"="cooking_school"]${around};
+)->.gastro;
+
+// SHOPPING
+(
+  node["shop"="department_store"]${around};
+  way["shop"="department_store"]${around};
+  node["shop"="mall"]${around};
+  way["shop"="mall"]${around};
+  node["tourism"="gift_shop"]${around};
+  way["tourism"="gift_shop"]${around};
+)->.shopping;
+
+// NIGHT
+(
+  node["amenity"="bar"]${around};
+  way["amenity"="bar"]${around};
+  node["amenity"="pub"]${around};
+  way["amenity"="pub"]${around};
+  node["amenity"="nightclub"]${around};
+  way["amenity"="nightclub"]${around};
+  node["amenity"="cinema"]${around};
+  way["amenity"="cinema"]${around};
+)->.night;
+
+// Output everything from all named sets
+(
+  .culture;
+  .nature;
+  .viewpoint;
+  .neighborhood;
+  .market;
+  .excursion;
+  .gastro;
+  .shopping;
+  .night;
+);
+out center tags 600;
+`.trim();
+}
+
+// Map OSM tags back to our Category enum so we can split the unified result
+function tagToCategory(tags: Record<string, string>): Category | null {
+  const t = tags.tourism;
+  const a = tags.amenity;
+  const h = tags.historic;
+  const n = tags.natural;
+  const l = tags.leisure;
+  const p = tags.place;
+  const b = tags.boundary;
+  const s = tags.shop;
+  const c = tags.craft;
+
+  // Night (check before generic amenity)
+  if (a === "bar" || a === "pub" || a === "nightclub" || a === "cinema") return "night";
+  // Culture
+  if (t === "museum" || a === "arts_centre" || a === "theatre" || h === "monument" || h === "castle" || h === "archaeological_site") return "culture";
+  // Nature
+  if (l === "park" || l === "nature_reserve" || b === "national_park" || n === "peak" || n === "waterfall" || n === "beach" || n === "bay") return "nature";
+  // Viewpoint
+  if (t === "viewpoint") return "viewpoint";
+  // Market
+  if (a === "marketplace") return "market";
+  // Gastro
+  if (t === "wine_cellar" || c === "winery" || c === "brewery" || a === "cooking_school") return "gastro_experience";
+  // Shopping
+  if (s === "department_store" || s === "mall" || t === "gift_shop") return "shopping";
+  // Neighborhood
+  if (p === "neighbourhood" || p === "suburb") return "neighborhood";
+  // Excursion / attraction (after more specific checks)
+  if (t === "attraction") return "culture"; // attraction goes to culture first, excursion pool is built from culture
+  // Fallback
+  return null;
+}
+
+// Parse Overpass JSON response into pools grouped by category
+function parseOverpassResponse(payload: any, limitPerCat: number): Record<Category, Poi[]> {
+  const pools: Record<Category, Poi[]> = {} as any;
+  for (const cat of ALL_CATEGORIES) pools[cat] = [];
+
+  const elements = Array.isArray(payload?.elements) ? payload.elements : [];
+  const seenByCategory: Record<Category, Set<string>> = {} as any;
+  for (const cat of ALL_CATEGORIES) seenByCategory[cat] = new Set();
+
+  for (const el of elements) {
+    const tags = el?.tags && typeof el.tags === "object" ? el.tags : {};
+    const name = typeof tags?.name === "string" ? String(tags.name).trim() : "";
+    const lat = typeof el?.lat === "number" ? el.lat : typeof el?.center?.lat === "number" ? el.center.lat : null;
+    const lng = typeof el?.lon === "number" ? el.lon : typeof el?.center?.lon === "number" ? el.center.lon : null;
+    if (!name || lat == null || lng == null) continue;
+
+    const cat = tagToCategory(tags);
+    if (!cat) continue;
+
+    const key = name.toLowerCase();
+    if (seenByCategory[cat].has(key)) continue;
+    if ((pools[cat] || []).length >= limitPerCat) continue;
+
+    seenByCategory[cat].add(key);
+    pools[cat].push({
+      name,
+      lat,
+      lng,
+      osm: { type: String(el?.type || "node"), id: String(el?.id || "") },
+    });
+  }
+
+  // Excursion pool = union of nature peaks/waterfalls + culture attractions (already in their pools)
+  // Build it from existing pools so we don't need a separate query
+  const excursionSources: Poi[] = [
+    ...(pools.nature || []).filter((p) => p.name),
+    ...(pools.culture || []).filter((p) => p.name),
+  ];
+  const excSeen = new Set<string>();
+  pools.excursion = [];
+  for (const p of excursionSources) {
+    const k = p.name.toLowerCase();
+    if (excSeen.has(k)) continue;
+    excSeen.add(k);
+    pools.excursion.push(p);
+    if (pools.excursion.length >= limitPerCat) break;
+  }
+
+  return pools;
+}
+
+// ─── Overpass fetch with fallback mirrors ─────────────────────────────────────
+
+const OVERPASS_ENDPOINTS = [
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass.openstreetmap.ru/api/interpreter",
+];
+
+async function fetchAllPois(center: LatLng, radiusMeters: number): Promise<Record<Category, Poi[]> | null> {
+  // Cache hit — no Overpass call needed
+  const cached = cacheGet(center, radiusMeters);
+  if (cached) return cached;
+
+  const query = buildMultiCategoryQuery(center, radiusMeters);
   const body = `data=${encodeURIComponent(query)}`;
 
-  const tryFetch = async (url: string, timeoutMs: number) => {
+  const tryEndpoint = async (url: string, timeoutMs: number) => {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
@@ -115,7 +377,7 @@ async function fetchPois(params: { center: LatLng; category: Category; radiusMet
         cache: "no-store",
         signal: ctrl.signal,
       });
-      const payload: any = await resp.json().catch(() => null);
+      const payload = await resp.json().catch(() => null);
       return { ok: resp.ok, status: resp.status, payload };
     } catch {
       return { ok: false, status: 0, payload: null };
@@ -124,104 +386,26 @@ async function fetchPois(params: { center: LatLng; category: Category; radiusMet
     }
   };
 
-  let lastStatus = 0;
-  let payload: any = null;
-  let hadInfraFailure = false;
-  for (const url of endpoints) {
-    const r1 = await tryFetch(url, 28_000);
-    lastStatus = r1.status;
-    payload = r1.payload;
-    if (r1.ok && payload) break;
-    // Si es 429/504/5xx, probamos siguiente endpoint; si es 400, no tiene sentido reintentar
-    if (r1.status === 0 || r1.status === 429 || r1.status >= 500) hadInfraFailure = true;
-    if (r1.status === 400) break;
+  let lastWasInfraFailure = false;
+  for (const url of OVERPASS_ENDPOINTS) {
+    const res = await tryEndpoint(url, 42_000); // 42s — well within maxDuration:120
+    if (res.ok && res.payload) {
+      const pools = parseOverpassResponse(res.payload, 60);
+      cacheSet(center, radiusMeters, pools);
+      return pools;
+    }
+    if (res.status === 400) break; // Bad query — no point retrying other mirrors
+    if (res.status === 0 || res.status === 429 || res.status >= 500) {
+      lastWasInfraFailure = true;
+    }
   }
-  if (!payload) return hadInfraFailure ? null : [];
 
-  const elements = Array.isArray(payload?.elements) ? payload.elements : [];
-  const rows: Poi[] = [];
-  for (const el of elements) {
-    const tags = el?.tags && typeof el.tags === "object" ? el.tags : {};
-    const name = typeof tags?.name === "string" ? String(tags.name).trim() : "";
-    const lat = typeof el?.lat === "number" ? el.lat : typeof el?.center?.lat === "number" ? el.center.lat : null;
-    const lng = typeof el?.lon === "number" ? el.lon : typeof el?.center?.lon === "number" ? el.center.lon : null;
-    if (!name || lat == null || lng == null) continue;
-    rows.push({
-      name,
-      lat,
-      lng,
-      osm: { type: String(el?.type || "node"), id: String(el?.id || "") },
-    });
-  }
-  return dedupeByName(rows).slice(0, params.limit);
+  return lastWasInfraFailure ? null : {} as Record<Category, Poi[]>;
 }
 
-function buildOverpassQuery(params: { center: LatLng; category: Category; radiusMeters: number; limit: number }): string {
-  const around = `(around:${Math.floor(params.radiusMeters)},${params.center.lat},${params.center.lng})`;
-  const any = (k: string, v: string) => [
-    `node["${k}"="${v}"]${around};`,
-    `way["${k}"="${v}"]${around};`,
-    `relation["${k}"="${v}"]${around};`,
-  ];
-  const blocks: string[] = [];
-  switch (params.category) {
-    case "culture":
-      blocks.push(
-        ...any("tourism", "museum"),
-        ...any("tourism", "attraction"),
-        ...any("amenity", "theatre"),
-        ...any("amenity", "arts_centre"),
-        ...any("historic", "monument"),
-        ...any("historic", "castle"),
-        ...any("historic", "archaeological_site")
-      );
-      break;
-    case "nature":
-      blocks.push(
-        ...any("leisure", "park"),
-        ...any("boundary", "national_park"),
-        ...any("leisure", "nature_reserve"),
-        ...any("natural", "peak"),
-        ...any("natural", "waterfall"),
-        ...any("natural", "beach"),
-        ...any("natural", "bay")
-      );
-      break;
-    case "viewpoint":
-      blocks.push(...any("tourism", "viewpoint"));
-      break;
-    case "market":
-      blocks.push(...any("amenity", "marketplace"));
-      break;
-    case "shopping":
-      blocks.push(...any("shop", "department_store"), ...any("shop", "mall"), ...any("tourism", "gift_shop"));
-      break;
-    case "night":
-      blocks.push(...any("amenity", "bar"), ...any("amenity", "pub"), ...any("amenity", "nightclub"), ...any("amenity", "cinema"), ...any("amenity", "theatre"));
-      break;
-    case "gastro_experience":
-      blocks.push(...any("tourism", "wine_cellar"), ...any("craft", "winery"), ...any("craft", "brewery"), ...any("amenity", "cooking_school"));
-      break;
-    case "excursion":
-      blocks.push(...any("tourism", "attraction"), ...any("natural", "waterfall"), ...any("natural", "peak"), ...any("boundary", "national_park"));
-      break;
-    case "neighborhood":
-      blocks.push(...any("place", "neighbourhood"), ...any("place", "suburb"));
-      break;
-    default:
-      break;
-  }
-  return `
-[out:json][timeout:20];
-(
-${blocks.map((x) => `  ${x}`).join("\n")}
-);
-out center tags ${Math.max(50, params.limit * 6)};
-`.trim();
-}
+// ─── Radius heuristic ─────────────────────────────────────────────────────────
 
 function proposeRadiusMeters(poiCountEstimate: number): number {
-  // Adaptativo: si hay pocos POIs cerca, ampliamos.
   if (poiCountEstimate <= 2) return 22000;
   if (poiCountEstimate >= 40) return 7000;
   if (poiCountEstimate >= 18) return 12000;
@@ -233,6 +417,8 @@ function sumPools(pools: Record<Category, Poi[]>): number {
   for (const k of ALL_CATEGORIES) n += Array.isArray(pools[k]) ? pools[k]!.length : 0;
   return n;
 }
+
+// ─── Day planning logic ───────────────────────────────────────────────────────
 
 function proposeMinItems(dayType: "big_city" | "small_city" | "nature"): number {
   if (dayType === "nature") return 2;
@@ -275,31 +461,32 @@ function slotTemplate(dayType: "big_city" | "small_city" | "nature") {
 }
 
 function ensureNoGenericTitle(title: string) {
-  const t = title.toLowerCase();
-  if (/\b(paseo|zona animada|ambiente local|tiempo libre|explorar)\b/i.test(t)) return false;
-  return true;
+  return !/\b(paseo|zona animada|ambiente local|tiempo libre|explorar)\b/i.test(title.toLowerCase());
 }
+
+// ─── Route handler ────────────────────────────────────────────────────────────
 
 export async function POST(req: Request) {
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
 
     const body = await req.json().catch(() => null);
-    const destinationsRaw = Array.isArray(body?.destinations) ? body.destinations : Array.isArray(body?.places) ? body.places : [];
+    const destinationsRaw = Array.isArray(body?.destinations)
+      ? body.destinations
+      : Array.isArray(body?.places) ? body.places : [];
     const destinations = (destinationsRaw as any[]).map((x) => cleanString(x)).filter(Boolean).slice(0, 10);
     const startDate = cleanString(body?.start_date || body?.startDate);
     const endDate = cleanString(body?.end_date || body?.endDate);
-    const selectedByStop = (body?.selectedPoisByStop && typeof body.selectedPoisByStop === "object") ? body.selectedPoisByStop : null;
+    const selectedByStop = (body?.selectedPoisByStop && typeof body.selectedPoisByStop === "object")
+      ? body.selectedPoisByStop : null;
     const staysInput = Array.isArray(body?.stays) ? body.stays : null;
     const regenerateBadOnly = Boolean(body?.regenerateBadOnly);
-    const badDayNums = Array.isArray(body?.badDayNums) ? body.badDayNums.map((x: any) => Number(x)).filter((n: number) => Number.isFinite(n) && n >= 1) : null;
+    const badDayNums = Array.isArray(body?.badDayNums)
+      ? body.badDayNums.map((x: any) => Number(x)).filter((n: number) => Number.isFinite(n) && n >= 1) : null;
     const targetDayNums = Array.isArray(body?.targetDayNums)
-      ? body.targetDayNums.map((x: any) => Number(x)).filter((n: number) => Number.isFinite(n) && n >= 1)
-      : null;
+      ? body.targetDayNums.map((x: any) => Number(x)).filter((n: number) => Number.isFinite(n) && n >= 1) : null;
 
     if (!destinations.length) return NextResponse.json({ error: "Faltan destinos." }, { status: 400 });
     if (!isoOk(startDate) || !isoOk(endDate)) return NextResponse.json({ error: "Fechas inválidas." }, { status: 400 });
@@ -309,7 +496,7 @@ export async function POST(req: Request) {
     const anchor = await geocodeTripAnchor(destinationLabel);
     const regionHints = regionHintsFromDestination(destinationLabel);
 
-    // Geocode de paradas base
+    // ── 1. Geocode all stops in parallel ────────────────────────────────────
     const stopGeo = await Promise.all(
       destinations.map(async (label) => {
         const g = await geocodePhotonPreferred(label, { anchor, regionHints, maxDistanceKm: 50000 });
@@ -323,79 +510,92 @@ export async function POST(req: Request) {
         center: s.geo ? ({ lat: s.geo.lat, lng: s.geo.lng } as LatLng) : null,
         resolvedLabel: s.geo?.label || s.label,
       }))
-      .filter((s: { label: string; resolvedLabel: string; center: LatLng | null }) => Boolean(s.center)) as Array<{
-      label: string;
-      resolvedLabel: string;
-      center: LatLng;
-    }>;
+      .filter((s) => Boolean(s.center)) as Array<{ label: string; resolvedLabel: string; center: LatLng }>;
 
     if (!stops.length) return NextResponse.json({ error: "No se pudieron geocodificar los destinos." }, { status: 400 });
 
-    // Pools de POIs por stop/categoría (para sugerencias y para el planner)
-    const poisByStop: Record<string, Record<Category, Poi[]>> = {};
-    for (const stop of stops) {
-      const pools: Record<Category, Poi[]> = {} as any;
-      let center: LatLng = stop.center;
+    // ── 2. Fetch POIs for all stops IN PARALLEL (one query per stop) ─────────
+    //
+    // Before: 10 sequential Overpass calls per stop (one per category).
+    // After:  1 Overpass call per stop, all stops fired in parallel.
+    //
+    // For N stops: was N×10 sequential round-trips → now N parallel round-trips.
 
-      // First pass small radius to estimate
-      const roughRes = await fetchPois({ center, category: "culture", radiusMeters: 3500, limit: 40 });
-      if (roughRes === null) {
+    const poisByStop: Record<string, Record<Category, Poi[]>> = {};
+
+    const stopResults = await Promise.all(
+      stops.map(async (stop) => {
+        let center: LatLng = stop.center;
+
+        // Quick probe: fetch with small radius to estimate density
+        // (single call now because we use multi-category query)
+        const rough = await fetchAllPois(center, 3500);
+        if (rough === null) return { stop, pools: null, err: "overpass_down" };
+
+        const roughCount = sumPools(rough);
+
+        // Country-level input → re-center to capital city
+        if (roughCount <= 2) {
+          const cap = await geocodePhotonPreferred(`${stop.label} capital`, { anchor, regionHints, maxDistanceKm: 50000 });
+          if (cap) {
+            center = { lat: cap.lat, lng: cap.lng };
+            const rough2 = await fetchAllPois(center, 3500);
+            if (rough2 === null) return { stop, pools: null, err: "overpass_down" };
+            const count2 = sumPools(rough2);
+            // Use adaptive radius based on capital density
+            const radius = proposeRadiusMeters(count2);
+            if (radius !== 3500) {
+              const full = await fetchAllPois(center, radius);
+              if (full === null) return { stop, pools: null, err: "overpass_down" };
+              return { stop, pools: full, err: null };
+            }
+            return { stop, pools: rough2, err: null };
+          }
+        }
+
+        // Normal city: use adaptive radius with full query
+        const radius = proposeRadiusMeters(roughCount);
+        if (radius !== 3500) {
+          // Cache may already have this; fetchAllPois checks internally
+          const full = await fetchAllPois(center, radius);
+          if (full === null) return { stop, pools: null, err: "overpass_down" };
+          return { stop, pools: full, err: null };
+        }
+
+        return { stop, pools: rough, err: null };
+      })
+    );
+
+    // Check for errors
+    for (const result of stopResults) {
+      if (result.err === "overpass_down") {
         return NextResponse.json(
           { error: "OSM/Overpass está saturado o no responde ahora mismo. Reintenta en unos segundos." },
           { status: 503 }
         );
       }
-      let rough = roughRes;
-
-      // Si es un país (o centro rural) suele dar 0/1. Recentramos a "capital".
-      if (rough.length <= 1) {
-        const cap = await geocodePhotonPreferred(`${stop.label} capital`, { anchor, regionHints, maxDistanceKm: 50000 });
-        if (cap) {
-          center = { lat: cap.lat, lng: cap.lng };
-          const rough2 = await fetchPois({ center, category: "culture", radiusMeters: 3500, limit: 40 });
-          if (rough2 === null) {
-            return NextResponse.json(
-              { error: "OSM/Overpass está saturado o no responde ahora mismo. Reintenta en unos segundos." },
-              { status: 503 }
-            );
-          }
-          rough = rough2;
-        }
-      }
-
-      const radius = proposeRadiusMeters(rough.length);
-      for (const cat of ALL_CATEGORIES) {
-        const r = await fetchPois({ center, category: cat, radiusMeters: radius, limit: 50 });
-        if (r === null) {
-          return NextResponse.json(
-            { error: "OSM/Overpass está saturado o no responde ahora mismo. Reintenta en unos segundos." },
-            { status: 503 }
-          );
-        }
-        pools[cat] = r;
-      }
-
-      // Evita borradores vacíos: si no hay POIs suficientes, damos un error accionable.
-      if (sumPools(pools) < 4) {
+      if (!result.pools || sumPools(result.pools) < 4) {
         return NextResponse.json(
           {
             error:
-              `No he encontrado suficientes lugares concretos cerca de “${stop.label}”. ` +
-              `Parece un destino demasiado amplio. Prueba a poner una ciudad o región (ej. “Buenos Aires”, “Mendoza”, “Bariloche”).`,
+              `No he encontrado suficientes lugares concretos cerca de "${result.stop.label}". ` +
+              `Parece un destino demasiado amplio. Prueba a poner una ciudad o región (ej. "Buenos Aires", "Mendoza", "Bariloche").`,
           },
           { status: 400 }
         );
       }
-      poisByStop[stop.label] = pools;
+      poisByStop[result.stop.label] = result.pools;
     }
 
-    // Propuesta de noches: por densidad (culture+market+nature) + mínimo 1 por stop
+    // ── 3. Distribute nights across stops ────────────────────────────────────
+
     const weights = stops.map((s) => {
       const pools = poisByStop[s.label];
       const w = (pools?.culture?.length || 0) + (pools?.market?.length || 0) + (pools?.nature?.length || 0) * 0.9;
       return { stop: s.label, w: Math.max(1, w) };
     });
     const sumW = weights.reduce((a, b) => a + b.w, 0) || 1;
+
     let stays: Array<{ stop: string; nights: number }> = [];
     if (staysInput && staysInput.length) {
       stays = staysInput
@@ -403,7 +603,6 @@ export async function POST(req: Request) {
         .filter((x: { stop: string; nights: number }) => Boolean(x.stop));
     } else {
       stays = weights.map(({ stop, w }) => ({ stop, nights: Math.max(1, Math.round((w / sumW) * totalDays)) }));
-      // Ajuste para que sum = totalDays
       let sum = stays.reduce((a, b) => a + b.nights, 0);
       while (sum > totalDays && stays.length) {
         const idx = stays.findIndex((s) => s.nights > 1);
@@ -412,7 +611,6 @@ export async function POST(req: Request) {
         sum -= 1;
       }
       while (sum < totalDays && stays.length) {
-        // añade al stop con mayor peso
         const best = weights.slice().sort((a, b) => b.w - a.w)[0]?.stop;
         const idx = stays.findIndex((s) => s.stop === best) >= 0 ? stays.findIndex((s) => s.stop === best) : 0;
         stays[idx]!.nights += 1;
@@ -420,27 +618,29 @@ export async function POST(req: Request) {
       }
     }
 
-    // baseCityByDay (stop por día)
+    // ── 4. Build day-by-day city map ─────────────────────────────────────────
+
     const baseByDay: string[] = [];
     for (const s of stays) for (let i = 0; i < s.nights; i++) baseByDay.push(s.stop);
     while (baseByDay.length < totalDays) baseByDay.push(stays[stays.length - 1]?.stop || stops[0]!.label);
     baseByDay.splice(totalDays);
 
-    // Helper de selección de POIs: usa selección del usuario si existe; si no, top del pool
+    // ── 5. Selected POIs (user picks) ────────────────────────────────────────
+
     const selectedNamesByStop: Record<string, Set<string>> = {};
     if (selectedByStop && typeof selectedByStop === "object") {
       for (const k of Object.keys(selectedByStop)) {
         const arr = Array.isArray((selectedByStop as any)[k]) ? (selectedByStop as any)[k] : [];
         selectedNamesByStop[k] = new Set(
-          arr
-            .map((x: any) => cleanString(x?.name || x))
-            .filter(Boolean)
-            .map((x: string) => x.toLowerCase())
+          arr.map((x: any) => cleanString(x?.name || x)).filter(Boolean).map((x: string) => x.toLowerCase())
         );
       }
     }
 
+    // ── 6. Build itinerary days ───────────────────────────────────────────────
+
     const usedNames = new Set<string>();
+
     const makeDay = (dayNum: number, stop: string) => {
       const pools = poisByStop[stop];
       const type = classifyDayType(pools);
@@ -451,7 +651,6 @@ export async function POST(req: Request) {
       const pickFromCats = (cats: Category[]): Poi | null => {
         for (const cat of cats) {
           const pool = pools?.[cat] || [];
-          // prefer user-selected for this stop
           const selected = selectedNamesByStop[stop];
           if (selected && selected.size) {
             const hit = pool.find((p) => selected.has(p.name.toLowerCase()) && !usedNames.has(p.name.toLowerCase()));
@@ -483,15 +682,20 @@ export async function POST(req: Request) {
         });
       }
 
-      // Relleno si falta densidad: usa culture/nature/market/viewpoint
-      const fillerCats: Category[] = type === "nature" ? ["nature", "viewpoint", "excursion"] : ["culture", "market", "viewpoint", "neighborhood"];
+      const fillerCats: Category[] = type === "nature"
+        ? ["nature", "viewpoint", "excursion"]
+        : ["culture", "market", "viewpoint", "neighborhood"];
+
       while (items.length < minItems) {
         const poi = pickFromCats(fillerCats);
         if (!poi) break;
         const title = poi.name.trim();
         if (!ensureNoGenericTitle(title)) continue;
         usedNames.add(title.toLowerCase());
-        const time = items.length === 0 ? "10:00" : items.length === 1 ? "13:30" : items.length === 2 ? "17:00" : "20:30";
+        const time =
+          items.length === 0 ? "10:00" :
+          items.length === 1 ? "13:30" :
+          items.length === 2 ? "17:00" : "20:30";
         items.push({
           title,
           activity_kind: fillerCats[0],
@@ -505,7 +709,6 @@ export async function POST(req: Request) {
         });
       }
 
-      // Asegura tarde/noche en urbano
       if (requireEvening) {
         const last = items.map((it) => String(it.activity_time || "")).sort().slice(-1)[0] || "";
         if (last && last < "18:00") {
@@ -534,7 +737,8 @@ export async function POST(req: Request) {
       return { day: dayNum, date: addDaysIso(startDate, dayNum - 1), base: stop, minItems, requireEvening, items };
     };
 
-    // Construir días; si regenBadOnly, conservamos los días “buenos” que llegan del cliente
+    // ── 7. Decide which days to (re)generate ─────────────────────────────────
+
     const incomingDays = Array.isArray(body?.days) ? body.days : null;
     const incomingMap = new Map<number, any>();
     if (incomingDays) for (const d of incomingDays) if (typeof d?.day === "number") incomingMap.set(d.day, d);
@@ -561,10 +765,10 @@ export async function POST(req: Request) {
         continue;
       }
 
-      // Insert transport day marker if base changes from prev day
       const prev = i >= 1 ? baseByDay[i - 1] : "";
       const isChange = i >= 1 && prev && prev !== stop;
       const day = makeDay(dayNum, stop);
+
       if (isChange) {
         day.items.unshift({
           title: `Traslado ${prev} → ${stop}`,
@@ -578,9 +782,9 @@ export async function POST(req: Request) {
           source: "ai_planner",
           description: "Bloque de traslado entre ciudades base. Ajusta el medio/hora según tu viaje real.",
         });
-        // Recorta para que no sea día normal
         if (day.items.length > 3) day.items.splice(3);
       }
+
       daysOut.push({
         day: day.day,
         date: day.date,
@@ -601,7 +805,8 @@ export async function POST(req: Request) {
       });
     }
 
-    // Sugerencias: top POIs por stop/categoría (para chips UI)
+    // ── 8. Suggestions chips ──────────────────────────────────────────────────
+
     const suggestions: Record<string, Array<{ category: Category; pois: Poi[] }>> = {};
     for (const stop of stops) {
       const pools = poisByStop[stop.label];
@@ -628,7 +833,9 @@ export async function POST(req: Request) {
       days: daysOut,
     });
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "No se pudo generar el borrador." }, { status: 500 });
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "No se pudo generar el borrador." },
+      { status: 500 }
+    );
   }
 }
-
