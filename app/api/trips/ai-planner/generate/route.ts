@@ -424,13 +424,13 @@ async function loadPoisForStop(stop: { label: string; center: LatLng }, anchor: 
         const capRough = await fetchAllPoisFromOverpass(center, 3500);
         if (capRough !== null) {
           const radius = proposeRadiusMeters(sumPools(capRough));
-          const full = radius !== 3500 ? await fetchAllPoisFromOverpass(center, radius) : capRough;
+          const full = await fetchAllPoisFromOverpass(center, radius) ?? capRough;
           if (full !== null) return { pools: full, source: "overpass" };
         }
       }
     } else {
       const radius = proposeRadiusMeters(roughCount);
-      if (radius === 3500) return { pools: rough, source: "overpass" };
+      
       const full = await fetchAllPoisFromOverpass(center, radius);
       if (full !== null) return { pools: full, source: "overpass" };
     }
