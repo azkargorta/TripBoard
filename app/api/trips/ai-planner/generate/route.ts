@@ -160,9 +160,34 @@ function checkViability(stops: Array<{ label: string; center: LatLng }>, totalDa
 // This produces expert-quality, varied, location-specific plans that improve
 // with every chat message the user sends.
 
-// Max days per Gemini call — keeps JSON output well within the 8192 token limit.
-// Buenos Aires 4 nights was truncating at 4800 tokens. 2 days/call = ~2500 tokens max.
-const MAX_DAYS_PER_CALL = 2;
+// 1 day per call = ~1500 tokens max output. Never truncates.
+// Calls run in parallel so total latency = max(single_call) not sum(all_calls).
+const MAX_DAYS_PER_CALL = 1;
+
+// Normalize Gemini activity_kind typos to valid values
+const KIND_ALIASES: Record<string, string> = {
+  gastronomy_experience: "gastro_experience",
+  gastronomy: "gastro_experience",
+  food: "gastro_experience",
+  eat: "gastro_experience",
+  restaurant: "gastro_experience",
+  adventure: "excursion",
+  hike: "nature",
+  trek: "nature",
+  walk: "nature",
+  sight: "culture",
+  historic: "culture",
+  landmark: "culture",
+};
+function normalizeKind(raw: string): string {
+  const k = (raw || "").toLowerCase().trim();
+  return KIND_ALIASES[k] ?? k;
+}
+
+// Compact field mapping — Gemini outputs short keys, parser expands them
+// Saves ~60% tokens vs verbose JSON: 1 day with 5 activities = ~600 tokens (was ~1800)
+// t = title, d = tip (short description ≤10 words), h = time (HH:MM), k = kind, lt = lat, lg = lng
+// address and activity_type are NOT requested — generated locally by the parser
 
 function buildCityItineraryPrompt(
   city: string,
@@ -171,67 +196,36 @@ function buildCityItineraryPrompt(
   prevCity: string | null
 ): string {
   const profile = notes.trim()
-    ? `Preferencias del viajero:\n"${notes}"\nTen en cuenta TODO esto al elegir actividades, horarios y ritmo.`
-    : "No hay preferencias específicas — crea un plan equilibrado y variado.";
-
-  const transitNote = prevCity && days[0]?.dayNum === 1
-    ? `NOTA: El viajero llega desde ${prevCity} este día. Incluye 2-3 actividades (no un día completo).`
+    ? `Preferencias del viajero: "${notes}"`
     : "";
 
-  const dateList = days.map((d) => `  Día ${d.dayNum}: ${d.date}`).join("\n");
+  const transitNote = prevCity && days[0]?.dayNum === 1
+    ? `El viajero llega hoy desde ${prevCity}. Incluye solo 2-3 actividades.`
+    : "";
+
+  const dateList = days.map((d) => `${d.dayNum}:${d.date}`).join(" ");
   const firstDate = days[0]?.date ?? "";
-  const n = days.length;
 
-  return `Eres un experto en viajes y guía turístico local de ${city}. Crea un plan de ${n} día${n !== 1 ? "s" : ""} en ${city}.
+  // Valid kinds listed once — Gemini copies them verbatim (saves tokens vs re-explaining)
+  const kinds = "culture|nature|viewpoint|neighborhood|market|excursion|gastro_experience|shopping|night";
 
+  return `Guía local experto de ${city}. Plan para: ${dateList}.
 ${profile}
 ${transitNote}
 
-Fechas:
-${dateList}
-
-Devuelve SOLO JSON válido (sin markdown, sin texto extra). Esquema:
-{
-  "days": [
-    {
-      "day": 1,
-      "date": "${firstDate}",
-      "base": "${city}",
-      "items": [
-        {
-          "title": "Nombre REAL del lugar",
-          "description": "Tip útil o dato concreto del lugar",
-          "activity_time": "09:30",
-          "activity_kind": "culture",
-          "place_name": "Nombre del lugar",
-          "address": "Dirección, ${city}",
-          "latitude": -34.0000,
-          "longitude": -58.0000,
-          "activity_type": "visit"
-        }
-      ]
-    }
-  ]
-}
+JSON COMPACTO — SOLO esto, sin markdown ni texto extra:
+{"days":[{"day":1,"date":"${firstDate}","items":[{"t":"Nombre real","d":"Tip en max 8 palabras","h":"09:30","k":"culture","lt":-34.0000,"lg":-58.0000}]}]}
 
 REGLAS:
-
-1. TÍTULOS REALES: nombres propios verificables en Google Maps. PROHIBIDO: "Paseo por el centro", "Zona histórica", "Tiempo libre", "Explorar", "Visita panorámica".
-
-2. SIN COMIDAS GENÉRICAS: NUNCA "Almuerzo", "Cena", "Comida", "Desayuno" como actividad, solos ni combinados ("Almuerzo en el mercado" = PROHIBIDO). Gastronomía solo con nombre propio real y concreto: "Mercado de San Telmo", "Bodega Catena Zapata", "Cata en Zuccardi". Si no hay experiencia gastronómica real, no incluyas comida.
-
-3. CANTIDAD: 3 a 5 actividades por día, repartidas a lo largo del día.
-
-4. COORDENADAS REALES: lat/lng del lugar específico. Nunca 0.0.
-
-5. HORARIOS: mañana (09:00-12:30), mediodía (13:00-16:00), tarde (16:30-20:00), noche (20:30+). Al menos 1.5h entre actividades.
-
-6. PREFERENCIAS: respeta TODO lo que indicó el viajero.
-
-7. ICÓNICOS: incluye los lugares más famosos y visitados de ${city}.
-
-8. activity_kind: culture, nature, viewpoint, neighborhood, market, excursion, gastro_experience, shopping, night, transport.
-`.trim();
+1. "t": nombre propio real verificable en Google Maps. NUNCA genéricos.
+2. "d": máximo 8 palabras. Tip práctico concreto.
+3. "k": exactamente uno de: ${kinds}
+4. "lt"/"lg": coordenadas GPS reales del lugar. Nunca 0.
+5. "h": horario realista. Mínimo 1.5h entre actividades.
+6. 3-5 items por día. Distribuidos: mañana, tarde, noche.
+7. PROHIBIDO en "t": Almuerzo, Cena, Comida, Desayuno, Lunch, Dinner — solos o combinados. Gastronomía solo con nombre propio real: "Mercado de San Telmo", "Bodega Zuccardi", "Cata en Catena".
+8. Incluye los lugares más icónicos de ${city}.
+9. Respeta TODO lo que indicó el viajero.`.trim();
 }
 
 async function generateCityItinerary(
@@ -247,7 +241,7 @@ async function generateCityItinerary(
     if (cached) return { days: cached, prompt: "(from cache)", rawOutput: "(from cache)" };
   }
 
-  // Split into chunks of MAX_DAYS_PER_CALL to avoid token truncation
+  // 1 day per chunk — with compact JSON, 1 day ≈ 400-600 tokens output, never truncates
   const chunks: Array<Array<{ dayNum: number; date: string }>> = [];
   for (let i = 0; i < nights; i += MAX_DAYS_PER_CALL) {
     chunks.push(
@@ -263,22 +257,29 @@ async function generateCityItinerary(
   const isMeal = (t: string) => MEAL_REGEX.test(t) && !GASTRO_OK.test(t);
   const isGeneric = (t: string) => /\b(paseo por|zona hist|tiempo libre|explorar el|visita panor)/i.test(t);
 
+  // Parser: expand compact keys → full activity object
   function parseItems(rawItems: any[], date: string): any[] {
     return rawItems.map((it: any) => {
-      const title = cleanString(it?.title || "");
+      // Support both compact (t/d/h/k/lt/lg) and verbose (title/description/...) keys
+      // so the parser works even if Gemini occasionally uses long names
+      const title = cleanString(it?.t || it?.title || "");
       if (!title || isGeneric(title) || isMeal(title)) return null;
-      const lat = typeof it?.latitude === "number" && Math.abs(it.latitude) <= 90 && it.latitude !== 0 ? it.latitude : null;
-      const lng = typeof it?.longitude === "number" && Math.abs(it.longitude) <= 180 && it.longitude !== 0 ? it.longitude : null;
+      const tip = cleanString(it?.d || it?.description || "") || null;
+      const time = cleanString(it?.h || it?.activity_time || "") || null;
+      const kind = normalizeKind(cleanString(it?.k || it?.activity_kind || "culture"));
+      const lat = (() => { const v = it?.lt ?? it?.latitude; return typeof v === "number" && Math.abs(v) <= 90 && v !== 0 ? v : null; })();
+      const lng = (() => { const v = it?.lg ?? it?.longitude; return typeof v === "number" && Math.abs(v) <= 180 && v !== 0 ? v : null; })();
       return {
         title,
-        description: cleanString(it?.description || "") || null,
+        description: tip,
         activity_date: date,
-        activity_time: cleanString(it?.activity_time || "") || null,
-        place_name: cleanString(it?.place_name || title),
-        address: cleanString(it?.address || `${title}, ${city}`),
-        latitude: lat, longitude: lng,
-        activity_kind: cleanString(it?.activity_kind || "culture"),
-        activity_type: cleanString(it?.activity_type || "visit") || "visit",
+        activity_time: time,
+        place_name: title,                    // address not requested — built locally
+        address: `${title}, ${city}`,
+        latitude: lat,
+        longitude: lng,
+        activity_kind: kind,
+        activity_type: "visit",
         source: "ai_planner",
       };
     }).filter(Boolean);
@@ -290,7 +291,8 @@ async function generateCityItinerary(
       const prompt = buildCityItineraryPrompt(city, chunk, notes, ci === 0 ? prevCity : null);
       let raw = "";
       try {
-        raw = await askGemini(prompt, "planning", { maxOutputTokens: 4096 });
+        // 8192 tokens for a single day = plenty of room, never truncates
+        raw = await askGemini(prompt, "planning", { maxOutputTokens: 8192 });
         const parsed = extractJsonObject(raw) as any;
         if (!parsed?.days || !Array.isArray(parsed.days)) return { days: [], prompt, rawOutput: raw };
 
@@ -317,18 +319,18 @@ async function generateCityItinerary(
   const allPrompts = chunkResults.map((r, i) => `--- Chunk ${i + 1} ---\n${r?.prompt ?? ""}`).join("\n\n");
   const allRaw = chunkResults.map((r, i) => `--- Chunk ${i + 1} ---\n${r?.rawOutput ?? ""}`).join("\n\n");
 
-  // Retry individual empty days (single-day call)
+  // Retry individual days with fewer than 3 activities
   const finalDays = await Promise.all(
     allDays.map(async (d: any) => {
-      if ((d.items?.length ?? 0) >= 2) return d;
-      console.warn(`[ai-planner] Retrying empty day ${d.day} in "${city}"...`);
+      if ((d.items?.length ?? 0) >= 3) return d;
+      console.warn(`[ai-planner] Retrying sparse day ${d.day} in "${city}" (${d.items?.length ?? 0} items)...`);
       const retryPrompt = buildCityItineraryPrompt(city, [{ dayNum: d.day, date: d.date }], notes, null);
       try {
-        const raw2 = await askGemini(retryPrompt, "planning", { maxOutputTokens: 2048 });
+        const raw2 = await askGemini(retryPrompt, "planning", { maxOutputTokens: 8192 });
         const p2 = extractJsonObject(raw2) as any;
         const retryItems = parseItems(Array.isArray(p2?.days?.[0]?.items) ? p2.days[0].items : [], d.date);
-        if (retryItems.length > 0) return { ...d, items: retryItems };
-      } catch { /* keep */ }
+        if (retryItems.length > (d.items?.length ?? 0)) return { ...d, items: retryItems };
+      } catch { /* keep original */ }
       return d;
     })
   );
