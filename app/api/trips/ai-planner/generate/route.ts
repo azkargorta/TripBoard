@@ -214,25 +214,27 @@ Devuelve SOLO JSON válido (sin markdown, sin explicaciones, sin texto extra ant
 
 REGLAS CRÍTICAS — sígüelas al pie de la letra:
 
-1. LUGARES REALES: Todos los títulos deben ser nombres propios verificables en Google Maps. PROHIBIDO: "Paseo por el centro", "Zona histórica", "Tiempo libre", "Explorar el barrio", "Almuerzo", "Cena", "Visita panorámica".
+1. LUGARES REALES: Todos los títulos deben ser nombres propios verificables en Google Maps. PROHIBIDO: "Paseo por el centro", "Zona histórica", "Tiempo libre", "Explorar el barrio", "Visita panorámica".
 
-2. VARIEDAD DIARIA: Cada día debe tener entre 3 y 5 actividades distribuidas (mañana, mediodía, tarde, noche). Mezcla categorías: cultura, gastronomía, naturaleza, barrios, mercados, vida nocturna.
+2. ⚠️ PROHIBIDO ABSOLUTAMENTE — COMIDAS Y CENAS GENÉRICAS: NUNCA pongas "Almuerzo", "Cena", "Comida", "Desayuno", "Lunch", "Dinner" como actividad, ni solos ni acompañados de descripción ("Almuerzo en el mercado", "Cena típica porteña", "Comida con vista al río" — TODO PROHIBIDO). Comer y cenar NO son planes turísticos. Si quieres incluir gastronomía, úsala como experiencia concreta con nombre propio: "Mercado de San Telmo", "Bodega Catena Zapata", "Cata de vinos en Zuccardi", "Taller de empanadas en [nombre]". Si no tienes una experiencia gastronómica con nombre propio real, no incluyas nada de comida ese día.
 
-3. VARIEDAD ENTRE DÍAS: Ningún tipo de actividad debe repetirse dos veces seguidas. El día 2 no puede empezar igual que el día 1. Rota barrios, museos, mercados, excursiones.
+3. VARIEDAD DIARIA: Cada día debe tener entre 3 y 5 actividades distribuidas (mañana, mediodía, tarde, noche). Mezcla categorías: cultura, naturaleza, barrios, mercados, vida nocturna. NO pongas el mismo tipo de actividad dos veces en el mismo día.
 
-4. LOS MÁS ICÓNICOS PRIMERO: Incluye los lugares más famosos y visitados de ${city} — los que un viajero querría ver sí o sí. No uses sitios obscuros ni poco conocidos.
+4. VARIEDAD ENTRE DÍAS: El día 2 no puede empezar igual que el día 1. Rota: si el día 1 empiezas con un museo, el día 2 empieza con naturaleza o un barrio. Nunca dos días consecutivos con el mismo primer plan.
 
-5. COORDENADAS REALES: lat/lng deben ser las coordenadas GPS reales y precisas del lugar. Nunca uses 0.0.
+5. LOS MÁS ICÓNICOS PRIMERO: Incluye los lugares más famosos y visitados de ${city}. No uses sitios oscuros o poco conocidos salvo que el viajero lo haya pedido explícitamente.
 
-6. HORARIOS REALISTAS: Distribuye las actividades con tiempo suficiente entre ellas. No pongas 4 actividades seguidas a la misma hora.
+6. COORDENADAS REALES: lat/lng deben ser las coordenadas GPS reales y precisas del lugar. Nunca uses 0.0 ni coordenadas inventadas.
 
-7. PREFERENCIAS DEL VIAJERO: Si dijo "sin museos" → no pongas museos. Si dijo "gastronomía" → añade al menos una experiencia gastronómica por día. Si dijo "naturaleza" → incluye parques, rutas, miradores. Si dijo "ritmo tranquilo" → máximo 3 actividades por día. Respeta SIEMPRE las preferencias indicadas.
+7. HORARIOS REALISTAS: No pongas más de una actividad a la misma hora. Deja al menos 1.5 horas entre actividades. Orden del día: mañana (09:00-13:00), mediodía (13:00-16:00), tarde (16:00-20:00), noche (20:00+).
 
-8. GASTRONOMÍA CONCRETA: Para "gastro_experience" usa: bodegas con nombre, mercados gastronómicos específicos, restaurantes icónicos del lugar, catas, talleres de cocina. Nunca solo "Cena en restaurante".
+8. PREFERENCIAS DEL VIAJERO: Respeta SIEMPRE todo lo que indicó. Si dijo "sin museos" → cero museos. Si dijo "más gastronomía" → al menos una experiencia gastronómica con nombre propio por día. Si dijo "naturaleza" → incluye parques, rutas, miradores. Si dijo "ritmo tranquilo" → máximo 3 actividades por día.
 
-9. DESCRIPCIÓN ÚTIL: La descripción debe aportar un dato concreto, un consejo práctico o una razón para ir ("Mejor vista de la ciudad desde aquí", "Llega antes de las 10 para evitar colas", etc.).
+9. GASTRONOMÍA SOLO CON NOMBRE PROPIO: "gastro_experience" únicamente para: bodegas (con nombre), mercados gastronómicos (con nombre), catas (con nombre del lugar), talleres de cocina (con nombre), restaurantes absolutamente icónicos del destino (con nombre). NUNCA "Cena en restaurante local" ni similar.
 
-10. activity_kind debe ser uno de: culture, nature, viewpoint, neighborhood, market, excursion, gastro_experience, shopping, night, transport.
+10. DESCRIPCIÓN ÚTIL: Incluye un tip práctico o dato concreto ("Llega antes de las 10 para evitar colas", "Mejor puesta de sol desde aquí", "Entrada gratuita los domingos").
+
+11. activity_kind debe ser uno de: culture, nature, viewpoint, neighborhood, market, excursion, gastro_experience, shopping, night, transport.
 `.trim();
 }
 
@@ -260,6 +262,19 @@ async function generateCityItinerary(
     const parsed = extractJsonObject(raw) as any;
     if (!parsed?.days || !Array.isArray(parsed.days)) return null;
 
+    // Regex that catches all food/meal activity patterns Gemini tends to generate
+    const MEAL_REGEX = /\b(almuerzo|cena|comida|desayuno|lunch|dinner|breakfast|brunch|merienda|aperitivo)\b/i;
+    // Only allowed if it's clearly a gastro experience with a proper noun
+    // e.g. "Mercado de San Telmo" is fine, "Almuerzo en el mercado" is not
+    const GASTRO_WHITELIST = /\b(mercado|bodega|cata|taller|curso|winery|brewery|destiler[ií]a|vinedo|vi[ñn]edo|maridaje|sommelier|degustation|tapeo|pintxos)\b/i;
+
+    function isMealActivity(title: string, kind: string): boolean {
+      if (!MEAL_REGEX.test(title)) return false;
+      // Allow it only if it also mentions a specific gastro venue/experience
+      if (GASTRO_WHITELIST.test(title)) return false;
+      return true;
+    }
+
     const days = parsed.days
       .map((d: any, idx: number) => {
         const date = typeof d.date === "string" && isoOk(d.date)
@@ -270,8 +285,10 @@ async function generateCityItinerary(
           .map((it: any) => {
             const title = cleanString(it?.title || "");
             if (!title) return null;
-            // Reject generic titles
-            if (/\b(paseo por|zona hist|tiempo libre|explorar el|almuerzo$|cena$|visita panor)/i.test(title)) return null;
+            // Reject generic non-place titles
+            if (/\b(paseo por|zona hist|tiempo libre|explorar el|visita panor)/i.test(title)) return null;
+            // Reject meal activities (almuerzo, cena, comida, etc.) unless it's a real gastro experience
+            if (isMealActivity(title, cleanString(it?.activity_kind || ""))) return null;
             const lat = typeof it?.latitude === "number" && Math.abs(it.latitude) <= 90 && it.latitude !== 0 ? it.latitude : null;
             const lng = typeof it?.longitude === "number" && Math.abs(it.longitude) <= 180 && it.longitude !== 0 ? it.longitude : null;
             return {
@@ -296,13 +313,22 @@ async function generateCityItinerary(
           base: city,
           items,
         };
-      })
-      .filter((d: any) => d.items.length > 0);
+      });
+    // Don't discard days with 0 items — they'll be padded below so the day count stays correct.
+    // A day with 0 valid items means Gemini only produced meals/generics for that day.
+    // We keep the day structure and let the frontend show it as "pending" rather than disappear.
 
     if (!days.length) return null;
 
-    itinCacheSet(city, nights, notes, days);
-    return days;
+    // If any day has fewer than 2 real items, mark it so the frontend knows
+    // (the day still exists, it just won't have much content)
+    const validDays = days.map((d: any) => ({
+      ...d,
+      items: d.items.length > 0 ? d.items : [],
+    }));
+
+    itinCacheSet(city, nights, notes, validDays);
+    return validDays;
   } catch (e) {
     console.error(`[ai-planner] Gemini itinerary failed for "${city}":`, e);
     return null;
@@ -547,6 +573,20 @@ export async function POST(req: Request) {
       })
     );
 
+    // Retry blocks that came back with empty days (Gemini only produced meals/generics)
+    // We retry once with forceRegen=true to get a fresh response
+    const blockResultsFinal = await Promise.all(
+      blockResults.map(async (result, bi) => {
+        if (!result) return result;
+        const emptyDays = result.filter((d: any) => !d.items || d.items.length === 0);
+        if (emptyDays.length === 0) return result;
+        // Some days came back empty — retry the whole block once
+        console.warn(`[ai-planner] Block "${blocks[bi]!.city}" had ${emptyDays.length} empty days, retrying...`);
+        const retry = await generateCityItinerary(blocks[bi]!.city, blocks[bi]!.nights, blocks[bi]!.startDateIso, mergedNotes, blocks[bi]!.prevCity, true);
+        return retry ?? result; // If retry also fails, keep original (may have partial content)
+      })
+    );
+
     // Existing days map (for partial regeneration)
     const existingDaysMap = new Map<number, any>();
     if (Array.isArray(body?.days)) for (const d of body.days) if (typeof d?.day === "number") existingDaysMap.set(d.day, d);
@@ -556,15 +596,17 @@ export async function POST(req: Request) {
 
     for (let bi = 0; bi < blocks.length; bi++) {
       const block = blocks[bi]!;
-      const generatedDays = blockResults[bi];
+      const generatedDays = blockResultsFinal[bi];
 
       for (let di = 0; di < block.nights; di++) {
         const globalDayNum = block.startDayNum + di;
         const dayDate = addDaysIso(startDate, globalDayNum - 1);
 
-        if (generatedDays && generatedDays[di]) {
+        const gemDay = generatedDays?.[di];
+        const hasContent = gemDay && Array.isArray(gemDay.items) && gemDay.items.length > 0;
+
+        if (hasContent) {
           // Use Gemini-generated day, fix dates and day numbers
-          const gemDay = generatedDays[di];
           let items: any[] = (gemDay.items || []).map((it: any) => ({ ...it, activity_date: dayDate }));
 
           // Insert transit activity at start of first day if city changed
@@ -587,7 +629,7 @@ export async function POST(req: Request) {
           // Keep existing day (partial regen)
           daysOut.push({ ...existingDaysMap.get(globalDayNum), day: globalDayNum, date: dayDate });
         } else {
-          // Gemini failed — empty fallback day
+          // Gemini failed or returned empty — build a minimal transit/placeholder day
           const items: any[] = [];
           if (di === 0 && block.prevCity) {
             items.push({ title: `Traslado ${block.prevCity} → ${block.city}`, description: "Traslado entre ciudades.", activity_date: dayDate, activity_time: "08:30", place_name: `${block.prevCity} → ${block.city}`, address: `${block.prevCity} → ${block.city}`, latitude: null, longitude: null, activity_kind: "transport", activity_type: "general", source: "ai_planner" });
