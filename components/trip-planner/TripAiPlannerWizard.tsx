@@ -1,11 +1,27 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import TripPlacesFields from "@/components/dashboard/TripPlacesFields";
 import { joinTripPlaces } from "@/lib/trip-places";
 import { useToast } from "@/components/ui/toast";
 import PlanActivityCard from "@/components/trip/plan/PlanActivityCard";
+import {
+  ArrowRight,
+  Sparkles,
+  Calendar,
+  MapPin,
+  MessageCircle,
+  RotateCcw,
+  ChevronDown,
+  ChevronUp,
+  Send,
+  CheckCircle2,
+  Loader2,
+  Wand2,
+} from "lucide-react";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type Category =
   | "culture"
@@ -36,7 +52,6 @@ type DraftDayItem = {
 };
 
 type DraftDay = { day: number; date: string; base: string; items: DraftDayItem[] };
-
 type StayRow = { stop: string; nights: number };
 
 type ApiDraft = {
@@ -50,9 +65,14 @@ type ApiDraft = {
   days: DraftDay[];
 };
 
-type ChatScope = { kind: "all" } | { kind: "day"; day: number } | { kind: "range"; from: number; to: number };
+type ChatMessage = {
+  role: "user" | "assistant";
+  text: string;
+};
 
 type CurrencyCode = "EUR" | "USD" | "GBP" | "ARS" | "MXN" | "CLP" | "BRL" | "JPY" | "CAD" | "AUD" | "CHF";
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function isoOk(s: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(s);
@@ -62,153 +82,158 @@ function totalDaysBetween(start: string, end: string) {
   if (!isoOk(start) || !isoOk(end)) return 1;
   const a = new Date(`${start}T12:00:00Z`).getTime();
   const b = new Date(`${end}T12:00:00Z`).getTime();
-  const diff = Math.round((b - a) / (86400 * 1000)) + 1;
-  return Math.max(1, diff);
-}
-
-function normalizeStop(s: string) {
-  return String(s || "").trim();
-}
-
-function sumNights(stays: StayRow[]) {
-  return stays.reduce((a, b) => a + (Number(b.nights) || 0), 0);
+  return Math.max(1, Math.round((b - a) / (86400 * 1000)) + 1);
 }
 
 function stableId(day: number, idx: number) {
   return `draft-${day}-${idx}`;
 }
 
-const DRAFT_STORAGE_KEY = "kaviro.aiPlannerDraft.v1";
-
-function inferScopeFromText(textRaw: string, maxDay: number): { scope: ChatScope | null } {
-  const text = String(textRaw || "").toLowerCase();
-  if (/\b(todo el viaje|todos los dias|todas las actividades|en todos los d[ií]as|en todo el viaje)\b/i.test(text)) {
-    return { scope: { kind: "all" } };
-  }
-  const mDay = /\bd[ií]a\s+(\d{1,2})\b/i.exec(text);
-  if (mDay) {
-    const d = Math.max(1, Math.min(maxDay, Number(mDay[1]) || 1));
-    return { scope: { kind: "day", day: d } };
-  }
-  const mRange = /\bd[ií]as?\s+(\d{1,2})\s*[-–—]\s*(\d{1,2})\b/i.exec(text);
-  if (mRange) {
-    let a = Number(mRange[1]) || 1;
-    let b = Number(mRange[2]) || 1;
-    if (a > b) [a, b] = [b, a];
-    a = Math.max(1, Math.min(maxDay, a));
-    b = Math.max(1, Math.min(maxDay, b));
-    return { scope: { kind: "range", from: a, to: b } };
-  }
-  return { scope: null };
-}
-
-function scopeToTargetDays(scope: ChatScope, maxDay: number): number[] | null {
-  if (scope.kind === "all") return null;
-  if (scope.kind === "day") return [Math.max(1, Math.min(maxDay, scope.day))];
-  const from = Math.max(1, Math.min(maxDay, scope.from));
-  const to = Math.max(1, Math.min(maxDay, scope.to));
-  const out: number[] = [];
-  for (let i = Math.min(from, to); i <= Math.max(from, to); i++) out.push(i);
-  return out;
-}
-
-const CURRENCY_OPTIONS: Array<{ code: CurrencyCode; label: string }> = [
-  { code: "EUR", label: "EUR (€)" },
-  { code: "USD", label: "USD ($)" },
-  { code: "GBP", label: "GBP (£)" },
-  { code: "ARS", label: "ARS ($AR)" },
-  { code: "MXN", label: "MXN ($)" },
-  { code: "CLP", label: "CLP ($)" },
-  { code: "BRL", label: "BRL (R$)" },
-  { code: "JPY", label: "JPY (¥)" },
-  { code: "CAD", label: "CAD ($)" },
-  { code: "AUD", label: "AUD ($)" },
-  { code: "CHF", label: "CHF" },
-];
-
 function inferCurrencyFromDestinations(destinations: string[]): CurrencyCode {
   const blob = destinations.join(" · ").toLowerCase();
-  // Argentina / ciudades comunes
-  if (/\b(argentina|buenos aires|mendoza|bariloche|salta|ushuaia|iguaz[uú])\b/i.test(blob)) return "ARS";
-  if (/\b(chile|santiago|valpara[ií]so|atacama|puerto varas)\b/i.test(blob)) return "CLP";
-  if (/\b(m[eé]xico|mexico|cdmx|ciudad de m[eé]xico|canc[uú]n|oaxaca|yucat[aá]n)\b/i.test(blob)) return "MXN";
-  if (/\b(brasil|brazil|rio de janeiro|s[aã]o paulo|salvador)\b/i.test(blob)) return "BRL";
-  if (/\b(eeuu|eua|usa|united states|new york|miami|los angeles|san francisco)\b/i.test(blob)) return "USD";
-  if (/\b(reino unido|uk|united kingdom|londres|london|edinburgh)\b/i.test(blob)) return "GBP";
+  if (/\b(argentina|buenos aires|mendoza|bariloche|salta|ushuaia)\b/i.test(blob)) return "ARS";
+  if (/\b(chile|santiago|valpara[ií]so|atacama)\b/i.test(blob)) return "CLP";
+  if (/\b(m[eé]xico|mexico|cdmx|canc[uú]n|oaxaca)\b/i.test(blob)) return "MXN";
+  if (/\b(brasil|brazil|rio de janeiro|s[aã]o paulo)\b/i.test(blob)) return "BRL";
+  if (/\b(eeuu|usa|united states|new york|miami|los angeles)\b/i.test(blob)) return "USD";
+  if (/\b(reino unido|uk|united kingdom|londres|london)\b/i.test(blob)) return "GBP";
   if (/\b(jap[oó]n|japan|tokyo|kyoto|osaka)\b/i.test(blob)) return "JPY";
-  if (/\b(canad[aá]|canada|toronto|vancouver|montreal)\b/i.test(blob)) return "CAD";
+  if (/\b(canad[aá]|canada|toronto|vancouver)\b/i.test(blob)) return "CAD";
   if (/\b(australia|sydney|melbourne)\b/i.test(blob)) return "AUD";
-  if (/\b(suiza|switzerland|z[uú]rich|geneva|ginebra)\b/i.test(blob)) return "CHF";
+  if (/\b(suiza|switzerland|z[uú]rich)\b/i.test(blob)) return "CHF";
   return "EUR";
 }
 
-const CATEGORY_KINDS: Array<{
-  key: Exclude<Category, "transport">;
-  label: string;
-  emoji: string;
-  color: string;
-}> = [
-  { key: "culture", label: "Cultura", emoji: "🏛️", color: "#f59e0b" },
-  { key: "nature", label: "Naturaleza", emoji: "🌿", color: "#10b981" },
-  { key: "viewpoint", label: "Mirador", emoji: "🌄", color: "#0ea5e9" },
-  { key: "neighborhood", label: "Barrio", emoji: "🧭", color: "#64748b" },
-  { key: "market", label: "Mercado", emoji: "🧺", color: "#f97316" },
-  { key: "excursion", label: "Excursión", emoji: "🚌", color: "#2563eb" },
-  { key: "gastro_experience", label: "Gastronomía (experiencia)", emoji: "🍷", color: "#db2777" },
-  { key: "shopping", label: "Compras", emoji: "🛍️", color: "#a855f7" },
-  { key: "night", label: "Noche", emoji: "🌙", color: "#334155" },
+const CATEGORY_KINDS = [
+  { key: "culture" as const, label: "Cultura", emoji: "🏛️", color: "#f59e0b" },
+  { key: "nature" as const, label: "Naturaleza", emoji: "🌿", color: "#10b981" },
+  { key: "viewpoint" as const, label: "Mirador", emoji: "🌄", color: "#0ea5e9" },
+  { key: "neighborhood" as const, label: "Barrio", emoji: "🧭", color: "#64748b" },
+  { key: "market" as const, label: "Mercado", emoji: "🧺", color: "#f97316" },
+  { key: "excursion" as const, label: "Excursión", emoji: "🚌", color: "#2563eb" },
+  { key: "gastro_experience" as const, label: "Gastronomía", emoji: "🍷", color: "#db2777" },
+  { key: "shopping" as const, label: "Compras", emoji: "🛍️", color: "#a855f7" },
+  { key: "night" as const, label: "Noche", emoji: "🌙", color: "#334155" },
 ];
+
+// Frases de intro por día generadas localmente a partir del borrador
+function dayIntroPhrase(day: DraftDay): string {
+  const kindCounts: Record<string, number> = {};
+  for (const it of day.items) {
+    const k = it.activity_kind || "visit";
+    kindCounts[k] = (kindCounts[k] || 0) + 1;
+  }
+  const dominant = Object.entries(kindCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
+  const city = day.base;
+  const n = day.items.length;
+
+  const phrases: Record<string, string> = {
+    culture: `Un día cargado de historia y arte en ${city}. ${n} parada${n !== 1 ? "s" : ""} para empaparte de cultura.`,
+    nature: `Jornada al aire libre cerca de ${city}. Espacios naturales y vistas que valen el madrugón.`,
+    viewpoint: `Los mejores miradores de ${city} en un solo día. Lleva la cámara.`,
+    gastro_experience: `${city} tiene una escena gastronómica increíble — este día está pensado para saborearla.`,
+    market: `Mercados, sabores locales y el pulso del día a día de ${city}.`,
+    excursion: `Excursión desde ${city}. Un día fuera de la ciudad que no está en ninguna guía genérica.`,
+    neighborhood: `Explora los barrios con más carácter de ${city}: calles, tiendas y rincones auténticos.`,
+    night: `La tarde-noche en ${city} tiene su propio ritmo. ${n} plan${n !== 1 ? "es" : ""} para vivirla bien.`,
+    transport: `Día de traslado. El viaje también es parte del viaje.`,
+  };
+
+  return phrases[dominant ?? "culture"] ?? `${n} plan${n !== 1 ? "es" : ""} en ${city}.`;
+}
+
+// Sugerencias de chat predefinidas
+const CHAT_SUGGESTIONS = [
+  "Menos museos, más vida local",
+  "Añade más gastronomía",
+  "Ritmo más tranquilo",
+  "Más actividades al aire libre",
+  "Incluye opciones para tarde-noche",
+  "Quita las actividades de compras",
+  "Ponlo todo más compacto geográficamente",
+  "Más cultura e historia",
+];
+
+// ─── Loading skeleton ─────────────────────────────────────────────────────────
+
+function GeneratingSkeleton() {
+  const steps = [
+    { icon: "🗺️", label: "Localizando puntos de interés reales…" },
+    { icon: "📅", label: "Distribuyendo actividades por días…" },
+    { icon: "⏱️", label: "Ajustando horarios y ritmo…" },
+    { icon: "✅", label: "Revisando coherencia geográfica…" },
+  ];
+  const [active, setActive] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => setActive((p) => (p + 1) % steps.length), 1800);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <div className="card-soft p-10 flex flex-col items-center justify-center gap-6 min-h-[300px]">
+      <div className="relative">
+        <div className="w-16 h-16 rounded-full border-4 border-violet-100 border-t-violet-500 animate-spin" />
+        <Wand2 className="absolute inset-0 m-auto w-6 h-6 text-violet-500" />
+      </div>
+      <div className="text-center space-y-1">
+        <p className="text-base font-bold text-slate-900">Generando tu itinerario…</p>
+        <p className="text-sm font-medium text-slate-500 transition-all">{steps[active]?.icon} {steps[active]?.label}</p>
+      </div>
+      <div className="flex gap-1.5">
+        {steps.map((_, i) => (
+          <div
+            key={i}
+            className={`h-1.5 rounded-full transition-all duration-500 ${i === active ? "w-6 bg-violet-500" : "w-1.5 bg-slate-200"}`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
 
 export default function TripAiPlannerWizard() {
   const router = useRouter();
   const toast = useToast();
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatInputRef = useRef<HTMLInputElement>(null);
 
-  const [step, setStep] = useState<"inputs" | "pois" | "stays" | "preview">("inputs");
-  const [tripName, setTripName] = useState("");
+  // Step: "form" → "generating" → "preview"
+  const [step, setStep] = useState<"form" | "generating" | "preview">("form");
+
+  // Form fields
   const [places, setPlaces] = useState<string[]>([""]);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [baseCurrency, setBaseCurrency] = useState<CurrencyCode>("EUR");
-  const [baseCurrencyTouched, setBaseCurrencyTouched] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [freeText, setFreeText] = useState("");
+  const [tripName, setTripName] = useState("");
 
-  const [placeSuggestions, setPlaceSuggestions] = useState<Array<{ name: string; lat: number; lng: number }>>([]);
-  const [placeSuggestionsOffset, setPlaceSuggestionsOffset] = useState(0);
-  const [placeSuggestionsLoading, setPlaceSuggestionsLoading] = useState(false);
-  const [placeSuggestionsError, setPlaceSuggestionsError] = useState<string | null>(null);
-
+  // Draft state
   const [draft, setDraft] = useState<ApiDraft | null>(null);
   const [stays, setStays] = useState<StayRow[]>([]);
-  const [selectedPoisByStop, setSelectedPoisByStop] = useState<Record<string, Poi[]>>({});
 
-  const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "assistant"; text: string }>>([]);
+  // Chat state
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
   const [activeRules, setActiveRules] = useState<string[]>([]);
 
-  const [hasSavedDraft, setHasSavedDraft] = useState(false);
-  const [scopePickerOpen, setScopePickerOpen] = useState(false);
-  const [pendingChatText, setPendingChatText] = useState<string>("");
-  const [pickedScope, setPickedScope] = useState<ChatScope>({ kind: "all" });
-  const [pickedDay, setPickedDay] = useState<number>(1);
-  const [pickedFrom, setPickedFrom] = useState<number>(1);
-  const [pickedTo, setPickedTo] = useState<number>(2);
-  const [showMorePois, setShowMorePois] = useState<Record<string, boolean>>({});
+  // UI state
+  const [expandedDays, setExpandedDays] = useState<Set<number>>(new Set([1]));
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
+  // Derived
   const totalDays = useMemo(() => totalDaysBetween(startDate, endDate), [startDate, endDate]);
   const destinationLabel = useMemo(() => joinTripPlaces(places.map((x) => x.trim()).filter(Boolean)), [places]);
   const inferredCurrency = useMemo(() => inferCurrencyFromDestinations(places.map((x) => x.trim()).filter(Boolean)), [places]);
 
-  const countryLikeQuery = useMemo(() => {
+  const canGenerate = useMemo(() => {
     const list = places.map((x) => x.trim()).filter(Boolean);
-    if (list.length !== 1) return null;
-    const q = list[0]!;
-    // Heurística: si es una sola palabra/término sin coma y sin números, suele ser país
-    if (q.length < 3) return null;
-    if (/[0-9]/.test(q)) return null;
-    if (/[,\-–—/·]/.test(q)) return null;
-    return q;
-  }, [places]);
+    return list.length > 0 && isoOk(startDate) && isoOk(endDate) && endDate >= startDate;
+  }, [places, startDate, endDate]);
 
   useEffect(() => {
     if (!isoOk(startDate)) return;
@@ -216,66 +241,16 @@ export default function TripAiPlannerWizard() {
   }, [startDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (baseCurrencyTouched) return;
-    setBaseCurrency(inferredCurrency);
-  }, [inferredCurrency, baseCurrencyTouched]);
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
 
-  useEffect(() => {
-    // Si parece país, precargamos sugerencias de lugares
-    if (!countryLikeQuery) {
-      setPlaceSuggestions([]);
-      setPlaceSuggestionsOffset(0);
-      setPlaceSuggestionsError(null);
-      return;
-    }
-    void (async () => {
-      setPlaceSuggestionsLoading(true);
-      setPlaceSuggestionsError(null);
-      try {
-        const res = await fetch("/api/geocode/suggest-places", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: countryLikeQuery, limit: 18, offset: 0 }),
-        });
-        const data = await res.json().catch(() => null);
-        if (!res.ok) {
-          setPlaceSuggestions([]);
-          setPlaceSuggestionsOffset(0);
-          setPlaceSuggestionsError(String(data?.error || "No se pudieron cargar sugerencias."));
-          return;
-        }
-        const list = Array.isArray(data?.places) ? data.places : [];
-        setPlaceSuggestions(list);
-        setPlaceSuggestionsOffset(18);
-      } finally {
-        setPlaceSuggestionsLoading(false);
-      }
-    })();
-  }, [countryLikeQuery]);
+  // ── Generate draft ─────────────────────────────────────────────────────────
 
-  useEffect(() => {
-    try {
-      setHasSavedDraft(Boolean(window.localStorage.getItem(DRAFT_STORAGE_KEY)));
-    } catch {
-      setHasSavedDraft(false);
-    }
-  }, []);
-
-  const canInputs = useMemo(() => {
+  async function generateDraft(opts?: { targetDayNums?: number[] | null; regenerateBadOnly?: boolean }) {
     const list = places.map((x) => x.trim()).filter(Boolean);
-    if (!list.length) return false;
-    if (!isoOk(startDate) || !isoOk(endDate)) return false;
-    if (endDate < startDate) return false;
-    return true;
-  }, [places, startDate, endDate]);
-
-  async function generateDraft(opts?: { regenerateBadOnly?: boolean; targetDayNums?: number[] | null }) {
-    const list = places.map((x) => x.trim()).filter(Boolean);
-    if (!list.length) return;
-    if (!isoOk(startDate) || !isoOk(endDate)) return;
-
-    setLoading(true);
     setError(null);
+    setStep("generating");
+
     try {
       const res = await fetch("/api/trips/ai-planner/generate", {
         method: "POST",
@@ -285,62 +260,68 @@ export default function TripAiPlannerWizard() {
           start_date: startDate,
           end_date: endDate,
           stays: stays.length ? stays : undefined,
-          selectedPoisByStop,
           days: draft?.days || undefined,
           regenerateBadOnly: Boolean(opts?.regenerateBadOnly),
           targetDayNums: Array.isArray(opts?.targetDayNums) ? opts!.targetDayNums : undefined,
           rules: activeRules,
+          freeText: freeText.trim() || undefined,
         }),
       });
       const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || "No se pudo generar el borrador.");
+      if (!res.ok) throw new Error(data?.error || "No se pudo generar el itinerario.");
+
       setDraft(data as ApiDraft);
       setStays(Array.isArray((data as any)?.stays) ? (data as any).stays : []);
+      setExpandedDays(new Set([1]));
       setStep("preview");
+
       if (!chatMessages.length) {
-        setChatMessages([{ role: "assistant", text: "He generado un borrador con lugares reales (OSM) y coordenadas. Dime qué cambiarías por chat y lo ajusto." }]);
+        setChatMessages([
+          {
+            role: "assistant",
+            text: `He generado un itinerario de ${(data as ApiDraft).totalDays} días con lugares reales. ¿Quieres ajustar algo? Puedes pedirme cambios concretos: quitar un tipo de actividad, añadir más gastronomía, cambiar el ritmo…`,
+          },
+        ]);
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "No se pudo generar el borrador.";
+      const msg = e instanceof Error ? e.message : "No se pudo generar el itinerario.";
       setError(msg);
-      toast.error("Error", msg);
-    } finally {
-      setLoading(false);
+      setStep(draft ? "preview" : "form");
+      toast.error("Error al generar", msg);
     }
   }
 
-  function onTogglePoi(stop: string, poi: Poi) {
-    const key = normalizeStop(stop);
-    setSelectedPoisByStop((prev) => {
-      const cur = Array.isArray(prev[key]) ? prev[key] : [];
-      const exists = cur.some((p) => p.name.toLowerCase() === poi.name.toLowerCase());
-      const next = exists ? cur.filter((p) => p.name.toLowerCase() !== poi.name.toLowerCase()) : [...cur, poi];
-      return { ...prev, [key]: next.slice(0, 24) };
-    });
+  // ── Chat / refine ──────────────────────────────────────────────────────────
+
+  async function sendChat(text?: string) {
+    const msg = (text ?? chatInput).trim();
+    if (!msg || !draft) return;
+    setChatInput("");
+    setChatMessages((prev) => [...prev, { role: "user", text: msg }]);
+    setActiveRules((prev) => [...prev, msg].slice(-12));
+    setChatLoading(true);
+
+    // Optimistic assistant reply
+    setChatMessages((prev) => [
+      ...prev,
+      { role: "assistant", text: "Entendido, voy a actualizar el itinerario con eso en mente…" },
+    ]);
+
+    try {
+      await generateDraft({ regenerateBadOnly: false });
+    } finally {
+      setChatLoading(false);
+    }
   }
 
-  // Drag&drop simple HTML5 para orden de stays
-  const [dragIdx, setDragIdx] = useState<number | null>(null);
-  function handleDragStart(i: number) {
-    setDragIdx(i);
-  }
-  function handleDrop(i: number) {
-    if (dragIdx == null || dragIdx === i) return;
-    setStays((prev) => {
-      const next = [...prev];
-      const [moved] = next.splice(dragIdx, 1);
-      next.splice(i, 0, moved!);
-      return next;
-    });
-    setDragIdx(null);
-  }
+  // ── Create trip ────────────────────────────────────────────────────────────
 
   async function createTripFromDraft() {
     if (!draft) return;
-    if (!destinationLabel) return;
     const name = (tripName.trim() || `${destinationLabel} (${startDate} → ${endDate})`).trim();
-    setLoading(true);
+    setSaving(true);
     setError(null);
+
     try {
       const createRes = await fetch("/api/trips", {
         method: "POST",
@@ -350,15 +331,15 @@ export default function TripAiPlannerWizard() {
           destination: destinationLabel,
           start_date: startDate,
           end_date: endDate,
-          base_currency: baseCurrency,
+          base_currency: inferredCurrency,
         }),
       });
       const createPayload = await createRes.json().catch(() => null);
       if (!createRes.ok) throw new Error(createPayload?.error || "No se pudo crear el viaje.");
       const tripId = String(createPayload?.tripId || "");
-      if (!tripId) throw new Error("No se pudo crear el viaje (sin id).");
+      if (!tripId) throw new Error("No se pudo crear el viaje.");
 
-      // Asegura tipos personalizados (si la tabla existe)
+      // Create activity kinds
       for (const k of CATEGORY_KINDS) {
         await fetch("/api/trip-activity-kinds", {
           method: "POST",
@@ -388,604 +369,422 @@ export default function TripAiPlannerWizard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tripId, activities: bulk }),
       });
-      const bulkPayload = await bulkRes.json().catch(() => null);
-      if (!bulkRes.ok) throw new Error(bulkPayload?.error || "No se pudieron crear los planes.");
+      if (!bulkRes.ok) {
+        const p = await bulkRes.json().catch(() => null);
+        throw new Error(p?.error || "No se pudieron crear los planes.");
+      }
 
-      toast.success("Viaje creado", "He creado el viaje y todos sus planes.");
+      toast.success("¡Viaje creado!", "Tu itinerario está listo en el panel de plan.");
       router.push(`/trip/${encodeURIComponent(tripId)}/plan`);
       router.refresh();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "No se pudo crear el viaje.";
       setError(msg);
-      toast.error("No se pudo crear", msg);
+      toast.error("Error", msg);
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   }
 
-  function addRuleFromChat(text: string) {
-    const t = text.trim();
-    if (!t) return;
-    setActiveRules((prev) => {
-      const next = [...prev, t].slice(-12);
+  // ── Toggle day expand ──────────────────────────────────────────────────────
+
+  function toggleDay(day: number) {
+    setExpandedDays((prev) => {
+      const next = new Set(prev);
+      if (next.has(day)) next.delete(day);
+      else next.add(day);
       return next;
     });
   }
 
-  async function applyChat(text: string, scope: ChatScope) {
-    if (!draft) return;
-    setChatMessages((prev) => [...prev, { role: "user", text }]);
-    addRuleFromChat(text);
-    const target = scopeToTargetDays(scope, draft.totalDays);
-    setChatMessages((prev) => [
-      ...prev,
-      {
-        role: "assistant",
-        text:
-          scope.kind === "all"
-            ? "Entendido. Aplicaré esta regla al viaje y regeneraré los días necesarios."
-            : scope.kind === "day"
-              ? `Entendido. Aplicaré esta regla al día ${scope.day}.`
-              : `Entendido. Aplicaré esta regla a los días ${scope.from}-${scope.to}.`,
-      },
-    ]);
-    await generateDraft({ regenerateBadOnly: scope.kind === "all", targetDayNums: target });
-  }
-
-  async function sendChat() {
-    const text = chatInput.trim();
-    if (!text) return;
-    setChatInput("");
-    if (!draft) return;
-    const inferred = inferScopeFromText(text, draft.totalDays);
-    if (!inferred.scope) {
-      setPendingChatText(text);
-      setPickedScope({ kind: "all" });
-      setPickedDay(1);
-      setPickedFrom(1);
-      setPickedTo(Math.min(2, draft.totalDays));
-      setScopePickerOpen(true);
-      return;
-    }
-    await applyChat(text, inferred.scope);
-  }
-
-  const nightsOk = stays.length ? sumNights(stays) === totalDays : true;
-
-  function saveDraftToLocal() {
-    if (!draft) return;
-    try {
-      const payload = {
-        version: 1,
-        savedAt: new Date().toISOString(),
-        inputs: { tripName, places, startDate, endDate, baseCurrency },
-        stays,
-        selectedPoisByStop,
-        draft,
-        chatMessages,
-        activeRules,
-      };
-      window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(payload));
-      setHasSavedDraft(true);
-      toast.success("Borrador guardado", "Puedes retomarlo más tarde desde este mismo flujo.");
-    } catch (e) {
-      toast.error("No se pudo guardar", e instanceof Error ? e.message : "Error guardando borrador");
-    }
-  }
-
-  function loadDraftFromLocal() {
-    try {
-      const raw = window.localStorage.getItem(DRAFT_STORAGE_KEY);
-      if (!raw) return;
-      const payload = JSON.parse(raw);
-      const inputs = payload?.inputs || {};
-      setTripName(String(inputs.tripName || ""));
-      setPlaces(Array.isArray(inputs.places) ? inputs.places : [""]);
-      setStartDate(String(inputs.startDate || ""));
-      setEndDate(String(inputs.endDate || ""));
-      if (inputs.baseCurrency) {
-        setBaseCurrency(String(inputs.baseCurrency) as CurrencyCode);
-        setBaseCurrencyTouched(true);
-      }
-      setStays(Array.isArray(payload?.stays) ? payload.stays : []);
-      setSelectedPoisByStop(payload?.selectedPoisByStop && typeof payload.selectedPoisByStop === "object" ? payload.selectedPoisByStop : {});
-      setDraft(payload?.draft || null);
-      setChatMessages(Array.isArray(payload?.chatMessages) ? payload.chatMessages : []);
-      setActiveRules(Array.isArray(payload?.activeRules) ? payload.activeRules : []);
-      setStep(payload?.draft ? "preview" : "inputs");
-      toast.success("Borrador cargado", "He restaurado tu borrador guardado.");
-    } catch (e) {
-      toast.error("No se pudo cargar", e instanceof Error ? e.message : "Error cargando borrador");
-    }
-  }
-
-  function clearSavedDraft() {
-    try {
-      window.localStorage.removeItem(DRAFT_STORAGE_KEY);
-      setHasSavedDraft(false);
-      toast.success("Borrador eliminado", "He borrado el borrador guardado.");
-    } catch {
-      setHasSavedDraft(false);
-    }
-  }
+  // ─────────────────────────────────────────────────────────────────────────
+  // RENDER
+  // ─────────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-4">
-      <div className="mb-2">
-        <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Planificador IA (borrador validable)</h1>
-        <p className="mt-2 text-slate-600">
-          Genera planes con lugares reales (OSM) y coordenadas. Sin “paseo por la ciudad” ni comidas genéricas.
-        </p>
+    <div className="mx-auto w-full max-w-4xl space-y-6 px-1">
+
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Sparkles className="w-5 h-5 text-violet-500" />
+            <span className="text-xs font-bold uppercase tracking-widest text-violet-600">Premium · IA</span>
+          </div>
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Planificador inteligente</h1>
+          <p className="mt-1.5 text-sm font-medium text-slate-500 max-w-md">
+            Describe tu viaje con lo mínimo — destino, fechas y tus preferencias — y la IA genera un itinerario real que puedes refinar por chat.
+          </p>
+        </div>
       </div>
 
-      {error ? (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">{error}</div>
-      ) : null}
-
-      {step === "inputs" ? (
-        <div className="card-soft p-6 space-y-4">
-          {hasSavedDraft ? (
-            <div className="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm font-semibold text-violet-950">
-              Tienes un borrador guardado.
-              <div className="mt-2 flex flex-wrap gap-2">
-                <button type="button" className="btn-secondary" onClick={loadDraftFromLocal}>
-                  Cargar borrador
-                </button>
-                <button type="button" className="btn-secondary" onClick={clearSavedDraft}>
-                  Borrar borrador
-                </button>
-              </div>
-            </div>
-          ) : null}
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="md:col-span-2">
-              <label className="mb-1 block text-sm font-extrabold text-slate-900">Nombre del viaje (opcional)</label>
-              <input
-                value={tripName}
-                onChange={(e) => setTripName(e.target.value)}
-                placeholder={destinationLabel && isoOk(startDate) && isoOk(endDate) ? `${destinationLabel} (${startDate} → ${endDate})` : "Ej. Argentina 2026"}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
-              />
-            </div>
-            <div className="md:col-span-2">
-              <TripPlacesFields places={places} onChange={setPlaces} />
-            </div>
-            <div className="md:col-span-2">
-              <label className="mb-1 block text-sm font-extrabold text-slate-900">Moneda</label>
-              <select
-                value={baseCurrency}
-                onChange={(e) => {
-                  setBaseCurrency(e.target.value as CurrencyCode);
-                  setBaseCurrencyTouched(true);
-                }}
-                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-slate-500"
-              >
-                {CURRENCY_OPTIONS.map((o) => (
-                  <option key={o.code} value={o.code}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-              <div className="mt-1 text-xs font-semibold text-slate-500">
-                Sugerida por destino: {inferredCurrency} {baseCurrencyTouched ? "(manual)" : "(auto)"}
-              </div>
-            </div>
-            {countryLikeQuery ? (
-              <div className="md:col-span-2">
-                <div className="mt-1 text-xs font-semibold text-slate-600">
-                  Sugerencias de lugares en <span className="font-extrabold">{countryLikeQuery}</span> (selecciona para añadirlos como destinos).
-                </div>
-                {placeSuggestionsLoading ? (
-                  <div className="mt-2 text-xs font-semibold text-slate-500">Cargando sugerencias…</div>
-                ) : null}
-                {!placeSuggestionsLoading && placeSuggestionsError ? (
-                  <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-900">
-                    {placeSuggestionsError}
-                  </div>
-                ) : null}
-                {!placeSuggestionsLoading && !placeSuggestionsError && !(placeSuggestions || []).length ? (
-                  <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-700">
-                    No he encontrado sugerencias para este país. Prueba a pulsar “Añadir más lugares” o escribe una ciudad/región.
-                  </div>
-                ) : null}
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {(placeSuggestions || []).slice(0, 18).map((p) => (
-                    <button
-                      key={p.name}
-                      type="button"
-                      className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                      disabled={placeSuggestionsLoading}
-                      onClick={() => {
-                        setPlaces((prev) => {
-                          const next = prev.map((x) => x);
-                          // Si solo había el país, lo reemplazamos por el primer lugar sugerido y añadimos el país como contexto en el nombre
-                          if (next.length === 1 && String(next[0] || "").trim().toLowerCase() === countryLikeQuery.toLowerCase()) {
-                            return [p.name];
-                          }
-                          return [...next, p.name];
-                        });
-                      }}
-                      title={`${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}`}
-                    >
-                      {p.name}
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    className="rounded-full border border-violet-300 bg-violet-50 px-3 py-1 text-xs font-extrabold text-violet-900 hover:bg-violet-100 disabled:opacity-60"
-                    disabled={placeSuggestionsLoading || !countryLikeQuery}
-                    onClick={async () => {
-                      if (!countryLikeQuery) return;
-                      setPlaceSuggestionsLoading(true);
-                      setPlaceSuggestionsError(null);
-                      try {
-                        const res = await fetch("/api/geocode/suggest-places", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ query: countryLikeQuery, limit: 18, offset: placeSuggestionsOffset }),
-                        });
-                        const data = await res.json().catch(() => null);
-                        if (!res.ok) {
-                          setPlaceSuggestionsError(String(data?.error || "No se pudieron cargar más sugerencias."));
-                          return;
-                        }
-                        const more = Array.isArray(data?.places) ? data.places : [];
-                        setPlaceSuggestions((prev) => [...prev, ...more]);
-                        setPlaceSuggestionsOffset((x) => x + 18);
-                      } finally {
-                        setPlaceSuggestionsLoading(false);
-                      }
-                    }}
-                  >
-                    + Añadir más lugares
-                  </button>
-                </div>
-              </div>
-            ) : null}
-            <div>
-              <label className="mb-1 block text-sm font-extrabold text-slate-900">Fecha inicio</label>
-              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500" />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-extrabold text-slate-900">Fecha fin</label>
-              <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} min={startDate || undefined} className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500" />
-              <div className="mt-1 text-xs font-semibold text-slate-500">Total: {totalDays} días</div>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              disabled={!canInputs || loading}
-              onClick={async () => {
-                setStep("preview");
-                await generateDraft({ regenerateBadOnly: false });
-              }}
-              className="btn-primary disabled:opacity-50"
-            >
-              Generar borrador
-            </button>
-          </div>
+      {/* ── Error banner ────────────────────────────────────────────────────── */}
+      {error && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800 flex items-start gap-2">
+          <span className="mt-0.5">⚠️</span>
+          <span>{error}</span>
         </div>
-      ) : null}
+      )}
 
-      {step === "preview" && draft ? (
-        <div className="space-y-4">
-          <div className="card-soft p-5 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
+      {/* ── FORM STEP ────────────────────────────────────────────────────────── */}
+      {step === "form" && (
+        <div className="card-soft p-7 space-y-6">
+          {/* Destinos */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <MapPin className="w-4 h-4 text-slate-400" />
+              <span className="text-sm font-bold text-slate-800">¿A dónde vas?</span>
+            </div>
+            <TripPlacesFields places={places} onChange={setPlaces} />
+          </div>
+
+          {/* Fechas */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <Calendar className="w-4 h-4 text-slate-400" />
+              <span className="text-sm font-bold text-slate-800">¿Cuándo?</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <div className="text-sm font-extrabold text-slate-900">Estructura (noches y orden)</div>
-                <div className="mt-1 text-xs font-semibold text-slate-600">
-                  Arrastra destinos para reordenar y edita noches. Debe sumar {draft.totalDays}.
-                </div>
+                <label className="mb-1 block text-xs font-semibold text-slate-500">Fecha de inicio</label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-500 bg-white"
+                />
               </div>
-              <div className="flex gap-2">
-                <button type="button" disabled={loading} onClick={saveDraftToLocal} className="btn-secondary disabled:opacity-50">
-                  Guardar borrador
-                </button>
-                {hasSavedDraft ? (
-                  <button type="button" disabled={loading} onClick={loadDraftFromLocal} className="btn-secondary disabled:opacity-50">
-                    Cargar borrador
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  disabled={loading}
-                  onClick={() => generateDraft({ regenerateBadOnly: true })}
-                  className="btn-secondary disabled:opacity-50"
-                  title="Rehacer solo días malos (M1–M5)"
-                >
-                  Volver a generar (solo días malos)
-                </button>
-                <button type="button" disabled={loading || !nightsOk} onClick={createTripFromDraft} className="btn-primary disabled:opacity-50">
-                  Crear viaje
-                </button>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-500">
+                  Fecha de fin
+                  {isoOk(startDate) && isoOk(endDate) && (
+                    <span className="ml-2 text-violet-600 font-bold">{totalDays} días</span>
+                  )}
+                </label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  min={startDate || undefined}
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-500 bg-white"
+                />
               </div>
             </div>
+          </div>
 
-            {!nightsOk ? (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
-                El número de noches no coincide con las fechas. Suma actual: {sumNights(stays)} / {draft.totalDays}.
-              </div>
-            ) : null}
-
-            <div className="grid gap-2">
-              {(stays.length ? stays : draft.stays).map((s, i) => (
-                <div
-                  key={`${s.stop}-${i}`}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2"
-                  draggable
-                  onDragStart={() => handleDragStart(i)}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={() => handleDrop(i)}
-                  title="Arrastra para reordenar"
+          {/* Preferencias (texto libre) */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <MessageCircle className="w-4 h-4 text-slate-400" />
+              <span className="text-sm font-bold text-slate-800">¿Alguna preferencia? <span className="text-slate-400 font-normal">(opcional)</span></span>
+            </div>
+            <textarea
+              value={freeText}
+              onChange={(e) => setFreeText(e.target.value)}
+              rows={3}
+              placeholder="Ej: viajamos en pareja, nos gusta la gastronomía local, sin museos, ritmo tranquilo, presupuesto medio…"
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-500 bg-white resize-none"
+            />
+            {/* Chips de ejemplos */}
+            <div className="mt-2 flex flex-wrap gap-2">
+              {["Sin museos", "Gastronomía local", "Ritmo tranquilo", "Con niños", "Presupuesto ajustado", "Mucha naturaleza"].map((hint) => (
+                <button
+                  key={hint}
+                  type="button"
+                  onClick={() => setFreeText((prev) => prev ? `${prev}, ${hint.toLowerCase()}` : hint.toLowerCase())}
+                  className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors"
                 >
-                  <div className="min-w-0">
-                    <div className="text-sm font-extrabold text-slate-900">{s.stop}</div>
-                    <div className="text-xs font-semibold text-slate-500">Drag & drop</div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-slate-600">Noches</span>
-                    <input
-                      inputMode="numeric"
-                      value={String(s.nights)}
-                      onChange={(e) => {
-                        const n = Math.max(1, Math.min(60, Math.round(Number(e.target.value || "1"))));
-                        setStays((prev) => prev.map((x, idx) => (idx === i ? { ...x, nights: n } : x)));
-                      }}
-                      className="w-20 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm font-extrabold text-slate-900"
-                    />
-                  </div>
-                </div>
+                  {hint}
+                </button>
               ))}
+            </div>
+          </div>
+
+          {/* CTA */}
+          <button
+            type="button"
+            disabled={!canGenerate}
+            onClick={() => generateDraft()}
+            className="btn-primary w-full flex items-center justify-center gap-2 py-4 text-base disabled:opacity-40"
+          >
+            <Wand2 className="w-5 h-5" />
+            Generar itinerario
+            <ArrowRight className="w-4 h-4" />
+          </button>
+
+          {!canGenerate && (
+            <p className="text-xs text-center text-slate-400 -mt-3">Necesitas al menos un destino y las fechas para continuar.</p>
+          )}
+        </div>
+      )}
+
+      {/* ── GENERATING STEP ──────────────────────────────────────────────────── */}
+      {step === "generating" && <GeneratingSkeleton />}
+
+      {/* ── PREVIEW STEP ─────────────────────────────────────────────────────── */}
+      {step === "preview" && draft && (
+        <div className="space-y-5">
+
+          {/* Summary bar */}
+          <div className="card-soft px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Destino</p>
+                <p className="text-sm font-extrabold text-slate-900">{destinationLabel}</p>
+              </div>
+              <div className="h-8 w-px bg-slate-200" />
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Duración</p>
+                <p className="text-sm font-extrabold text-slate-900">{draft.totalDays} días</p>
+              </div>
+              <div className="h-8 w-px bg-slate-200" />
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Actividades</p>
+                <p className="text-sm font-extrabold text-slate-900">{draft.days.reduce((a, d) => a + d.items.length, 0)} planes</p>
+              </div>
             </div>
             <div className="flex gap-2">
               <button
                 type="button"
-                disabled={loading || !nightsOk}
-                onClick={async () => {
-                  await generateDraft({ regenerateBadOnly: false });
-                }}
-                className="btn-secondary disabled:opacity-50"
-                title="Regenerar aplicando el orden/noches actuales"
+                onClick={() => { setStep("form"); }}
+                className="btn-secondary flex items-center gap-1.5 text-sm py-2.5 px-4"
               >
-                Aplicar estructura y regenerar
+                <RotateCcw className="w-3.5 h-3.5" />
+                Empezar de nuevo
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={createTripFromDraft}
+                className="btn-primary flex items-center gap-2 text-sm py-2.5 px-5 disabled:opacity-50"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                Crear viaje
               </button>
             </div>
           </div>
 
-          <div className="card-soft p-5 space-y-3">
-            <div className="text-sm font-extrabold text-slate-900">Imprescindibles (opcional)</div>
-            <div className="text-xs font-semibold text-slate-600">Selecciona POIs concretos para priorizarlos (con coordenadas). No bloquea el flujo.</div>
+          {/* Trip name (optional) */}
+          <div className="card-soft px-6 py-4">
+            <label className="mb-1.5 block text-xs font-bold uppercase tracking-widest text-slate-400">Nombre del viaje (opcional)</label>
+            <input
+              value={tripName}
+              onChange={(e) => setTripName(e.target.value)}
+              placeholder={`${destinationLabel} (${startDate} → ${endDate})`}
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-500 bg-white"
+            />
+          </div>
+
+          {/* Two-column layout: itinerary + chat */}
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-5 items-start">
+
+            {/* ── Itinerary ────────────────────────────────────────────── */}
             <div className="space-y-3">
-              {Object.entries(draft.suggestions || {}).map(([stop, groups]) => (
-                <div key={stop} className="rounded-xl border border-slate-200 bg-white p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="text-sm font-extrabold text-slate-900">{stop}</div>
+              <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 px-1">Itinerario día a día</h2>
+
+              {draft.days.map((d) => {
+                const expanded = expandedDays.has(d.day);
+                const intro = dayIntroPhrase(d);
+
+                return (
+                  <div key={d.day} className="card-soft overflow-hidden">
+                    {/* Day header */}
                     <button
                       type="button"
-                      className="btn-secondary"
-                      onClick={() => setShowMorePois((prev) => ({ ...prev, [stop]: !prev[stop] }))}
-                      title="Mostrar más lugares sugeridos"
+                      onClick={() => toggleDay(d.day)}
+                      className="w-full flex items-start justify-between gap-3 px-5 py-4 text-left hover:bg-slate-50/60 transition-colors"
                     >
-                      {showMorePois[stop] ? "Mostrar menos" : "Añadir más lugares"}
-                    </button>
-                  </div>
-                  <div className="mt-2 space-y-2">
-                    {groups.map((g) => (
-                      <div key={`${stop}-${g.category}`}>
-                        <div className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">{g.category}</div>
-                        <div className="mt-1 flex flex-wrap gap-2">
-                          {g.pois.slice(0, showMorePois[stop] ? 36 : 12).map((p) => {
-                            const picked = (selectedPoisByStop[stop] || []).some((x) => x.name.toLowerCase() === p.name.toLowerCase());
-                            return (
-                              <button
-                                key={p.name}
-                                type="button"
-                                onClick={() => onTogglePoi(stop, p)}
-                                className={`rounded-full border px-3 py-1 text-xs font-extrabold ${
-                                  picked ? "border-violet-300 bg-violet-50 text-violet-900" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                                }`}
-                                title={`${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}`}
-                              >
-                                {p.name}
-                              </button>
-                            );
-                          })}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="text-xs font-bold uppercase tracking-widest text-violet-500">
+                            Día {d.day}
+                          </span>
+                          <span className="text-xs font-semibold text-slate-400">·</span>
+                          <span className="text-xs font-semibold text-slate-500">{d.date}</span>
+                          <span className="text-xs font-semibold text-slate-400">·</span>
+                          <span className="text-xs font-bold text-slate-600">{d.base}</span>
                         </div>
+                        <p className="text-sm font-semibold text-slate-700 leading-snug">{intro}</p>
+                        {!expanded && (
+                          <div className="mt-1.5 flex flex-wrap gap-1.5">
+                            {d.items.slice(0, 3).map((it, i) => (
+                              <span key={i} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600">
+                                {CATEGORY_KINDS.find((c) => c.key === it.activity_kind)?.emoji ?? "📍"}
+                                {it.title.length > 28 ? it.title.slice(0, 28) + "…" : it.title}
+                              </span>
+                            ))}
+                            {d.items.length > 3 && (
+                              <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-400">
+                                +{d.items.length - 3} más
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    ))}
+                      <div className="shrink-0 mt-0.5 text-slate-400">
+                        {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      </div>
+                    </button>
+
+                    {/* Day items */}
+                    {expanded && (
+                      <div className="border-t border-slate-100 px-4 py-4 space-y-3">
+                        {d.items.map((it, idx) => (
+                          <PlanActivityCard
+                            key={stableId(d.day, idx)}
+                            activity={{
+                              id: stableId(d.day, idx),
+                              title: it.title,
+                              description: it.description,
+                              activity_date: it.activity_date,
+                              activity_time: it.activity_time,
+                              place_name: it.place_name,
+                              address: it.address,
+                              latitude: it.latitude,
+                              longitude: it.longitude,
+                              activity_kind: it.activity_kind,
+                              activity_type: it.activity_type,
+                              source: it.source,
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
+                );
+              })}
+            </div>
+
+            {/* ── Chat panel ───────────────────────────────────────────── */}
+            <div className="card-soft flex flex-col sticky top-4 max-h-[calc(100vh-6rem)] overflow-hidden">
+              {/* Chat header */}
+              <div className="px-5 py-4 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <MessageCircle className="w-4 h-4 text-violet-500" />
+                  <span className="text-sm font-extrabold text-slate-900">Refinar con IA</span>
                 </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="card-soft p-5 space-y-3">
-            <div className="text-sm font-extrabold text-slate-900">Borrador (tarjetas)</div>
-            <div className="text-xs font-semibold text-slate-600">Esto es lo que se guardará en Plan al crear el viaje.</div>
-            <div className="space-y-4">
-              {draft.days.map((d) => (
-                <div key={d.day} className="rounded-xl border border-slate-200 bg-white p-4">
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <div className="text-sm font-extrabold text-slate-900">
-                      Día {d.day} · {d.date} · {d.base}
-                    </div>
-                    <div className="text-xs font-semibold text-slate-500">{(d.items || []).length} planes</div>
-                  </div>
-                  <div className="mt-3 space-y-3">
-                    {(d.items || []).map((it, idx) => (
-                      <PlanActivityCard
-                        key={stableId(d.day, idx)}
-                        activity={{
-                          id: stableId(d.day, idx),
-                          title: it.title,
-                          description: it.description,
-                          activity_date: it.activity_date,
-                          activity_time: it.activity_time,
-                          place_name: it.place_name,
-                          address: it.address,
-                          latitude: it.latitude,
-                          longitude: it.longitude,
-                          activity_kind: it.activity_kind,
-                          activity_type: it.activity_type,
-                          source: it.source,
-                        }}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="card-soft p-5 space-y-3">
-            <div className="text-sm font-extrabold text-slate-900">Chat de ajustes</div>
-            <div className="text-xs font-semibold text-slate-600">
-              Pide cambios. Se guardarán como “reglas activas”. Si el alcance es ambiguo, te pediré si aplica a un día, rango o todo el viaje.
-            </div>
-
-            {activeRules.length ? (
-              <div className="flex flex-wrap gap-2">
-                {activeRules.map((r, i) => (
-                  <button
-                    key={`${r}-${i}`}
-                    type="button"
-                    className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold text-slate-700"
-                    title="Regla activa"
-                    onClick={() => {
-                      // toggle off
-                      setActiveRules((prev) => prev.filter((x) => x !== r));
-                    }}
-                  >
-                    {r} ×
-                  </button>
-                ))}
+                <p className="mt-0.5 text-xs font-medium text-slate-400">
+                  Pide cualquier cambio — lo aplico al instante.
+                </p>
               </div>
-            ) : null}
 
-            <div className="max-h-[240px] overflow-auto rounded-xl border border-slate-200 bg-white p-3">
-              <div className="space-y-2">
+              {/* Active rules chips */}
+              {activeRules.length > 0 && (
+                <div className="px-4 pt-3 flex flex-wrap gap-1.5">
+                  {activeRules.map((r, i) => (
+                    <button
+                      key={`${r}-${i}`}
+                      type="button"
+                      onClick={() => setActiveRules((prev) => prev.filter((_, idx) => idx !== i))}
+                      className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-0.5 text-xs font-semibold text-violet-700 hover:bg-violet-100 transition-colors"
+                      title="Clic para desactivar esta preferencia"
+                    >
+                      {r.length > 30 ? r.slice(0, 30) + "…" : r} ×
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Messages */}
+              <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 min-h-0">
                 {chatMessages.map((m, idx) => (
                   <div key={idx} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[85%] rounded-2xl px-4 py-2 text-sm ${m.role === "user" ? "bg-slate-900 text-white" : "bg-slate-50 text-slate-900"}`}>
+                    {m.role === "assistant" && (
+                      <div className="w-6 h-6 rounded-full bg-violet-100 flex items-center justify-center shrink-0 mt-0.5 mr-2">
+                        <Sparkles className="w-3 h-3 text-violet-500" />
+                      </div>
+                    )}
+                    <div
+                      className={`max-w-[82%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
+                        m.role === "user"
+                          ? "bg-slate-900 text-white"
+                          : "bg-slate-50 border border-slate-100 text-slate-800"
+                      }`}
+                    >
                       {m.text}
                     </div>
                   </div>
                 ))}
-                {!chatMessages.length ? (
-                  <div className="text-xs font-semibold text-slate-500">Escribe un cambio, por ejemplo: “Evita museos”, “No actividades después de las 17:00”, “Más naturaleza”</div>
-                ) : null}
+                {chatLoading && (
+                  <div className="flex justify-start">
+                    <div className="w-6 h-6 rounded-full bg-violet-100 flex items-center justify-center shrink-0 mt-0.5 mr-2">
+                      <Sparkles className="w-3 h-3 text-violet-500" />
+                    </div>
+                    <div className="bg-slate-50 border border-slate-100 rounded-2xl px-3.5 py-2.5">
+                      <div className="flex gap-1">
+                        <div className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                        <div className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                        <div className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div ref={chatEndRef} />
               </div>
-            </div>
 
-            <div className="flex gap-2">
-              <input
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    void sendChat();
-                  }
-                }}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-500"
-                placeholder="Ej. No actividades más allá de las 17:00"
-              />
-              <button type="button" disabled={loading} onClick={sendChat} className="btn-primary disabled:opacity-50">
-                Enviar
-              </button>
+              {/* Suggestions */}
+              <div className="px-4 pb-2 flex flex-wrap gap-1.5">
+                {CHAT_SUGGESTIONS.slice(0, 4).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    disabled={chatLoading}
+                    onClick={() => sendChat(s)}
+                    className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors disabled:opacity-40"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+
+              {/* Input */}
+              <div className="px-4 pb-4 pt-2 border-t border-slate-100">
+                <div className="flex gap-2">
+                  <input
+                    ref={chatInputRef}
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        void sendChat();
+                      }
+                    }}
+                    disabled={chatLoading}
+                    placeholder="Ej. Menos museos, más vida local…"
+                    className="flex-1 min-w-0 rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-slate-500 bg-white disabled:opacity-50"
+                  />
+                  <button
+                    type="button"
+                    disabled={chatLoading || !chatInput.trim()}
+                    onClick={() => sendChat()}
+                    className="btn-primary shrink-0 px-3.5 py-2.5 disabled:opacity-40"
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
-          {scopePickerOpen ? (
-            <div
-              className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 p-4 sm:items-center"
-              role="presentation"
-              onMouseDown={(e) => {
-                if (e.target === e.currentTarget) setScopePickerOpen(false);
-              }}
-            >
-              <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl" role="dialog" aria-modal="true">
-                <div className="text-sm font-extrabold text-slate-900">¿A qué días se aplica?</div>
-                <div className="mt-1 text-xs font-semibold text-slate-600">
-                  No he podido inferir el alcance del mensaje. Elige dónde aplicarlo.
-                </div>
-
-                <div className="mt-4 space-y-3">
-                  <label className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                    <input type="radio" checked={pickedScope.kind === "all"} onChange={() => setPickedScope({ kind: "all" })} />
-                    Todo el viaje
-                  </label>
-                  <label className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                    <input type="radio" checked={pickedScope.kind === "day"} onChange={() => setPickedScope({ kind: "day", day: pickedDay })} />
-                    Solo un día
-                    <input
-                      inputMode="numeric"
-                      value={String(pickedDay)}
-                      onChange={(e) => setPickedDay(Math.max(1, Math.min(draft.totalDays, Math.round(Number(e.target.value || "1")))))}
-                      className="ml-auto w-20 rounded-lg border border-slate-300 px-2 py-1 text-sm font-extrabold"
-                    />
-                  </label>
-                  <label className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                    <input
-                      type="radio"
-                      checked={pickedScope.kind === "range"}
-                      onChange={() => setPickedScope({ kind: "range", from: pickedFrom, to: pickedTo })}
-                    />
-                    Rango de días
-                    <div className="ml-auto flex items-center gap-2">
-                      <input
-                        inputMode="numeric"
-                        value={String(pickedFrom)}
-                        onChange={(e) => setPickedFrom(Math.max(1, Math.min(draft.totalDays, Math.round(Number(e.target.value || "1")))))}
-                        className="w-20 rounded-lg border border-slate-300 px-2 py-1 text-sm font-extrabold"
-                      />
-                      <span className="text-xs font-semibold text-slate-500">a</span>
-                      <input
-                        inputMode="numeric"
-                        value={String(pickedTo)}
-                        onChange={(e) => setPickedTo(Math.max(1, Math.min(draft.totalDays, Math.round(Number(e.target.value || "2")))))}
-                        className="w-20 rounded-lg border border-slate-300 px-2 py-1 text-sm font-extrabold"
-                      />
-                    </div>
-                  </label>
-                </div>
-
-                <div className="mt-5 flex gap-2">
-                  <button type="button" className="btn-secondary" onClick={() => setScopePickerOpen(false)}>
-                    Cancelar
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-primary"
-                    onClick={async () => {
-                      const scope =
-                        pickedScope.kind === "all"
-                          ? ({ kind: "all" } as ChatScope)
-                          : pickedScope.kind === "day"
-                            ? ({ kind: "day", day: pickedDay } as ChatScope)
-                            : ({ kind: "range", from: pickedFrom, to: pickedTo } as ChatScope);
-                      setScopePickerOpen(false);
-                      const text = pendingChatText;
-                      setPendingChatText("");
-                      await applyChat(text, scope);
-                    }}
-                  >
-                    Aplicar
-                  </button>
-                </div>
-              </div>
+          {/* Bottom CTA */}
+          <div className="card-soft p-5 flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-extrabold text-slate-900">¿Te gusta el itinerario?</p>
+              <p className="text-xs font-medium text-slate-500">Crea el viaje y podrás seguir editando actividades desde el panel de plan.</p>
             </div>
-          ) : null}
-
-          <div className="flex gap-2">
-            <button type="button" className="btn-secondary" onClick={() => { setDraft(null); setStep("inputs"); }}>
-              Empezar de nuevo
+            <button
+              type="button"
+              disabled={saving}
+              onClick={createTripFromDraft}
+              className="btn-primary flex items-center gap-2 py-3 px-6 disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+              Crear viaje
             </button>
           </div>
         </div>
-      ) : null}
+      )}
     </div>
   );
 }
-
