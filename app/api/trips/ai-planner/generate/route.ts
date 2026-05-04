@@ -11,7 +11,14 @@ export const maxDuration = 120;
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type LatLng = { lat: number; lng: number };
-type Poi = { name: string; lat: number; lng: number; osm?: { type: string; id: string } };
+type Poi = {
+  name: string;
+  lat: number;
+  lng: number;
+  osm?: { type: string; id: string };
+  /** Tags OSM (para priorizar lugares “típicos” y aplicar reglas tipo “sin museos”) */
+  tags?: Record<string, string>;
+};
 
 type Category =
   | "culture" | "nature" | "viewpoint" | "neighborhood"
@@ -354,7 +361,17 @@ function parseOverpassResponse(payload: any, limitPerCat: number): Record<Catego
     const key = name.toLowerCase();
     if (seen[cat].has(key) || pools[cat].length >= limitPerCat) continue;
     seen[cat].add(key);
-    pools[cat].push({ name, lat, lng, osm: { type: String(el?.type || "node"), id: String(el?.id || "") } });
+    const tagRecord: Record<string, string> = {};
+    for (const [k2, v2] of Object.entries(tags)) {
+      if (typeof v2 === "string" && v2.trim()) tagRecord[k2] = v2;
+    }
+    pools[cat].push({
+      name,
+      lat,
+      lng,
+      osm: { type: String(el?.type || "node"), id: String(el?.id || "") },
+      tags: tagRecord,
+    });
   }
   const excSeen = new Set<string>();
   pools.excursion = [];
@@ -363,7 +380,75 @@ function parseOverpassResponse(payload: any, limitPerCat: number): Record<Catego
     if (excSeen.has(k)) continue; excSeen.add(k); pools.excursion.push(poi);
     if (pools.excursion.length >= limitPerCat) break;
   }
+  sortPoolsByIconicity(pools);
   return pools;
+}
+
+function poiIconicityScore(tags: Record<string, string> | undefined): number {
+  if (!tags) return 0;
+  const t = (tags.tourism || "").toLowerCase();
+  const a = (tags.amenity || "").toLowerCase();
+  const h = (tags.historic || "").toLowerCase();
+  const n = (tags.natural || "").toLowerCase();
+  let s = 0;
+  if (tags.wikidata) s += 12;
+  if (tags.wikipedia) s += 8;
+  if (tags.wikimedia_commons) s += 2;
+  if (tags["heritage:operator"] || tags.heritage) s += 4;
+  if (t === "attraction") s += 10;
+  if (t === "museum") s += 6;
+  if (t === "viewpoint") s += 5;
+  if (a === "theatre" || a === "arts_centre") s += 5;
+  if (h === "castle" || h === "monument" || h === "archaeological_site") s += 6;
+  if (n === "peak" || n === "waterfall" || n === "bay") s += 5;
+  const pop = Number(tags.population);
+  if (Number.isFinite(pop) && pop > 0) s += Math.min(6, Math.log10(pop + 1));
+  return s;
+}
+
+function sortPoolsByIconicity(pools: Record<Category, Poi[]>) {
+  for (const cat of ALL_CATEGORIES) {
+    const arr = pools[cat] || [];
+    arr.sort((a, b) => {
+      const sa = poiIconicityScore(a.tags) - poiIconicityScore(b.tags);
+      if (sa !== 0) return sa;
+      return a.name.localeCompare(b.name);
+    });
+  }
+}
+
+function mergeNotes(freeText: string, rulesRaw: unknown): string {
+  const rules = Array.isArray(rulesRaw) ? (rulesRaw as any[]).map((x) => cleanString(x)).filter(Boolean) : [];
+  return [cleanString(freeText), ...rules].filter(Boolean).join(" | ");
+}
+
+function wantsNoMuseums(notes: string) {
+  return /\b(sin museo|sin museos|no museo|no museos|evita museos|evitar museos)\b/i.test(notes);
+}
+
+function wantsMoreNature(notes: string) {
+  return /\b(m[aá]s naturaleza|naturaleza|senderismo|trekking|parques?|monta[ñn]a|aire libre)\b/i.test(notes);
+}
+
+function wantsNoNight(notes: string) {
+  return /\b(sin vida nocturna|no vida nocturna|no bares|sin bares|no discoteca|sin discoteca)\b/i.test(notes);
+}
+
+function isMuseumPoi(p: Poi): boolean {
+  const tg = p.tags || {};
+  const t = (tg.tourism || "").toLowerCase();
+  const a = (tg.amenity || "").toLowerCase();
+  return t === "museum" || a === "museum";
+}
+
+function filterPoolsForNotes(pools: Record<Category, Poi[]>, notes: string): Record<Category, Poi[]> {
+  const out: Record<Category, Poi[]> = {} as any;
+  for (const c of ALL_CATEGORIES) out[c] = [...(pools[c] || [])];
+  if (wantsNoMuseums(notes)) {
+    out.culture = (out.culture || []).filter((p) => !isMuseumPoi(p));
+    out.excursion = (out.excursion || []).filter((p) => !isMuseumPoi(p));
+  }
+  return out;
 }
 
 const OVERPASS_ENDPOINTS = [
@@ -429,12 +514,147 @@ function classifyDayType(pools: Record<Category, Poi[]>): "big_city" | "small_ci
   const c = pools.culture?.length || 0, n = pools.nature?.length || 0, m = pools.market?.length || 0;
   if (n >= Math.max(10, c + m)) return "nature"; return (c + m) >= 25 ? "big_city" : "small_city";
 }
-function slotTemplate(type: "big_city" | "small_city" | "nature") {
-  if (type === "nature") return [{ time: "09:00", cats: ["nature", "excursion"] as Category[] }, { time: "16:30", cats: ["viewpoint", "nature"] as Category[] }, { time: "20:30", cats: ["gastro_experience", "culture"] as Category[] }];
-  if (type === "small_city") return [{ time: "10:00", cats: ["culture", "neighborhood"] as Category[] }, { time: "13:30", cats: ["market", "culture"] as Category[] }, { time: "17:00", cats: ["viewpoint", "culture"] as Category[] }, { time: "20:30", cats: ["gastro_experience", "night"] as Category[] }];
-  return [{ time: "09:30", cats: ["culture"] as Category[] }, { time: "12:30", cats: ["market", "neighborhood"] as Category[] }, { time: "16:30", cats: ["culture", "viewpoint"] as Category[] }, { time: "20:30", cats: ["gastro_experience", "night"] as Category[] }];
+
+type SlotDef = { time: string; cats: Category[] };
+
+function slotTemplateForDay(type: "big_city" | "small_city" | "nature", dayOrdinalInStop: number, notes: string): SlotDef[] {
+  const rot = Math.max(0, dayOrdinalInStop - 1) % 3;
+  const natureHeavy = wantsMoreNature(notes);
+
+  if (type === "nature") {
+    const base: SlotDef[][] = [
+      [
+        { time: "09:00", cats: ["nature", "excursion"] },
+        { time: "16:30", cats: ["viewpoint", "nature"] },
+        { time: "20:30", cats: ["gastro_experience", "culture"] },
+      ],
+      [
+        { time: "09:30", cats: ["excursion", "nature"] },
+        { time: "15:30", cats: ["viewpoint", "excursion"] },
+        { time: "20:30", cats: ["night", "gastro_experience"] },
+      ],
+      [
+        { time: "10:00", cats: ["nature", "viewpoint"] },
+        { time: "16:00", cats: ["excursion", "nature"] },
+        { time: "20:30", cats: ["gastro_experience", "shopping"] },
+      ],
+    ];
+    return base[rot]!;
+  }
+
+  if (type === "small_city") {
+    const base: SlotDef[][] = [
+      [
+        { time: "10:00", cats: ["culture", "neighborhood"] },
+        { time: "13:30", cats: ["market", "culture"] },
+        { time: "17:00", cats: ["viewpoint", "culture"] },
+        { time: "20:30", cats: ["gastro_experience", "night"] },
+      ],
+      [
+        { time: "10:00", cats: ["neighborhood", "market"] },
+        { time: "13:30", cats: ["culture", "viewpoint"] },
+        { time: "17:00", cats: ["shopping", "culture"] },
+        { time: "20:30", cats: ["gastro_experience", "night"] },
+      ],
+      [
+        { time: "10:00", cats: ["viewpoint", "culture"] },
+        { time: "13:30", cats: ["market", "neighborhood"] },
+        { time: "17:00", cats: ["culture", "shopping"] },
+        { time: "20:30", cats: ["night", "gastro_experience"] },
+      ],
+    ];
+    let slots = base[rot]!;
+    if (natureHeavy) {
+      slots = slots.map((s) => ({ ...s, cats: s.cats.map((c) => (c === "shopping" ? "nature" : c)) as Category[] }));
+    }
+    return slots;
+  }
+
+  // big_city
+  const base: SlotDef[][] = [
+    [
+      { time: "09:30", cats: ["culture"] },
+      { time: "12:30", cats: ["market", "neighborhood"] },
+      { time: "16:30", cats: ["culture", "viewpoint"] },
+      { time: "20:30", cats: ["gastro_experience", "night"] },
+    ],
+    [
+      { time: "09:30", cats: ["viewpoint", "culture"] },
+      { time: "12:30", cats: ["culture", "market"] },
+      { time: "16:30", cats: ["neighborhood", "culture"] },
+      { time: "20:30", cats: ["gastro_experience", "night"] },
+    ],
+    [
+      { time: "09:30", cats: ["market", "culture"] },
+      { time: "12:30", cats: ["culture", "viewpoint"] },
+      { time: "16:30", cats: ["shopping", "culture"] },
+      { time: "20:30", cats: ["night", "gastro_experience"] },
+    ],
+  ];
+  let slots = base[rot]!;
+  if (natureHeavy) {
+    slots = slots.map((s) => ({ ...s, cats: s.cats.map((c) => (c === "shopping" ? "nature" : c)) as Category[] }));
+  }
+  return slots;
 }
+
 function ensureNoGenericTitle(title: string) { return !/\b(paseo|zona animada|ambiente local|tiempo libre|explorar)\b/i.test(title.toLowerCase()); }
+
+function pickPoiForSlot(params: {
+  pools: Record<Category, Poi[]>;
+  cats: Category[];
+  selected: Set<string> | undefined;
+  usedToday: Set<string>;
+  usedInStop: Set<string>;
+  dayOrdinalInStop: number;
+  slotIndex: number;
+  notes: string;
+}): { poi: Poi; kind: Category } | null {
+  const { pools, cats, selected, usedToday, usedInStop, dayOrdinalInStop, slotIndex, notes } = params;
+  const noMuseum = wantsNoMuseums(notes);
+
+  const collect = (allowReuseInStop: boolean) => {
+    const cands: Array<{ poi: Poi; kind: Category }> = [];
+    const seen = new Set<string>();
+    for (const cat of cats) {
+      const pool = pools[cat] || [];
+      for (const p of pool) {
+        const key = p.name.trim().toLowerCase();
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        if (usedToday.has(key)) continue;
+        if (!allowReuseInStop && usedInStop.has(key)) continue;
+        if (noMuseum && isMuseumPoi(p)) continue;
+        cands.push({ poi: p, kind: cat });
+      }
+    }
+
+    // Prioriza selección del usuario
+    if (selected && selected.size) {
+      cands.sort((a, b) => {
+        const as = selected.has(a.poi.name.toLowerCase()) ? 1 : 0;
+        const bs = selected.has(b.poi.name.toLowerCase()) ? 1 : 0;
+        if (as !== bs) return bs - as;
+        const ia = poiIconicityScore(a.poi.tags) - poiIconicityScore(b.poi.tags);
+        if (ia !== 0) return ia;
+        return a.poi.name.localeCompare(b.poi.name);
+      });
+    } else {
+      cands.sort((a, b) => {
+        const ia = poiIconicityScore(a.poi.tags) - poiIconicityScore(b.poi.tags);
+        if (ia !== 0) return ia;
+        return a.poi.name.localeCompare(b.poi.name);
+      });
+    }
+
+    const offset = ((dayOrdinalInStop - 1) * 7 + slotIndex * 3) % Math.max(1, cands.length);
+    return cands.length ? cands[offset]! : null;
+  };
+
+  let picked = collect(false);
+  if (!picked) picked = collect(true);
+  return picked;
+}
 
 // ─── Route handler ────────────────────────────────────────────────────────────
 
@@ -450,6 +670,7 @@ export async function POST(req: Request) {
     const startDate = cleanString(body?.start_date || body?.startDate);
     const endDate = cleanString(body?.end_date || body?.endDate);
     const freeText = cleanString(body?.freeText || "");
+    const mergedNotes = mergeNotes(freeText, body?.rules);
     const selectedByStop = (body?.selectedPoisByStop && typeof body.selectedPoisByStop === "object") ? body.selectedPoisByStop : null;
     const staysInput = Array.isArray(body?.stays) ? body.stays : null;
     const regenerateBadOnly = Boolean(body?.regenerateBadOnly);
@@ -491,7 +712,7 @@ export async function POST(req: Request) {
     if (staysInput?.length) {
       stays = staysInput.map((x: any) => ({ stop: cleanString(x?.stop), nights: clamp(Number(x?.nights) || 1, 1, 60), reason: x?.reason })).filter((x: any) => Boolean(x.stop));
     } else {
-      const proposals = distributeNightsSmart(stops, poisByStop, totalDays, freeText);
+      const proposals = distributeNightsSmart(stops, poisByStop, totalDays, mergedNotes);
       stays = proposals;
     }
 
@@ -525,50 +746,132 @@ export async function POST(req: Request) {
       }
     }
 
+    // Ordinal dentro de cada parada (día 1..N en esa ciudad) para rotar plantillas y evitar repetición
+    const ordinalInStopByDayIndex: number[] = new Array(totalDays).fill(1);
+    const seenCount: Record<string, number> = {};
+    for (let i = 0; i < totalDays; i++) {
+      const stop = baseByDay[i] || stays[stays.length - 1]?.stop || stops[0]!.label;
+      seenCount[stop] = (seenCount[stop] || 0) + 1;
+      ordinalInStopByDayIndex[i] = seenCount[stop]!;
+    }
+
+    // Evita repetir los mismos POIs en todos los días de un mismo destino
+    const usedPoiInStop: Record<string, Set<string>> = {};
+    for (const s of stops) usedPoiInStop[s.label] = new Set();
+
     // ── 8. Build itinerary days ───────────────────────────────────────────────
-    const makeDay = (dayNum: number, stop: string) => {
+    const makeDay = (dayNum: number, stop: string, dayOrdinalInStop: number) => {
       const usedNamesThisDay = new Set<string>();
-      const pools = poisByStop[stop];
+      const rawPools = poisByStop[stop];
+      const pools = filterPoolsForNotes(rawPools, mergedNotes);
       const type = classifyDayType(pools);
       const minItems = proposeMinItems(type);
-      const requireEvening = type !== "nature";
-      const slots = slotTemplate(type);
-
-      const pickFromCats = (cats: Category[]): Poi | null => {
-        for (const cat of cats) {
-          const pool = pools?.[cat] || [];
-          const sel = selectedNamesByStop[stop];
-          if (sel?.size) { const hit = pool.find((p) => sel.has(p.name.toLowerCase()) && !usedNamesThisDay.has(p.name.toLowerCase())); if (hit) return hit; }
-          const hit2 = pool.find((p) => !usedNamesThisDay.has(p.name.toLowerCase()));
-          if (hit2) return hit2;
-        }
-        return null;
-      };
+      const requireEvening = type !== "nature" && !wantsNoNight(mergedNotes);
+      const slots = slotTemplateForDay(type, dayOrdinalInStop, mergedNotes);
+      const sel = selectedNamesByStop[stop];
+      const usedStop = usedPoiInStop[stop] || new Set<string>();
 
       const items: any[] = [];
-      for (const s of slots) {
-        const poi = pickFromCats(s.cats); if (!poi) continue;
-        const title = poi.name.trim(); if (!ensureNoGenericTitle(title)) continue;
-        usedNamesThisDay.add(title.toLowerCase());
-        items.push({ title, activity_kind: s.cats[0] || "visit", activity_type: "general", place_name: poi.name, address: `${poi.name}, ${stop}`, latitude: poi.lat, longitude: poi.lng, activity_time: s.time, source: "ai_planner" });
-      }
+      slots.forEach((slot, slotIdx) => {
+        const picked = pickPoiForSlot({
+          pools,
+          cats: slot.cats,
+          selected: sel,
+          usedToday: usedNamesThisDay,
+          usedInStop: usedStop,
+          dayOrdinalInStop,
+          slotIndex: slotIdx,
+          notes: mergedNotes,
+        });
+        if (!picked) return;
+        const { poi, kind } = picked;
+        const title = poi.name.trim();
+        if (!ensureNoGenericTitle(title)) return;
+        const key = title.toLowerCase();
+        usedNamesThisDay.add(key);
+        usedStop.add(key);
+        items.push({
+          title,
+          activity_kind: kind,
+          activity_type: "general",
+          place_name: poi.name,
+          address: `${poi.name}, ${stop}`,
+          latitude: poi.lat,
+          longitude: poi.lng,
+          activity_time: slot.time,
+          source: "ai_planner",
+        });
+      });
 
-      const fillerCats: Category[] = type === "nature" ? ["nature", "viewpoint", "excursion"] : ["culture", "market", "viewpoint", "neighborhood"];
+      const fillerCats: Category[] =
+        type === "nature" ? ["nature", "viewpoint", "excursion"] : wantsMoreNature(mergedNotes) ? ["nature", "viewpoint", "excursion", "culture"] : ["culture", "market", "viewpoint", "neighborhood"];
+      let fillerIdx = 0;
       while (items.length < minItems) {
-        const poi = pickFromCats(fillerCats); if (!poi) break;
-        const title = poi.name.trim(); if (!ensureNoGenericTitle(title)) continue;
-        usedNamesThisDay.add(title.toLowerCase());
+        const picked = pickPoiForSlot({
+          pools,
+          cats: fillerCats,
+          selected: sel,
+          usedToday: usedNamesThisDay,
+          usedInStop: usedStop,
+          dayOrdinalInStop,
+          slotIndex: slots.length + fillerIdx,
+          notes: mergedNotes,
+        });
+        fillerIdx++;
+        if (!picked) break;
+        const { poi, kind } = picked;
+        const title = poi.name.trim();
+        if (!ensureNoGenericTitle(title)) continue;
+        const key = title.toLowerCase();
+        if (usedNamesThisDay.has(key)) continue;
+        usedNamesThisDay.add(key);
+        usedStop.add(key);
         const time = ["10:00", "13:30", "17:00", "20:30"][Math.min(items.length, 3)]!;
-        items.push({ title, activity_kind: fillerCats[0], activity_type: "general", place_name: poi.name, address: `${poi.name}, ${stop}`, latitude: poi.lat, longitude: poi.lng, activity_time: time, source: "ai_planner" });
+        items.push({
+          title,
+          activity_kind: kind,
+          activity_type: "general",
+          place_name: poi.name,
+          address: `${poi.name}, ${stop}`,
+          latitude: poi.lat,
+          longitude: poi.lng,
+          activity_time: time,
+          source: "ai_planner",
+        });
       }
 
       if (requireEvening) {
-        const last = items.map((it) => String(it.activity_time || "")).sort().slice(-1)[0] || "";
+        const last = items.map((it) => String(it.activity_time || "")).filter(Boolean).sort().slice(-1)[0] || "";
         if (last && last < "18:00") {
-          const poi = pickFromCats(["gastro_experience", "night", "culture"]);
-          if (poi && ensureNoGenericTitle(poi.name) && !usedNamesThisDay.has(poi.name.toLowerCase())) {
-            usedNamesThisDay.add(poi.name.toLowerCase());
-            items.push({ title: poi.name.trim(), activity_kind: "gastro_experience", activity_type: "general", place_name: poi.name, address: `${poi.name}, ${stop}`, latitude: poi.lat, longitude: poi.lng, activity_time: "20:30", source: "ai_planner" });
+          const eveningCats: Category[] = wantsNoNight(mergedNotes) ? ["gastro_experience", "culture", "shopping"] : ["gastro_experience", "night", "culture"];
+          const picked = pickPoiForSlot({
+            pools,
+            cats: eveningCats,
+            selected: sel,
+            usedToday: usedNamesThisDay,
+            usedInStop: usedStop,
+            dayOrdinalInStop,
+            slotIndex: slots.length + fillerIdx + 3,
+            notes: mergedNotes,
+          });
+          if (picked && ensureNoGenericTitle(picked.poi.name)) {
+            const poi = picked.poi;
+            const key = poi.name.trim().toLowerCase();
+            if (!usedNamesThisDay.has(key)) {
+              usedNamesThisDay.add(key);
+              usedStop.add(key);
+              items.push({
+                title: poi.name.trim(),
+                activity_kind: picked.kind,
+                activity_type: "general",
+                place_name: poi.name,
+                address: `${poi.name}, ${stop}`,
+                latitude: poi.lat,
+                longitude: poi.lng,
+                activity_time: "20:30",
+                source: "ai_planner",
+              });
+            }
           }
         }
       }
@@ -588,7 +891,7 @@ export async function POST(req: Request) {
       const pools = poisByStop[stop];
       const type = classifyDayType(pools);
       const minItems = proposeMinItems(type);
-      const requireEvening = type !== "nature";
+      const requireEvening = type !== "nature" && !wantsNoNight(mergedNotes);
       const existing = incomingMap.get(dayNum);
       const isBad = existing ? inferBadDay(existing, { minItems, requireEvening }) : true;
       const shouldRegen = (Array.isArray(targetDayNums) && targetDayNums.includes(dayNum)) || (!incomingDays && !regenerateBadOnly) || (regenerateBadOnly ? isBad : true) || (Array.isArray(badDayNums) ? badDayNums.includes(dayNum) : false);
@@ -596,7 +899,8 @@ export async function POST(req: Request) {
 
       const prev = i >= 1 ? baseByDay[i - 1] : "";
       const isChange = i >= 1 && prev && prev !== stop;
-      const day = makeDay(dayNum, stop);
+      const ord = ordinalInStopByDayIndex[i] || 1;
+      const day = makeDay(dayNum, stop, ord);
       if (isChange) {
         day.items.unshift({ title: `Traslado ${prev} → ${stop}`, activity_kind: "transport", activity_type: "general", place_name: `${prev} → ${stop}`, address: `${prev} → ${stop}`, latitude: null, longitude: null, activity_time: "08:30", source: "ai_planner", description: "Bloque de traslado entre ciudades base. Ajusta el medio/hora según tu viaje real." });
         if (day.items.length > 3) day.items.splice(3);

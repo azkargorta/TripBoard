@@ -254,6 +254,18 @@ function PlanReviewStep({
     setDragIdx(null);
   }
 
+  function moveStay(from: number, dir: -1 | 1) {
+    const to = from + dir;
+    if (to < 0 || to >= stays.length) return;
+    setStays((prev) => {
+      const next = [...prev];
+      const tmp = next[from]!;
+      next[from] = next[to]!;
+      next[to] = tmp;
+      return next;
+    });
+  }
+
   const viability = proposal.viability;
 
   return (
@@ -304,7 +316,7 @@ function PlanReviewStep({
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-bold text-slate-900">Reparto de días</p>
-            <p className="text-xs font-medium text-slate-500 mt-0.5">Arrastra para reordenar · Edita los días · Total: {proposal.totalDays} días</p>
+            <p className="text-xs font-medium text-slate-500 mt-0.5">Flechas o arrastra para reordenar · Edita los días · Total: {proposal.totalDays} días</p>
           </div>
           {!nightsOk && (
             <div className="flex items-center gap-1.5 rounded-xl bg-amber-50 border border-amber-200 px-3 py-1.5 text-xs font-bold text-amber-700">
@@ -330,6 +342,26 @@ function PlanReviewStep({
               onDrop={() => handleDrop(i)}
               className={`flex items-center gap-3 rounded-2xl border px-4 py-3 bg-white transition-all cursor-grab active:cursor-grabbing ${dragIdx === i ? "opacity-50 border-violet-300 bg-violet-50" : "border-slate-200 hover:border-slate-300"}`}
             >
+              <div className="flex flex-col gap-0.5 shrink-0">
+                <button
+                  type="button"
+                  aria-label="Subir destino"
+                  disabled={i === 0}
+                  onClick={() => moveStay(i, -1)}
+                  className="rounded-md border border-slate-200 bg-slate-50 p-1 text-slate-600 hover:bg-white disabled:opacity-30"
+                >
+                  <ChevronUp className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Bajar destino"
+                  disabled={i === stays.length - 1}
+                  onClick={() => moveStay(i, 1)}
+                  className="rounded-md border border-slate-200 bg-slate-50 p-1 text-slate-600 hover:bg-white disabled:opacity-30"
+                >
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+              </div>
               <GripVertical className="w-4 h-4 text-slate-300 shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-extrabold text-slate-900 truncate">{s.stop}</p>
@@ -447,7 +479,14 @@ export default function TripAiPlannerWizard() {
     try {
       const res = await fetch("/api/trips/ai-planner/generate", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ destinations: effectiveDestinations, start_date: startDate, end_date: endDate, freeText: freeText.trim() || undefined, planOnly: true }),
+        body: JSON.stringify({
+          destinations: effectiveDestinations,
+          start_date: startDate,
+          end_date: endDate,
+          freeText: freeText.trim() || undefined,
+          rules: activeRules.length ? activeRules : undefined,
+          planOnly: true,
+        }),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || "No se pudo calcular el plan.");
