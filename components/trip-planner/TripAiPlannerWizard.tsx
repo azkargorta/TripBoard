@@ -19,21 +19,16 @@ import {
   CheckCircle2,
   Loader2,
   Wand2,
+  Plus,
+  X,
+  Globe,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Category =
-  | "culture"
-  | "nature"
-  | "viewpoint"
-  | "neighborhood"
-  | "market"
-  | "excursion"
-  | "gastro_experience"
-  | "shopping"
-  | "night"
-  | "transport";
+  | "culture" | "nature" | "viewpoint" | "neighborhood"
+  | "market" | "excursion" | "gastro_experience" | "shopping" | "night" | "transport";
 
 type Poi = { name: string; lat: number; lng: number; osm?: { type: string; id: string } };
 
@@ -65,18 +60,15 @@ type ApiDraft = {
   days: DraftDay[];
 };
 
-type ChatMessage = {
-  role: "user" | "assistant";
-  text: string;
-};
-
+type ChatMessage = { role: "user" | "assistant"; text: string };
 type CurrencyCode = "EUR" | "USD" | "GBP" | "ARS" | "MXN" | "CLP" | "BRL" | "JPY" | "CAD" | "AUD" | "CHF";
+
+// Suggested place from geocode API
+type SuggestedPlace = { name: string; lat: number; lng: number };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function isoOk(s: string) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(s);
-}
+function isoOk(s: string) { return /^\d{4}-\d{2}-\d{2}$/.test(s); }
 
 function totalDaysBetween(start: string, end: string) {
   if (!isoOk(start) || !isoOk(end)) return 1;
@@ -85,9 +77,7 @@ function totalDaysBetween(start: string, end: string) {
   return Math.max(1, Math.round((b - a) / (86400 * 1000)) + 1);
 }
 
-function stableId(day: number, idx: number) {
-  return `draft-${day}-${idx}`;
-}
+function stableId(day: number, idx: number) { return `draft-${day}-${idx}`; }
 
 function inferCurrencyFromDestinations(destinations: string[]): CurrencyCode {
   const blob = destinations.join(" · ").toLowerCase();
@@ -116,7 +106,17 @@ const CATEGORY_KINDS = [
   { key: "night" as const, label: "Noche", emoji: "🌙", color: "#334155" },
 ];
 
-// Frases de intro por día generadas localmente a partir del borrador
+// Detect if the destination looks like a country/region (not a specific city)
+function looksLikeCountryOrRegion(place: string): boolean {
+  const q = place.trim().toLowerCase();
+  if (q.length < 3 || /[0-9]/.test(q) || /[,\-–—/·]/.test(q)) return false;
+  // Heuristic: single word or short phrase without typical city indicators
+  const words = q.split(/\s+/);
+  if (words.length > 3) return false;
+  return true;
+}
+
+// Narrated intro phrase per day
 function dayIntroPhrase(day: DraftDay): string {
   const kindCounts: Record<string, number> = {};
   for (const it of day.items) {
@@ -126,7 +126,6 @@ function dayIntroPhrase(day: DraftDay): string {
   const dominant = Object.entries(kindCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
   const city = day.base;
   const n = day.items.length;
-
   const phrases: Record<string, string> = {
     culture: `Un día cargado de historia y arte en ${city}. ${n} parada${n !== 1 ? "s" : ""} para empaparte de cultura.`,
     nature: `Jornada al aire libre cerca de ${city}. Espacios naturales y vistas que valen el madrugón.`,
@@ -138,11 +137,9 @@ function dayIntroPhrase(day: DraftDay): string {
     night: `La tarde-noche en ${city} tiene su propio ritmo. ${n} plan${n !== 1 ? "es" : ""} para vivirla bien.`,
     transport: `Día de traslado. El viaje también es parte del viaje.`,
   };
-
   return phrases[dominant ?? "culture"] ?? `${n} plan${n !== 1 ? "es" : ""} en ${city}.`;
 }
 
-// Sugerencias de chat predefinidas
 const CHAT_SUGGESTIONS = [
   "Menos museos, más vida local",
   "Añade más gastronomía",
@@ -150,11 +147,9 @@ const CHAT_SUGGESTIONS = [
   "Más actividades al aire libre",
   "Incluye opciones para tarde-noche",
   "Quita las actividades de compras",
-  "Ponlo todo más compacto geográficamente",
-  "Más cultura e historia",
 ];
 
-// ─── Loading skeleton ─────────────────────────────────────────────────────────
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
 
 function GeneratingSkeleton() {
   const steps = [
@@ -164,12 +159,10 @@ function GeneratingSkeleton() {
     { icon: "✅", label: "Revisando coherencia geográfica…" },
   ];
   const [active, setActive] = useState(0);
-
   useEffect(() => {
     const id = setInterval(() => setActive((p) => (p + 1) % steps.length), 1800);
     return () => clearInterval(id);
   }, []);
-
   return (
     <div className="card-soft p-10 flex flex-col items-center justify-center gap-6 min-h-[300px]">
       <div className="relative">
@@ -178,16 +171,143 @@ function GeneratingSkeleton() {
       </div>
       <div className="text-center space-y-1">
         <p className="text-base font-bold text-slate-900">Generando tu itinerario…</p>
-        <p className="text-sm font-medium text-slate-500 transition-all">{steps[active]?.icon} {steps[active]?.label}</p>
+        <p className="text-sm font-medium text-slate-500">{steps[active]?.icon} {steps[active]?.label}</p>
       </div>
       <div className="flex gap-1.5">
         {steps.map((_, i) => (
-          <div
-            key={i}
-            className={`h-1.5 rounded-full transition-all duration-500 ${i === active ? "w-6 bg-violet-500" : "w-1.5 bg-slate-200"}`}
-          />
+          <div key={i} className={`h-1.5 rounded-full transition-all duration-500 ${i === active ? "w-6 bg-violet-500" : "w-1.5 bg-slate-200"}`} />
         ))}
       </div>
+    </div>
+  );
+}
+
+// ─── Destination Suggester ────────────────────────────────────────────────────
+// When the user types a country/region, we show recommended places to visit
+// and let them pick before generating the itinerary.
+
+type DestinationSuggesterProps = {
+  query: string; // e.g. "Argentina"
+  selectedPlaces: string[]; // already chosen places
+  onAdd: (place: string) => void;
+  onRemove: (place: string) => void;
+  totalDays: number;
+};
+
+function DestinationSuggester({ query, selectedPlaces, onAdd, onRemove, totalDays }: DestinationSuggesterProps) {
+  const [suggestions, setSuggestions] = useState<SuggestedPlace[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+
+  useEffect(() => {
+    setSuggestions([]);
+    setOffset(0);
+    setHasMore(true);
+    void load(0);
+  }, [query]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function load(currentOffset: number) {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/geocode/suggest-places", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query, limit: 24, offset: currentOffset }),
+      });
+      const data = await res.json().catch(() => null);
+      const places: SuggestedPlace[] = Array.isArray(data?.places) ? data.places : [];
+      setSuggestions((prev) => currentOffset === 0 ? places : [...prev, ...places]);
+      setOffset(currentOffset + places.length);
+      setHasMore(places.length >= 12);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Suggested itinerary split hint based on days
+  const splitHint = useMemo(() => {
+    if (selectedPlaces.length === 0) return null;
+    const daysPerPlace = Math.max(1, Math.round(totalDays / selectedPlaces.length));
+    return `Con ${totalDays} días y ${selectedPlaces.length} destino${selectedPlaces.length !== 1 ? "s" : ""}, la IA asignará ~${daysPerPlace} día${daysPerPlace !== 1 ? "s" : ""} por lugar.`;
+  }, [selectedPlaces.length, totalDays]);
+
+  if (suggestions.length === 0 && !loading) return null;
+
+  return (
+    <div className="mt-4 rounded-2xl border border-violet-100 bg-violet-50/50 p-4 space-y-3">
+      <div className="flex items-start gap-2">
+        <Globe className="w-4 h-4 text-violet-500 mt-0.5 shrink-0" />
+        <div>
+          <p className="text-sm font-bold text-violet-900">
+            ¿Qué lugares quieres visitar en <span className="font-extrabold">{query}</span>?
+          </p>
+          <p className="text-xs font-medium text-violet-600 mt-0.5">
+            La IA distribuirá los días automáticamente. Puedes elegir varios.
+          </p>
+        </div>
+      </div>
+
+      {/* Selected places */}
+      {selectedPlaces.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {selectedPlaces.map((p) => (
+            <div key={p} className="flex items-center gap-1.5 rounded-full bg-violet-600 text-white px-3 py-1 text-xs font-bold">
+              <MapPin className="w-3 h-3" />
+              {p}
+              <button
+                type="button"
+                onClick={() => onRemove(p)}
+                className="ml-0.5 hover:opacity-75"
+                aria-label={`Quitar ${p}`}
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Available suggestions */}
+      {loading && suggestions.length === 0 ? (
+        <div className="flex items-center gap-2 text-xs font-semibold text-violet-500">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          Buscando lugares…
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {suggestions
+            .filter((s) => !selectedPlaces.includes(s.name))
+            .map((s) => (
+              <button
+                key={s.name}
+                type="button"
+                onClick={() => onAdd(s.name)}
+                className="flex items-center gap-1 rounded-full border border-violet-200 bg-white px-3 py-1 text-xs font-semibold text-violet-800 hover:bg-violet-100 hover:border-violet-300 transition-colors"
+              >
+                <Plus className="w-3 h-3" />
+                {s.name}
+              </button>
+            ))}
+          {hasMore && (
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => void load(offset)}
+              className="rounded-full border border-violet-200 bg-white px-3 py-1 text-xs font-semibold text-violet-600 hover:bg-violet-50 disabled:opacity-50 transition-colors"
+            >
+              {loading ? <Loader2 className="w-3 h-3 animate-spin inline" /> : "+ Ver más"}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Distribution hint */}
+      {splitHint && (
+        <p className="text-xs font-semibold text-violet-600 bg-violet-100 rounded-xl px-3 py-2">
+          💡 {splitHint}
+        </p>
+      )}
     </div>
   );
 }
@@ -198,9 +318,7 @@ export default function TripAiPlannerWizard() {
   const router = useRouter();
   const toast = useToast();
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const chatInputRef = useRef<HTMLInputElement>(null);
 
-  // Step: "form" → "generating" → "preview"
   const [step, setStep] = useState<"form" | "generating" | "preview">("form");
 
   // Form fields
@@ -210,30 +328,56 @@ export default function TripAiPlannerWizard() {
   const [freeText, setFreeText] = useState("");
   const [tripName, setTripName] = useState("");
 
-  // Draft state
+  // For country/region detection: selected sub-destinations
+  // key = base place (e.g. "Argentina"), value = list of chosen cities
+  const [subDestinations, setSubDestinations] = useState<Record<string, string[]>>({});
+
+  // Draft
   const [draft, setDraft] = useState<ApiDraft | null>(null);
   const [stays, setStays] = useState<StayRow[]>([]);
 
-  // Chat state
+  // Chat
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const [activeRules, setActiveRules] = useState<string[]>([]);
 
-  // UI state
+  // UI
   const [expandedDays, setExpandedDays] = useState<Set<number>>(new Set([1]));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   // Derived
   const totalDays = useMemo(() => totalDaysBetween(startDate, endDate), [startDate, endDate]);
-  const destinationLabel = useMemo(() => joinTripPlaces(places.map((x) => x.trim()).filter(Boolean)), [places]);
   const inferredCurrency = useMemo(() => inferCurrencyFromDestinations(places.map((x) => x.trim()).filter(Boolean)), [places]);
 
+  // Which places look like a country/region (not a specific city)
+  const countryLikePlaces = useMemo(
+    () => places.map((p) => p.trim()).filter((p) => p.length > 0 && looksLikeCountryOrRegion(p)),
+    [places]
+  );
+
+  // Final effective destination list: expand country inputs with selected sub-destinations
+  const effectiveDestinations = useMemo(() => {
+    const result: string[] = [];
+    for (const p of places) {
+      const trimmed = p.trim();
+      if (!trimmed) continue;
+      if (looksLikeCountryOrRegion(trimmed) && subDestinations[trimmed]?.length) {
+        // Replace country with selected cities
+        result.push(...subDestinations[trimmed]);
+      } else {
+        result.push(trimmed);
+      }
+    }
+    return result.filter(Boolean);
+  }, [places, subDestinations]);
+
+  const destinationLabel = useMemo(() => joinTripPlaces(effectiveDestinations), [effectiveDestinations]);
+
   const canGenerate = useMemo(() => {
-    const list = places.map((x) => x.trim()).filter(Boolean);
-    return list.length > 0 && isoOk(startDate) && isoOk(endDate) && endDate >= startDate;
-  }, [places, startDate, endDate]);
+    return effectiveDestinations.length > 0 && isoOk(startDate) && isoOk(endDate) && endDate >= startDate;
+  }, [effectiveDestinations, startDate, endDate]);
 
   useEffect(() => {
     if (!isoOk(startDate)) return;
@@ -244,19 +388,34 @@ export default function TripAiPlannerWizard() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
 
-  // ── Generate draft ─────────────────────────────────────────────────────────
+  // ── Sub-destination handlers ───────────────────────────────────────────────
+
+  function addSubDestination(base: string, city: string) {
+    setSubDestinations((prev) => {
+      const current = prev[base] || [];
+      if (current.includes(city)) return prev;
+      return { ...prev, [base]: [...current, city] };
+    });
+  }
+
+  function removeSubDestination(base: string, city: string) {
+    setSubDestinations((prev) => ({
+      ...prev,
+      [base]: (prev[base] || []).filter((c) => c !== city),
+    }));
+  }
+
+  // ── Generate ──────────────────────────────────────────────────────────────
 
   async function generateDraft(opts?: { targetDayNums?: number[] | null; regenerateBadOnly?: boolean }) {
-    const list = places.map((x) => x.trim()).filter(Boolean);
     setError(null);
     setStep("generating");
-
     try {
       const res = await fetch("/api/trips/ai-planner/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          destinations: list,
+          destinations: effectiveDestinations,
           start_date: startDate,
           end_date: endDate,
           stays: stays.length ? stays : undefined,
@@ -269,19 +428,15 @@ export default function TripAiPlannerWizard() {
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || "No se pudo generar el itinerario.");
-
       setDraft(data as ApiDraft);
       setStays(Array.isArray((data as any)?.stays) ? (data as any).stays : []);
       setExpandedDays(new Set([1]));
       setStep("preview");
-
       if (!chatMessages.length) {
-        setChatMessages([
-          {
-            role: "assistant",
-            text: `He generado un itinerario de ${(data as ApiDraft).totalDays} días con lugares reales. ¿Quieres ajustar algo? Puedes pedirme cambios concretos: quitar un tipo de actividad, añadir más gastronomía, cambiar el ritmo…`,
-          },
-        ]);
+        setChatMessages([{
+          role: "assistant",
+          text: `He generado un itinerario de ${(data as ApiDraft).totalDays} días con lugares reales. ¿Quieres ajustar algo? Puedes pedirme cambios concretos: quitar un tipo de actividad, añadir más gastronomía, cambiar el ritmo…`,
+        }]);
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "No se pudo generar el itinerario.";
@@ -291,7 +446,7 @@ export default function TripAiPlannerWizard() {
     }
   }
 
-  // ── Chat / refine ──────────────────────────────────────────────────────────
+  // ── Chat ──────────────────────────────────────────────────────────────────
 
   async function sendChat(text?: string) {
     const msg = (text ?? chatInput).trim();
@@ -300,13 +455,7 @@ export default function TripAiPlannerWizard() {
     setChatMessages((prev) => [...prev, { role: "user", text: msg }]);
     setActiveRules((prev) => [...prev, msg].slice(-12));
     setChatLoading(true);
-
-    // Optimistic assistant reply
-    setChatMessages((prev) => [
-      ...prev,
-      { role: "assistant", text: "Entendido, voy a actualizar el itinerario con eso en mente…" },
-    ]);
-
+    setChatMessages((prev) => [...prev, { role: "assistant", text: "Entendido, voy a actualizar el itinerario con eso en mente…" }]);
     try {
       await generateDraft({ regenerateBadOnly: false });
     } finally {
@@ -314,14 +463,13 @@ export default function TripAiPlannerWizard() {
     }
   }
 
-  // ── Create trip ────────────────────────────────────────────────────────────
+  // ── Create trip ───────────────────────────────────────────────────────────
 
   async function createTripFromDraft() {
     if (!draft) return;
     const name = (tripName.trim() || `${destinationLabel} (${startDate} → ${endDate})`).trim();
     setSaving(true);
     setError(null);
-
     try {
       const createRes = await fetch("/api/trips", {
         method: "POST",
@@ -339,7 +487,6 @@ export default function TripAiPlannerWizard() {
       const tripId = String(createPayload?.tripId || "");
       if (!tripId) throw new Error("No se pudo crear el viaje.");
 
-      // Create activity kinds
       for (const k of CATEGORY_KINDS) {
         await fetch("/api/trip-activity-kinds", {
           method: "POST",
@@ -350,16 +497,11 @@ export default function TripAiPlannerWizard() {
 
       const bulk = draft.days.flatMap((d) =>
         (d.items || []).map((it) => ({
-          title: it.title,
-          description: it.description,
-          activity_date: it.activity_date,
-          activity_time: it.activity_time,
-          place_name: it.place_name,
-          address: it.address,
-          latitude: it.latitude,
-          longitude: it.longitude,
-          activity_type: it.activity_type,
-          activity_kind: it.activity_kind,
+          title: it.title, description: it.description,
+          activity_date: it.activity_date, activity_time: it.activity_time,
+          place_name: it.place_name, address: it.address,
+          latitude: it.latitude, longitude: it.longitude,
+          activity_type: it.activity_type, activity_kind: it.activity_kind,
           source: "ai_planner",
         }))
       );
@@ -386,13 +528,10 @@ export default function TripAiPlannerWizard() {
     }
   }
 
-  // ── Toggle day expand ──────────────────────────────────────────────────────
-
   function toggleDay(day: number) {
     setExpandedDays((prev) => {
       const next = new Set(prev);
-      if (next.has(day)) next.delete(day);
-      else next.add(day);
+      if (next.has(day)) next.delete(day); else next.add(day);
       return next;
     });
   }
@@ -404,31 +543,29 @@ export default function TripAiPlannerWizard() {
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6 px-1">
 
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Sparkles className="w-5 h-5 text-violet-500" />
-            <span className="text-xs font-bold uppercase tracking-widest text-violet-600">Premium · IA</span>
-          </div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Planificador inteligente</h1>
-          <p className="mt-1.5 text-sm font-medium text-slate-500 max-w-md">
-            Describe tu viaje con lo mínimo — destino, fechas y tus preferencias — y la IA genera un itinerario real que puedes refinar por chat.
-          </p>
+      {/* Header */}
+      <div>
+        <div className="flex items-center gap-2 mb-1">
+          <Sparkles className="w-5 h-5 text-violet-500" />
+          <span className="text-xs font-bold uppercase tracking-widest text-violet-600">Premium · IA</span>
         </div>
+        <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Planificador inteligente</h1>
+        <p className="mt-1.5 text-sm font-medium text-slate-500 max-w-md">
+          Describe tu viaje con lo mínimo — destino, fechas y tus preferencias — y la IA genera un itinerario real que puedes refinar por chat.
+        </p>
       </div>
 
-      {/* ── Error banner ────────────────────────────────────────────────────── */}
+      {/* Error */}
       {error && (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800 flex items-start gap-2">
-          <span className="mt-0.5">⚠️</span>
-          <span>{error}</span>
+          <span className="mt-0.5">⚠️</span><span>{error}</span>
         </div>
       )}
 
-      {/* ── FORM STEP ────────────────────────────────────────────────────────── */}
+      {/* ── FORM ─────────────────────────────────────────────────────────────── */}
       {step === "form" && (
         <div className="card-soft p-7 space-y-6">
+
           {/* Destinos */}
           <div>
             <div className="flex items-center gap-2 mb-3">
@@ -436,6 +573,30 @@ export default function TripAiPlannerWizard() {
               <span className="text-sm font-bold text-slate-800">¿A dónde vas?</span>
             </div>
             <TripPlacesFields places={places} onChange={setPlaces} />
+
+            {/* Country/region suggester — shown per country-like input */}
+            {countryLikePlaces.map((countryPlace) => (
+              <DestinationSuggester
+                key={countryPlace}
+                query={countryPlace}
+                selectedPlaces={subDestinations[countryPlace] || []}
+                onAdd={(city) => addSubDestination(countryPlace, city)}
+                onRemove={(city) => removeSubDestination(countryPlace, city)}
+                totalDays={totalDays}
+              />
+            ))}
+
+            {/* Effective destinations preview */}
+            {effectiveDestinations.length > 1 && (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                <span className="text-xs font-bold text-slate-400 self-center">Se generará con:</span>
+                {effectiveDestinations.map((d) => (
+                  <span key={d} className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
+                    📍 {d}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Fechas */}
@@ -448,9 +609,7 @@ export default function TripAiPlannerWizard() {
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-500">Fecha de inicio</label>
                 <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
                   className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-500 bg-white"
                 />
               </div>
@@ -462,9 +621,7 @@ export default function TripAiPlannerWizard() {
                   )}
                 </label>
                 <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
+                  type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
                   min={startDate || undefined}
                   className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-500 bg-white"
                 />
@@ -472,25 +629,23 @@ export default function TripAiPlannerWizard() {
             </div>
           </div>
 
-          {/* Preferencias (texto libre) */}
+          {/* Preferencias */}
           <div>
             <div className="flex items-center gap-2 mb-3">
               <MessageCircle className="w-4 h-4 text-slate-400" />
-              <span className="text-sm font-bold text-slate-800">¿Alguna preferencia? <span className="text-slate-400 font-normal">(opcional)</span></span>
+              <span className="text-sm font-bold text-slate-800">
+                ¿Alguna preferencia? <span className="text-slate-400 font-normal">(opcional)</span>
+              </span>
             </div>
             <textarea
-              value={freeText}
-              onChange={(e) => setFreeText(e.target.value)}
-              rows={3}
-              placeholder="Ej: viajamos en pareja, nos gusta la gastronomía local, sin museos, ritmo tranquilo, presupuesto medio…"
+              value={freeText} onChange={(e) => setFreeText(e.target.value)} rows={3}
+              placeholder="Ej: viajamos en pareja, gastronomía local, sin museos, ritmo tranquilo, presupuesto medio…"
               className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-500 bg-white resize-none"
             />
-            {/* Chips de ejemplos */}
             <div className="mt-2 flex flex-wrap gap-2">
               {["Sin museos", "Gastronomía local", "Ritmo tranquilo", "Con niños", "Presupuesto ajustado", "Mucha naturaleza"].map((hint) => (
                 <button
-                  key={hint}
-                  type="button"
+                  key={hint} type="button"
                   onClick={() => setFreeText((prev) => prev ? `${prev}, ${hint.toLowerCase()}` : hint.toLowerCase())}
                   className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors"
                 >
@@ -502,8 +657,7 @@ export default function TripAiPlannerWizard() {
 
           {/* CTA */}
           <button
-            type="button"
-            disabled={!canGenerate}
+            type="button" disabled={!canGenerate}
             onClick={() => generateDraft()}
             className="btn-primary w-full flex items-center justify-center gap-2 py-4 text-base disabled:opacity-40"
           >
@@ -511,17 +665,18 @@ export default function TripAiPlannerWizard() {
             Generar itinerario
             <ArrowRight className="w-4 h-4" />
           </button>
-
           {!canGenerate && (
-            <p className="text-xs text-center text-slate-400 -mt-3">Necesitas al menos un destino y las fechas para continuar.</p>
+            <p className="text-xs text-center text-slate-400 -mt-3">
+              Necesitas al menos un destino y las fechas para continuar.
+            </p>
           )}
         </div>
       )}
 
-      {/* ── GENERATING STEP ──────────────────────────────────────────────────── */}
+      {/* ── GENERATING ───────────────────────────────────────────────────────── */}
       {step === "generating" && <GeneratingSkeleton />}
 
-      {/* ── PREVIEW STEP ─────────────────────────────────────────────────────── */}
+      {/* ── PREVIEW ──────────────────────────────────────────────────────────── */}
       {step === "preview" && draft && (
         <div className="space-y-5">
 
@@ -530,7 +685,7 @@ export default function TripAiPlannerWizard() {
             <div className="flex items-center gap-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Destino</p>
-                <p className="text-sm font-extrabold text-slate-900">{destinationLabel}</p>
+                <p className="text-sm font-extrabold text-slate-900 max-w-xs truncate">{destinationLabel}</p>
               </div>
               <div className="h-8 w-px bg-slate-200" />
               <div>
@@ -544,61 +699,45 @@ export default function TripAiPlannerWizard() {
               </div>
             </div>
             <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => { setStep("form"); }}
-                className="btn-secondary flex items-center gap-1.5 text-sm py-2.5 px-4"
-              >
+              <button type="button" onClick={() => setStep("form")} className="btn-secondary flex items-center gap-1.5 text-sm py-2.5 px-4">
                 <RotateCcw className="w-3.5 h-3.5" />
                 Empezar de nuevo
               </button>
-              <button
-                type="button"
-                disabled={saving}
-                onClick={createTripFromDraft}
-                className="btn-primary flex items-center gap-2 text-sm py-2.5 px-5 disabled:opacity-50"
-              >
+              <button type="button" disabled={saving} onClick={createTripFromDraft} className="btn-primary flex items-center gap-2 text-sm py-2.5 px-5 disabled:opacity-50">
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
                 Crear viaje
               </button>
             </div>
           </div>
 
-          {/* Trip name (optional) */}
+          {/* Trip name */}
           <div className="card-soft px-6 py-4">
             <label className="mb-1.5 block text-xs font-bold uppercase tracking-widest text-slate-400">Nombre del viaje (opcional)</label>
             <input
-              value={tripName}
-              onChange={(e) => setTripName(e.target.value)}
+              value={tripName} onChange={(e) => setTripName(e.target.value)}
               placeholder={`${destinationLabel} (${startDate} → ${endDate})`}
               className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-500 bg-white"
             />
           </div>
 
-          {/* Two-column layout: itinerary + chat */}
+          {/* Two-column layout */}
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-5 items-start">
 
-            {/* ── Itinerary ────────────────────────────────────────────── */}
+            {/* Itinerary */}
             <div className="space-y-3">
               <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 px-1">Itinerario día a día</h2>
-
               {draft.days.map((d) => {
                 const expanded = expandedDays.has(d.day);
                 const intro = dayIntroPhrase(d);
-
                 return (
                   <div key={d.day} className="card-soft overflow-hidden">
-                    {/* Day header */}
                     <button
-                      type="button"
-                      onClick={() => toggleDay(d.day)}
+                      type="button" onClick={() => toggleDay(d.day)}
                       className="w-full flex items-start justify-between gap-3 px-5 py-4 text-left hover:bg-slate-50/60 transition-colors"
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 mb-0.5">
-                          <span className="text-xs font-bold uppercase tracking-widest text-violet-500">
-                            Día {d.day}
-                          </span>
+                          <span className="text-xs font-bold uppercase tracking-widest text-violet-500">Día {d.day}</span>
                           <span className="text-xs font-semibold text-slate-400">·</span>
                           <span className="text-xs font-semibold text-slate-500">{d.date}</span>
                           <span className="text-xs font-semibold text-slate-400">·</span>
@@ -625,8 +764,6 @@ export default function TripAiPlannerWizard() {
                         {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                       </div>
                     </button>
-
-                    {/* Day items */}
                     {expanded && (
                       <div className="border-t border-slate-100 px-4 py-4 space-y-3">
                         {d.items.map((it, idx) => (
@@ -634,16 +771,11 @@ export default function TripAiPlannerWizard() {
                             key={stableId(d.day, idx)}
                             activity={{
                               id: stableId(d.day, idx),
-                              title: it.title,
-                              description: it.description,
-                              activity_date: it.activity_date,
-                              activity_time: it.activity_time,
-                              place_name: it.place_name,
-                              address: it.address,
-                              latitude: it.latitude,
-                              longitude: it.longitude,
-                              activity_kind: it.activity_kind,
-                              activity_type: it.activity_type,
+                              title: it.title, description: it.description,
+                              activity_date: it.activity_date, activity_time: it.activity_time,
+                              place_name: it.place_name, address: it.address,
+                              latitude: it.latitude, longitude: it.longitude,
+                              activity_kind: it.activity_kind, activity_type: it.activity_type,
                               source: it.source,
                             }}
                           />
@@ -655,29 +787,23 @@ export default function TripAiPlannerWizard() {
               })}
             </div>
 
-            {/* ── Chat panel ───────────────────────────────────────────── */}
+            {/* Chat panel */}
             <div className="card-soft flex flex-col sticky top-4 max-h-[calc(100vh-6rem)] overflow-hidden">
-              {/* Chat header */}
               <div className="px-5 py-4 border-b border-slate-100">
                 <div className="flex items-center gap-2">
                   <MessageCircle className="w-4 h-4 text-violet-500" />
                   <span className="text-sm font-extrabold text-slate-900">Refinar con IA</span>
                 </div>
-                <p className="mt-0.5 text-xs font-medium text-slate-400">
-                  Pide cualquier cambio — lo aplico al instante.
-                </p>
+                <p className="mt-0.5 text-xs font-medium text-slate-400">Pide cualquier cambio — lo aplico al instante.</p>
               </div>
 
-              {/* Active rules chips */}
               {activeRules.length > 0 && (
                 <div className="px-4 pt-3 flex flex-wrap gap-1.5">
                   {activeRules.map((r, i) => (
-                    <button
-                      key={`${r}-${i}`}
-                      type="button"
+                    <button key={`${r}-${i}`} type="button"
                       onClick={() => setActiveRules((prev) => prev.filter((_, idx) => idx !== i))}
                       className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-0.5 text-xs font-semibold text-violet-700 hover:bg-violet-100 transition-colors"
-                      title="Clic para desactivar esta preferencia"
+                      title="Clic para desactivar"
                     >
                       {r.length > 30 ? r.slice(0, 30) + "…" : r} ×
                     </button>
@@ -685,7 +811,6 @@ export default function TripAiPlannerWizard() {
                 </div>
               )}
 
-              {/* Messages */}
               <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 min-h-0">
                 {chatMessages.map((m, idx) => (
                   <div key={idx} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
@@ -694,13 +819,7 @@ export default function TripAiPlannerWizard() {
                         <Sparkles className="w-3 h-3 text-violet-500" />
                       </div>
                     )}
-                    <div
-                      className={`max-w-[82%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
-                        m.role === "user"
-                          ? "bg-slate-900 text-white"
-                          : "bg-slate-50 border border-slate-100 text-slate-800"
-                      }`}
-                    >
+                    <div className={`max-w-[82%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${m.role === "user" ? "bg-slate-900 text-white" : "bg-slate-50 border border-slate-100 text-slate-800"}`}>
                       {m.text}
                     </div>
                   </div>
@@ -722,14 +841,9 @@ export default function TripAiPlannerWizard() {
                 <div ref={chatEndRef} />
               </div>
 
-              {/* Suggestions */}
               <div className="px-4 pb-2 flex flex-wrap gap-1.5">
                 {CHAT_SUGGESTIONS.slice(0, 4).map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    disabled={chatLoading}
-                    onClick={() => sendChat(s)}
+                  <button key={s} type="button" disabled={chatLoading} onClick={() => sendChat(s)}
                     className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors disabled:opacity-40"
                   >
                     {s}
@@ -737,27 +851,16 @@ export default function TripAiPlannerWizard() {
                 ))}
               </div>
 
-              {/* Input */}
               <div className="px-4 pb-4 pt-2 border-t border-slate-100">
                 <div className="flex gap-2">
                   <input
-                    ref={chatInputRef}
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        void sendChat();
-                      }
-                    }}
+                    value={chatInput} onChange={(e) => setChatInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendChat(); } }}
                     disabled={chatLoading}
                     placeholder="Ej. Menos museos, más vida local…"
                     className="flex-1 min-w-0 rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-slate-500 bg-white disabled:opacity-50"
                   />
-                  <button
-                    type="button"
-                    disabled={chatLoading || !chatInput.trim()}
-                    onClick={() => sendChat()}
+                  <button type="button" disabled={chatLoading || !chatInput.trim()} onClick={() => sendChat()}
                     className="btn-primary shrink-0 px-3.5 py-2.5 disabled:opacity-40"
                   >
                     <Send className="w-4 h-4" />
@@ -773,10 +876,7 @@ export default function TripAiPlannerWizard() {
               <p className="text-sm font-extrabold text-slate-900">¿Te gusta el itinerario?</p>
               <p className="text-xs font-medium text-slate-500">Crea el viaje y podrás seguir editando actividades desde el panel de plan.</p>
             </div>
-            <button
-              type="button"
-              disabled={saving}
-              onClick={createTripFromDraft}
+            <button type="button" disabled={saving} onClick={createTripFromDraft}
               className="btn-primary flex items-center gap-2 py-3 px-6 disabled:opacity-50"
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}

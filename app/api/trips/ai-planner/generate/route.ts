@@ -114,7 +114,7 @@ function inferBadDay(day: any, ctx: { minItems: number; requireEvening: boolean 
 // When Overpass is saturated, we ask Gemini to generate real POIs with
 // accurate coordinates. Same pool structure — rest of the code is unchanged.
 
-function buildGeminiPoiPrompt(city: string): string {
+function buildGeminiPoiPrompt(city: string, minPerCategory: number): string {
   return `Eres un experto en turismo. Genera puntos de interés REALES con coordenadas GPS precisas para: "${city}".
 
 Devuelve SOLO JSON válido (sin markdown, sin texto extra). Esquema exacto:
@@ -131,25 +131,28 @@ Devuelve SOLO JSON válido (sin markdown, sin texto extra). Esquema exacto:
 }
 
 Reglas:
-- Mínimo 10 ítems por categoría.
-- Todos los POIs deben ser REALES y CONCRETOS (nombre propio real, no inventado).
-- PROHIBIDO: "Paseo por el centro", "Zona histórica", nombres genéricos o inventados.
-- Coordenadas lat/lng reales y precisas para ese POI.
+- MÍNIMO ${minPerCategory} ítems por categoría. Más es mejor — rellena hasta ${minPerCategory + 10} si puedes.
+- Todos los POIs deben ser REALES y CONCRETOS (nombre propio real, verificable en mapas).
+- PROHIBIDO: "Paseo por el centro", "Zona histórica", "Centro histórico", nombres genéricos o inventados.
+- Coordenadas lat/lng reales y precisas para ese POI específico.
 - culture: museos, teatros, monumentos, sitios históricos con nombre propio.
 - nature: parques, reservas, picos, playas, cascadas con nombre real.
 - viewpoint: miradores con nombre propio.
-- neighborhood: barrios concretos (La Boca, Palermo, Gracia, etc.).
+- neighborhood: barrios concretos (La Boca, Palermo, Gracia, Recoleta, etc.).
 - market: mercados con nombre propio.
-- excursion: excursiones de día desde la ciudad, destino concreto.
-- gastro_experience: bodegas, cervecerías, mercados gastronómicos, clases de cocina.
+- excursion: excursiones de día desde la ciudad, destino concreto con nombre.
+- gastro_experience: bodegas, cervecerías, mercados gastronómicos, clases de cocina con nombre.
 - shopping: centros comerciales o zonas de compras con nombre propio.
-- night: bares, pubs, cines, clubes con nombre propio.
-- Si es una región o país, usa su ciudad principal como referencia geográfica.`;
+- night: bares, pubs, cines, clubes nocturnos con nombre propio.
+- Si es una región o país (ej. "Argentina"), genera POIs de su ciudad principal (Buenos Aires) Y también de otras ciudades destacadas (Mendoza, Bariloche, Córdoba, Salta, Iguazú), distribuyendo los ítems entre ellas para cubrir todo el destino.`;
 }
 
-async function fetchPoisFromGemini(cityLabel: string): Promise<Record<Category, Poi[]> | null> {
+async function fetchPoisFromGemini(cityLabel: string, totalDays: number): Promise<Record<Category, Poi[]> | null> {
+  // Scale POI count to trip length. 21-day trip needs ~84 unique POIs minimum.
+  const minPerCategory = Math.max(15, Math.ceil((totalDays * 4) / ALL_CATEGORIES.length) + 8);
+  const tokenBudget = Math.min(8192, 2048 + minPerCategory * 60);
   try {
-    const raw = await askGemini(buildGeminiPoiPrompt(cityLabel), "planning", { maxOutputTokens: 4096 });
+    const raw = await askGemini(buildGeminiPoiPrompt(cityLabel, minPerCategory), "planning", { maxOutputTokens: tokenBudget });
     const parsed = extractJsonObject(raw) as any;
     if (!parsed || typeof parsed !== "object") return null;
 
@@ -172,7 +175,7 @@ async function fetchPoisFromGemini(cityLabel: string): Promise<Record<Category, 
 
     // Excursion pool from nature + culture if sparse
     if ((pools.excursion || []).length < 3) {
-      pools.excursion = dedupeByName([...(pools.nature || []), ...(pools.culture || [])]).slice(0, 12);
+      pools.excursion = dedupeByName([...(pools.nature || []), ...(pools.culture || [])]).slice(0, minPerCategory);
     }
 
     return sumPools(pools) >= 4 ? pools : null;
@@ -315,7 +318,8 @@ type PoiLoadResult =
 async function loadPoisForStop(
   stop: { label: string; center: LatLng },
   anchor: any,
-  regionHints: any
+  regionHints: any,
+  totalDays: number
 ): Promise<PoiLoadResult> {
   let center: LatLng = stop.center;
 
@@ -355,7 +359,7 @@ async function loadPoisForStop(
 
   // ── Gemini fallback ───────────────────────────────────────────────────────
   console.warn(`[ai-planner] Overpass unavailable for "${stop.label}", using Gemini fallback`);
-  const geminiPools = await fetchPoisFromGemini(stop.label);
+  const geminiPools = await fetchPoisFromGemini(stop.label, totalDays);
   if (geminiPools && sumPools(geminiPools) >= 4) {
     // Cache so chat refinements reuse this without extra Gemini calls
     cacheSet(center, 3500, geminiPools);
@@ -455,7 +459,7 @@ export async function POST(req: Request) {
 
     // ── 2. Load POIs for all stops in parallel (Overpass → Gemini fallback) ──
     const stopResults = await Promise.all(
-      stops.map((stop) => loadPoisForStop(stop, anchor, regionHints))
+      stops.map((stop) => loadPoisForStop(stop, anchor, regionHints, totalDays))
     );
 
     const poisByStop: Record<string, Record<Category, Poi[]>> = {};
@@ -512,9 +516,11 @@ export async function POST(req: Request) {
     }
 
     // ── 6. Build itinerary days ───────────────────────────────────────────────
-    const usedNames = new Set<string>();
-
+    // usedNames tracks POIs used within a SINGLE day to avoid repeating in the same day.
+    // It intentionally resets each day — across days, repetition is acceptable and necessary
+    // for long trips where the pool may have fewer items than (days × items/day).
     const makeDay = (dayNum: number, stop: string) => {
+      const usedNamesThisDay = new Set<string>();
       const pools = poisByStop[stop];
       const type = classifyDayType(pools);
       const minItems = proposeMinItems(type);
@@ -526,10 +532,10 @@ export async function POST(req: Request) {
           const pool = pools?.[cat] || [];
           const sel = selectedNamesByStop[stop];
           if (sel?.size) {
-            const hit = pool.find((p) => sel.has(p.name.toLowerCase()) && !usedNames.has(p.name.toLowerCase()));
+            const hit = pool.find((p) => sel.has(p.name.toLowerCase()) && !usedNamesThisDay.has(p.name.toLowerCase()));
             if (hit) return hit;
           }
-          const hit2 = pool.find((p) => !usedNames.has(p.name.toLowerCase()));
+          const hit2 = pool.find((p) => !usedNamesThisDay.has(p.name.toLowerCase()));
           if (hit2) return hit2;
         }
         return null;
@@ -541,7 +547,7 @@ export async function POST(req: Request) {
         if (!poi) continue;
         const title = poi.name.trim();
         if (!ensureNoGenericTitle(title)) continue;
-        usedNames.add(title.toLowerCase());
+        usedNamesThisDay.add(title.toLowerCase());
         items.push({ title, activity_kind: s.cats[0] || "visit", activity_type: "general", place_name: poi.name, address: `${poi.name}, ${stop}`, latitude: poi.lat, longitude: poi.lng, activity_time: s.time, source: "ai_planner" });
       }
 
@@ -554,7 +560,7 @@ export async function POST(req: Request) {
         if (!poi) break;
         const title = poi.name.trim();
         if (!ensureNoGenericTitle(title)) continue;
-        usedNames.add(title.toLowerCase());
+        usedNamesThisDay.add(title.toLowerCase());
         const time = ["10:00", "13:30", "17:00", "20:30"][Math.min(items.length, 3)]!;
         items.push({ title, activity_kind: fillerCats[0], activity_type: "general", place_name: poi.name, address: `${poi.name}, ${stop}`, latitude: poi.lat, longitude: poi.lng, activity_time: time, source: "ai_planner" });
       }
@@ -563,8 +569,8 @@ export async function POST(req: Request) {
         const last = items.map((it) => String(it.activity_time || "")).sort().slice(-1)[0] || "";
         if (last && last < "18:00") {
           const poi = pickFromCats(["gastro_experience", "night", "culture"]);
-          if (poi && ensureNoGenericTitle(poi.name) && !usedNames.has(poi.name.toLowerCase())) {
-            usedNames.add(poi.name.toLowerCase());
+          if (poi && ensureNoGenericTitle(poi.name) && !usedNamesThisDay.has(poi.name.toLowerCase())) {
+            usedNamesThisDay.add(poi.name.toLowerCase());
             items.push({ title: poi.name.trim(), activity_kind: "gastro_experience", activity_type: "general", place_name: poi.name, address: `${poi.name}, ${stop}`, latitude: poi.lat, longitude: poi.lng, activity_time: "20:30", source: "ai_planner" });
           }
         }
