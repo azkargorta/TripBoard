@@ -109,10 +109,10 @@ export default function DesktopTripSidebar({ tripId, isPremium }: Props) {
                   )}
 
                   <span
-                    className={`relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-2xl border ${
+                    className={`relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-2xl ${
                       active
-                        ? "border-white/15 bg-white/10"
-                        : "border-slate-200 bg-white group-hover:border-slate-300"
+                        ? "bg-white/10"
+                        : "bg-slate-50 group-hover:bg-white"
                     }`}
                     aria-hidden
                   >
