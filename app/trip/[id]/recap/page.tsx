@@ -35,7 +35,7 @@ export default async function TripRecapPage({ params }: Props) {
 
   // Cities visited (unique places from activities)
   const cities = new Set<string>();
-  const destinations = (trip.destination || "").split(/\s*·\s*/).map((s) => s.trim()).filter(Boolean);
+  const destinations = (trip.destination || "").split(/\s*·\s*/).map((s: string) => s.trim()).filter(Boolean);
   for (const d of destinations) cities.add(d);
 
   // Activity kinds breakdown
