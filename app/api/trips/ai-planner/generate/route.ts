@@ -472,6 +472,50 @@ async function loadPoisForStop(stop: { label: string; center: LatLng }, anchor: 
   return { pools: null, err: `No he encontrado lugares suficientes para "${stop.label}". Prueba con una ciudad concreta.` };
 }
 
+// ─── Geographic sort — nearest-neighbor greedy within a day ──────────────────
+// Reorders items so the route through the day minimises total distance walked.
+// Items without coords are appended at the end (they can't be placed on the route).
+// Time labels are preserved but reassigned in order so the plan still reads correctly.
+
+function geoDistKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+  const R = 6371;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  return R * 2 * Math.asin(Math.sqrt(Math.sin(dLat / 2) ** 2 + Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2));
+}
+
+function sortItemsByProximity(items: any[]): any[] {
+  if (items.length <= 2) return items;
+
+  // Separate items with and without valid coords
+  const withCoords = items.filter((it) => typeof it.latitude === "number" && typeof it.longitude === "number" && it.latitude !== 0);
+  const noCoords = items.filter((it) => !(typeof it.latitude === "number" && typeof it.longitude === "number" && it.latitude !== 0));
+
+  if (withCoords.length <= 1) return items;
+
+  // Greedy nearest-neighbor starting from the first item (usually morning)
+  const sorted: any[] = [withCoords[0]!];
+  const remaining = withCoords.slice(1);
+
+  while (remaining.length) {
+    const last = sorted[sorted.length - 1]!;
+    let bestIdx = 0;
+    let bestDist = Infinity;
+    remaining.forEach((it, i) => {
+      const d = geoDistKm({ lat: last.latitude!, lng: last.longitude! }, { lat: it.latitude!, lng: it.longitude! });
+      if (d < bestDist) { bestDist = d; bestIdx = i; }
+    });
+    sorted.push(remaining.splice(bestIdx, 1)[0]!);
+  }
+
+  // Re-assign original time slots in order (so morning/noon/afternoon/night labels stay meaningful)
+  const originalTimes = items.map((it) => it.activity_time).filter(Boolean);
+  return [...sorted, ...noCoords].map((it, i) => ({
+    ...it,
+    activity_time: originalTimes[i] ?? it.activity_time,
+  }));
+}
+
 // ─── Route handler ────────────────────────────────────────────────────────────
 
 export async function POST(req: Request) {
@@ -633,7 +677,12 @@ export async function POST(req: Request) {
               latitude: null, longitude: null,
               activity_kind: "transport", activity_type: "general", source: "ai_planner",
             };
-            items = [transitItem, ...items.slice(0, 3)];
+            // Transit is always first; sort only the non-transit items after it
+            const nonTransit = sortItemsByProximity(items);
+            items = [transitItem, ...nonTransit.slice(0, 3)];
+          } else {
+            // Sort all items by geographic proximity (nearest-neighbor greedy)
+            items = sortItemsByProximity(items);
           }
           daysOut.push({ day: globalDayNum, date: dayDate, base: block.city, items });
         } else if (existingDaysMap.has(globalDayNum)) {
