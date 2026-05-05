@@ -4,6 +4,8 @@ import { FormEvent, useMemo, useState } from "react";
 import { useTripInvites } from "@/hooks/useTripInvites";
 import type { TripRole, TripParticipant } from "@/hooks/useTripParticipants";
 import { useToast } from "@/components/ui/toast";
+import { btnPrimary } from "@/components/ui/brandStyles";
+import { Link2, MessageCircle, Copy, Check, X, UserPlus2 } from "lucide-react";
 
 type InviteParticipantPanelProps = {
   tripId: string;
@@ -76,109 +78,124 @@ export default function InviteParticipantPanel({
   }
 
   return (
-    <div className="rounded-xl border bg-white p-4 shadow-sm">
-      <div className="mb-4">
-        <h2 className="text-lg font-semibold">{title}</h2>
-        <p className="text-sm text-gray-600">{description}</p>
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-start gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-800">
+          {participant ? <Link2 className="h-4 w-4" aria-hidden /> : <MessageCircle className="h-4 w-4" aria-hidden />}
+        </div>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-sm font-extrabold text-slate-950">{title}</h2>
+          <p className="mt-1 text-xs font-semibold text-slate-600">{description}</p>
+        </div>
+        {onCancel ? (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+            aria-label="Cerrar"
+            title="Cerrar"
+          >
+            <X className="h-4 w-4" aria-hidden />
+          </button>
+        ) : null}
       </div>
 
-      <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
-        <label className="grid gap-1 text-sm">
-          <span>Nombre visible</span>
-          <input
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="Ceci"
-            className="rounded-lg border px-3 py-2"
-          />
-        </label>
+      <form onSubmit={handleSubmit} className="mt-4 grid gap-3">
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className="grid gap-1.5 text-xs font-semibold text-slate-600">
+            <span>Nombre visible</span>
+            <input
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="Ej. Ceci"
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-900 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-200"
+            />
+          </label>
 
-        <label className="grid gap-1 text-sm">
-          <span>Teléfono WhatsApp</span>
-          <input
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="34600111222"
-            className="rounded-lg border px-3 py-2"
-          />
-        </label>
+          <label className="grid gap-1.5 text-xs font-semibold text-slate-600">
+            <span>Teléfono WhatsApp</span>
+            <input
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="Ej. 34600111222"
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-900 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-200"
+            />
+          </label>
+        </div>
 
-        <label className="grid gap-1 text-sm md:col-span-2">
+        <label className="grid gap-1.5 text-xs font-semibold text-slate-600">
           <span>Rol inicial</span>
           <select
             value={role}
             onChange={(e) => setRole(e.target.value as TripRole)}
-            className="rounded-lg border px-3 py-2"
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-900 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-200"
           >
-            <option value="viewer">viewer</option>
-            <option value="editor">editor</option>
-            <option value="owner">owner</option>
+            <option value="viewer">Lector</option>
+            <option value="editor">Editor</option>
+            <option value="owner">Owner</option>
           </select>
         </label>
 
-        <div className="md:col-span-2 flex flex-wrap gap-2">
+        <div className="mt-1 flex flex-wrap gap-2">
           <button
             type="submit"
             disabled={loading}
-            className="rounded-lg bg-black px-4 py-2 text-white disabled:opacity-60"
+            className={`${btnPrimary} inline-flex items-center gap-2 px-4 py-2.5 text-sm disabled:opacity-60`}
           >
-            {loading ? "Creando..." : participant ? "Crear enlace de vinculación" : "Crear invitación"}
+            {participant ? <Link2 className="h-4 w-4" aria-hidden /> : <UserPlus2 className="h-4 w-4" aria-hidden />}
+            {loading ? "Creando…" : participant ? "Crear enlace de vinculación" : "Crear invitación"}
           </button>
 
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-lg border px-4 py-2 text-sm"
-          >
-            Cancelar
-          </button>
-
-          {inviteUrl && (
+          {inviteUrl ? (
             <>
               <button
                 type="button"
                 onClick={copyLink}
-                className="rounded-lg border px-4 py-2 text-sm"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-50"
               >
-                {copied ? "Enlace copiado" : "Copiar enlace"}
+                {copied ? <Check className="h-4 w-4 text-emerald-600" aria-hidden /> : <Copy className="h-4 w-4" aria-hidden />}
+                {copied ? "Copiado" : "Copiar enlace"}
               </button>
-
               <a
                 href={whatsappHref || "#"}
                 target="_blank"
                 rel="noreferrer"
-                className={`rounded-lg border px-4 py-2 text-sm ${whatsappHref ? "" : "pointer-events-none opacity-50"}`}
+                className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold ${
+                  whatsappHref
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-900 hover:bg-emerald-100"
+                    : "pointer-events-none border-slate-200 bg-white text-slate-400 opacity-60"
+                }`}
               >
+                <MessageCircle className="h-4 w-4" aria-hidden />
                 Abrir WhatsApp
               </a>
             </>
-          )}
+          ) : null}
         </div>
-      </form>
 
-      {inviteUrl && (
-        <div className="mt-4 rounded-lg bg-gray-50 p-3 text-sm break-all">
-          {inviteUrl}
-        </div>
-      )}
+        {inviteUrl ? (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 break-all">
+            {inviteUrl}
+          </div>
+        ) : null}
 
-      {inviteUrl && onCreated && (
-        <div className="mt-3">
+        {inviteUrl && onCreated ? (
           <button
             type="button"
             onClick={onCreated}
-            className="rounded-lg border px-4 py-2 text-sm"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-50"
           >
-            Cerrar panel
+            <Check className="h-4 w-4" aria-hidden />
+            Listo
           </button>
-        </div>
-      )}
+        ) : null}
+      </form>
 
-      {error && (
-        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+      {error ? (
+        <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
           {error}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

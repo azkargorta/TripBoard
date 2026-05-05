@@ -22,6 +22,10 @@ import {
   Link2,
   MessageCircle,
   Pencil,
+  MoreHorizontal,
+  Mail,
+  Phone,
+  User,
   RefreshCcw,
   Search,
   SlidersHorizontal,
@@ -49,6 +53,97 @@ function roleStyle(role: string) {
   if (role === "owner") return "bg-violet-100 text-violet-800 border-violet-200";
   if (role === "editor") return "bg-sky-100 text-sky-800 border-sky-200";
   return "bg-slate-100 text-slate-700 border-slate-200";
+}
+
+function KeyValueChip({
+  icon,
+  label,
+}: {
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <span className="inline-flex min-w-0 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[12px] font-semibold text-slate-700">
+      <span className="shrink-0 text-slate-400">{icon}</span>
+      <span className="min-w-0 truncate">{label}</span>
+    </span>
+  );
+}
+
+function ActionMenu({
+  canInvite,
+  onEdit,
+  onInvite,
+  onLink,
+  onRemove,
+}: {
+  canInvite: boolean;
+  onEdit: () => void;
+  onInvite: () => void;
+  onLink: () => void;
+  onRemove: () => void;
+}) {
+  return (
+    <details className="relative">
+      <summary className="list-none">
+        <span className="sr-only">Acciones</span>
+        <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50">
+          <MoreHorizontal className="h-5 w-5" aria-hidden />
+        </span>
+      </summary>
+      <div className="absolute right-0 z-20 mt-2 w-56 rounded-2xl border border-slate-200 bg-white p-2 shadow-lg">
+        <button
+          type="button"
+          onClick={() => {
+            onEdit();
+            (document.activeElement as HTMLElement | null)?.blur?.();
+          }}
+          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+        >
+          <Pencil className="h-4 w-4" aria-hidden />
+          Editar
+        </button>
+        {canInvite ? (
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                onInvite();
+                (document.activeElement as HTMLElement | null)?.blur?.();
+              }}
+              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-emerald-900 hover:bg-emerald-50"
+            >
+              <MessageCircle className="h-4 w-4" aria-hidden />
+              Invitar por WhatsApp
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onLink();
+                (document.activeElement as HTMLElement | null)?.blur?.();
+              }}
+              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-violet-900 hover:bg-violet-50"
+            >
+              <Link2 className="h-4 w-4" aria-hidden />
+              Vincular cuenta
+            </button>
+          </>
+        ) : null}
+        <div className="my-1 h-px bg-slate-100" />
+        <button
+          type="button"
+          onClick={() => {
+            onRemove();
+            (document.activeElement as HTMLElement | null)?.blur?.();
+          }}
+          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
+        >
+          <Trash2 className="h-4 w-4" aria-hidden />
+          Quitar
+        </button>
+      </div>
+    </details>
+  );
 }
 
 export default function TripParticipantsView({ tripId, mapFlow = false }: TripParticipantsViewProps) {
@@ -342,7 +437,7 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
         </div>
       ) : null}
 
-      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
+      <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
         <section className="min-w-0 space-y-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <h2 className="text-lg font-bold text-slate-900">Lista de pasajeros</h2>
@@ -438,7 +533,7 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
             No hay resultados con estos filtros. Prueba a limpiar la búsqueda o cambiar el filtro de vinculación.
           </div>
         ) : (
-          <div className="grid gap-4">
+          <div className="grid gap-3">
             {filteredParticipants.map((participant) => {
               const isLinkedUser = Boolean(participant.user_id);
               const canInviteThisParticipant = !isLinkedUser;
@@ -447,14 +542,14 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
               return (
                 <article
                   key={participant.id}
-                  className={`group rounded-3xl border bg-white p-5 shadow-sm transition hover:shadow-md ${
+                  className={`group rounded-3xl border bg-white p-4 shadow-sm transition hover:shadow-md ${
                     isYou ? "border-violet-200 ring-1 ring-violet-100" : "border-slate-200"
                   }`}
                 >
-                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                    <div className="flex min-w-0 flex-1 gap-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex min-w-0 flex-1 gap-3">
                       <div
-                        className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-lg font-black text-white shadow-inner ${
+                        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-base font-black text-white shadow-inner ${
                           participant.role === "owner"
                             ? "bg-gradient-to-br from-violet-600 to-indigo-700"
                             : participant.role === "editor"
@@ -466,13 +561,13 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
                       </div>
                       <div className="min-w-0 space-y-2">
                         <div className="flex flex-wrap items-center gap-2">
-                          <div className="min-w-0 max-w-full text-lg font-bold text-slate-900" role="heading" aria-level={3}>
+                          <div className="min-w-0 max-w-full text-base font-extrabold text-slate-900" role="heading" aria-level={3}>
                             <LongTextSheet
                               text={participant.display_name}
                               modalTitle="Participante"
                               minLength={36}
-                              lineClamp={3}
-                              className="font-bold text-slate-900"
+                              lineClamp={2}
+                              className="font-extrabold text-slate-900"
                             />
                           </div>
                           {isYou ? (
@@ -485,9 +580,6 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
                           >
                             {getRoleLabel(participant.role)}
                           </span>
-                          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
-                            {getStatusLabel(participant.status as "active" | "pending" | "removed")}
-                          </span>
                           <span
                             className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
                               isLinkedUser ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"
@@ -495,75 +587,34 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
                           >
                             {isLinkedUser ? "Cuenta vinculada" : "Pendiente de vincular"}
                           </span>
+                          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                            {getStatusLabel(participant.status as "active" | "pending" | "removed")}
+                          </span>
                         </div>
 
-                        <dl className="grid min-w-0 grid-cols-1 gap-1 text-sm text-slate-600 sm:grid-cols-2">
+                        <div className="flex flex-wrap gap-2">
                           {participant.username ? (
-                            <div>
-                              <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Usuario</dt>
-                              <dd className="font-medium text-slate-800">@{participant.username}</dd>
-                            </div>
+                            <KeyValueChip icon={<User className="h-3.5 w-3.5" aria-hidden />} label={`@${participant.username}`} />
                           ) : null}
                           {participant.email ? (
-                            <div>
-                              <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Email</dt>
-                              <dd className="break-all font-medium text-slate-800">{participant.email}</dd>
-                            </div>
+                            <KeyValueChip icon={<Mail className="h-3.5 w-3.5" aria-hidden />} label={participant.email} />
                           ) : null}
                           {participant.phone ? (
-                            <div>
-                              <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Teléfono</dt>
-                              <dd className="font-medium text-slate-800">{participant.phone}</dd>
-                            </div>
+                            <KeyValueChip icon={<Phone className="h-3.5 w-3.5" aria-hidden />} label={participant.phone} />
                           ) : null}
-                          {participant.joined_via ? (
-                            <div>
-                              <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Alta</dt>
-                              <dd className="font-medium capitalize text-slate-800">{participant.joined_via}</dd>
-                            </div>
-                          ) : null}
-                        </dl>
+                        </div>
                       </div>
                     </div>
 
                     {canManageParticipants ? (
-                      <div className="flex flex-wrap gap-2 md:justify-end">
-                        <button
-                          type="button"
-                          onClick={() => setEditingParticipant(participant)}
-                          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
-                        >
-                          <Pencil className="h-4 w-4" aria-hidden />
-                          Editar
-                        </button>
-                        {canInviteThisParticipant ? (
-                          <button
-                            type="button"
-                            onClick={() => openParticipantInvite(participant)}
-                            className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900 transition hover:bg-emerald-100"
-                          >
-                            <MessageCircle className="h-4 w-4" aria-hidden />
-                            WhatsApp
-                          </button>
-                        ) : null}
-                        {canInviteThisParticipant ? (
-                          <button
-                            type="button"
-                            onClick={() => openLinkProfile(participant)}
-                            className="inline-flex items-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-900 transition hover:bg-violet-100"
-                          >
-                            <Link2 className="h-4 w-4" aria-hidden />
-                            Vincular
-                          </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          onClick={() => void handleRemove(participant.id)}
-                          className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50"
-                        >
-                          <Trash2 className="h-4 w-4" aria-hidden />
-                          Quitar
-                        </button>
+                      <div className="flex items-start justify-end">
+                        <ActionMenu
+                          canInvite={canInviteThisParticipant}
+                          onEdit={() => setEditingParticipant(participant)}
+                          onInvite={() => openParticipantInvite(participant)}
+                          onLink={() => openLinkProfile(participant)}
+                          onRemove={() => void handleRemove(participant.id)}
+                        />
                       </div>
                     ) : null}
                   </div>
@@ -574,7 +625,7 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
         )}
         </section>
 
-        <aside className="min-w-0 space-y-4 lg:sticky lg:top-3 lg:self-start">
+        <aside className="min-w-0 space-y-4 lg:sticky lg:top-4 lg:self-start">
           {canManageParticipants ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -589,7 +640,7 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
                 </button>
               </div>
 
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 <button
                   type="button"
                   onClick={() => {
