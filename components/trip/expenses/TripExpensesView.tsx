@@ -6,6 +6,7 @@ import ExpenseList from "@/components/trip/expenses/ExpenseList";
 import ExpenseBalancePanel from "@/components/trip/expenses/ExpenseBalancePanel";
 import CurrencyConverterCard from "@/components/trip/expenses/CurrencyConverterCard";
 import ExpenseAnalyzerPanel, { type ExpenseDetectedData } from "@/components/trip/expenses/ExpenseAnalyzerPanel";
+import ExpenseCharts from "@/components/trip/expenses/ExpenseCharts";
 import { useTripExpenses } from "@/hooks/useTripExpenses";
 import { ChevronDown, Clock, Download, Plus, ScanText, Wallet } from "lucide-react";
 import Link from "next/link";
@@ -57,6 +58,7 @@ export default function TripExpensesView({
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [history, setHistory] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<"list" | "charts">("list");
 
   const shouldShowForm = isAddOpen || !!editingExpense || !!detectedData;
 
@@ -209,7 +211,36 @@ export default function TripExpensesView({
         </div>
       ) : null}
 
-      <div className="card-soft relative overflow-hidden p-4">
+      {/* Tab switcher */}
+      <div className="inline-flex overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <button
+          type="button"
+          onClick={() => setActiveTab("list")}
+          className={`inline-flex min-h-[40px] items-center gap-2 px-4 text-sm font-extrabold transition ${
+            activeTab === "list" ? "bg-violet-600 text-white" : "text-slate-700 hover:bg-slate-50"
+          }`}
+        >
+          Lista
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("charts")}
+          className={`inline-flex min-h-[40px] items-center gap-2 px-4 text-sm font-extrabold transition ${
+            activeTab === "charts" ? "bg-violet-600 text-white" : "text-slate-700 hover:bg-slate-50"
+          }`}
+        >
+          📊 Estadísticas
+        </button>
+      </div>
+
+      {/* Charts tab */}
+      {activeTab === "charts" ? (
+        <ExpenseCharts expenses={expenses} baseCurrency={tripBaseCurrency || "EUR"} />
+      ) : null}
+
+      {/* List tab content — keep all existing UI below, gated by activeTab */}
+      {activeTab === "list" ? (
+        <>
         <div
           className="pointer-events-none absolute inset-0 opacity-100"
           style={{
@@ -533,6 +564,7 @@ export default function TripExpensesView({
       </div>
 
       {/* Listado movido dentro de la columna izquierda del grid */}
+      </>) : null}
     </div>
   );
 }
