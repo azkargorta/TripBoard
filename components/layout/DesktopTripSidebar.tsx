@@ -75,9 +75,13 @@ export default function DesktopTripSidebar({ tripId, isPremium }: Props) {
   const visibleItems = items;
 
   return (
-    <aside className="hidden md:block">
+    <aside className="hidden md:block w-[200px] lg:w-[220px] shrink-0">
       <div className="sticky top-24">
-        <div className="rounded-3xl border border-slate-200 bg-white/85 p-1.5 backdrop-blur supports-[backdrop-filter]:bg-white/70">
+        <div className="rounded-3xl border border-slate-200 bg-white/90 p-2 backdrop-blur supports-[backdrop-filter]:bg-white/75 shadow-sm">
+          <div className="px-2 pb-2 pt-1">
+            <div className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-slate-400">Navegación</div>
+            <div className="mt-1 text-sm font-extrabold text-slate-900">Tu viaje</div>
+          </div>
           <nav aria-label="Navegación del viaje (escritorio)" className="space-y-1">
             {visibleItems.map((item) => {
               const href = item.href(tripId);
@@ -88,21 +92,34 @@ export default function DesktopTripSidebar({ tripId, isPremium }: Props) {
                   href={href}
                   prefetch
                   title={item.label}
-                  className={`flex min-h-[56px] flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold transition ${
+                  className={`group relative flex min-h-[44px] items-center gap-3 rounded-2xl px-3 py-2 text-sm font-semibold transition ${
                     active
-                      ? "bg-violet-100 text-violet-950"
-                      : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+                      ? "bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-sm"
+                      : "text-slate-700 hover:bg-slate-50 hover:text-slate-950"
                   }`}
                 >
+                  {/* Active indicator */}
+                  {active ? (
+                    <span
+                      className="absolute left-1 top-1/2 h-6 w-1 -translate-y-1/2 rounded-full bg-white/80"
+                      aria-hidden
+                    />
+                  ) : (
+                    <span className="absolute left-1 top-1/2 h-6 w-1 -translate-y-1/2 rounded-full bg-transparent" aria-hidden />
+                  )}
+
                   <span
-                    className="relative flex h-[22px] w-[22px] shrink-0 items-center justify-center overflow-hidden rounded-md bg-transparent"
+                    className={`relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-2xl border ${
+                      active
+                        ? "border-white/15 bg-white/10"
+                        : "border-slate-200 bg-white group-hover:border-slate-300"
+                    }`}
                     aria-hidden
                   >
                     {item.icon}
                   </span>
-                  <span className="w-full px-0.5 text-center text-[10px] font-semibold leading-tight sm:text-[11px]">
-                    {item.label}
-                  </span>
+
+                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
                 </Link>
               );
             })}
