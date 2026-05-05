@@ -10,7 +10,6 @@ import TripBoardMobileMenu from "@/components/layout/TripBoardMobileMenu";
 type Props = {
   tripId: string;
   tripName: string;
-  /** Rango de fechas del viaje (ej. desde layout del servidor). */
   dateRangeLabel?: string | null;
 };
 
@@ -22,80 +21,101 @@ export default function TripBoardBrandRail({ tripId, tripName, dateRangeLabel }:
   const iconAlt = safeTrim(header.iconAlt) || safeTrim(header.title) || safeTrim(header.section) || "Módulo";
 
   return (
-    <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
-      <div className="page-shell max-w-[1200px] !pb-2 !pt-[max(0.5rem,env(safe-area-inset-top))] md:!py-3">
-        <div className="flex min-h-[80px] items-center justify-between gap-2 sm:min-h-[72px]">
-          <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            {iconSrc ? (
+    <header className="sticky top-0 z-50">
+      {/* Main bar */}
+      <div className="border-b border-slate-200/80 bg-white/95 backdrop-blur-md supports-[backdrop-filter]:bg-white/88 shadow-sm shadow-slate-900/[0.04]">
+        <div className="page-shell max-w-[1200px] !py-0">
+          <div className="flex h-[64px] items-center justify-between gap-3">
+
+            {/* Left: Logo + trip identity */}
+            <div className="flex min-w-0 flex-1 items-center gap-3">
+
+              {/* Kaviro logo mark — always visible, links to dashboard */}
               <Link
-                href={`/trip/${tripId}/summary`}
-                className="inline-flex shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white/70 ring-1 ring-slate-200 transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60"
-                style={{ width: 42, height: 42 }}
-                title="Ir al resumen del viaje"
+                href="/dashboard"
+                className="shrink-0 flex items-center justify-center h-8 w-8 rounded-xl overflow-hidden ring-1 ring-slate-900/10 hover:ring-violet-400 transition-all duration-150"
+                title="Mis viajes"
               >
                 <Image
-                  src={iconSrc}
-                  alt={iconAlt}
-                  width={42}
-                  height={42}
-                  className="h-full w-full object-contain object-center scale-[1.18]"
+                  src="/brand/icon.png"
+                  alt="Kaviro"
+                  width={32}
+                  height={32}
+                  className="h-full w-full object-cover"
                   priority
                 />
               </Link>
-            ) : (
-              <TripBoardLogo
-                href="/dashboard"
-                variant="dark"
-                size="md"
-                withWordmark={false}
-                className="shrink-0 scale-[2] origin-left"
-              />
-            )}
-            <div className="min-w-0">
-              <div className="flex min-w-0 flex-col gap-0.5">
-                <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+
+              {/* Divider */}
+              <span className="h-4 w-px bg-slate-200 shrink-0" aria-hidden />
+
+              {/* Module icon (if provided) */}
+              {iconSrc && (
+                <Link
+                  href={`/trip/${tripId}/summary`}
+                  className="shrink-0 inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-slate-50 ring-1 ring-slate-200/80 transition hover:ring-violet-300 hover:shadow-sm"
+                  title="Ir al resumen"
+                >
+                  <Image
+                    src={iconSrc}
+                    alt={iconAlt}
+                    width={36}
+                    height={36}
+                    className="h-full w-full object-contain scale-[1.15]"
+                    priority
+                  />
+                </Link>
+              )}
+
+              {/* Trip identity text */}
+              <div className="min-w-0">
+                <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0">
                   <Link
                     href={`/trip/${tripId}/summary`}
-                    className="min-w-0 truncate text-xs font-bold text-slate-900 transition hover:text-violet-700 md:text-sm md:font-semibold"
+                    className="shrink-0 text-[13px] font-bold text-slate-900 hover:text-violet-700 transition-colors duration-150 truncate"
                     title="Ir al resumen del viaje"
                   >
                     {tripName}
                   </Link>
-                  {section ? (
+                  {section && (
                     <>
-                      <span className="text-[10px] font-semibold text-slate-300 md:text-xs" aria-hidden>
-                        /
-                      </span>
-                      <span className="min-w-0 max-w-[min(52vw,14rem)] truncate text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500 md:max-w-none md:text-[11px] md:tracking-[0.12em]">
+                      <span className="text-slate-300 text-xs shrink-0" aria-hidden>/</span>
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500 truncate">
                         {section}
                       </span>
                     </>
-                  ) : null}
+                  )}
                 </div>
-                {dateRangeLabel ? (
-                  <p className="truncate text-[10px] font-medium leading-tight text-slate-500 md:text-[11px]">
+                {dateRangeLabel && (
+                  <p className="text-[11px] font-medium text-slate-400 leading-none mt-0.5 truncate">
                     {dateRangeLabel}
                   </p>
-                ) : null}
+                )}
               </div>
             </div>
-          </div>
 
-          <div className="flex shrink-0 items-center gap-1.5">
-            <TripPageHelp />
-            <TripBoardMobileMenu tripId={tripId} />
-            {header.actions ? (
-              <div className="hidden max-w-[45vw] flex-nowrap justify-end gap-1.5 overflow-x-auto no-scrollbar md:flex md:max-w-none">
-                {header.actions}
-              </div>
-            ) : (
-              <Link
-                href="/dashboard"
-                className="inline-flex min-h-[40px] min-w-[40px] shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60 md:min-h-0 md:min-w-0 md:px-2.5 md:py-1 md:text-[11px]"
-              >
-                Mis viajes
-              </Link>
-            )}
+            {/* Right: actions */}
+            <div className="flex shrink-0 items-center gap-1.5">
+              <TripPageHelp />
+
+              {/* Desktop actions slot */}
+              {header.actions ? (
+                <div className="hidden md:flex max-w-[45vw] flex-nowrap justify-end gap-1.5 overflow-x-auto no-scrollbar items-center">
+                  {header.actions}
+                </div>
+              ) : (
+                <Link
+                  href="/dashboard"
+                  className="hidden md:inline-flex items-center gap-1.5 min-h-[34px] rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
+                >
+                  <svg className="w-3.5 h-3.5 text-slate-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M2 8l6-6 6 6M3 7.5V14h4v-3h2v3h4V7.5"/></svg>
+                  Mis viajes
+                </Link>
+              )}
+
+              {/* Mobile hamburger */}
+              <TripBoardMobileMenu tripId={tripId} />
+            </div>
           </div>
         </div>
       </div>

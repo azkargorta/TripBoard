@@ -11,122 +11,187 @@ type Props = {
   isPremium: boolean;
 };
 
-const items: Array<{ key: string; label: string; icon: React.ReactNode; href: (id: string) => string }> = [
+type NavItem = {
+  key: string;
+  label: string;
+  sublabel?: string;
+  iconSrc: string;
+  iconClass?: string;
+  href: (id: string) => string;
+  isPremiumGated?: boolean;
+};
+
+const items: NavItem[] = [
   {
     key: "summary",
     label: "Resumen",
-    icon: <Image src={TRIP_TAB_SUMMARY_SRC} alt="" width={22} height={22} className="h-[22px] w-[22px] object-contain" />,
-    href: (id: string) => `/trip/${id}/summary`,
+    sublabel: "Vista general",
+    iconSrc: TRIP_TAB_SUMMARY_SRC,
+    href: (id) => `/trip/${id}/summary`,
   },
   {
     key: "plan",
     label: "Plan",
-    icon: <Image src="/brand/tabs/plan.png" alt="" width={22} height={22} className="h-[22px] w-[22px] object-contain" />,
-    href: (id: string) => `/trip/${id}/plan`,
+    sublabel: "Itinerario",
+    iconSrc: "/brand/tabs/plan.png",
+    href: (id) => `/trip/${id}/plan`,
   },
   {
     key: "map",
     label: "Rutas",
-    icon: <Image src="/brand/tabs/map.png" alt="" width={22} height={22} className="h-[22px] w-[22px] object-contain" />,
-    href: (id: string) => `/trip/${id}/map`,
+    sublabel: "Mapa y navegación",
+    iconSrc: "/brand/tabs/map.png",
+    href: (id) => `/trip/${id}/map`,
   },
   {
     key: "expenses",
     label: "Gastos",
-    icon: <Image src="/brand/tabs/expenses.png" alt="" width={22} height={22} className="h-[22px] w-[22px] object-contain" />,
-    href: (id: string) => `/trip/${id}/expenses`,
+    sublabel: "Finanzas del grupo",
+    iconSrc: "/brand/tabs/expenses.png",
+    href: (id) => `/trip/${id}/expenses`,
   },
   {
     key: "participants",
     label: "Gente",
-    icon: <Image src="/brand/tabs/participants.png" alt="" width={22} height={22} className="h-[22px] w-[22px] object-contain" />,
-    href: (id: string) => `/trip/${id}/participants`,
+    sublabel: "Participantes",
+    iconSrc: "/brand/tabs/participants.png",
+    href: (id) => `/trip/${id}/participants`,
   },
   {
     key: "resources",
     label: "Docs",
-    icon: (
-      <Image
-        src="/brand/tabs/documents.png"
-        alt=""
-        width={32}
-        height={32}
-        className={`h-[22px] w-[22px] max-h-full max-w-full ${tripTabDocsImageClass}`}
-      />
-    ),
-    href: (id: string) => `/trip/${id}/resources`,
+    sublabel: "Documentos",
+    iconSrc: "/brand/tabs/documents.png",
+    iconClass: tripTabDocsImageClass,
+    href: (id) => `/trip/${id}/resources`,
   },
   {
     key: "chat",
-    label: "Asistente personal",
-    icon: <Image src="/brand/tabs/ai.png" alt="" width={22} height={22} className="h-[22px] w-[22px] object-contain" />,
-    href: (id: string) => `/trip/${id}/ai-chat`,
+    label: "Asistente IA",
+    sublabel: "Premium",
+    iconSrc: "/brand/tabs/ai.png",
+    href: (id) => `/trip/${id}/ai-chat`,
+    isPremiumGated: true,
   },
 ];
 
 function isActivePath(pathname: string, href: string, key: string) {
   if (pathname === href) return true;
-  if (key === "map" && pathname.startsWith(`${href}/`)) return true; // URL /map; pestaña «Rutas»
+  if (key === "map" && pathname.startsWith(`${href}/`)) return true;
   return false;
 }
 
 export default function DesktopTripSidebar({ tripId, isPremium }: Props) {
   const pathname = usePathname();
-  const visibleItems = items;
+  const visibleItems = isPremium ? items : items.filter((i) => !i.isPremiumGated);
 
   return (
-    <aside className="hidden md:block w-[200px] lg:w-[220px] shrink-0">
-      <div className="sticky top-24">
-        <div className="rounded-3xl border border-slate-200 bg-white/90 p-2 backdrop-blur supports-[backdrop-filter]:bg-white/75 shadow-sm">
-          <div className="px-2 pb-2 pt-1">
-            <div className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-slate-400">Navegación</div>
-            <div className="mt-1 text-sm font-extrabold text-slate-900">Tu viaje</div>
+    <aside className="hidden md:block w-[200px] lg:w-[224px] shrink-0">
+      <div className="sticky top-24 space-y-2">
+
+        {/* Nav card */}
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+
+          {/* Header strip */}
+          <div className="border-b border-slate-100 px-4 py-3">
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">Tu viaje</p>
           </div>
-          <nav aria-label="Navegación del viaje (escritorio)" className="space-y-1">
+
+          {/* Nav items */}
+          <nav aria-label="Navegación del viaje" className="p-1.5 space-y-0.5">
             {visibleItems.map((item) => {
               const href = item.href(tripId);
               const active = isActivePath(pathname, href, item.key);
+              const isAI = item.key === "chat";
+
               return (
                 <Link
                   key={item.key}
                   href={href}
                   prefetch
                   title={item.label}
-                  className={`group relative flex min-h-[44px] items-center gap-3 rounded-2xl px-3 py-2 text-sm font-semibold transition ${
-                    active
-                      ? "bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-sm"
-                      : "text-slate-700 hover:bg-slate-50 hover:text-slate-950"
-                  }`}
+                  className={`
+                    group relative flex min-h-[48px] items-center gap-3 rounded-xl px-2.5 py-2
+                    transition-all duration-150 ease-out
+                    ${active
+                      ? isAI
+                        ? "bg-gradient-to-r from-violet-600 to-indigo-600 shadow-md shadow-violet-200/60"
+                        : "bg-gradient-to-r from-slate-900 to-slate-800 shadow-md shadow-slate-300/40"
+                      : "hover:bg-slate-50 active:bg-slate-100"
+                    }
+                  `}
                 >
-                  {/* Active indicator */}
-                  {active ? (
+                  {/* Active left bar */}
+                  {active && (
                     <span
-                      className="absolute left-1 top-1/2 h-6 w-1 -translate-y-1/2 rounded-full bg-white/80"
+                      className="absolute -left-[1px] top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-white/50"
                       aria-hidden
                     />
-                  ) : (
-                    <span className="absolute left-1 top-1/2 h-6 w-1 -translate-y-1/2 rounded-full bg-transparent" aria-hidden />
                   )}
 
+                  {/* Icon container */}
                   <span
-                    className={`relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-2xl ${
-                      active
-                        ? "bg-white/10"
-                        : "bg-slate-50 group-hover:bg-white"
-                    }`}
+                    className={`
+                      relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-xl
+                      transition-transform duration-150 group-hover:scale-105
+                      ${active
+                        ? "bg-white/15 ring-1 ring-white/20"
+                        : isAI
+                          ? "bg-gradient-to-br from-violet-100 to-indigo-100 ring-1 ring-violet-200/60"
+                          : "bg-slate-100 ring-1 ring-slate-200/60 group-hover:bg-white group-hover:shadow-sm"
+                      }
+                    `}
                     aria-hidden
                   >
-                    {item.icon}
+                    <Image
+                      src={item.iconSrc}
+                      alt=""
+                      width={20}
+                      height={20}
+                      className={`h-5 w-5 object-contain ${item.iconClass || ""} ${active ? "brightness-[2] saturate-0" : ""}`}
+                    />
                   </span>
 
-                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                  {/* Label */}
+                  <div className="min-w-0 flex-1">
+                    <p className={`text-[13px] font-semibold leading-tight truncate ${active ? "text-white" : "text-slate-800 group-hover:text-slate-950"}`}>
+                      {item.label}
+                    </p>
+                    {item.sublabel && !active && (
+                      <p className={`text-[10px] leading-none mt-0.5 truncate ${isAI ? "text-violet-500 font-semibold" : "text-slate-400"}`}>
+                        {item.sublabel}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* AI sparkle badge */}
+                  {isAI && !active && !isPremium && (
+                    <span className="shrink-0 rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-bold text-violet-600 ring-1 ring-violet-200">
+                      PRO
+                    </span>
+                  )}
                 </Link>
               );
             })}
           </nav>
         </div>
+
+        {/* Premium upsell if not premium */}
+        {!isPremium && (
+          <Link
+            href="/pricing"
+            className="group flex items-center gap-2.5 rounded-2xl border border-violet-200/70 bg-gradient-to-br from-violet-50 to-indigo-50/60 px-3.5 py-3 transition hover:border-violet-300 hover:shadow-sm"
+          >
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-500 shadow-sm shadow-violet-300/40">
+              <span className="text-sm">✦</span>
+            </span>
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold text-violet-900 truncate">Activar Premium</p>
+              <p className="text-[10px] text-violet-500 truncate">IA + funciones extra</p>
+            </div>
+          </Link>
+        )}
       </div>
     </aside>
   );
 }
-
