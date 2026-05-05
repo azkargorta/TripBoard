@@ -486,14 +486,15 @@ export default function TripExpensesView({
             </div>
           </details>
 
-          <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-white via-violet-50/25 to-white shadow-sm dark:border-slate-700/50 dark:bg-gradient-to-br dark:from-slate-950/70 dark:via-slate-900/55 dark:to-slate-950/70">
-            <div className="flex flex-col gap-2 border-b border-violet-200/80 bg-violet-50/50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-700/50 dark:bg-slate-900/45">
-              <div>
+          <details className="group rounded-2xl border border-violet-200 bg-gradient-to-br from-white via-violet-50/25 to-white shadow-sm open:shadow-md dark:border-slate-700/50 dark:bg-gradient-to-br dark:from-slate-950/70 dark:via-slate-900/55 dark:to-slate-950/70">
+            <summary className="flex min-w-0 cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-4 py-4 hover:bg-violet-50/40 dark:hover:bg-slate-900/40 sm:px-5">
+              <div className="min-w-0 flex-1">
                 <div className="text-sm font-semibold text-slate-950">Listado de gastos</div>
                 <div className="mt-1 text-xs text-slate-600">Edita, elimina y revisa todos los tickets registrados.</div>
               </div>
-            </div>
-            <div className="px-4 py-4">
+              <ChevronDown className="h-4 w-4 shrink-0 text-slate-500 transition group-open:rotate-180" aria-hidden />
+            </summary>
+            <div className="border-t border-slate-200 px-4 py-4 sm:px-5">
               <ExpenseList
                 expenses={expenses as any}
                 onEdit={(expense) => {
@@ -513,7 +514,7 @@ export default function TripExpensesView({
                 onDelete={deleteExpense}
               />
             </div>
-          </div>
+          </details>
         </div>
 
         <div className="min-w-0 space-y-4">
