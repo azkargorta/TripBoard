@@ -197,6 +197,18 @@ export default function TripExpensesView({
 
   return (
     <div className="min-w-0 max-w-full space-y-6 overflow-x-hidden">
+
+      {/* Tab switcher */}
+      <div className="inline-flex overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <button type="button" onClick={() => setActiveTab("list")} className={`inline-flex min-h-[40px] items-center gap-2 px-4 text-sm font-extrabold transition ${activeTab === "list" ? "bg-violet-600 text-white" : "text-slate-700 hover:bg-slate-50"}`}>Lista</button>
+        <button type="button" onClick={() => setActiveTab("charts")} className={`inline-flex min-h-[40px] items-center gap-2 px-4 text-sm font-extrabold transition ${activeTab === "charts" ? "bg-violet-600 text-white" : "text-slate-700 hover:bg-slate-50"}`}>📊 Estadísticas</button>
+      </div>
+
+      {activeTab === "charts" ? (
+        <ExpenseCharts expenses={expenses} baseCurrency={tripBaseCurrency || "EUR"} />
+      ) : null}
+
+      {activeTab !== "list" ? null : <>
       {error ? (
         <div className="break-words rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           <div className="font-semibold">No se pudieron cargar bien los gastos.</div>
@@ -211,36 +223,7 @@ export default function TripExpensesView({
         </div>
       ) : null}
 
-      {/* Tab switcher */}
-      <div className="inline-flex overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <button
-          type="button"
-          onClick={() => setActiveTab("list")}
-          className={`inline-flex min-h-[40px] items-center gap-2 px-4 text-sm font-extrabold transition ${
-            activeTab === "list" ? "bg-violet-600 text-white" : "text-slate-700 hover:bg-slate-50"
-          }`}
-        >
-          Lista
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("charts")}
-          className={`inline-flex min-h-[40px] items-center gap-2 px-4 text-sm font-extrabold transition ${
-            activeTab === "charts" ? "bg-violet-600 text-white" : "text-slate-700 hover:bg-slate-50"
-          }`}
-        >
-          📊 Estadísticas
-        </button>
-      </div>
-
-      {/* Charts tab */}
-      {activeTab === "charts" ? (
-        <ExpenseCharts expenses={expenses} baseCurrency={tripBaseCurrency || "EUR"} />
-      ) : null}
-
-      {/* List tab content — keep all existing UI below, gated by activeTab */}
-      {activeTab === "list" ? (
-        <>
+      <div className="card-soft relative overflow-hidden p-4">
         <div
           className="pointer-events-none absolute inset-0 opacity-100"
           style={{
@@ -564,7 +547,7 @@ export default function TripExpensesView({
       </div>
 
       {/* Listado movido dentro de la columna izquierda del grid */}
-      </>) : null}
+    </>
     </div>
   );
 }

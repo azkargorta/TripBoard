@@ -34,12 +34,12 @@ import {
   EyeOff,
   Filter,
   GripVertical,
+  LayoutList,
+  AlignLeft,
   Plus,
   Search,
   SlidersHorizontal,
   Trash2,
-  LayoutList,
-  AlignLeft,
 } from "lucide-react";
 import TripPlanCalendar from "@/components/trip/plan/TripPlanCalendar";
 import { useTripActivityKinds } from "@/hooks/useTripActivityKinds";
@@ -220,163 +220,68 @@ function Chip({
   );
 }
 
-// ─── Sortable wrapper ─────────────────────────────────────────────────────────
 
-function SortableActivityItem({
-  activity,
-  children,
-  isDragOverlay = false,
-}: {
-  activity: TripActivity;
-  children: React.ReactNode;
-  isDragOverlay?: boolean;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: activity.id,
-  });
-
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.35 : 1,
-    position: "relative",
-  };
-
+// ─── SortableItem ─────────────────────────────────────────────────────────────
+function SortableItem({ id, children }: { id: string; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
   return (
-    <div ref={setNodeRef} style={style} className={isDragOverlay ? "shadow-2xl rounded-2xl" : ""}>
-      <div
-        {...attributes}
-        {...listeners}
-        className="absolute left-0 top-0 z-10 flex h-full w-7 cursor-grab items-center justify-center rounded-l-2xl text-slate-300 hover:text-slate-500 active:cursor-grabbing"
-        title="Arrastrar para reordenar"
-      >
+    <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }} className="relative">
+      <div {...attributes} {...listeners} className="absolute left-0 top-0 z-10 flex h-full w-6 cursor-grab items-center justify-center text-slate-300 hover:text-slate-500 active:cursor-grabbing">
         <GripVertical className="h-4 w-4" />
       </div>
-      <div className="pl-7">{children}</div>
+      <div className="pl-6">{children}</div>
     </div>
   );
 }
 
-// ─── Timeline view ────────────────────────────────────────────────────────────
-// Muestra las actividades del día como bloques en una línea de tiempo horaria.
-// Detecta solapamientos y los marca en rojo.
-
-const HOUR_START = 7;
-const HOUR_END = 24;
-const TOTAL_HOURS = HOUR_END - HOUR_START;
-
+// ─── TimelineView ─────────────────────────────────────────────────────────────
 function parseHourDecimal(time: string | null | undefined): number | null {
   if (!time) return null;
   const m = /^(\d{1,2}):(\d{2})/.exec(time);
   if (!m) return null;
-  const h = parseInt(m[1]!, 10);
-  const min = parseInt(m[2]!, 10);
+  const h = parseInt(m[1]!, 10), min = parseInt(m[2]!, 10);
   if (h < 0 || h > 23 || min < 0 || min > 59) return null;
   return h + min / 60;
 }
-
-function TimelineView({
-  items,
-  customByKey,
-}: {
-  items: TripActivity[];
-  customByKey: Map<string, { label: string; emoji?: string | null; color?: string | null }>;
-}) {
-  const itemsWithTime = items
-    .map((a) => ({ a, h: parseHourDecimal(a.activity_time) }))
-    .filter((x): x is { a: TripActivity; h: number } => x.h !== null)
-    .sort((x, y) => x.h - y.h);
-
+const HOUR_START = 7, HOUR_END = 24, TOTAL_HOURS = HOUR_END - HOUR_START;
+function TimelineView({ items, customByKey }: { items: TripActivity[]; customByKey: Map<string, { label: string; emoji?: string | null; color?: string | null }> }) {
+  const withTime = items.map((a) => ({ a, h: parseHourDecimal(a.activity_time) })).filter((x): x is { a: TripActivity; h: number } => x.h !== null).sort((x, y) => x.h - y.h);
   const noTime = items.filter((a) => !parseHourDecimal(a.activity_time));
-
-  // Detect overlaps (assume each activity lasts ~1.5h)
   const DURATION = 1.5;
   const overlapping = new Set<string>();
-  for (let i = 0; i < itemsWithTime.length; i++) {
-    for (let j = i + 1; j < itemsWithTime.length; j++) {
-      const a = itemsWithTime[i]!;
-      const b = itemsWithTime[j]!;
-      if (b.h < a.h + DURATION) {
-        overlapping.add(a.a.id);
-        overlapping.add(b.a.id);
-      }
+  for (let i = 0; i < withTime.length; i++) {
+    for (let j = i + 1; j < withTime.length; j++) {
+      if (withTime[j]!.h < withTime[i]!.h + DURATION) { overlapping.add(withTime[i]!.a.id); overlapping.add(withTime[j]!.a.id); }
     }
   }
-
-  if (itemsWithTime.length === 0 && noTime.length === 0) {
-    return <div className="py-4 text-sm text-slate-500">Sin actividades este día.</div>;
-  }
-
+  if (!withTime.length && !noTime.length) return <div className="py-4 text-sm text-slate-400">Sin actividades este día.</div>;
   return (
-    <div className="relative min-h-[300px] py-2">
-      {/* Hour grid lines */}
-      {Array.from({ length: TOTAL_HOURS + 1 }, (_, i) => {
-        const h = HOUR_START + i;
-        const pct = (i / TOTAL_HOURS) * 100;
-        return (
-          <div
-            key={h}
-            className="absolute left-0 right-0 flex items-center gap-2"
-            style={{ top: `${pct}%` }}
-          >
-            <span className="w-10 shrink-0 text-right text-[10px] font-semibold text-slate-300">
-              {String(h).padStart(2, "0")}:00
-            </span>
-            <div className="h-px flex-1 bg-slate-100" />
-          </div>
-        );
-      })}
-
-      {/* Activity blocks */}
+    <div className="relative py-2">
+      {Array.from({ length: TOTAL_HOURS + 1 }, (_, i) => (
+        <div key={i} className="absolute left-0 right-0 flex items-center gap-2" style={{ top: `${(i / TOTAL_HOURS) * 100}%` }}>
+          <span className="w-10 shrink-0 text-right text-[10px] font-semibold text-slate-300">{String(HOUR_START + i).padStart(2, "0")}:00</span>
+          <div className="h-px flex-1 bg-slate-100" />
+        </div>
+      ))}
       <div className="ml-12 relative" style={{ height: `${TOTAL_HOURS * 48}px` }}>
-        {itemsWithTime.map(({ a, h }) => {
+        {withTime.map(({ a, h }) => {
           const meta = kindMeta(isLodgingActivity(a) ? "lodging" : a.activity_kind, customByKey);
-          const top = ((h - HOUR_START) / TOTAL_HOURS) * 100;
-          const height = (DURATION / TOTAL_HOURS) * 100;
-          const isOverlap = overlapping.has(a.id);
+          const isOv = overlapping.has(a.id);
           return (
-            <div
-              key={a.id}
-              className={`absolute left-0 right-0 rounded-xl px-3 py-1.5 text-xs font-semibold shadow-sm border transition-all ${
-                isOverlap
-                  ? "border-red-200 bg-red-50 text-red-800"
-                  : "border-slate-200 bg-white text-slate-800 hover:border-violet-200"
-              }`}
-              style={{ top: `${top}%`, height: `${height}%`, minHeight: 32 }}
-              title={isOverlap ? "⚠️ Posible solapamiento de horario" : a.title}
-            >
-              <div className="flex items-center gap-1.5 truncate">
-                <span>{meta.glyph}</span>
-                <span className="truncate">{a.title}</span>
-                {isOverlap && <span className="ml-auto shrink-0 text-red-500">⚠️</span>}
-              </div>
+            <div key={a.id} className={`absolute left-0 right-0 rounded-xl px-3 py-1.5 text-xs font-semibold shadow-sm border ${isOv ? "border-red-200 bg-red-50 text-red-800" : "border-slate-200 bg-white text-slate-800"}`} style={{ top: `${((h - HOUR_START) / TOTAL_HOURS) * 100}%`, height: `${(DURATION / TOTAL_HOURS) * 100}%`, minHeight: 32 }} title={a.title}>
+              <div className="flex items-center gap-1.5 truncate"><span>{meta.glyph}</span><span className="truncate">{a.title}</span>{isOv && <span className="ml-auto shrink-0">⚠️</span>}</div>
               <div className="mt-0.5 text-[10px] text-slate-400">{a.activity_time?.slice(0, 5)}</div>
             </div>
           );
         })}
       </div>
-
-      {/* Items without time */}
       {noTime.length > 0 && (
         <div className="ml-12 mt-4 space-y-1 border-t border-dashed border-slate-200 pt-3">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Sin horario asignado</p>
-          {noTime.map((a) => {
-            const meta = kindMeta(isLodgingActivity(a) ? "lodging" : a.activity_kind, customByKey);
-            return (
-              <div key={a.id} className="flex items-center gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-1.5 text-xs text-slate-700">
-                <span>{meta.glyph}</span>
-                <span className="truncate">{a.title}</span>
-              </div>
-            );
-          })}
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Sin horario</p>
+          {noTime.map((a) => { const meta = kindMeta(isLodgingActivity(a) ? "lodging" : a.activity_kind, customByKey); return (<div key={a.id} className="flex items-center gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-1.5 text-xs text-slate-700"><span>{meta.glyph}</span><span className="truncate">{a.title}</span></div>); })}
         </div>
       )}
-
-      {overlapping.size > 0 && (
-        <div className="ml-12 mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
-          ⚠️ {overlapping.size / 2} solapamiento{overlapping.size / 2 !== 1 ? "s" : ""} detectado{overlapping.size / 2 !== 1 ? "s" : ""} — revisa los horarios de las actividades marcadas.
-        </div>
-      )}
+      {overlapping.size > 0 && <div className="ml-12 mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">⚠️ Posible solapamiento — revisa los horarios marcados en rojo.</div>}
     </div>
   );
 }
@@ -419,7 +324,6 @@ export default function TripPlanView({
   const [showLodging, setShowLodging] = useState(true);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
-  const [dayViewMode, setDayViewMode] = useState<"list" | "timeline">("list");
   const [selectedDate, setSelectedDate] = useState<string | null>(initialSelectedDate);
   const [kindsOpen, setKindsOpen] = useState(false);
   const [newKind, setNewKind] = useState({ label: "", key: "", emoji: "", color: "#64748b" });
@@ -434,7 +338,7 @@ export default function TripPlanView({
   const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
   const [selectedActivityIds, setSelectedActivityIds] = useState<Set<string>>(new Set());
   const [expandedDayKeys, setExpandedDayKeys] = useState<Set<string>>(() => new Set());
-  // Drag & drop
+  const [dayViewMode, setDayViewMode] = useState<"list" | "timeline">("list");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [localOrder, setLocalOrder] = useState<Map<string, string[]>>(new Map());
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -585,7 +489,19 @@ export default function TripPlanView({
     setIsFormOpen(false);
   }
 
-  // ── Drag & drop handlers ───────────────────────────────────────────────────
+  function openCreateWithExplorePlace(payload: ExploreCreatePlanPayload) {
+    setEditingActivity({
+      title: payload.title,
+      place_name: payload.title,
+      address: payload.address,
+      latitude: payload.latitude,
+      longitude: payload.longitude,
+      activity_kind: "visit",
+    } as any);
+    setIsFormOpen(true);
+  }
+
+  // ── DnD helpers ──────────────────────────────────────────────────────────
 
   function getOrderedItems(date: string, items: TripActivity[]): TripActivity[] {
     const order = localOrder.get(date);
@@ -604,30 +520,15 @@ export default function TripPlanView({
     const { active, over } = e;
     setActiveId(null);
     if (!over || active.id === over.id) return;
-
-    // Find which date group this drag happened in
     for (const [date, items] of grouped) {
       const ordered = getOrderedItems(date, items);
       const oldIdx = ordered.findIndex((a) => a.id === String(active.id));
       const newIdx = ordered.findIndex((a) => a.id === String(over.id));
       if (oldIdx === -1 || newIdx === -1) continue;
-
       const newOrdered = arrayMove(ordered, oldIdx, newIdx);
       setLocalOrder((prev) => new Map(prev).set(date, newOrdered.map((a) => a.id)));
       break;
     }
-  }
-
-  function openCreateWithExplorePlace(payload: ExploreCreatePlanPayload) {
-    setEditingActivity({
-      title: payload.title,
-      place_name: payload.title,
-      address: payload.address,
-      latitude: payload.latitude,
-      longitude: payload.longitude,
-      activity_kind: "visit",
-    } as any);
-    setIsFormOpen(true);
   }
 
   if (loading) {
@@ -1274,8 +1175,6 @@ export default function TripPlanView({
         {grouped.map(([date, items]) => {
           const expanded = singleDayList || expandedDayKeys.has(date);
           const heading = formatPlanDayHeading(date);
-          const orderedItems = getOrderedItems(date, items);
-          const activeActivity = activeId ? orderedItems.find((a) => a.id === activeId) ?? null : null;
           return (
             <section key={date} className="rounded-2xl border border-slate-200 bg-white shadow-sm">
               <button
@@ -1313,111 +1212,42 @@ export default function TripPlanView({
 
               {expanded ? (
                 <div className="space-y-3 border-t border-slate-100 px-4 pb-4 pt-3">
-                  {/* Day view mode toggle */}
+                  {/* View mode toggle */}
                   <div className="flex items-center justify-end gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setDayViewMode("list")}
-                      title="Vista de lista con drag & drop"
-                      className={`inline-flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition ${
-                        dayViewMode === "list"
-                          ? "border-violet-300 bg-violet-50 text-violet-800"
-                          : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
-                      }`}
-                    >
+                    <button type="button" onClick={() => setDayViewMode("list")}
+                      className={`inline-flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition ${dayViewMode === "list" ? "border-violet-300 bg-violet-50 text-violet-800" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"}`}>
                       <LayoutList className="h-3.5 w-3.5" /> Lista
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setDayViewMode("timeline")}
-                      title="Vista de línea de tiempo"
-                      className={`inline-flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition ${
-                        dayViewMode === "timeline"
-                          ? "border-violet-300 bg-violet-50 text-violet-800"
-                          : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
-                      }`}
-                    >
+                    <button type="button" onClick={() => setDayViewMode("timeline")}
+                      className={`inline-flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition ${dayViewMode === "timeline" ? "border-violet-300 bg-violet-50 text-violet-800" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"}`}>
                       <AlignLeft className="h-3.5 w-3.5" /> Timeline
                     </button>
                   </div>
 
                   {dayViewMode === "timeline" ? (
-                    <TimelineView items={orderedItems} customByKey={customByKey} />
+                    <TimelineView items={getOrderedItems(date, items)} customByKey={customByKey} />
                   ) : (
-                    <DndContext
-                      sensors={sensors}
-                      collisionDetection={closestCenter}
-                      onDragStart={handleDragStart}
-                      onDragEnd={handleDragEnd}
-                    >
-                      <SortableContext
-                        items={orderedItems.map((a) => a.id)}
-                        strategy={verticalListSortingStrategy}
-                      >
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+                      <SortableContext items={getOrderedItems(date, items).map((a) => a.id)} strategy={verticalListSortingStrategy}>
                         <div className="space-y-3 border-l border-slate-200 pl-4">
-                          {orderedItems.map((activity) => {
+                          {getOrderedItems(date, items).map((activity) => {
                             const isLodging = isLodgingActivity(activity);
                             const meta = kindMeta(isLodging ? "lodging" : activity.activity_kind, customByKey);
                             return (
                               <div key={activity.id} className="relative">
-                                <span
-                                  className="absolute -left-[21px] top-6 h-3 w-3 rounded-full border border-white"
-                                  style={{ backgroundColor: meta.color }}
-                                  aria-hidden="true"
-                                />
-                                <SortableActivityItem activity={activity}>
+                                <span className="absolute -left-[21px] top-6 h-3 w-3 rounded-full border border-white" style={{ backgroundColor: meta.color }} aria-hidden="true" />
+                                <SortableItem id={activity.id}>
                                   {isLodging ? (
-                                    <PlanLodgingCard
-                                      activity={activity}
-                                      onEdit={handleStartEdit}
-                                      onDelete={(item) => deleteActivity(item.id)}
-                                      selectable={bulkDeleteMode && canBulkDeletePlanActivity(activity)}
-                                      selected={selectedActivityIds.has(activity.id)}
-                                      onToggleSelect={() =>
-                                        setSelectedActivityIds((prev) => {
-                                          const n = new Set(prev);
-                                          if (n.has(activity.id)) n.delete(activity.id);
-                                          else n.add(activity.id);
-                                          return n;
-                                        })
-                                      }
-                                    />
+                                    <PlanLodgingCard activity={activity} onEdit={handleStartEdit} onDelete={(item) => deleteActivity(item.id)} selectable={bulkDeleteMode && canBulkDeletePlanActivity(activity)} selected={selectedActivityIds.has(activity.id)} onToggleSelect={() => setSelectedActivityIds((prev) => { const n = new Set(prev); if (n.has(activity.id)) n.delete(activity.id); else n.add(activity.id); return n; })} />
                                   ) : (
-                                    <PlanActivityCard
-                                      activity={activity}
-                                      onEdit={handleStartEdit}
-                                      onDelete={(item) => deleteActivity(item.id)}
-                                      selectable={bulkDeleteMode && canBulkDeletePlanActivity(activity)}
-                                      selected={selectedActivityIds.has(activity.id)}
-                                      onToggleSelect={() =>
-                                        setSelectedActivityIds((prev) => {
-                                          const n = new Set(prev);
-                                          if (n.has(activity.id)) n.delete(activity.id);
-                                          else n.add(activity.id);
-                                          return n;
-                                        })
-                                      }
-                                      premiumEnabled={premiumEnabled}
-                                    />
+                                    <PlanActivityCard activity={activity} onEdit={handleStartEdit} onDelete={(item) => deleteActivity(item.id)} selectable={bulkDeleteMode && canBulkDeletePlanActivity(activity)} selected={selectedActivityIds.has(activity.id)} onToggleSelect={() => setSelectedActivityIds((prev) => { const n = new Set(prev); if (n.has(activity.id)) n.delete(activity.id); else n.add(activity.id); return n; })} premiumEnabled={premiumEnabled} />
                                   )}
-                                </SortableActivityItem>
+                                </SortableItem>
                               </div>
                             );
                           })}
                         </div>
                       </SortableContext>
-                      {/* Drag overlay — shows the dragged card floating */}
-                      <DragOverlay>
-                        {activeActivity ? (
-                          <SortableActivityItem activity={activeActivity} isDragOverlay>
-                            {isLodgingActivity(activeActivity) ? (
-                              <PlanLodgingCard activity={activeActivity} onEdit={() => {}} onDelete={() => {}} />
-                            ) : (
-                              <PlanActivityCard activity={activeActivity} onEdit={() => {}} onDelete={() => {}} premiumEnabled={premiumEnabled} />
-                            )}
-                          </SortableActivityItem>
-                        ) : null}
-                      </DragOverlay>
                     </DndContext>
                   )}
                 </div>
@@ -1426,9 +1256,6 @@ export default function TripPlanView({
           );
         })}
       </div>
-      </div>
-        </>
-      ) : null}
     </div>
   );
 }
