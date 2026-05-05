@@ -208,7 +208,7 @@ export default function TripExpensesView({
         <ExpenseCharts expenses={expenses} baseCurrency={tripBaseCurrency || "EUR"} />
       ) : null}
 
-      {activeTab !== "list" ? null : <>
+      <div className={activeTab !== "list" ? "hidden" : undefined}>
       {error ? (
         <div className="break-words rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           <div className="font-semibold">No se pudieron cargar bien los gastos.</div>
@@ -547,7 +547,7 @@ export default function TripExpensesView({
       </div>
 
       {/* Listado movido dentro de la columna izquierda del grid */}
-    </>
+      </div>
     </div>
   );
 }
