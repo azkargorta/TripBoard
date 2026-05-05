@@ -517,7 +517,11 @@ function MapSurface({
             <Polyline
               key={l.key}
               positions={l.points.map((p) => [p.lat, p.lng] as [number, number])}
-              pathOptions={{ color: l.color, weight: 5, opacity: 0.85 }}
+              pathOptions={
+                l.key === "city-overview-route"
+                  ? { color: l.color, weight: 3, opacity: 0.6, dashArray: "8 6" }
+                  : { color: l.color, weight: 5, opacity: 0.85 }
+              }
             >
               <Popup>{l.label}</Popup>
             </Polyline>
@@ -580,6 +584,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   const [selectedDate, setSelectedDate] = useState<string>("all");
   const [focusedRouteKey, setFocusedRouteKey] = useState<string | null>(null);
   const [showPlanMarkers, setShowPlanMarkers] = useState(true);
+  const [showCityRoute, setShowCityRoute] = useState(true);
   const [planKindFilter, setPlanKindFilter] = useState<Set<string>>(new Set());
   const { kinds: customKinds, warning: customKindsWarning } = useTripActivityKinds(tripId);
 
@@ -878,6 +883,39 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     }
 
     const lines: Array<{ key: string; points: RoutePoint[]; color: string; label: string }> = [];
+
+    // ── City-to-city overview route ────────────────────────────────────────
+    // When "all dates" is selected and showCityRoute is on, draw a dashed line
+    // connecting the centroid of each day's activities in chronological order.
+    // This gives a birds-eye view of the full trip route across cities.
+    if (showCityRoute && selectedDate === "all" && !hasPreview && !focusedRouteKey) {
+      // Group activities by date, compute centroid per date
+      const byDate = new Map<string, { lats: number[]; lngs: number[] }>();
+      for (const p of allPlanPlaces) {
+        const d = p.activityDate || "";
+        if (!d) continue;
+        const entry = byDate.get(d) ?? { lats: [], lngs: [] };
+        entry.lats.push(p.latitude);
+        entry.lngs.push(p.longitude);
+        byDate.set(d, entry);
+      }
+      const centroids: RoutePoint[] = Array.from(byDate.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([, v]) => ({
+          lat: v.lats.reduce((a, b) => a + b, 0) / v.lats.length,
+          lng: v.lngs.reduce((a, b) => a + b, 0) / v.lngs.length,
+        }));
+
+      // Only draw if we span more than one distinct location (> 50 km apart at some point)
+      if (centroids.length >= 2) {
+        lines.push({
+          key: "city-overview-route",
+          points: centroids,
+          color: "#7c3aed",
+          label: "Ruta del viaje",
+        });
+      }
+    }
     if (hasPreview && routePreview) {
       lines.push({
         key: "route-preview",
@@ -969,6 +1007,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
     routePreview,
     selectedDate,
     showPlanMarkers,
+    showCityRoute,
     visibleRoutes,
   ]);
 
@@ -1639,6 +1678,18 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
               >
                 <MapPin className="h-4 w-4" aria-hidden />
                 {showPlanMarkers ? "Marcadores: ON" : "Marcadores: OFF"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCityRoute((v) => !v)}
+                className={`inline-flex min-h-[36px] items-center justify-center gap-2 whitespace-normal rounded-xl border px-3 text-xs font-semibold transition ${
+                  showCityRoute
+                    ? "border-violet-200 bg-violet-50 text-violet-800"
+                    : "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
+                }`}
+                title="Mostrar/ocultar ruta entre ciudades del viaje"
+              >
+                🗺️ {showCityRoute ? "Ruta viaje: ON" : "Ruta viaje: OFF"}
               </button>
             </div>
           </div>
