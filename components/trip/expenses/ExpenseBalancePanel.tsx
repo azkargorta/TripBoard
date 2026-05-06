@@ -52,6 +52,54 @@ type Props = {
   onChangeStrictPaymentMethods: (value: boolean) => void;
 };
 
+
+// Extracted outside component to avoid SWC parsing issues with complex useMemo
+type BulkReminderItem = { debtor: string; total: number; currency: string; text: string; link: string; count: number };
+type BulkRemindersResult = { items: BulkReminderItem[]; allText: string };
+
+function buildBulkReminders(orderedSettlements: SettlementSuggestion[], displayCurrency: string): BulkRemindersResult {
+  const pending = orderedSettlements.filter((s) => s.status !== "paid");
+  const byDebtor: Record<string, SettlementSuggestion[]> = {};
+  for (const s of pending) {
+    const key = String(s.debtor_name || "").trim();
+    if (!key) continue;
+    if (!byDebtor[key]) byDebtor[key] = [];
+    byDebtor[key]!.push(s);
+  }
+
+  const items: BulkReminderItem[] = Object.entries(byDebtor)
+    .map(([debtor, list]) => {
+      const total = list.reduce((sum, s) => sum + Number(s.amount || 0), 0);
+      const currency = safeCurrency(list[0]?.currency || displayCurrency);
+      const lines = list
+        .slice()
+        .sort((a, b) => String(a.creditor_name || "").localeCompare(String(b.creditor_name || "")))
+        .map((s) => {
+          const method =
+            s.payment_method === "bizum" ? "Bizum" :
+            s.payment_method === "transfer" ? "Transferencia" :
+            s.payment_method === "cash" ? "Efectivo" : null;
+          const methodPart = method ? " · Método: " + method : "";
+          return "- " + s.creditor_name + ": " + formatMoney(Number(s.amount || 0), s.currency || currency) + methodPart;
+        })
+        .join("\n");
+      const text =
+        "Hola " + debtor + ".\n" +
+        "Según el balance del viaje, tienes pagos pendientes por un total de " + formatMoney(total, currency) + ".\n\n" +
+        "Detalle:\n" + lines + "\n\n" +
+        "Gracias.";
+      const link = "https://wa.me/?text=" + encodeURIComponent(text);
+      return { debtor, total, currency, text, link, count: list.length };
+    })
+    .sort((a, b) => b.total - a.total);
+
+  const allText = items
+    .map((it) => "### " + it.debtor + " (" + formatMoney(it.total, it.currency) + ")\n" + it.text)
+    .join("\n\n");
+
+  return { items, allText };
+}
+
 export default function ExpenseBalancePanel({
   balances,
   settlements,
@@ -72,12 +120,12 @@ export default function ExpenseBalancePanel({
 }: Props) {
   const displayCurrency = safeCurrency(balanceCurrency);
   const [prefsOpen, setPrefsOpen] = useState(false);
-  const [savingPref, setSavingPref] = useState<string | null>(null);
+  const [savingPref, setSavingPref] = useState(null as string | null);
   const [resetAllBusy, setResetAllBusy] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkCopied, setBulkCopied] = useState(false);
 
-  const methods: Array<{ id: PaymentMethod; label: string; chip: string }> = [
+  const methods: { id: PaymentMethod; label: string; chip: string }[] = [
     { id: "bizum", label: "Bizum", chip: "bg-emerald-50 text-emerald-900 border-emerald-200" },
     { id: "transfer", label: "Transfer", chip: "bg-sky-50 text-sky-900 border-sky-200" },
     { id: "cash", label: "Efectivo", chip: "bg-amber-50 text-amber-950 border-amber-200" },
@@ -93,7 +141,7 @@ export default function ExpenseBalancePanel({
     const map: Map<string, PaymentPairRuleRow> = new Map();
     for (const r of paymentPairRules || []) {
       if (!r.from_participant_name || !r.to_participant_name) continue;
-      map.set(`${r.from_participant_name}->${r.to_participant_name}`, r);
+      map.set(r.from_participant_name + "->" + r.to_participant_name, r);
     }
     return map;
   }, [paymentPairRules]);
@@ -120,56 +168,7 @@ export default function ExpenseBalancePanel({
     return [...pending, ...paid];
   }, [settlements]);
 
-  const bulkReminders = useMemo(() => {
-    const pending = orderedSettlements.filter((s) => s.status !== "paid");
-    const byDebtor: Map<string, SettlementSuggestion[]> = new Map();
-    for (const s of pending) {
-      const key = String(s.debtor_name || "").trim();
-      if (!key) continue;
-      const list = byDebtor.get(key) || [];
-      list.push(s);
-      byDebtor.set(key, list);
-    }
-
-    const items = Array.from(byDebtor.entries())
-      .map(([debtor, list]) => {
-        const total = list.reduce((sum, s) => sum + Number(s.amount || 0), 0);
-        const currency = safeCurrency(list[0]?.currency || displayCurrency);
-
-        const lines = list
-          .slice()
-          .sort((a, b) => String(a.creditor_name || "").localeCompare(String(b.creditor_name || "")))
-          .map((s) => {
-            const method =
-              s.payment_method === "bizum"
-                ? "Bizum"
-                : s.payment_method === "transfer"
-                  ? "Transferencia"
-                  : s.payment_method === "cash"
-                    ? "Efectivo"
-                    : null;
-            const methodPart = method ? " · Método: " + method : "";
-            return "- " + s.creditor_name + ": " + formatMoney(Number(s.amount || 0), s.currency || currency) + methodPart;
-          })
-          .join("\n");
-
-        const text =
-          "Hola " + debtor + ".\n" +
-          "Según el balance del viaje, tienes pagos pendientes por un total de " + formatMoney(total, currency) + ".\n\n" +
-          "Detalle:\n" + lines + "\n\n" +
-          "Gracias.";
-
-        const link = "https://wa.me/?text=" + encodeURIComponent(text);
-        return { debtor, total, currency, text, link, count: list.length };
-      })
-      .sort((a, b) => b.total - a.total);
-
-    const allText = items
-      .map((it) => "### " + it.debtor + " (" + formatMoney(it.total, it.currency) + ")\n" + it.text)
-      .join("\n\n");
-
-    return { items, allText };
-  }, [displayCurrency, orderedSettlements]);
+  const bulkReminders = buildBulkReminders(orderedSettlements, displayCurrency);
 
   return (
     <div className="space-y-4">
@@ -286,7 +285,7 @@ export default function ExpenseBalancePanel({
               }
 
               async function toggleAllowed(toName: string) {
-                const key = `${name}->${toName}`;
+                const key = name + "->" + toName;
                 const current = pairRuleMap.get(key);
                 const allowed = current ? !current.allowed : false; // por defecto allowed=true; primer click lo bloquea
                 const prefer = current?.prefer ?? false;
@@ -299,7 +298,7 @@ export default function ExpenseBalancePanel({
               }
 
               async function togglePrefer(toName: string) {
-                const key = `${name}->${toName}`;
+                const key = name + "->" + toName;
                 const current = pairRuleMap.get(key);
                 const allowed = current?.allowed ?? true;
                 if (!allowed) return; // no tiene sentido preferir si está bloqueado
@@ -338,7 +337,7 @@ export default function ExpenseBalancePanel({
                           const active = send.includes(m.id);
                           return (
                             <button
-                              key={`send-${name}-${m.id}`}
+                              key={"send-" + name + "-" + m.id}
                               type="button"
                               onClick={() => void toggle("send", m.id)}
                               className={`rounded-full border px-3 py-1 text-xs font-semibold ${
@@ -360,7 +359,7 @@ export default function ExpenseBalancePanel({
                           const active = receive.includes(m.id);
                           return (
                             <button
-                              key={`recv-${name}-${m.id}`}
+                              key={"recv-" + name + "-" + m.id}
                               type="button"
                               onClick={() => void toggle("receive", m.id)}
                               className={`rounded-full border px-3 py-1 text-xs font-semibold ${
@@ -392,11 +391,11 @@ export default function ExpenseBalancePanel({
                     <div className="mt-2 flex flex-wrap gap-2">
                       {others.length ? (
                         others.map((toName) => {
-                          const rule = pairRuleMap.get(`${name}->${toName}`);
+                          const rule = pairRuleMap.get(name + "->" + toName);
                           const allowed = rule?.allowed ?? true;
                           const prefer = rule?.prefer ?? false;
                           return (
-                            <div key={`${name}->${toName}`} className="flex items-center gap-2">
+                            <div key={name + "->" + toName} className="flex items-center gap-2">
                               <button
                                 type="button"
                                 onClick={() => void toggleAllowed(toName)}
