@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect } from "react";
 import TripBoardLogo from "@/components/brand/TripBoardLogo";
 import { ArrowRight, CalendarDays, Check, MapPinned, Sparkles, Wallet } from "lucide-react";
+import { PremiumBadge } from "@/components/layout/PremiumBadge";
+import DarkModeToggle from "@/components/ui/DarkModeToggle";
 
 function Feature({ children }: { children: string }) {
   return (
@@ -43,9 +45,9 @@ export default function PublicLanding() {
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-cyan-50/80 via-slate-50 to-violet-100/60">
-      <header className="border-b border-cyan-200/40 bg-gradient-to-r from-white/95 via-cyan-50/90 to-violet-50/80 backdrop-blur supports-[backdrop-filter]:bg-white/70">
-        <div className="page-shell flex items-center justify-between py-2.5 sm:py-3">
-          <TripBoardLogo href="/" variant="dark" size="lg" withWordmark />
+      <header className="absolute left-0 right-0 top-0 z-50">
+        <div className="page-shell flex items-center justify-between py-3 sm:py-4">
+          <TripBoardLogo href="/" variant="dark" size="lg" withWordmark imageClassName="drop-shadow-none" />
           <nav className="flex items-center gap-2">
             <Link
               href="/pricing"
@@ -59,17 +61,21 @@ export default function PublicLanding() {
             >
               Entrar
             </Link>
-            <Link
-              href="/auth/register"
-              className="inline-flex min-h-10 items-center justify-center rounded-full bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
-            >
-              Crear cuenta
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link
+                href="/auth/register"
+                className="inline-flex min-h-10 items-center justify-center rounded-full bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                Crear cuenta
+              </Link>
+              <PremiumBadge />
+              <DarkModeToggle />
+            </div>
           </nav>
         </div>
       </header>
 
-      <section className="page-shell pb-8 pt-3 sm:pb-10 sm:pt-4 md:pb-12 md:pt-5">
+      <section className="page-shell pb-8 pt-20 sm:pb-10 sm:pt-24 md:pb-12 md:pt-28">
         <div className="relative overflow-hidden rounded-[1.5rem] border border-cyan-200/50 bg-gradient-to-br from-white via-cyan-50/50 to-violet-100/70 p-5 shadow-lg shadow-cyan-900/5 sm:rounded-[2rem] sm:p-7 md:rounded-[2.25rem] md:p-9 lg:p-10">
           <div
             className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-cyan-400/25 blur-3xl"

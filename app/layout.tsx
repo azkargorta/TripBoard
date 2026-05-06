@@ -4,10 +4,8 @@ import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import AuthListener from "@/components/auth/AuthListener";
 import AnalyticsRoot from "@/components/analytics/AnalyticsRoot";
-import TripBoardLogo from "@/components/brand/TripBoardLogo";
 import { ToastProvider } from "@/components/ui/toast";
-import { PremiumBadge } from "@/components/layout/PremiumBadge";
-import DarkModeToggle from "@/components/ui/DarkModeToggle";
+import RootTopBar from "@/components/layout/RootTopBar";
 
 export const metadata: Metadata = {
   title: "Kaviro",
@@ -53,25 +51,7 @@ export default function RootLayout({
         <ToastProvider>
           <AuthListener />
           <AnalyticsRoot />
-          <div className="sticky top-0 z-50">
-            <div className="root-header bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 dark:from-[#080C14] dark:via-[#0F1623] dark:to-[#080C14]">
-              <div className="mx-auto flex max-w-[1200px] items-center justify-between gap-3 py-3 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] sm:py-4 sm:pl-6 sm:pr-6">
-                <Link
-                  href="/dashboard"
-                  className="min-w-0 shrink outline-none ring-white/0 transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-violet-300/70"
-                  aria-label="Ir al panel de viajes"
-                >
-                  <TripBoardLogo
-                    variant="light"
-                    size="md"
-                    withWordmark
-                    imageClassName="h-8 max-h-8 sm:h-9 sm:max-h-9"
-                  />
-                </Link>
-                <div className="flex items-center gap-2"><PremiumBadge /><DarkModeToggle /></div>
-              </div>
-            </div>
-          </div>
+          <RootTopBar />
           <div className="min-h-0 min-w-0">{children}</div>
         </ToastProvider>
       </body>
