@@ -282,7 +282,6 @@ export default function PlanActivityCard({
               </div>
             ) : null}
           </div>
-          </div>
         </div>
       </div>
     </div>
