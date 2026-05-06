@@ -24,8 +24,6 @@ export default function AccountSettingsForm({ initial }: Props) {
   const [pwStatus, setPwStatus] = useState<string | null>(null);
   const [showPw1, setShowPw1] = useState(false);
   const [showPw2, setShowPw2] = useState(false);
-  const [showPw1, setShowPw1] = useState(false);
-  const [showPw2, setShowPw2] = useState(false);
   const [pwSaving, setPwSaving] = useState(false);
 
   const planLabel = initial.isPremium ? "Premium" : "Gratis";

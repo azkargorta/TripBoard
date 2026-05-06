@@ -16,8 +16,6 @@ export default function ResetPasswordForm() {
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
