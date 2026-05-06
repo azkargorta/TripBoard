@@ -2282,40 +2282,50 @@ export default function TripAiChatView({
             onSubmit={handleSubmit}
             className={`min-w-0 max-w-full border-t border-slate-200 p-4 sm:p-5 ${layout === "drawer" ? "shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]" : ""}`}
           >
-            <div className="min-w-0 max-w-full rounded-[24px] border border-slate-200 bg-slate-50 p-3">
+            {/* AI5 — Input with contextual placeholder, char counter, Enter to send */}
+            <div className={`min-w-0 max-w-full overflow-hidden rounded-2xl border bg-white shadow-sm transition-colors ${question.length > 0 ? "border-violet-300" : "border-slate-200"}`}>
               <textarea
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey && !loading && question.trim() && isPremium && !aiBudgetExceeded) {
+                    e.preventDefault();
+                    e.currentTarget.form?.requestSubmit();
+                  }
+                }}
                 rows={layout === "drawer" ? 3 : 4}
                 placeholder={placeholder}
                 disabled={!isPremium || aiBudgetExceeded}
-                className={`w-full resize-none rounded-2xl border-0 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 ${
-                  layout === "drawer" ? "min-h-[72px]" : "min-h-[120px]"
+                className={`w-full resize-none border-0 bg-transparent px-4 py-3.5 text-sm text-slate-900 outline-none placeholder:text-slate-400 ${
+                  layout === "drawer" ? "min-h-[72px]" : "min-h-[100px]"
                 }`}
               />
-
-              <div className="flex flex-col gap-3 border-t border-slate-200 px-2 pt-3 md:flex-row md:items-center md:justify-between">
-                <p className="min-w-0 flex-1 text-xs leading-snug text-slate-500">
-                  <span className="font-semibold text-slate-700">{activeMode?.label}</span>
-                  {activeMode ? <span className="text-slate-500"> — {activeMode.useFor}</span> : null}
-                </p>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setQuestion("")}
-                    disabled={loading || !question || !isPremium || aiBudgetExceeded}
-                    className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
-                  >
-                    Limpiar
-                  </button>
-
+              <div className="flex items-center justify-between gap-2 border-t border-slate-100 px-3 py-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-700 shrink-0">
+                    ✦ {activeMode?.label || "Asistente"}
+                  </span>
+                  {question.length > 0 && (
+                    <span className={`text-[10px] font-semibold ${question.length > 1800 ? "text-red-500" : "text-slate-400"}`}>
+                      {question.length}/2000
+                    </span>
+                  )}
+                  {question.length === 0 && (
+                    <span className="text-[10px] text-slate-300 hidden sm:inline">Intro para enviar · Shift+Intro para nueva línea</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {question.length > 0 && (
+                    <button type="button" onClick={() => setQuestion("")} disabled={loading} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50 transition disabled:opacity-40">
+                      ✕
+                    </button>
+                  )}
                   <button
                     type="submit"
                     disabled={loading || !question.trim() || !isPremium || aiBudgetExceeded}
-                    className="rounded-xl bg-slate-950 px-5 py-2 text-sm font-semibold text-white disabled:bg-slate-300"
+                    className="rounded-xl bg-violet-600 px-4 py-1.5 text-xs font-bold text-white transition hover:bg-violet-700 disabled:bg-slate-200 disabled:text-slate-400"
                   >
-                    Enviar
+                    Enviar →
                   </button>
                 </div>
               </div>

@@ -495,7 +495,7 @@ function MapSurface({
 
   return (
     <section className="min-w-0 max-w-full overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm lg:sticky lg:top-4 lg:self-start">
-      <div className="flex min-w-0 flex-col gap-2 border-b border-slate-100/60 bg-white/90 px-4 py-3 backdrop-blur-md sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+      <div className="flex min-w-0 flex-col gap-2 border-b border-slate-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
         <div className="min-w-0">
           <div className="text-sm font-extrabold text-slate-950">Vista del mapa</div>
           <div className="mt-1 text-xs text-slate-600">Recorridos, focos y lugares del plan en tiempo real.</div>
@@ -529,11 +529,9 @@ function MapSurface({
 
           {markers.map((m) => (
             <Marker key={m.key} position={[m.lat, m.lng]} icon={m.icon}>
-              <Popup className="kaviro-popup">
-                <div className="min-w-[140px] rounded-xl">
-                  <p className="text-[13px] font-extrabold leading-snug text-slate-900">{m.title}</p>
-                  {m.subtitle ? <p className="mt-1 text-xs font-medium text-slate-500 leading-snug">{m.subtitle}</p> : null}
-                </div>
+              <Popup>
+                <div className="text-sm font-semibold text-slate-900">{m.title}</div>
+                {m.subtitle ? <div className="mt-1 text-xs text-slate-600">{m.subtitle}</div> : null}
               </Popup>
             </Marker>
           ))}
@@ -1485,7 +1483,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
   return (
     <div className="min-w-0 max-w-full space-y-4 overflow-x-hidden">
       <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
-        <div className="flex min-w-0 flex-col gap-3 border-b border-slate-100 px-4 py-4 sm:flex-row sm:items-start sm:justify-between hover:bg-slate-50/60 transition-colors">
+        <div className="flex min-w-0 flex-col gap-3 border-b border-slate-100 px-4 py-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <div className="text-sm font-extrabold text-slate-950">Crear rutas automáticamente</div>
             <div className="mt-1 text-xs text-slate-600">
@@ -1650,7 +1648,7 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
         ) : null}
 
         <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
-          <div className="flex min-w-0 flex-col gap-3 border-b border-slate-100 px-4 py-4 sm:flex-row sm:items-start sm:justify-between hover:bg-slate-50/60 transition-colors">
+          <div className="flex min-w-0 flex-col gap-3 border-b border-slate-100 px-4 py-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <div className="text-sm font-extrabold text-slate-950">Filtros y contexto</div>
               <div className="mt-1 text-xs text-slate-600">Controla lo que ves en el mapa y cambia entre vista general y rutas concretas.</div>
@@ -2110,8 +2108,15 @@ export default function TripMapView({ tripId, tripDates = [], planSources, route
                 </div>
               </div>
               ) : (
-                <div className="mt-3 text-sm text-slate-600">
-                  Pulsa <span className="font-semibold text-slate-900">Nueva ruta</span> para crear una, o usa <span className="font-semibold text-slate-900">Editar</span> en una ruta existente.
+                <div className="mt-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-5 py-6 text-center">
+                  <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-white text-xl shadow-sm">🗺️</div>
+                  <p className="text-sm font-bold text-slate-800">Sin rutas todavía</p>
+                  <p className="mt-1 text-xs text-slate-500">Crea una ruta manualmente o genera el recorrido completo con IA.</p>
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:justify-center">
+                    <span className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-violet-600 px-3 py-2 text-xs font-bold text-white cursor-pointer hover:bg-violet-700 transition" onClick={() => document.querySelector<HTMLButtonElement>("[data-action=new-route]")?.click()}>
+                      ✦ Generar con IA
+                    </span>
+                  </div>
                 </div>
               )}
             </div>

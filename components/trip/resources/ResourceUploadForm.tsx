@@ -42,6 +42,7 @@ export default function ResourceUploadForm({
   const [localError, setLocalError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [dragging, setDragging] = useState(false);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -131,25 +132,51 @@ export default function ResourceUploadForm({
           </select>
         </label>
 
-        <label className="block space-y-2">
+        {/* D3 — Drag & drop upload zone */}
+        <div className="block space-y-2">
           <span className="text-sm font-semibold text-slate-800">Archivo</span>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,application/pdf,image/*"
-            onChange={(event) => {
-              setFile(event.target.files?.[0] || null);
-              setLocalError(null);
-              setSuccessMessage(null);
+          <div
+            className={`relative cursor-pointer rounded-2xl border-2 border-dashed p-6 text-center transition ${
+              dragging ? "border-violet-400 bg-violet-50" : file ? "border-emerald-300 bg-emerald-50" : "border-slate-300 bg-slate-50 hover:border-violet-300 hover:bg-violet-50/40"
+            }`}
+            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragging(false);
+              const dropped = e.dataTransfer.files?.[0];
+              if (dropped) { setFile(dropped); setLocalError(null); setSuccessMessage(null); }
             }}
-            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900"
-          />
-          {file ? (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-              Archivo seleccionado: <span className="font-semibold">{file.name}</span>
-            </div>
-          ) : null}
-        </label>
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,application/pdf,image/*"
+              className="hidden"
+              onChange={(event) => {
+                setFile(event.target.files?.[0] || null);
+                setLocalError(null);
+                setSuccessMessage(null);
+              }}
+            />
+            {file ? (
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-2xl">📄</span>
+                <div className="text-left">
+                  <p className="text-sm font-bold text-emerald-800">{file.name}</p>
+                  <p className="text-xs text-emerald-600">{(file.size / 1024).toFixed(0)} KB — listo para subir</p>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-2xl shadow-sm">📁</div>
+                <p className="text-sm font-semibold text-slate-700">Arrastra aquí o haz clic para seleccionar</p>
+                <p className="mt-1 text-xs text-slate-400">PDF, imágenes · Máx. 10 MB</p>
+              </div>
+            )}
+          </div>
+        </div>
 
         <label className="block space-y-2">
           <span className="text-sm font-semibold text-slate-800">Notas</span>
