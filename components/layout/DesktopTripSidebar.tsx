@@ -131,7 +131,7 @@ export default function DesktopTripSidebar({ tripId, isPremium }: Props) {
                   {/* Icon container */}
                   <span
                     className={`
-                      relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-xl
+                      relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl
                       transition-transform duration-150 group-hover:scale-105
                       ${active
                         ? "bg-white/15 ring-1 ring-white/20"
@@ -145,9 +145,9 @@ export default function DesktopTripSidebar({ tripId, isPremium }: Props) {
                     <Image
                       src={item.iconSrc}
                       alt=""
-                      width={20}
-                      height={20}
-                      className={`h-5 w-5 object-contain ${item.iconClass || ""} ${active ? "brightness-[2] saturate-0" : ""}`}
+                      width={28}
+                      height={28}
+                      className={`h-7 w-7 object-contain ${item.iconClass || ""} ${active ? "brightness-[2] saturate-0" : ""}`}
                     />
                   </span>
 
