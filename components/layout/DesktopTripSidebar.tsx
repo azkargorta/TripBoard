@@ -1,197 +1,84 @@
-"use client";
+import React from 'react';
+import { 
+  LayoutDashboard, 
+  Map, 
+  Wallet, 
+  Files, 
+  Settings, 
+  UserPlus, 
+  Plane,
+  ChevronRight
+} from 'lucide-react';
 
-import type React from "react";
-import Link from "next/link";
-import Image from "next/image";
-import { usePathname } from "next/navigation";
-import { TRIP_TAB_SUMMARY_SRC, tripTabDocsImageClass } from "@/lib/trip-tab-assets";
-
-type Props = {
-  tripId: string;
-  isPremium: boolean;
-};
-
-type NavItem = {
-  key: string;
-  label: string;
-  sublabel?: string;
-  iconSrc: string;
-  iconClass?: string;
-  href: (id: string) => string;
-  isPremiumGated?: boolean;
-};
-
-const items: NavItem[] = [
-  {
-    key: "summary",
-    label: "Resumen",
-    sublabel: "Vista general",
-    iconSrc: TRIP_TAB_SUMMARY_SRC,
-    href: (id) => `/trip/${id}/summary`,
-  },
-  {
-    key: "plan",
-    label: "Plan",
-    sublabel: "Itinerario",
-    iconSrc: "/brand/tabs/plan.png",
-    href: (id) => `/trip/${id}/plan`,
-  },
-  {
-    key: "map",
-    label: "Rutas",
-    sublabel: "Mapa y navegación",
-    iconSrc: "/brand/tabs/map.png",
-    href: (id) => `/trip/${id}/map`,
-  },
-  {
-    key: "expenses",
-    label: "Gastos",
-    sublabel: "Finanzas del grupo",
-    iconSrc: "/brand/tabs/expenses.png",
-    href: (id) => `/trip/${id}/expenses`,
-  },
-  {
-    key: "participants",
-    label: "Gente",
-    sublabel: "Participantes",
-    iconSrc: "/brand/tabs/participants.png",
-    href: (id) => `/trip/${id}/participants`,
-  },
-  {
-    key: "resources",
-    label: "Docs",
-    sublabel: "Documentos",
-    iconSrc: "/brand/tabs/documents.png",
-    iconClass: tripTabDocsImageClass,
-    href: (id) => `/trip/${id}/resources`,
-  },
-  {
-    key: "chat",
-    label: "Asistente IA",
-    sublabel: "Premium",
-    iconSrc: "/brand/tabs/ai.png",
-    href: (id) => `/trip/${id}/ai-chat`,
-    isPremiumGated: true,
-  },
-];
-
-function isActivePath(pathname: string, href: string, key: string) {
-  if (pathname === href) return true;
-  if (key === "map" && pathname.startsWith(`${href}/`)) return true;
-  return false;
-}
-
-export default function DesktopTripSidebar({ tripId, isPremium }: Props) {
-  const pathname = usePathname();
-  const visibleItems = isPremium ? items : items.filter((i) => !i.isPremiumGated);
-
+const DesktopTripSidebar = () => {
   return (
-    <aside className="hidden md:block w-[200px] lg:w-[224px] shrink-0">
-      <div className="sticky top-24 space-y-2">
-
-        {/* Nav card */}
-        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-
-          {/* Header strip */}
-          <div className="border-b border-slate-100 px-4 py-3">
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">Tu viaje</p>
-          </div>
-
-          {/* Nav items */}
-          <nav aria-label="Navegación del viaje" className="p-1.5 space-y-0.5">
-            {visibleItems.map((item) => {
-              const href = item.href(tripId);
-              const active = isActivePath(pathname, href, item.key);
-              const isAI = item.key === "chat";
-
-              return (
-                <Link
-                  key={item.key}
-                  href={href}
-                  prefetch
-                  title={item.label}
-                  className={`
-                    group relative flex min-h-[48px] items-center gap-3 rounded-xl px-2.5 py-2
-                    transition-all duration-150 ease-out
-                    ${active
-                      ? isAI
-                        ? "bg-gradient-to-r from-violet-600 to-indigo-600 shadow-md shadow-violet-200/60"
-                        : "bg-gradient-to-r from-slate-900 to-slate-800 shadow-md shadow-slate-300/40"
-                      : "hover:bg-slate-50 active:bg-slate-100"
-                    }
-                  `}
-                >
-                  {/* Active left bar */}
-                  {active && (
-                    <span
-                      className="absolute -left-[1px] top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-white/50"
-                      aria-hidden
-                    />
-                  )}
-
-                  {/* Icon container */}
-                  <span
-                    className={`
-                      relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-xl
-                      transition-transform duration-150 group-hover:scale-105
-                      ${active
-                        ? "bg-white/15 ring-1 ring-white/20"
-                        : isAI
-                          ? "bg-gradient-to-br from-violet-100 to-indigo-100 ring-1 ring-violet-200/60"
-                          : "bg-slate-100 ring-1 ring-slate-200/60 group-hover:bg-white group-hover:shadow-sm"
-                      }
-                    `}
-                    aria-hidden
-                  >
-                    <Image
-                      src={item.iconSrc}
-                      alt=""
-                      width={20}
-                      height={20}
-                      className={`h-5 w-5 object-contain ${item.iconClass || ""} ${active ? "brightness-[2] saturate-0" : ""}`}
-                    />
-                  </span>
-
-                  {/* Label */}
-                  <div className="min-w-0 flex-1">
-                    <p className={`text-[13px] font-semibold leading-tight truncate ${active ? "text-white" : "text-slate-800 group-hover:text-slate-950"}`}>
-                      {item.label}
-                    </p>
-                    {item.sublabel && !active && (
-                      <p className={`text-[10px] leading-none mt-0.5 truncate ${isAI ? "text-violet-500 font-semibold" : "text-slate-400"}`}>
-                        {item.sublabel}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* AI sparkle badge */}
-                  {isAI && !active && !isPremium && (
-                    <span className="shrink-0 rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-bold text-violet-600 ring-1 ring-violet-200">
-                      PRO
-                    </span>
-                  )}
-                </Link>
-              );
-            })}
-          </nav>
+    <aside className="fixed left-0 top-0 w-64 h-screen bg-[var(--card)]/80 backdrop-blur-xl border-r border-[var(--border)] flex flex-col z-50">
+      
+      {/* 1. Header & Logo */}
+      <div className="p-6 flex items-center gap-3">
+        <div className="w-10 h-10 bg-[var(--primary)] rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
+          <Plane className="text-white w-6 h-6 -rotate-12" />
         </div>
+        <div>
+          <h1 className="font-bold text-xl tracking-tight text-gray-900 leading-none">Kaviro</h1>
+          <span className="text-[10px] uppercase tracking-widest text-[var(--secondary)] font-bold">Trips</span>
+        </div>
+      </div>
 
-        {/* Premium upsell if not premium */}
-        {!isPremium && (
-          <Link
-            href="/pricing"
-            className="group flex items-center gap-2.5 rounded-2xl border border-violet-200/70 bg-gradient-to-br from-violet-50 to-indigo-50/60 px-3.5 py-3 transition hover:border-violet-300 hover:shadow-sm"
-          >
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-500 shadow-sm shadow-violet-300/40">
-              <span className="text-sm">✦</span>
-            </span>
-            <div className="min-w-0">
-              <p className="text-[11px] font-bold text-violet-900 truncate">Activar Premium</p>
-              <p className="text-[10px] text-violet-500 truncate">IA + funciones extra</p>
-            </div>
-          </Link>
-        )}
+      {/* 2. Navegación Principal */}
+      <nav className="flex-1 px-3 space-y-1">
+        <p className="px-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Menú Principal</p>
+        
+        <SidebarItem icon={<LayoutDashboard size={20} />} label="Resumen" active />
+        <SidebarItem icon={<Map size={20} />} label="Itinerario" />
+        <SidebarItem icon={<Wallet size={20} />} label="Gastos de Grupo" />
+        <SidebarItem icon={<Files size={20} />} label="Documentos" />
+      </nav>
+
+      {/* 3. Sección de Grupo (Colaboración) */}
+      <div className="px-3 mb-6">
+        <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+          <p className="text-xs font-medium text-gray-500 mb-3">Compañeros de ruta</p>
+          <div className="flex -space-x-2 mb-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="w-8 h-8 rounded-full border-2 border-white bg-gray-200 flex items-center justify-center text-[10px] font-bold overflow-hidden">
+                <img src={`https://i.pravatar.cc/100?img=${i+10}`} alt="user" />
+              </div>
+            ))}
+            <button className="w-8 h-8 rounded-full border-2 border-dashed border-gray-300 bg-white flex items-center justify-center text-gray-400 hover:text-[var(--primary)] hover:border-[var(--primary)] transition-colors">
+              <UserPlus size={14} />
+            </button>
+          </div>
+          <button className="text-[11px] font-semibold text-[var(--primary)] flex items-center gap-1 hover:underline">
+            Gestionar grupo <ChevronRight size={12} />
+          </button>
+        </div>
+      </div>
+
+      {/* 4. Footer Sidebar */}
+      <div className="p-4 border-t border-[var(--border)]">
+        <SidebarItem icon={<Settings size={20} />} label="Configuración" />
       </div>
     </aside>
   );
-}
+};
+
+/* Sub-componente para los items de la sidebar */
+const SidebarItem = ({ icon, label, active = false }: { icon: React.ReactNode, label: string, active?: boolean }) => {
+  return (
+    <div className={`
+      flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-200
+      ${active 
+        ? 'bg-[var(--sidebar-active)] text-[var(--primary)] font-semibold' 
+        : 'text-gray-500 hover:bg-[var(--sidebar-hover)] hover:text-gray-900'}
+    `}>
+      <span className={active ? 'text-[var(--primary)]' : 'text-gray-400'}>
+        {icon}
+      </span>
+      <span className="text-sm">{label}</span>
+      {active && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-[var(--primary)]" />}
+    </div>
+  );
+};
+
+export default DesktopTripSidebar;
