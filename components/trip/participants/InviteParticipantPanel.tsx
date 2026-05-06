@@ -78,14 +78,15 @@ export default function InviteParticipantPanel({
   }
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-800">
-          {participant ? <Link2 className="h-4 w-4" aria-hidden /> : <MessageCircle className="h-4 w-4" aria-hidden />}
+    <div className={`overflow-hidden rounded-2xl border shadow-sm ${participant ? "border-violet-200 bg-white" : "border-emerald-300 bg-gradient-to-br from-emerald-50 to-white"}`}>
+      {/* Ge4 — WhatsApp header strip */}
+      <div className={`flex items-start gap-3 px-5 py-4 ${participant ? "border-b border-violet-100 bg-violet-50/60" : "border-b border-emerald-200/60 bg-emerald-500"}`}>
+        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${participant ? "bg-violet-100 text-violet-700" : "bg-white/30 text-white"}`}>
+          {participant ? <Link2 className="h-5 w-5" aria-hidden /> : <MessageCircle className="h-5 w-5" aria-hidden />}
         </div>
         <div className="min-w-0 flex-1">
-          <h2 className="text-sm font-extrabold text-slate-950">{title}</h2>
-          <p className="mt-1 text-xs font-semibold text-slate-600">{description}</p>
+          <h2 className={`text-sm font-extrabold ${participant ? "text-violet-950" : "text-white"}`}>{title}</h2>
+          <p className={`mt-0.5 text-xs font-semibold ${participant ? "text-violet-700" : "text-emerald-100"}`}>{description}</p>
         </div>
         {onCancel ? (
           <button
@@ -160,9 +161,9 @@ export default function InviteParticipantPanel({
                 href={whatsappHref || "#"}
                 target="_blank"
                 rel="noreferrer"
-                className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold ${
+                className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
                   whatsappHref
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-900 hover:bg-emerald-100"
+                    ? "border-emerald-500 bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm"
                     : "pointer-events-none border-slate-200 bg-white text-slate-400 opacity-60"
                 }`}
               >

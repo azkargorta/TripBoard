@@ -44,9 +44,26 @@ type TripParticipantsViewProps = {
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  if (parts.length === 1 && parts[0].length >= 2) return parts[0].slice(0, 2).toUpperCase();
+  if (parts.length >= 2) return (parts[0]![0]! + parts[1]![0]!).toUpperCase();
+  if (parts.length === 1 && parts[0]!.length >= 2) return parts[0]!.slice(0, 2).toUpperCase();
   return (parts[0]?.[0] || "?").toUpperCase();
+}
+
+// Ge2 — Paleta hash determinista: mismo nombre → mismo color siempre
+const AVATAR_PALETTE = [
+  { bg: "bg-violet-200", text: "text-violet-900" },
+  { bg: "bg-sky-200",    text: "text-sky-900"    },
+  { bg: "bg-emerald-200",text: "text-emerald-900"},
+  { bg: "bg-amber-200",  text: "text-amber-900"  },
+  { bg: "bg-pink-200",   text: "text-pink-900"   },
+  { bg: "bg-orange-200", text: "text-orange-900" },
+  { bg: "bg-indigo-200", text: "text-indigo-900" },
+  { bg: "bg-teal-200",   text: "text-teal-900"   },
+];
+function avatarColor(name: string) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+  return AVATAR_PALETTE[Math.abs(h) % AVATAR_PALETTE.length]!;
 }
 
 function roleStyle(role: string) {
@@ -392,24 +409,40 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
         actions={mapFlow ? <TripTabActions tripId={tripId} /> : <TripScreenActions tripId={tripId} />}
       />
 
+      {/* Ge1 — 3 stat cards con número grande como protagonista */}
       <div className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Total</p>
-          <p className="mt-1 text-2xl font-black text-slate-950">{stats.total}</p>
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center gap-3 px-4 py-3.5">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
+              <Users className="h-5 w-5" aria-hidden />
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Total</p>
+              <p className="text-3xl font-extrabold leading-none text-slate-950 tabular-nums">{stats.total}</p>
+            </div>
+          </div>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Con cuenta</p>
-          <p className="mt-1 flex items-center gap-2 text-2xl font-black text-slate-950">
-            <UserCheck className="h-6 w-6 text-emerald-600" aria-hidden />
-            {stats.linked}
-          </p>
+        <div className="overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-sm">
+          <div className="flex items-center gap-3 px-4 py-3.5">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+              <UserCheck className="h-5 w-5" aria-hidden />
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600">Con cuenta</p>
+              <p className="text-3xl font-extrabold leading-none text-emerald-700 tabular-nums">{stats.linked}</p>
+            </div>
+          </div>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Pendientes de vincular</p>
-          <p className="mt-1 flex items-center gap-2 text-2xl font-black text-slate-950">
-            <Sparkles className="h-6 w-6 text-amber-500" aria-hidden />
-            {stats.unlinked}
-          </p>
+        <div className="overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-sm">
+          <div className="flex items-center gap-3 px-4 py-3.5">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+              <Sparkles className="h-5 w-5" aria-hidden />
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-amber-600">Pendientes</p>
+              <p className="text-3xl font-extrabold leading-none text-amber-700 tabular-nums">{stats.unlinked}</p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -548,14 +581,9 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
                 >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="flex min-w-0 flex-1 gap-3">
+                      {/* Ge2 — Avatar with deterministic hash color */}
                       <div
-                        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-base font-black text-white shadow-inner ${
-                          participant.role === "owner"
-                            ? "bg-gradient-to-br from-violet-600 to-indigo-700"
-                            : participant.role === "editor"
-                              ? "bg-gradient-to-br from-sky-500 to-cyan-600"
-                              : "bg-gradient-to-br from-slate-500 to-slate-700"
-                        }`}
+                        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-sm font-extrabold shadow-sm ${avatarColor(participant.display_name || "?").bg} ${avatarColor(participant.display_name || "?").text}`}
                       >
                         {initials(participant.display_name || "?")}
                       </div>
@@ -575,18 +603,26 @@ export default function TripParticipantsView({ tripId, mapFlow = false }: TripPa
                               Tú
                             </span>
                           ) : null}
-                          <span
-                            className={`rounded-full border px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ${roleStyle(participant.role)}`}
-                          >
+                          {/* Ge3 — Role badge with icon */}
+                          <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ${roleStyle(participant.role)}`}>
+                            {participant.role === "owner" && <span aria-hidden>👑</span>}
+                            {participant.role === "editor" && <span aria-hidden>✏️</span>}
+                            {participant.role === "viewer" && <span aria-hidden>👁️</span>}
                             {getRoleLabel(participant.role)}
                           </span>
-                          <span
-                            className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                              isLinkedUser ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"
-                            }`}
-                          >
-                            {isLinkedUser ? "Cuenta vinculada" : "Pendiente de vincular"}
-                          </span>
+                          {/* Ge5 — Pending state with tooltip */}
+                          {isLinkedUser ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-800">
+                              <span aria-hidden>✓</span> Cuenta vinculada
+                            </span>
+                          ) : (
+                            <span
+                              className="inline-flex cursor-help items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-900"
+                              title="Esta persona aún no ha iniciado sesión en Kaviro. Envíale el enlace de invitación por WhatsApp para que vincule su cuenta."
+                            >
+                              <span aria-hidden>⏳</span> Pendiente de vincular
+                            </span>
+                          )}
                           <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
                             {getStatusLabel(participant.status as "active" | "pending" | "removed")}
                           </span>
