@@ -19,9 +19,10 @@ const KAVIRO_LOCKUP_FULLCOLOR_SRC = "/brand/kaviro-lockup-fullcolor.png";
 const KAVIRO_LOCKUP_WHITE_SRC = "/brand/kaviro-lockup-white.png";
 
 const lockupHeightClass = {
-  sm: "h-[4.5rem] max-h-[4.5rem] sm:h-[5rem] sm:max-h-[5rem]",
-  md: "h-[5rem] max-h-[5rem] sm:h-[5.5rem] sm:max-h-[5.5rem]",
-  lg: "h-[5.5rem] max-h-[5.5rem] sm:h-[6.25rem] sm:max-h-[6.25rem]",
+  // El lockup es raster (PNG): no lo escalamos más de la cuenta para evitar pixelado.
+  sm: "h-7 max-h-7 sm:h-8 sm:max-h-8",
+  md: "h-8 max-h-8 sm:h-9 sm:max-h-9",
+  lg: "h-9 max-h-9 sm:h-10 sm:max-h-10",
 } as const;
 
 // Marca (globo + pin)
