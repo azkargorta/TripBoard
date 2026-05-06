@@ -41,7 +41,7 @@ export default function TripBoardBrandRail({ tripId, tripName, dateRangeLabel }:
                   alt="Kaviro"
                   width={32}
                   height={32}
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-contain"
                   priority
                 />
               </Link>
