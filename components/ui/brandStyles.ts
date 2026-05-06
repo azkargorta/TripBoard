@@ -1,29 +1,28 @@
 /**
- * Tokens de marca (lila primary, violeta secondary) para superficies y botones.
- * Objetivo: color solo en lo importante, el resto neutro.
+ * Tokens de marca usando CSS variables.
+ * Light: Indigo #4F46E5 · Dark: Coral #F87171
  */
 
 export const surfaceCard =
-  "rounded-2xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/[0.03]";
+  "rounded-2xl border border-[var(--border-default)] bg-[var(--surface-card)] shadow-[var(--shadow-card)]";
 
 export const surfaceAccentCyan =
-  "rounded-2xl border border-violet-200/70 bg-gradient-to-br from-white via-violet-50/50 to-fuchsia-50/30 shadow-sm ring-1 ring-violet-900/[0.06]";
+  "rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-light)] shadow-[var(--shadow-card)]";
 
 export const btnPrimary =
-  "group inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-violet-600 via-violet-600 to-indigo-600 px-4 py-2.5 text-sm font-extrabold text-white shadow-sm ring-1 ring-white/10 transition hover:brightness-[0.98] hover:shadow-md active:translate-y-[0.5px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:cursor-not-allowed disabled:bg-violet-200/70 disabled:text-white/80 disabled:shadow-none disabled:ring-0 sm:rounded-2xl sm:px-5 sm:py-3 sm:text-base";
+  "group inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-[var(--brand)] px-4 py-2.5 text-sm font-extrabold text-white shadow-sm transition hover:bg-[var(--brand-hover)] hover:shadow-md active:translate-y-[0.5px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-border)] disabled:cursor-not-allowed disabled:opacity-50 sm:rounded-2xl sm:px-5 sm:py-3 sm:text-base";
 
 export const btnSecondary =
-  "group inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-violet-200 bg-gradient-to-b from-violet-50 via-white to-violet-50/60 px-4 py-2.5 text-sm font-extrabold text-violet-950 shadow-sm ring-1 ring-slate-900/[0.02] transition hover:border-violet-300 hover:shadow-md active:translate-y-[0.5px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:cursor-not-allowed disabled:opacity-60 sm:rounded-2xl sm:px-5 sm:py-3 sm:text-base";
+  "group inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-light)] px-4 py-2.5 text-sm font-extrabold text-[var(--brand-text)] shadow-sm transition hover:border-[var(--brand)] hover:shadow-md active:translate-y-[0.5px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-border)] disabled:cursor-not-allowed disabled:opacity-60 sm:rounded-2xl sm:px-5 sm:py-3 sm:text-base";
 
 export const btnNeutral =
-  "group inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-gradient-to-b from-white via-white to-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm ring-1 ring-slate-900/[0.02] transition hover:border-slate-300 hover:shadow-md active:translate-y-[0.5px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-200 disabled:cursor-not-allowed disabled:opacity-60 sm:rounded-2xl sm:px-5 sm:py-3";
+  "group inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-[var(--border-default)] bg-[var(--surface-card)] px-4 py-2.5 text-sm font-semibold text-[var(--text-primary)] shadow-sm transition hover:border-[var(--border-default)] hover:shadow-md active:translate-y-[0.5px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-border)] disabled:cursor-not-allowed disabled:opacity-60 sm:rounded-2xl sm:px-5 sm:py-3";
 
 export const chipGroup =
-  "flex gap-2 rounded-2xl border border-slate-200 bg-slate-50/80 p-1.5";
+  "flex gap-2 rounded-2xl border border-[var(--border-default)] bg-[var(--surface-page)] p-1.5";
 
 export const chipItemBase =
-  "inline-flex min-h-11 flex-1 items-center justify-center rounded-xl px-4 text-sm font-extrabold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-200";
+  "inline-flex min-h-11 flex-1 items-center justify-center rounded-xl px-4 text-sm font-extrabold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-border)]";
 
-export const chipItemActive = "bg-white text-slate-950 shadow-sm";
-export const chipItemInactive = "text-slate-600 hover:text-slate-900";
-
+export const chipItemActive = "bg-[var(--surface-card)] text-[var(--text-primary)] shadow-sm";
+export const chipItemInactive = "text-[var(--text-secondary)] hover:text-[var(--text-primary)]";

@@ -74,7 +74,7 @@ export default function MobileBottomNav({ tripId, isPremium }: Props) {
       style={{ paddingBottom: "max(env(safe-area-inset-bottom), 6px)" }}
       aria-label="Navegación del viaje"
     >
-      <div className="mx-2 mb-1 overflow-hidden rounded-2xl border border-slate-200/90 bg-white/96 shadow-[0_-4px_24px_rgba(15,23,42,0.10)] backdrop-blur-xl supports-[backdrop-filter]:bg-white/92">
+      <div className="mx-2 mb-1 overflow-hidden rounded-2xl border border-slate-200/90 bg-[var(--surface-card)]/96 shadow-[0_-4px_24px_rgba(15,23,42,0.10)] backdrop-blur-xl dark:shadow-[0_-4px_24px_rgba(0,0,0,0.4)]">
         <div className="flex">
           {visibleItems.map((item) => {
             const href = item.href(tripId);
@@ -97,7 +97,7 @@ export default function MobileBottomNav({ tripId, isPremium }: Props) {
                     className={`
                       absolute inset-x-1 top-1 bottom-1 rounded-xl
                       ${item.isAI
-                        ? "bg-gradient-to-b from-violet-100 to-indigo-50"
+                        ? "bg-[var(--brand-light)]"
                         : "bg-slate-100"
                       }
                     `}
@@ -122,8 +122,8 @@ export default function MobileBottomNav({ tripId, isPremium }: Props) {
                   className={`
                     relative z-10 text-[9px] font-semibold leading-none tracking-wide
                     ${active
-                      ? item.isAI ? "text-violet-700" : "text-slate-900"
-                      : "text-slate-400"
+                      ? item.isAI ? "text-[var(--brand)]" : "text-[var(--text-primary)]"
+                      : "text-[var(--text-tertiary)]"
                     }
                   `}
                 >
@@ -133,7 +133,7 @@ export default function MobileBottomNav({ tripId, isPremium }: Props) {
                 {/* Active dot */}
                 {active && (
                   <span
-                    className={`absolute bottom-1.5 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full ${item.isAI ? "bg-violet-500" : "bg-slate-900"}`}
+                    className={`absolute bottom-1.5 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full ${"bg-[var(--brand)]"}`}
                     aria-hidden
                   />
                 )}

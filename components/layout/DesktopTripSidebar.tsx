@@ -89,11 +89,11 @@ export default function DesktopTripSidebar({ tripId, isPremium }: Props) {
       <div className="sticky top-24 space-y-2">
 
         {/* Nav card */}
-        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-[var(--surface-card)] shadow-[var(--shadow-card)]">
 
           {/* Header strip */}
-          <div className="border-b border-slate-100 px-4 py-3">
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">Tu viaje</p>
+          <div className="border-b border-[var(--border-default)] px-4 py-3">
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--text-tertiary)]">Tu viaje</p>
           </div>
 
           {/* Nav items */}
@@ -114,9 +114,9 @@ export default function DesktopTripSidebar({ tripId, isPremium }: Props) {
                     transition-all duration-150 ease-out
                     ${active
                       ? isAI
-                        ? "bg-gradient-to-r from-violet-600 to-indigo-600 shadow-md shadow-violet-200/60"
+                        ? "bg-[var(--brand)] shadow-md shadow-[var(--brand-light)]"
                         : "bg-gradient-to-r from-slate-900 to-slate-800 shadow-md shadow-slate-300/40"
-                      : "hover:bg-slate-50 active:bg-slate-100"
+                      : "hover:bg-[var(--brand-light)] active:bg-[var(--brand-light)]"
                     }
                   `}
                 >
@@ -136,8 +136,8 @@ export default function DesktopTripSidebar({ tripId, isPremium }: Props) {
                       ${active
                         ? "bg-white/15 ring-1 ring-white/20"
                         : isAI
-                          ? "bg-gradient-to-br from-violet-100 to-indigo-100 ring-1 ring-violet-200/60"
-                          : "bg-slate-100 ring-1 ring-slate-200/60 group-hover:bg-white group-hover:shadow-sm"
+                          ? "bg-[var(--brand-light)] ring-1 ring-[var(--brand-border)]"
+                          : "bg-[var(--surface-page)] ring-1 ring-[var(--border-default)] group-hover:bg-[var(--surface-card)] group-hover:shadow-sm"
                       }
                     `}
                     aria-hidden
@@ -153,11 +153,11 @@ export default function DesktopTripSidebar({ tripId, isPremium }: Props) {
 
                   {/* Label */}
                   <div className="min-w-0 flex-1">
-                    <p className={`text-[13px] font-semibold leading-tight truncate ${active ? "text-white" : "text-slate-800 group-hover:text-slate-950"}`}>
+                    <p className={`text-[13px] font-semibold leading-tight truncate ${active ? "text-white" : "text-[var(--text-primary)]"}`}>
                       {item.label}
                     </p>
                     {item.sublabel && !active && (
-                      <p className={`text-[10px] leading-none mt-0.5 truncate ${isAI ? "text-violet-500 font-semibold" : "text-slate-400"}`}>
+                      <p className={`text-[10px] leading-none mt-0.5 truncate ${isAI ? "text-[var(--brand)] font-semibold" : "text-slate-400"}`}>
                         {item.sublabel}
                       </p>
                     )}
@@ -165,7 +165,7 @@ export default function DesktopTripSidebar({ tripId, isPremium }: Props) {
 
                   {/* AI sparkle badge */}
                   {isAI && !active && !isPremium && (
-                    <span className="shrink-0 rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-bold text-violet-600 ring-1 ring-violet-200">
+                    <span className="shrink-0 rounded-full bg-[var(--brand-light)] px-1.5 py-0.5 text-[9px] font-bold text-[var(--brand)] ring-1 ring-[var(--brand-border)]">
                       PRO
                     </span>
                   )}
@@ -179,14 +179,14 @@ export default function DesktopTripSidebar({ tripId, isPremium }: Props) {
         {!isPremium && (
           <Link
             href="/pricing"
-            className="group flex items-center gap-2.5 rounded-2xl border border-violet-200/70 bg-gradient-to-br from-violet-50 to-indigo-50/60 px-3.5 py-3 transition hover:border-violet-300 hover:shadow-sm"
+            className="group flex items-center gap-2.5 rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-light)] px-3.5 py-3 transition hover:border-violet-300 hover:shadow-sm"
           >
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-500 shadow-sm shadow-violet-300/40">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-[var(--brand)] shadow-sm">
               <span className="text-sm">✦</span>
             </span>
             <div className="min-w-0">
-              <p className="text-[11px] font-bold text-violet-900 truncate">Activar Premium</p>
-              <p className="text-[10px] text-violet-500 truncate">IA + funciones extra</p>
+              <p className="text-[11px] font-bold text-[var(--brand-text)] truncate">Activar Premium</p>
+              <p className="text-[10px] text-[var(--brand)] truncate">IA + funciones extra</p>
             </div>
           </Link>
         )}

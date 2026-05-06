@@ -23,7 +23,7 @@ export default function TripBoardBrandRail({ tripId, tripName, dateRangeLabel }:
   return (
     <header className="sticky top-0 z-50">
       {/* Main bar */}
-      <div className="border-b border-slate-200/80 bg-white/95 backdrop-blur-md supports-[backdrop-filter]:bg-white/88 shadow-sm shadow-slate-900/[0.04]">
+      <div className="border-b border-[var(--border-default)] bg-[var(--surface-card)]/95 backdrop-blur-md shadow-sm shadow-slate-900/[0.04] dark:shadow-none">
         <div className="page-shell max-w-[1200px] !py-0">
           <div className="flex h-[64px] items-center justify-between gap-3">
 
@@ -72,7 +72,7 @@ export default function TripBoardBrandRail({ tripId, tripName, dateRangeLabel }:
                 <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0">
                   <Link
                     href={`/trip/${tripId}/summary`}
-                    className="shrink-0 text-[13px] font-bold text-slate-900 hover:text-violet-700 transition-colors duration-150 truncate"
+                    className="shrink-0 text-[13px] font-bold text-[var(--text-primary)] hover:text-[var(--brand)] transition-colors duration-150 truncate"
                     title="Ir al resumen del viaje"
                   >
                     {tripName}
@@ -80,14 +80,14 @@ export default function TripBoardBrandRail({ tripId, tripName, dateRangeLabel }:
                   {section && (
                     <>
                       <span className="text-slate-300 text-xs shrink-0" aria-hidden>/</span>
-                      <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500 truncate">
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--text-tertiary)] truncate">
                         {section}
                       </span>
                     </>
                   )}
                 </div>
                 {dateRangeLabel && (
-                  <p className="text-[11px] font-medium text-slate-400 leading-none mt-0.5 truncate">
+                  <p className="text-[11px] font-medium text-[var(--text-tertiary)] leading-none mt-0.5 truncate">
                     {dateRangeLabel}
                   </p>
                 )}
@@ -106,7 +106,7 @@ export default function TripBoardBrandRail({ tripId, tripName, dateRangeLabel }:
               ) : (
                 <Link
                   href="/dashboard"
-                  className="hidden md:inline-flex items-center gap-1.5 min-h-[34px] rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
+                  className="hidden md:inline-flex items-center gap-1.5 min-h-[34px] rounded-xl border border-[var(--border-default)] bg-[var(--surface-card)] px-3 py-1.5 text-[11px] font-semibold text-[var(--text-secondary)] shadow-sm transition hover:border-[var(--brand-border)] hover:text-[var(--brand)]"
                 >
                   <svg className="w-3.5 h-3.5 text-slate-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M2 8l6-6 6 6M3 7.5V14h4v-3h2v3h4V7.5"/></svg>
                   Mis viajes
