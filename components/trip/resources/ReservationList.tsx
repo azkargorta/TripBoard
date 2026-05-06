@@ -3,6 +3,18 @@
 import type { TripReservation } from "@/hooks/useTripResources";
 import LongTextSheet from "@/components/ui/LongTextSheet";
 
+// D2 — Boarding pass metadata per reservation type
+function reservationMeta(type: string | null | undefined) {
+  const t = (type || "").toLowerCase();
+  if (t.includes("flight") || t.includes("vuelo") || t.includes("avion"))
+    return { stripe: "bg-blue-500", icon: "✈️" };
+  if (t.includes("hotel") || t.includes("lodging") || t.includes("alojamiento"))
+    return { stripe: "bg-violet-500", icon: "🏨" };
+  if (t.includes("train") || t.includes("tren") || t.includes("bus"))
+    return { stripe: "bg-emerald-500", icon: "🚂" };
+  return { stripe: "bg-slate-400", icon: "📋" };
+}
+
 export default function ReservationList({
   reservations,
   onEdit,
@@ -29,50 +41,61 @@ export default function ReservationList({
         </div>
       ) : (
         <div className="space-y-3">
-          {reservations.map((reservation) => (
-            {/* D2 — Boarding pass style card */}
-            {(() => {
-              const type = (reservation.reservation_type || "").toLowerCase();
-              const isHotel = type.includes("hotel") || type.includes("lodging") || type.includes("alojamiento");
-              const isFlight = type.includes("flight") || type.includes("vuelo") || type.includes("avion");
-              const isTrain = type.includes("train") || type.includes("tren") || type.includes("bus");
-              const stripe = isFlight ? "bg-blue-500" : isHotel ? "bg-violet-500" : isTrain ? "bg-emerald-500" : "bg-slate-400";
-              const icon = isFlight ? "✈️" : isHotel ? "🏨" : isTrain ? "🚂" : "📋";
-              return (
-                <div key={reservation.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:shadow-md">
-                  {/* Color stripe left */}
-                  <div className={`h-1.5 w-full ${stripe}`} />
-                  <div className="flex items-start gap-3 p-4">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-lg mt-0.5">{icon}</div>
-                    <div className="min-w-0 flex-1">
-                      <LongTextSheet text={reservation.reservation_name} modalTitle="Reserva" minLength={40} lineClamp={2} className="font-extrabold text-sm leading-snug text-slate-900" />
-                      <p className="mt-1 text-xs text-slate-500">{reservation.provider_name || "Sin proveedor"}</p>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {reservation.check_in_date && (
-                          <span className="rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700">
-                            📅 {reservation.check_in_date}
-                            {reservation.check_out_date ? ` → ${reservation.check_out_date}` : ""}
-                          </span>
-                        )}
-                        <span className={`rounded-lg px-2 py-0.5 text-[10px] font-bold ${reservation.payment_status === "paid" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
-                          {reservation.payment_status === "paid" ? "✓ Pagado" : "⏳ Pendiente"}
+          {reservations.map((reservation) => {
+            const meta = reservationMeta(reservation.reservation_type);
+            return (
+              <div key={reservation.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:shadow-md">
+                <div className={`h-1.5 w-full ${meta.stripe}`} />
+                <div className="flex items-start gap-3 p-4">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-lg mt-0.5">
+                    {meta.icon}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <LongTextSheet
+                      text={reservation.reservation_name}
+                      modalTitle="Reserva"
+                      minLength={40}
+                      lineClamp={2}
+                      className="font-extrabold text-sm leading-snug text-slate-900"
+                    />
+                    <p className="mt-1 text-xs text-slate-500">{reservation.provider_name || "Sin proveedor"}</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {reservation.check_in_date ? (
+                        <span className="rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700">
+                          📅 {reservation.check_in_date}
+                          {reservation.check_out_date ? ` → ${reservation.check_out_date}` : ""}
                         </span>
-                        {typeof reservation.total_amount === "number" && (
-                          <span className="rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-800">
-                            {reservation.total_amount} {reservation.currency || ""}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 flex-col gap-1.5">
-                      <button type="button" onClick={() => onEdit(reservation)} className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition">Editar</button>
-                      <button type="button" onClick={() => onDelete(reservation.id)} className="rounded-xl border border-red-100 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-100 transition">Eliminar</button>
+                      ) : null}
+                      <span className={`rounded-lg px-2 py-0.5 text-[10px] font-bold ${reservation.payment_status === "paid" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
+                        {reservation.payment_status === "paid" ? "✓ Pagado" : "⏳ Pendiente"}
+                      </span>
+                      {typeof reservation.total_amount === "number" ? (
+                        <span className="rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-800">
+                          {reservation.total_amount} {reservation.currency || ""}
+                        </span>
+                      ) : null}
                     </div>
                   </div>
+                  <div className="flex shrink-0 flex-col gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => onEdit(reservation)}
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDelete(reservation.id)}
+                      className="rounded-xl border border-red-100 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-100 transition"
+                    >
+                      Eliminar
+                    </button>
+                  </div>
                 </div>
-              );
-            })()}
-          ))}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
