@@ -84,13 +84,13 @@ export default function ExpenseBalancePanel({
   ];
 
   const prefMap = useMemo(() => {
-    const map = new Map<string, PaymentPreferenceRow>();
+    const map: Map<string, PaymentPreferenceRow> = new Map();
     for (const p of paymentPreferences || []) map.set(p.participant_name, p);
     return map;
   }, [paymentPreferences]);
 
   const pairRuleMap = useMemo(() => {
-    const map = new Map<string, PaymentPairRuleRow>();
+    const map: Map<string, PaymentPairRuleRow> = new Map();
     for (const r of paymentPairRules || []) {
       if (!r.from_participant_name || !r.to_participant_name) continue;
       map.set(`${r.from_participant_name}->${r.to_participant_name}`, r);
@@ -99,7 +99,7 @@ export default function ExpenseBalancePanel({
   }, [paymentPairRules]);
 
   const effectiveParticipants = useMemo(() => {
-    const set = new Set<string>();
+    const set: Set<string> = new Set();
     participants.forEach((p) => set.add(p));
     balances.forEach((b) => set.add(b.person));
     return Array.from(set).sort((a, b) => a.localeCompare(b));
@@ -122,7 +122,7 @@ export default function ExpenseBalancePanel({
 
   const bulkReminders = useMemo(() => {
     const pending = orderedSettlements.filter((s) => s.status !== "paid");
-    const byDebtor = new Map<string, SettlementSuggestion[]>();
+    const byDebtor: Map<string, SettlementSuggestion[]> = new Map();
     for (const s of pending) {
       const key = String(s.debtor_name || "").trim();
       if (!key) continue;
