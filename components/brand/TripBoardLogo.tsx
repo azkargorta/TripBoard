@@ -57,7 +57,7 @@ export default function TripBoardLogo({
 
   const mark = withWordmark ? (
     <span className={`inline-flex items-center ${className}`.trim()}>
-      <Image src={lockupSrc} alt="Kaviro" width={900} height={304} className={lockupImgClass} priority />
+      <Image src={lockupSrc} alt="Kaviro" width={1800} height={608} className={lockupImgClass} priority />
     </span>
   ) : (
     <span className={`inline-flex items-center gap-2 ${className}`}>

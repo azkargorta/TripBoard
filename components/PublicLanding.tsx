@@ -69,8 +69,8 @@ export default function PublicLanding() {
                 Crear cuenta
               </Link>
               <PremiumBadge />
-              <DarkModeToggle />
             </div>
+            <DarkModeToggle />
           </nav>
         </div>
       </header>
