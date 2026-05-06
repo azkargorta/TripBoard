@@ -5,6 +5,7 @@ import Link from "next/link";
 import AuthListener from "@/components/auth/AuthListener";
 import AnalyticsRoot from "@/components/analytics/AnalyticsRoot";
 import { ToastProvider } from "@/components/ui/toast";
+import RootTopBar from "@/components/layout/RootTopBar";
 
 export const metadata: Metadata = {
   title: "Kaviro",
@@ -50,6 +51,7 @@ export default function RootLayout({
         <ToastProvider>
           <AuthListener />
           <AnalyticsRoot />
+          <RootTopBar />
           <div className="min-h-0 min-w-0">{children}</div>
         </ToastProvider>
       </body>

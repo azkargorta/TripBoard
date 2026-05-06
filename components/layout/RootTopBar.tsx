@@ -9,8 +9,8 @@ import DarkModeToggle from "@/components/ui/DarkModeToggle";
 export default function RootTopBar() {
   const pathname = usePathname();
 
-  // En la landing pública, el header lo gestiona `components/PublicLanding.tsx`.
-  if (pathname === "/") return null;
+  // Solo queremos el banner en "Mis viajes" (dashboard).
+  if (!pathname?.startsWith("/dashboard")) return null;
 
   return (
     <div className="sticky top-0 z-50">
