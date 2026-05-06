@@ -148,24 +148,24 @@ export default function ExpenseBalancePanel({
                   : s.payment_method === "cash"
                     ? "Efectivo"
                     : null;
-            const methodPart = method ? ` · Método: ${method}` : "";
-            return `- ${s.creditor_name}: ${formatMoney(Number(s.amount || 0), s.currency || currency)}${methodPart}`;
+            const methodPart = method ? " · Método: " + method : "";
+            return "- " + s.creditor_name + ": " + formatMoney(Number(s.amount || 0), s.currency || currency) + methodPart;
           })
           .join("\n");
 
         const text =
-          `Hola ${debtor}.\n` +
-          `Según el balance del viaje, tienes pagos pendientes por un total de ${formatMoney(total, currency)}.\n\n` +
-          `Detalle:\n${lines}\n\n` +
-          `Gracias.`;
+          "Hola " + debtor + ".\n" +
+          "Según el balance del viaje, tienes pagos pendientes por un total de " + formatMoney(total, currency) + ".\n\n" +
+          "Detalle:\n" + lines + "\n\n" +
+          "Gracias.";
 
-        const link = `https://wa.me/?text=${encodeURIComponent(text)}`;
+        const link = "https://wa.me/?text=" + encodeURIComponent(text);
         return { debtor, total, currency, text, link, count: list.length };
       })
       .sort((a, b) => b.total - a.total);
 
     const allText = items
-      .map((it) => `### ${it.debtor} (${formatMoney(it.total, it.currency)})\n${it.text}`)
+      .map((it) => "### " + it.debtor + " (" + formatMoney(it.total, it.currency) + ")\n" + it.text)
       .join("\n\n");
 
     return { items, allText };
