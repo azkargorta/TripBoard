@@ -1160,30 +1160,20 @@ export default function TripPlanView({
                   {/* P2 — Timeline vertical continua */}
                   <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
                     <SortableContext items={getOrderedItems(date, items).map((a) => a.id)} strategy={verticalListSortingStrategy}>
-                      <div className="relative">
-                        {/* Vertical timeline line */}
-                        <div className="pointer-events-none absolute left-[19px] top-3 bottom-3 w-px bg-gradient-to-b from-slate-200 via-slate-200 to-transparent" aria-hidden />
-                        <div className="space-y-2.5">
-                          {getOrderedItems(date, items).map((activity, idx) => {
-                            const isLodging = isLodgingActivity(activity);
-                            const meta = kindMeta(isLodging ? "lodging" : activity.activity_kind, customByKey);
-                            return (
-                              <div key={activity.id} className="flex items-start gap-3">
-                                {/* Timeline dot with kind color */}
-                                <div className="relative z-10 mt-4 flex h-[10px] w-[10px] shrink-0 translate-x-[14.5px] items-center justify-center rounded-full ring-2 ring-white" style={{ backgroundColor: meta.color }} aria-hidden />
-                                <div className="flex-1 min-w-0 ml-2">
-                                  <SortableRow id={activity.id} color={meta.color}>
-                                    {isLodging ? (
-                                      <PlanLodgingCard activity={activity} onEdit={handleStartEdit} onDelete={(item) => deleteActivity(item.id)} selectable={bulkDeleteMode && canBulkDeletePlanActivity(activity)} selected={selectedActivityIds.has(activity.id)} onToggleSelect={() => setSelectedActivityIds((prev) => { const n = new Set(prev); if (n.has(activity.id)) n.delete(activity.id); else n.add(activity.id); return n; })} />
-                                    ) : (
-                                      <PlanActivityCard activity={activity} onEdit={handleStartEdit} onDelete={(item) => deleteActivity(item.id)} selectable={bulkDeleteMode && canBulkDeletePlanActivity(activity)} selected={selectedActivityIds.has(activity.id)} onToggleSelect={() => setSelectedActivityIds((prev) => { const n = new Set(prev); if (n.has(activity.id)) n.delete(activity.id); else n.add(activity.id); return n; })} premiumEnabled={premiumEnabled} />
-                                    )}
-                                  </SortableRow>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
+                      <div className="space-y-2">
+                        {getOrderedItems(date, items).map((activity) => {
+                          const isLodging = isLodgingActivity(activity);
+                          const meta = kindMeta(isLodging ? "lodging" : activity.activity_kind, customByKey);
+                          return (
+                            <SortableRow key={activity.id} id={activity.id} color={meta.color}>
+                              {isLodging ? (
+                                <PlanLodgingCard activity={activity} onEdit={handleStartEdit} onDelete={(item) => deleteActivity(item.id)} selectable={bulkDeleteMode && canBulkDeletePlanActivity(activity)} selected={selectedActivityIds.has(activity.id)} onToggleSelect={() => setSelectedActivityIds((prev) => { const n = new Set(prev); if (n.has(activity.id)) n.delete(activity.id); else n.add(activity.id); return n; })} />
+                              ) : (
+                                <PlanActivityCard activity={activity} onEdit={handleStartEdit} onDelete={(item) => deleteActivity(item.id)} selectable={bulkDeleteMode && canBulkDeletePlanActivity(activity)} selected={selectedActivityIds.has(activity.id)} onToggleSelect={() => setSelectedActivityIds((prev) => { const n = new Set(prev); if (n.has(activity.id)) n.delete(activity.id); else n.add(activity.id); return n; })} premiumEnabled={premiumEnabled} />
+                              )}
+                            </SortableRow>
+                          );
+                        })}
                       </div>
                     </SortableContext>
                   </DndContext>

@@ -352,6 +352,10 @@ export default async function TripSummaryPage({ params }: TripPageProps) {
         plansToday={plansToday}
         nextPlan={nextPlanPreview}
         tabs={tabs}
+        tripStartDate={currentTrip.start_date}
+        tripEndDate={currentTrip.end_date}
+        tripDestination={currentTrip.destination}
+        activitiesCount={activitiesCount ?? 0}
       />
 
       {alerts.length ? (
