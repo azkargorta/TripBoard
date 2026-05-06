@@ -49,7 +49,7 @@ export default function PlanLodgingCard({
 
   return (
     <div
-      className={`relative rounded-2xl border border-violet-200 bg-violet-50 p-4 shadow-sm ${selectable ? "cursor-pointer ring-offset-2 transition hover:ring-2 hover:ring-violet-400/80" : ""} ${selected ? "ring-2 ring-violet-600" : ""}`}
+      className={`relative overflow-hidden rounded-2xl border border-violet-200 bg-white shadow-sm ${selectable ? "cursor-pointer ring-offset-2 transition hover:ring-2 hover:ring-violet-400/80" : ""} ${selected ? "ring-2 ring-violet-600" : ""}`}
       onClick={selectable && onToggleSelect ? () => onToggleSelect() : undefined}
       onKeyDown={
         selectable && onToggleSelect
@@ -64,10 +64,13 @@ export default function PlanLodgingCard({
       role={selectable ? "button" : undefined}
       tabIndex={selectable ? 0 : undefined}
     >
+      {/* P6 — Left violet stripe */}
+      <div className="pointer-events-none absolute inset-y-0 left-0 w-1 rounded-l-2xl bg-violet-500" aria-hidden />
+
       {selectable ? (
         <button
           type="button"
-          className={`absolute left-3 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full border-2 shadow-sm ${
+          className={`absolute left-5 top-3 z-20 flex h-7 w-7 items-center justify-center rounded-full border-2 shadow-sm ${
             selected ? "border-violet-600 bg-violet-600 text-white" : "border-slate-300 bg-white text-transparent"
           }`}
           aria-label={selected ? "Quitar selección" : "Seleccionar"}
@@ -91,16 +94,19 @@ export default function PlanLodgingCard({
         disabledReason={!onEdit || !onDelete ? "No disponible" : undefined}
         stopPropagation={Boolean(selectable)}
       />
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <div className="inline-flex items-center gap-2 rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-700">
-            <span>🏨</span>
-            <span>Alojamiento</span>
+      <div className="flex items-start gap-3 pl-4 pr-3 py-3">
+        {/* Bed icon */}
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-lg mt-0.5" aria-hidden>
+          🏨
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="inline-flex items-center rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold text-violet-800">
+            Alojamiento
           </div>
 
-          <h4 className="mt-3 text-base font-semibold text-slate-900">{activity.title}</h4>
+          <h4 className="mt-1.5 text-[14px] font-semibold leading-snug text-slate-900">{activity.title}</h4>
 
-          <div className="mt-2 space-y-1 text-sm text-slate-700">
+          <div className="mt-1.5 space-y-0.5 text-xs text-slate-500">
             {activity.activity_date || activity.activity_time ? (
               <p>
                 {activity.activity_date || "Sin fecha"}

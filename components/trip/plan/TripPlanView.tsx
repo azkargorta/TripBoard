@@ -83,16 +83,20 @@ function groupByDate(activities: TripActivity[]) {
   return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
 }
 
-function formatPlanDayHeading(dateKey: string) {
-  if (dateKey === "Sin fecha") return "Sin fecha";
+function formatPlanDayHeading(dateKey: string): { weekday: string; dayNum: string; month: string; full: string } {
+  if (dateKey === "Sin fecha") return { weekday: "", dayNum: "—", month: "Sin fecha", full: "Sin fecha" };
   const d = new Date(`${dateKey}T12:00:00`);
-  if (Number.isNaN(d.getTime())) return dateKey;
-  return new Intl.DateTimeFormat("es-ES", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(d);
+  if (Number.isNaN(d.getTime())) return { weekday: "", dayNum: "—", month: dateKey, full: dateKey };
+  return {
+    weekday: new Intl.DateTimeFormat("es-ES", { weekday: "short" }).format(d).replace(".", "").toUpperCase(),
+    dayNum: new Intl.DateTimeFormat("es-ES", { day: "numeric" }).format(d),
+    month: new Intl.DateTimeFormat("es-ES", { month: "long", year: "numeric" }).format(d),
+    full: new Intl.DateTimeFormat("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(d),
+  };
+}
+
+function todayYMD() {
+  return new Intl.DateTimeFormat("en-CA").format(new Date());
 }
 
 function activityCountLabel(n: number) {
@@ -1046,35 +1050,48 @@ export default function TripPlanView({
       ) : null}
 
       {grouped.length === 0 ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="text-base font-extrabold text-slate-950">
-            {selectedDate ? "No hay actividades para este día" : isEmpty ? "Crea tu primer plan" : "No hay resultados"}
-          </div>
-          <div className="mt-1 text-sm text-slate-600">
-            {selectedDate
-              ? "Prueba otra fecha o quita filtros."
-              : isEmpty
-                ? "Empieza añadiendo una visita o usa Explorar para traer un lugar con coordenadas."
-                : "Prueba a quitar filtros o cambiar la búsqueda."}
-          </div>
-          {selectedDate || !isEmpty ? null : (
-            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-              <button
-                type="button"
-                onClick={handleStartCreate}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-200"
-              >
-                <Plus className="h-4 w-4" />
-                Añadir plan
-              </button>
-              <button
-                type="button"
-                onClick={() => setExploreOpen(true)}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-5 py-3 text-sm font-semibold text-violet-900 shadow-sm transition hover:bg-violet-100 focus:outline-none focus:ring-2 focus:ring-violet-200"
-              >
-                <Compass className="h-4 w-4" />
-                Explorar
-              </button>
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+          {selectedDate ? (
+            // Filtered day — no results
+            <div className="px-6 py-8 text-center">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-2xl">📭</div>
+              <p className="text-base font-extrabold text-slate-900">Sin actividades este día</p>
+              <p className="mt-1 text-sm text-slate-500">Prueba otra fecha o quita los filtros activos.</p>
+            </div>
+          ) : isEmpty ? (
+            // P7 — Empty state rediseñado
+            <div className="px-6 py-10 text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-br from-violet-100 to-indigo-100 text-3xl shadow-sm">
+                🗺️
+              </div>
+              <p className="text-lg font-extrabold text-slate-900">Empieza a planificar</p>
+              <p className="mx-auto mt-1.5 max-w-xs text-sm text-slate-500 leading-relaxed">
+                Añade actividades manualmente, explora lugares en el mapa, o genera el plan completo con la IA.
+              </p>
+              <div className="mt-6 flex flex-col items-center gap-2 sm:flex-row sm:justify-center">
+                <button
+                  type="button"
+                  onClick={handleStartCreate}
+                  className="inline-flex min-h-11 w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-200"
+                >
+                  <Plus className="h-4 w-4" />
+                  Añadir actividad
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExploreOpen(true)}
+                  className="inline-flex min-h-11 w-full sm:w-auto items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-5 py-2.5 text-sm font-semibold text-violet-900 shadow-sm transition hover:bg-violet-100 focus:outline-none focus:ring-2 focus:ring-violet-200"
+                >
+                  <Compass className="h-4 w-4" />
+                  Explorar lugares
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="px-6 py-8 text-center">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-2xl">🔍</div>
+              <p className="text-base font-extrabold text-slate-900">Sin resultados</p>
+              <p className="mt-1 text-sm text-slate-500">Prueba a quitar filtros o cambiar la búsqueda.</p>
             </div>
           )}
         </div>
@@ -1084,8 +1101,10 @@ export default function TripPlanView({
         {grouped.map(([date, items]) => {
           const expanded = singleDayList || expandedDayKeys.has(date);
           const heading = formatPlanDayHeading(date);
+          const today = todayYMD();
           return (
-            <section key={date} className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <section key={date} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
+              {/* P1 — Cabecera de día rediseñada */}
               <button
                 type="button"
                 disabled={singleDayList}
@@ -1098,45 +1117,73 @@ export default function TripPlanView({
                     return next;
                   });
                 }}
-                className={`flex w-full items-center gap-3 px-4 py-3 text-left transition ${
-                  singleDayList ? "cursor-default" : "cursor-pointer hover:bg-slate-50"
+                className={`flex w-full items-center gap-3 px-4 py-3.5 text-left transition ${
+                  singleDayList ? "cursor-default" : "cursor-pointer hover:bg-slate-50/80 active:bg-slate-100/60"
                 }`}
                 aria-expanded={expanded}
               >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-700">
-                  <CalendarDays className="h-4 w-4" />
+                {/* Date badge — day number + weekday */}
+                <div className="flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-xl border border-slate-200 bg-slate-50">
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 leading-none">
+                    {heading.weekday}
+                  </span>
+                  <span className="text-lg font-extrabold leading-tight text-slate-900 tabular-nums">
+                    {heading.dayNum}
+                  </span>
                 </div>
+
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-extrabold text-slate-950">{heading}</div>
-                  <div className="text-xs font-semibold text-slate-500">{activityCountLabel(items.length)}</div>
+                  <div className="text-sm font-extrabold text-slate-950 leading-snug capitalize">{heading.month}</div>
+                  <div className="mt-0.5 flex items-center gap-1.5">
+                    <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                      {activityCountLabel(items.length)}
+                    </span>
+                    {date === today && (
+                      <span className="inline-flex items-center rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-700">
+                        Hoy
+                      </span>
+                    )}
+                  </div>
                 </div>
+
                 {singleDayList ? (
-                  <ChevronDown className="h-5 w-5 shrink-0 text-slate-300" aria-hidden />
+                  <ChevronDown className="h-4 w-4 shrink-0 text-slate-300" aria-hidden />
                 ) : expanded ? (
-                  <ChevronDown className="h-5 w-5 shrink-0 text-slate-500" aria-hidden />
+                  <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
                 ) : (
-                  <ChevronRight className="h-5 w-5 shrink-0 text-slate-500" aria-hidden />
+                  <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
                 )}
               </button>
 
               {expanded ? (
-                <div className="space-y-3 border-t border-slate-100 px-4 pb-4 pt-3">
+                <div className="border-t border-slate-100 px-4 pb-4 pt-3">
+                  {/* P2 — Timeline vertical continua */}
                   <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
                     <SortableContext items={getOrderedItems(date, items).map((a) => a.id)} strategy={verticalListSortingStrategy}>
-                      <div className="space-y-3 border-l border-slate-200 pl-4">
-                        {getOrderedItems(date, items).map((activity) => {
-                          const isLodging = isLodgingActivity(activity);
-                          const meta = kindMeta(isLodging ? "lodging" : activity.activity_kind, customByKey);
-                          return (
-                            <SortableRow key={activity.id} id={activity.id} color={meta.color}>
-                              {isLodging ? (
-                                <PlanLodgingCard activity={activity} onEdit={handleStartEdit} onDelete={(item) => deleteActivity(item.id)} selectable={bulkDeleteMode && canBulkDeletePlanActivity(activity)} selected={selectedActivityIds.has(activity.id)} onToggleSelect={() => setSelectedActivityIds((prev) => { const n = new Set(prev); if (n.has(activity.id)) n.delete(activity.id); else n.add(activity.id); return n; })} />
-                              ) : (
-                                <PlanActivityCard activity={activity} onEdit={handleStartEdit} onDelete={(item) => deleteActivity(item.id)} selectable={bulkDeleteMode && canBulkDeletePlanActivity(activity)} selected={selectedActivityIds.has(activity.id)} onToggleSelect={() => setSelectedActivityIds((prev) => { const n = new Set(prev); if (n.has(activity.id)) n.delete(activity.id); else n.add(activity.id); return n; })} premiumEnabled={premiumEnabled} />
-                              )}
-                            </SortableRow>
-                          );
-                        })}
+                      <div className="relative">
+                        {/* Vertical timeline line */}
+                        <div className="pointer-events-none absolute left-[19px] top-3 bottom-3 w-px bg-gradient-to-b from-slate-200 via-slate-200 to-transparent" aria-hidden />
+                        <div className="space-y-2.5">
+                          {getOrderedItems(date, items).map((activity, idx) => {
+                            const isLodging = isLodgingActivity(activity);
+                            const meta = kindMeta(isLodging ? "lodging" : activity.activity_kind, customByKey);
+                            return (
+                              <div key={activity.id} className="flex items-start gap-3">
+                                {/* Timeline dot with kind color */}
+                                <div className="relative z-10 mt-4 flex h-[10px] w-[10px] shrink-0 translate-x-[14.5px] items-center justify-center rounded-full ring-2 ring-white" style={{ backgroundColor: meta.color }} aria-hidden />
+                                <div className="flex-1 min-w-0 ml-2">
+                                  <SortableRow id={activity.id} color={meta.color}>
+                                    {isLodging ? (
+                                      <PlanLodgingCard activity={activity} onEdit={handleStartEdit} onDelete={(item) => deleteActivity(item.id)} selectable={bulkDeleteMode && canBulkDeletePlanActivity(activity)} selected={selectedActivityIds.has(activity.id)} onToggleSelect={() => setSelectedActivityIds((prev) => { const n = new Set(prev); if (n.has(activity.id)) n.delete(activity.id); else n.add(activity.id); return n; })} />
+                                    ) : (
+                                      <PlanActivityCard activity={activity} onEdit={handleStartEdit} onDelete={(item) => deleteActivity(item.id)} selectable={bulkDeleteMode && canBulkDeletePlanActivity(activity)} selected={selectedActivityIds.has(activity.id)} onToggleSelect={() => setSelectedActivityIds((prev) => { const n = new Set(prev); if (n.has(activity.id)) n.delete(activity.id); else n.add(activity.id); return n; })} premiumEnabled={premiumEnabled} />
+                                    )}
+                                  </SortableRow>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     </SortableContext>
                   </DndContext>
