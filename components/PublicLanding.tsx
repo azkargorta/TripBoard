@@ -47,7 +47,13 @@ export default function PublicLanding() {
     <main className="min-h-screen bg-gradient-to-b from-cyan-50/80 via-slate-50 to-violet-100/60">
       <header className="absolute left-0 right-0 top-0 z-50">
         <div className="page-shell flex items-center justify-between py-3 sm:py-4">
-          <TripBoardLogo href="/" variant="dark" size="lg" withWordmark imageClassName="drop-shadow-none" />
+          <TripBoardLogo
+            href="/"
+            variant="dark"
+            size="lg"
+            withWordmark
+            imageClassName="drop-shadow-none h-12 max-h-12 sm:h-14 sm:max-h-14"
+          />
           <nav className="flex items-center gap-2">
             <Link
               href="/pricing"
