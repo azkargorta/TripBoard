@@ -61,7 +61,7 @@ export default function RootLayout({
                     variant="light"
                     size="md"
                     withWordmark
-                    imageClassName="h-[10rem] max-h-[10rem] sm:h-[11rem] sm:max-h-[11rem]"
+                    imageClassName="h-8 max-h-8 sm:h-9 sm:max-h-9"
                   />
                 </Link>
                 <PremiumBadge />

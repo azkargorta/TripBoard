@@ -2243,27 +2243,34 @@ export default function TripAiChatView({
                   className={`flex w-full min-w-0 ${message.role === "user" ? "justify-end" : "justify-start"}`}
                 >
                   <div className={`flex max-w-full flex-col gap-3 ${message.role === "user" ? "items-end" : "items-start"}`}>
-                    <div
-                      className={`max-w-[min(88%,100%)] min-w-0 break-words whitespace-pre-wrap rounded-[24px] px-4 py-3 text-sm leading-7 ${
-                        message.role === "user"
-                          ? "bg-slate-950 text-white"
-                          : "border border-slate-200 bg-slate-50 text-slate-800"
-                      }`}
-                    >
-                      {message.role === "assistant"
-                        ? stripTripboardJsonBlocksForDisplay(message.content)
-                        : message.content}
-                    </div>
+                    {/* AI1 — Differentiated bubbles */}
+                    {message.role === "assistant" && (
+                      <div className="flex items-start gap-2.5 max-w-[88%]">
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-sm mt-0.5" aria-hidden>✦</div>
+                        <div className="min-w-0 break-words whitespace-pre-wrap rounded-2xl rounded-tl-sm border border-violet-200/60 bg-violet-50/70 px-4 py-3 text-sm leading-7 text-slate-800">
+                          {stripTripboardJsonBlocksForDisplay(message.content)}
+                        </div>
+                      </div>
+                    )}
+                    {message.role === "user" && (
+                      <div className="min-w-0 max-w-[88%] break-words whitespace-pre-wrap rounded-2xl rounded-tr-sm bg-slate-950 px-4 py-3 text-sm leading-7 text-white">
+                        {message.content}
+                      </div>
+                    )}
                     {travelDocs ? <TravelDocsChecklistCard tripId={tripId} payload={travelDocs} /> : null}
                   </div>
                 </div>
               );
             })}
 
+            {/* AI3 — Typing indicator */}
             {loading ? (
-              <div className="flex justify-start">
-                <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-                  Generando respuesta…
+              <div className="flex justify-start items-start gap-2.5">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-sm mt-0.5" aria-hidden>✦</div>
+                <div className="flex items-center gap-1.5 rounded-2xl rounded-tl-sm border border-violet-200/60 bg-violet-50/70 px-4 py-3.5">
+                  <span className="h-2 w-2 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <span className="h-2 w-2 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <span className="h-2 w-2 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: "300ms" }} />
                 </div>
               </div>
             ) : null}

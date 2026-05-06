@@ -40,7 +40,7 @@ export default async function TripLayout({
       <TripBoardHeaderProvider>
         <TripBoardBrandRail tripId={params.id} tripName={tripName} dateRangeLabel={dateRangeLabel} />
         <div className="pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] md:pb-0">
-          <div className="page-shell pb-6 md:pb-12">
+          <div className="page-shell !pt-4 !pb-6 md:!pt-5 md:!pb-10">
             <div className="min-w-0 md:grid md:grid-cols-[200px_1fr] lg:grid-cols-[220px_1fr] md:gap-4">
               <DesktopTripSidebar tripId={params.id} isPremium={isPremium} />
               <div className="min-w-0 max-w-full space-y-6 overflow-x-hidden md:space-y-10">{children}</div>

@@ -15,21 +15,40 @@ type Props = {
   onDelete?: (item: ResourceItem) => void;
 };
 
+// D1 — File type with semantic color
+function fileTypeMeta(type: string | null | undefined) {
+  const t = (type || "").toLowerCase();
+  if (t.includes("pdf")) return { icon: "📄", bg: "bg-red-100", text: "text-red-800", label: "PDF" };
+  if (t.includes("image") || t.includes("jpg") || t.includes("jpeg") || t.includes("png") || t.includes("webp"))
+    return { icon: "🖼️", bg: "bg-blue-100", text: "text-blue-800", label: "Imagen" };
+  if (t.includes("doc") || t.includes("word"))
+    return { icon: "📝", bg: "bg-violet-100", text: "text-violet-800", label: "Documento" };
+  if (t.includes("xls") || t.includes("sheet") || t.includes("csv"))
+    return { icon: "📊", bg: "bg-emerald-100", text: "text-emerald-800", label: "Hoja de cálculo" };
+  if (t.includes("zip") || t.includes("rar"))
+    return { icon: "📦", bg: "bg-amber-100", text: "text-amber-800", label: "Archivo" };
+  return { icon: "📎", bg: "bg-slate-100", text: "text-slate-700", label: type || "Archivo" };
+}
+
 export default function ResourceCard({ item, onOpen, onDelete }: Props) {
   const title = item.title || item.file_name || "Documento";
-  const fileType = item.type || "archivo";
+  const meta = fileTypeMeta(item.type || item.file_name?.split(".").pop());
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-            <span>📎</span>
-            <span>{fileType}</span>
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:shadow-md hover:border-slate-300">
+      <div className="flex items-start justify-between gap-3 p-4">
+        <div className="min-w-0 flex-1 flex items-start gap-3">
+          {/* D1 — Semantic file type icon */}
+          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg ${meta.bg}`}>
+            {meta.icon}
           </div>
-
-          <h4 className="mt-3 truncate text-base font-semibold text-slate-950">{title}</h4>
-          {item.created_at ? <p className="mt-2 text-sm text-slate-500">{item.created_at}</p> : null}
+          <div className="min-w-0 flex-1">
+            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ${meta.bg} ${meta.text}`}>
+              {meta.label}
+            </span>
+            <h4 className="mt-1.5 truncate text-sm font-semibold text-slate-950">{title}</h4>
+            {item.created_at ? <p className="mt-0.5 text-xs text-slate-400">{item.created_at}</p> : null}
+          </div>
         </div>
       </div>
 
