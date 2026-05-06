@@ -199,9 +199,35 @@ export default function TripExpensesView({
     <div className="min-w-0 max-w-full space-y-6 overflow-x-hidden">
 
       {/* Tab switcher */}
-      <div className="inline-flex overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <button type="button" onClick={() => setActiveTab("list")} className={`inline-flex min-h-[40px] items-center gap-2 px-4 text-sm font-extrabold transition ${activeTab === "list" ? "bg-violet-600 text-white" : "text-slate-700 hover:bg-slate-50"}`}>Lista</button>
-        <button type="button" onClick={() => setActiveTab("charts")} className={`inline-flex min-h-[40px] items-center gap-2 px-4 text-sm font-extrabold transition ${activeTab === "charts" ? "bg-violet-600 text-white" : "text-slate-700 hover:bg-slate-50"}`}>📊 Estadísticas</button>
+      {/* G5 — Pill toggle */}
+      <div className="inline-flex rounded-xl bg-slate-100 p-1 gap-1">
+        <button
+          type="button"
+          onClick={() => setActiveTab("list")}
+          className={`inline-flex min-h-[34px] items-center gap-1.5 rounded-lg px-4 text-sm font-semibold transition ${
+            activeTab === "list"
+              ? "bg-white text-slate-900 shadow-sm"
+              : "text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          Lista
+          {activeTab === "list" && expenses.length > 0 && (
+            <span className="rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold text-violet-700">
+              {expenses.length}
+            </span>
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("charts")}
+          className={`inline-flex min-h-[34px] items-center gap-1.5 rounded-lg px-4 text-sm font-semibold transition ${
+            activeTab === "charts"
+              ? "bg-white text-slate-900 shadow-sm"
+              : "text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          📊 Estadísticas
+        </button>
       </div>
 
       {activeTab === "charts" ? (

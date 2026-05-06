@@ -5,10 +5,10 @@ import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
 
 /**
- * Fix 2 — Drag handle rediseñado:
- * - Desaparece el punto duplicado de la timeline (quitado en TripPlanView)
- * - Handle visible en la esquina superior izquierda de la tarjeta,
- *   fuera del contenido, con zona de toque amplia y feedback visual claro.
+ * Drag handle:
+ * - Móvil: siempre visible (touch devices no tienen hover)
+ * - Desktop: aparece en hover del grupo
+ * - Posición: barra flotante a la izquierda fuera de la tarjeta
  */
 export function SortableRow({
   id,
@@ -31,27 +31,29 @@ export function SortableRow({
   return (
     <div
       ref={setNodeRef}
-      style={{
-        transform: CSS.Transform.toString(transform),
-        transition,
-      }}
-      className={`group relative transition-opacity ${isDragging ? "opacity-40 z-50" : "opacity-100"}`}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={`group relative ${isDragging ? "opacity-40 z-50" : ""}`}
     >
-      {/* Drag handle — barra vertical a la izquierda, visible en hover */}
+      {/* Drag handle
+          - md:opacity-0 md:group-hover:opacity-100  → invisible en desktop, aparece en hover
+          - opacity-100 md:opacity-0                 → siempre visible en móvil (<md)
+      */}
       <div
         {...attributes}
         {...listeners}
-        className={`
-          absolute -left-1 top-1/2 -translate-y-1/2 z-20
-          flex h-10 w-5 cursor-grab active:cursor-grabbing
+        className="
+          absolute -left-2 top-1/2 -translate-y-1/2 z-20
+          flex h-10 w-6
+          cursor-grab active:cursor-grabbing
           items-center justify-center
           rounded-lg
-          opacity-0 group-hover:opacity-100
-          transition-opacity duration-150
-          touch-none select-none
           bg-white border border-slate-200 shadow-sm
-          hover:border-slate-300 hover:shadow-md
-        `}
+          hover:border-slate-300 hover:shadow
+          touch-none select-none
+          opacity-100
+          md:opacity-0 md:group-hover:opacity-100
+          transition-opacity duration-150
+        "
         title="Arrastrar para reordenar"
         aria-label="Arrastrar para reordenar"
       >

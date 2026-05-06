@@ -307,8 +307,9 @@ export default function TripSummaryOverview({
           ) : weatherHint === "unavailable" ? (
             <p className="text-sm text-slate-500">No se pudo obtener la previsión. Revisa que el destino sea reconocible.</p>
           ) : weather && weather.days.length ? (
-            <div className="space-y-4">
+            <div className="space-y-3">
               <p className="text-xs font-semibold text-slate-500">{weather.locationLabel}</p>
+
               {/* Today highlight */}
               {(() => {
                 const todayW = weather.days.find((d) => d.date === today);
@@ -317,7 +318,7 @@ export default function TripSummaryOverview({
                 return (
                   <div className="flex items-center gap-4 rounded-2xl bg-white border border-slate-200 px-4 py-3 shadow-sm">
                     <span className="text-4xl">{vis.emoji}</span>
-                    <div>
+                    <div className="flex-1 min-w-0">
                       <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">Hoy</p>
                       <p className="text-2xl font-extrabold text-slate-900 tabular-nums leading-tight">
                         {todayW.tempMax != null ? `${Math.round(todayW.tempMax)}°` : "—"}
@@ -327,27 +328,71 @@ export default function TripSummaryOverview({
                       </p>
                       <p className="text-xs text-slate-500 mt-0.5">{vis.label}</p>
                     </div>
+                    {/* Today rain */}
+                    {(todayW as any).precipProb != null && (
+                      <div className="text-right shrink-0">
+                        <p className="text-lg font-extrabold text-sky-600 tabular-nums">{(todayW as any).precipProb}%</p>
+                        <p className="text-[10px] text-slate-400 leading-none mt-0.5">lluvia</p>
+                        {(todayW as any).precipMm != null && (todayW as any).precipMm > 0 && (
+                          <p className="text-[10px] font-semibold text-sky-500">{(todayW as any).precipMm} mm</p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })()}
-              {/* Rest of week */}
-              <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-                {weather.days.filter((d) => d.date !== today).slice(0, 5).map((day) => {
-                  const vis = wmoWeatherVisual(day.code);
-                  return (
-                    <div key={day.date} className="min-w-[80px] shrink-0 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-center shadow-sm">
-                      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{formatShortWeekday(day.date)}</p>
-                      <p className="mt-1 text-xl">{vis.emoji}</p>
-                      <p className="mt-1.5 text-xs font-extrabold text-slate-800 tabular-nums">
-                        {day.tempMax != null && day.tempMin != null
-                          ? `${Math.round(day.tempMax)}° / ${Math.round(day.tempMin)}°`
-                          : "—"}
-                      </p>
-                    </div>
-                  );
-                })}
+
+              {/* All days — horizontal scroll with precipitation */}
+              <div className="overflow-x-auto pb-2 -mx-1 px-1" style={{ scrollSnapType: "x mandatory" }}>
+                <div className="flex gap-2" style={{ width: "max-content" }}>
+                  {weather.days.map((day) => {
+                    const vis = wmoWeatherVisual(day.code);
+                    const isToday = day.date === today;
+                    const prob = (day as any).precipProb as number | null;
+                    const mm = (day as any).precipMm as number | null;
+                    const hasRain = prob != null && prob > 20;
+                    return (
+                      <div
+                        key={day.date}
+                        style={{ scrollSnapAlign: "start" }}
+                        className={`w-[84px] shrink-0 rounded-2xl border px-2.5 py-3 text-center shadow-sm transition-all ${
+                          isToday
+                            ? "border-violet-300 bg-violet-50 ring-1 ring-violet-200"
+                            : "border-slate-200 bg-white"
+                        }`}
+                      >
+                        <p className={`text-[10px] font-bold uppercase tracking-wide ${isToday ? "text-violet-600" : "text-slate-400"}`}>
+                          {isToday ? "HOY" : formatShortWeekday(day.date)}
+                        </p>
+                        <p className="mt-1.5 text-2xl leading-none">{vis.emoji}</p>
+                        <p className="mt-2 text-xs font-extrabold text-slate-900 tabular-nums leading-tight">
+                          {day.tempMax != null ? `${Math.round(day.tempMax)}°` : "—"}
+                        </p>
+                        <p className="text-[10px] text-slate-400 tabular-nums">
+                          {day.tempMin != null ? `${Math.round(day.tempMin)}°` : "—"}
+                        </p>
+                        {/* Precipitation */}
+                        <div className={`mt-2 rounded-lg px-1.5 py-1 ${hasRain ? "bg-sky-50" : "bg-transparent"}`}>
+                          {prob != null ? (
+                            <>
+                              <p className={`text-[11px] font-extrabold tabular-nums ${hasRain ? "text-sky-600" : "text-slate-300"}`}>
+                                💧{prob}%
+                              </p>
+                              {mm != null && mm > 0 && (
+                                <p className="text-[9px] text-sky-400 tabular-nums">{mm}mm</p>
+                              )}
+                            </>
+                          ) : (
+                            <p className="text-[10px] text-slate-200">—</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-              <p className="text-[10px] text-slate-400">Datos: Open-Meteo · orientativo</p>
+
+              <p className="text-[10px] text-slate-400">Open-Meteo · 14 días · orientativo</p>
             </div>
           ) : (
             <p className="text-sm text-slate-500">Sin datos de previsión.</p>
