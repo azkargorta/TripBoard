@@ -456,46 +456,39 @@ export default function ExpenseBalancePanel({
         ) : (
           {/* G4 — Balance cards: green = creditor, red = debtor */}
           <div className="mt-4 grid gap-3">
-            {balances.map((row) => {
-              const isCredit = row.balance >= 0;
-              return (
-                <div
-                  key={row.person}
-                  className={`overflow-hidden rounded-2xl border shadow-sm ${
-                    isCredit ? "border-emerald-200 bg-white" : "border-rose-200 bg-white"
-                  }`}
-                >
-                  {/* Color stripe + header */}
-                  <div className={`flex items-center justify-between gap-3 px-4 py-3 ${isCredit ? "bg-emerald-50" : "bg-rose-50"}`}>
-                    <div className="flex items-center gap-2.5">
-                      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-xs font-extrabold ${isCredit ? "bg-emerald-200 text-emerald-900" : "bg-rose-200 text-rose-900"}`}>
-                        {row.person.slice(0, 2).toUpperCase()}
-                      </div>
-                      <span className="font-semibold text-slate-900 text-sm">{row.person}</span>
+            {balances.map((row) => (
+              <div
+                key={row.person}
+                className={`overflow-hidden rounded-2xl border shadow-sm ${row.balance >= 0 ? "border-emerald-200 bg-white" : "border-rose-200 bg-white"}`}
+              >
+                <div className={`flex items-center justify-between gap-3 px-4 py-3 ${row.balance >= 0 ? "bg-emerald-50" : "bg-rose-50"}`}>
+                  <div className="flex items-center gap-2.5">
+                    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-xs font-extrabold ${row.balance >= 0 ? "bg-emerald-200 text-emerald-900" : "bg-rose-200 text-rose-900"}`}>
+                      {row.person.slice(0, 2).toUpperCase()}
                     </div>
-                    <div className="text-right">
-                      <div className={`text-lg font-extrabold tabular-nums ${isCredit ? "text-emerald-700" : "text-rose-700"}`}>
-                        {isCredit ? "+" : "-"}{formatMoney(Math.abs(row.balance), displayCurrency)}
-                      </div>
-                      <div className={`text-[10px] font-bold uppercase tracking-wide ${isCredit ? "text-emerald-600" : "text-rose-600"}`}>
-                        {isCredit ? "Le deben" : "Debe"}
-                      </div>
-                    </div>
+                    <span className="font-semibold text-slate-900 text-sm">{row.person}</span>
                   </div>
-                  {/* Paid / owed detail */}
-                  <div className="grid grid-cols-2 divide-x divide-slate-100 border-t border-slate-100">
-                    <div className="px-3 py-2.5">
-                      <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Ha pagado</div>
-                      <div className="mt-0.5 text-sm font-bold text-slate-800 tabular-nums">{formatMoney(row.paid, displayCurrency)}</div>
+                  <div className="text-right">
+                    <div className={`text-lg font-extrabold tabular-nums ${row.balance >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+                      {row.balance >= 0 ? "+" : "-"}{formatMoney(Math.abs(row.balance), displayCurrency)}
                     </div>
-                    <div className="px-3 py-2.5">
-                      <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Le corresponde</div>
-                      <div className="mt-0.5 text-sm font-bold text-slate-800 tabular-nums">{formatMoney(row.owed, displayCurrency)}</div>
+                    <div className={`text-[10px] font-bold uppercase tracking-wide ${row.balance >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                      {row.balance >= 0 ? "Le deben" : "Debe"}
                     </div>
                   </div>
                 </div>
-              );
-            })}
+                <div className="grid grid-cols-2 divide-x divide-slate-100 border-t border-slate-100">
+                  <div className="px-3 py-2.5">
+                    <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Ha pagado</div>
+                    <div className="mt-0.5 text-sm font-bold text-slate-800 tabular-nums">{formatMoney(row.paid, displayCurrency)}</div>
+                  </div>
+                  <div className="px-3 py-2.5">
+                    <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Le corresponde</div>
+                    <div className="mt-0.5 text-sm font-bold text-slate-800 tabular-nums">{formatMoney(row.owed, displayCurrency)}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
